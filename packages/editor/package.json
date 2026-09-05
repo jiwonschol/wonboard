@@ -1,0 +1,25 @@
+{
+  "name": "@wonboard/editor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.tsx",
+    "./style.css": "./src/style.css"
+  },
+  "dependencies": {
+    "@wonboard/document": "workspace:*",
+    "@wonboard/locales": "workspace:*",
+    "@tiptap/core": "3.31.3",
+    "@tiptap/react": "3.31.3",
+    "@tiptap/pm": "3.31.3",
+    "@tiptap/starter-kit": "3.31.3",
+    "@tiptap/extension-placeholder": "3.31.3",
+    "@fontsource-variable/manrope": "5.3.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

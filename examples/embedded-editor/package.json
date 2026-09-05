@@ -1,0 +1,11 @@
+{
+  "name": "@wonboard/embedded-example",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "dependencies": {
+    "@wonboard/editor": "workspace:*",
+    "@wonboard/document": "workspace:*"
+  }
+}
