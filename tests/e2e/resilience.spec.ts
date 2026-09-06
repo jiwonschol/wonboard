@@ -1,5 +1,58 @@
 import { test, expect } from "./fixtures";
 
+test("an unsupported newest draft does not trap navigation, creation or backup restore", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("textbox", { name: "Add title" })).toBeVisible();
+  await page.evaluate(async () => {
+    const request = indexedDB.open("wonboard-writer-v1", 1);
+    const db = await new Promise<IDBDatabase>((resolve) => { request.onsuccess = () => resolve(request.result); });
+    const tx = db.transaction("drafts", "readwrite");
+    for (const [id, schemaVersion, date] of [["valid", 1, "2026-01-01"], ["future", 2, "2026-02-01"]] as const) {
+      tx.objectStore("drafts").put({
+        document: { documentId: id, schemaVersion, title: id, revision: 1,
+          locale: "ko", updatedAt: date, media: {}, content: { type: "doc", content: [{ type: "paragraph" }] } },
+        blobs: {},
+      });
+    }
+    await new Promise<void>((resolve) => { tx.oncomplete = () => resolve(); });
+    db.close();
+  });
+  await page.reload();
+  await expect(page.getByText("Read only", { exact: true })).toBeVisible();
+  const chooseFuture = async () => {
+    if (!(await page.locator(".writing-library").isVisible()))
+      await page.getByRole("button", { name: "Documents", exact: true }).first().click();
+    await page.locator(".document-list>button").filter({ hasText: "future" }).click();
+    await expect(page.getByText("Read only", { exact: true })).toBeVisible();
+  };
+  if (!(await page.locator(".writing-library").isVisible()))
+    await page.getByRole("button", { name: "Documents", exact: true }).first().click();
+  await page.locator(".document-list>button").filter({ hasText: "valid" }).click();
+  await expect(page.getByRole("textbox", { name: "Add title" })).toHaveValue("valid");
+  await page.getByRole("button", { name: "Options", exact: true }).click();
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download backup (.zip)", exact: true }).click();
+  const path = (await (await downloaded).path())!;
+  await page.getByRole("dialog", { name: "Options" }).getByRole("button", { name: "Close", exact: true }).click();
+  await chooseFuture();
+  await page.getByRole("button", { name: "New document", exact: true }).first().click();
+  await page.getByRole("textbox", { name: "Add title" }).fill("created document");
+  await expect(page.getByRole("status").last()).toHaveText("Saved locally");
+  await chooseFuture();
+  await page.locator('input[accept=".zip,application/zip"]').setInputFiles(path);
+  await expect(page.getByText("Backup restored as a new document.")).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Add title" })).toHaveValue("valid");
+  const version = await page.evaluate(async () => {
+    const request = indexedDB.open("wonboard-writer-v1", 1);
+    const db = await new Promise<IDBDatabase>((resolve) => { request.onsuccess = () => resolve(request.result); });
+    const read = db.transaction("drafts").objectStore("drafts").get("future");
+    const version = await new Promise<number>((resolve) => { read.onsuccess = () => resolve(read.result.document.schemaVersion); });
+    db.close();
+    return version;
+  });
+  expect(version).toBe(2);
+});
+
 test("quota failure never claims saved and leaves an exportable in-memory draft", async ({
   page,
 }) => {

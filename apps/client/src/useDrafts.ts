@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   newDraft,
-  validateDocument,
+  withoutUnusedMedia,
   type Draft,
   type Locale,
   type ContentNode,
@@ -24,14 +24,18 @@ export function useDrafts(locale: Locale) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const running = useRef<Promise<boolean> | null>(null);
   const frozen = useRef(false);
+  const conflicts = useRef(new Map<string, Draft>());
 
   function select(value: Draft) {
     if (timer.current) clearTimeout(timer.current);
-    current.current = value;
+    value = conflicts.current.get(value.document.documentId) ?? value;
+    composing.current = false;
     change.current = 0;
     savedChange.current = value.document.revision > 0 ? 0 : -1;
     try {
-      validateDocument(value.document);
+      value = withoutUnusedMedia(value);
+      if (conflicts.current.has(value.document.documentId))
+        throw new StorageConflict();
       frozen.current = false;
       setReadOnly(false);
       setError("");
@@ -40,13 +44,20 @@ export function useDrafts(locale: Locale) {
       setReadOnly(true);
       setError(e instanceof Error ? e.message : "invalidDocument");
     }
+    current.current = value;
     setDraft(value);
-    setStatus(value.document.revision > 0 ? "saved" : "unsaved");
+    setStatus(
+      conflicts.current.has(value.document.documentId)
+        ? "error"
+        : value.document.revision > 0 ? "saved" : "unsaved",
+    );
   }
   useEffect(() => {
     let active = true;
     let connection: IDBDatabase | null = null;
-    openStorage()
+    openStorage(undefined, () => {
+      if (active) setError("storageBlocked");
+    })
       .then(async (value) => {
         connection = value;
         if (!active) {
@@ -118,6 +129,14 @@ export function useDrafts(locale: Locale) {
       })
       .catch((e) => {
         if (e instanceof StorageConflict) {
+          const unsaved = current.current!;
+          conflicts.current.set(unsaved.document.documentId, unsaved);
+          setList((items) => [
+            unsaved,
+            ...items.filter(
+              (d) => d.document.documentId !== unsaved.document.documentId,
+            ),
+          ]);
           frozen.current = true;
           setReadOnly(true);
           setError("storageConflict");
@@ -164,7 +183,7 @@ export function useDrafts(locale: Locale) {
   }
   useEffect(() => {
     const before = (e: BeforeUnloadEvent) => {
-      if (change.current !== savedChange.current) {
+      if (change.current !== savedChange.current || conflicts.current.size > 0) {
         e.preventDefault();
         e.returnValue = "";
       }
@@ -173,7 +192,7 @@ export function useDrafts(locale: Locale) {
     return () => window.removeEventListener("beforeunload", before);
   }, []);
   async function activate(value: Draft) {
-    if (!(await save())) return false;
+    if (!frozen.current && !(await save())) return false;
     select(value);
     return true;
   }

@@ -7,6 +7,7 @@ import {
   characterCount,
   attachmentNodes,
   plainText,
+  limits,
   type Locale,
 } from "@wonboard/document";
 import { translator, en, type MessageKey } from "@wonboard/locales";
@@ -134,9 +135,17 @@ export default function App({
     setBusy(true);
     setNotice("busyImages");
     try {
+      const retained = Object.keys(snapshot.document.media).length;
+      const used = new Set(
+        attachmentNodes(snapshot.document.content)
+          .filter((node) => node.type === "media")
+          .map((node) => node.attrs?.mediaId),
+      ).size;
+      if (retained + files.length > limits.images && used + files.length <= limits.images)
+        throw new Error("imageHistoryLimit");
       const imported = await importImages(
         files,
-        Object.keys(snapshot.document.media).length,
+        retained,
       );
       const media = { ...snapshot.document.media };
       const blobs = { ...snapshot.blobs };

@@ -11,6 +11,7 @@ import {
   importBackup,
   imageMime,
   sha256,
+  limits,
   type ContentNode,
 } from "@wonboard/document";
 import { en, ko, translator } from "@wonboard/locales";
@@ -179,6 +180,20 @@ describe("document contract", () => {
   });
 });
 describe("backup boundary", () => {
+  it("includes ZIP container overhead in the export limit and restores at the exact limit", async () => {
+    const draft = newDraft();
+    const archive = await exportBackup(draft);
+    const originalLimit = limits.archiveBytes;
+    try {
+      limits.archiveBytes = archive.size - 1;
+      expect(strToU8(JSON.stringify(draft.document)).length).toBeLessThan(limits.archiveBytes);
+      await expect(exportBackup(draft)).rejects.toThrow("archiveLimit");
+      limits.archiveBytes = archive.size;
+      expect((await importBackup(await exportBackup(draft))).document).toEqual(draft.document);
+    } finally {
+      limits.archiveBytes = originalLimit;
+    }
+  });
   const zipBlob = (files: Record<string, Uint8Array>) =>
     new Blob([zipSync(files) as Uint8Array<ArrayBuffer>]);
   it.each(["../secret", "/document.json", "media/../../outside", "extra.json"])(
@@ -211,6 +226,7 @@ describe("backup boundary", () => {
       size: 1,
       sha256: "a".repeat(64),
     };
+    d.document.content.content!.push({ type: "media", attrs: { mediaId: "x" } });
     await expect(exportBackup(d)).rejects.toThrow("missingMedia");
   });
 });

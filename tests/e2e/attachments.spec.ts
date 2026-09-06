@@ -1,5 +1,39 @@
 import { test, expect } from "./fixtures";
 
+test("deleted images remain undoable but do not exhaust the limit after reopening", async ({ page }) => {
+  await page.goto("/");
+  const input = page.locator('input[type=file][accept="image/png,image/jpeg"]');
+  const buffer = await page.screenshot({
+    clip: { x: 0, y: 0, width: 40, height: 40 },
+    scale: "css",
+  });
+  await input.setInputFiles(Array.from({ length: 100 }, (_, i) => ({
+    name: `undo-${i}.png`, mimeType: "image/png", buffer,
+  })));
+  const images = page.locator(".tiptap .wb-media img");
+  await expect(images).toHaveCount(100);
+  await expect(page.getByRole("status").last()).toHaveText("Saved locally");
+  // Separate the insertion and removal history groups (Tiptap's default is 500ms).
+  await page.waitForTimeout(600);
+  const body = page.getByRole("textbox", { name: "Document body" });
+  await body.press("ControlOrMeta+a");
+  await body.press("Backspace");
+  await expect(images).toHaveCount(0);
+  await expect(page.getByRole("status").last()).toHaveText("Saved locally");
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(images).toHaveCount(100);
+  await expect.poll(() => images.first().evaluate((img) => (img as HTMLImageElement).naturalWidth)).toBe(40);
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await expect(images).toHaveCount(0);
+  await expect(page.getByRole("status").last()).toHaveText("Saved locally");
+  await input.setInputFiles({ name: "new.png", mimeType: "image/png", buffer });
+  await expect(page.getByText("Deleted images are still kept for undo.", { exact: false })).toBeVisible();
+  await page.reload();
+  await input.setInputFiles({ name: "new.png", mimeType: "image/png", buffer });
+  await expect(images).toHaveCount(1);
+  await expect(page.getByRole("status").last()).toHaveText("Saved locally");
+});
+
 test("948px laptop keeps the document between two non-overlapping sidebars", async ({
   page,
 }) => {

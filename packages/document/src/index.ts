@@ -1,4 +1,4 @@
-import { isVideo } from "./attachments";
+import { isVideo, attachmentNodes } from "./attachments";
 export * from "./attachments";
 export type Locale = "ko" | "en";
 export type Mark = { type: string; attrs?: Record<string, unknown> };
@@ -31,6 +31,7 @@ export type WriterDocument = {
 };
 export type Draft = { document: WriterDocument; blobs: Record<string, Blob> };
 export const limits = {
+  title: 10000,
   imageBytes: 20 * 1024 * 1024,
   pixels: 40_000_000,
   images: 100,
@@ -141,7 +142,9 @@ export function validateDocument(
   requireThat(
     Number.isSafeInteger(value.revision) && Number(value.revision) >= 0,
   );
-  requireThat(typeof value.title === "string" && value.title.length <= 10000);
+  requireThat(
+    typeof value.title === "string" && value.title.length <= limits.title,
+  );
   requireThat(value.locale === "ko" || value.locale === "en");
   requireThat(
     value.autoRenameAttachments === undefined ||
@@ -355,5 +358,25 @@ export function imageMime(bytes: Uint8Array): Media["mime"] {
   if (bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255)
     return "image/jpeg";
   throw new DocumentError("invalidImage");
+}
+/** Snapshot without session-only undo media. Never mutate the live draft. */
+export function withoutUnusedMedia(draft: Draft): Draft {
+  validateDocument(draft.document);
+  const used = new Set(
+    attachmentNodes(draft.document.content)
+      .filter((node) => node.type === "media")
+      .map((node) => String(node.attrs?.mediaId)),
+  );
+  return {
+    document: {
+      ...draft.document,
+      media: Object.fromEntries(
+        Object.entries(draft.document.media).filter(([id]) => used.has(id)),
+      ),
+    },
+    blobs: Object.fromEntries(
+      Object.entries(draft.blobs).filter(([id]) => used.has(id)),
+    ),
+  };
 }
 export { exportBackup, importBackup } from "./backup";

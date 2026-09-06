@@ -4,13 +4,14 @@ import {
   limits,
   sha256,
   validateDocument,
+  withoutUnusedMedia,
   imageMime,
   type Draft,
   type WriterDocument,
 } from "./index";
 
 export async function exportBackup(draft: Draft): Promise<Blob> {
-  validateDocument(draft.document);
+  draft = withoutUnusedMedia(draft);
   const files: Record<string, Uint8Array> = {
     "document.json": strToU8(JSON.stringify(draft.document)),
   };
@@ -31,6 +32,8 @@ export async function exportBackup(draft: Draft): Promise<Blob> {
       error ? reject(error) : resolve(result as Uint8Array<ArrayBuffer>),
     ),
   );
+  if (data.byteLength > limits.archiveBytes)
+    throw new DocumentError("archiveLimit");
   return new Blob([data], { type: "application/zip" });
 }
 

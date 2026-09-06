@@ -1,11 +1,14 @@
-import { validateDocument, type Draft } from "@wonboard/document";
+import { withoutUnusedMedia, type Draft } from "@wonboard/document";
 
 export class StorageConflict extends Error {
   constructor() {
     super("storageConflict");
   }
 }
-export function openStorage(name = "wonboard-writer-v1"): Promise<IDBDatabase> {
+export function openStorage(
+  name = "wonboard-writer-v1",
+  onBlocked?: () => void,
+): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(name, 1);
     request.onupgradeneeded = () =>
@@ -17,7 +20,8 @@ export function openStorage(name = "wonboard-writer-v1"): Promise<IDBDatabase> {
       resolve(request.result);
     };
     request.onerror = () => reject(request.error);
-    request.onblocked = () => reject(new Error("storageBlocked"));
+    // The request is still live; closing the blocking tab lets it succeed.
+    request.onblocked = () => onBlocked?.();
   });
 }
 export function loadDrafts(db: IDBDatabase): Promise<Draft[]> {
@@ -56,7 +60,9 @@ export async function saveDraft(
   draft: Draft,
   expectedRevision: number,
 ): Promise<Draft> {
-  validateDocument(draft.document);
+  // Undo history is session-only. Persist only images used by this snapshot,
+  // leaving the live draft's originals intact for undo/redo.
+  draft = withoutUnusedMedia(draft);
   for (const media of Object.values(draft.document.media)) {
     if (
       !(draft.blobs[media.id] instanceof Blob) ||

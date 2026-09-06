@@ -7,6 +7,7 @@ import {
   blockStyle,
   isComposingKey,
   safeLink,
+  limits,
   type ContentNode,
   type Locale,
 } from "@wonboard/document";
@@ -296,6 +297,7 @@ export function WonboardEditor(props: WonboardEditorProps) {
               ref={title}
               className="document-title"
               rows={1}
+              maxLength={limits.title}
               aria-label={t("addTitle")}
               placeholder={t("addTitle")}
               defaultValue={props.title}

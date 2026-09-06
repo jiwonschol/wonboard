@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { newDraft } from "@wonboard/document";
 import {
   openStorage,
@@ -8,6 +8,25 @@ import {
 } from "../../apps/client/src/storage";
 
 describe("atomic browser draft storage", () => {
+  it("keeps a blocked open pending and resolves when the request succeeds", async () => {
+    const request = indexedDB.open(crypto.randomUUID(), 1);
+    const spy = vi.spyOn(indexedDB, "open").mockReturnValue(request);
+    const blocked = vi.fn();
+    try {
+      const opening = openStorage("blocked-test", blocked);
+      let settled = false;
+      void opening.then(() => { settled = true; }, () => { settled = true; });
+      request.onblocked!(new IDBVersionChangeEvent("blocked"));
+      await Promise.resolve();
+      expect(blocked).toHaveBeenCalledOnce();
+      expect(settled).toBe(false);
+      const db = await opening;
+      expect(db.objectStoreNames.contains("drafts")).toBe(true);
+      db.close();
+    } finally {
+      spy.mockRestore();
+    }
+  });
   it("stores binary originals as ArrayBuffers and reconstructs typed Blobs", async () => {
     const db = await openStorage(crypto.randomUUID());
     const draft = newDraft();
@@ -23,6 +42,7 @@ describe("atomic browser draft storage", () => {
     draft.blobs.photo = new Blob([new Uint8Array([1, 2, 3])], {
       type: "image/png",
     });
+    draft.document.content.content!.push({ type: "media", attrs: { mediaId: "photo" } });
     await saveDraft(db, draft, 0);
     const raw = await new Promise<any>((resolve, reject) => {
       const request = db
@@ -85,6 +105,7 @@ describe("atomic browser draft storage", () => {
       ...original,
       document: {
         ...original.document,
+        content: { type: "doc", content: [{ type: "media", attrs: { mediaId: "x" } }] },
         media: {
           x: {
             id: "x",
@@ -100,6 +121,26 @@ describe("atomic browser draft storage", () => {
     };
     await expect(saveDraft(db, draft, 1)).rejects.toThrow("missingMedia");
     expect((await loadDrafts(db))[0]).toEqual(original);
+    db.close();
+  });
+  it("omits deleted media from saved snapshots but keeps the live originals for undo", async () => {
+    const db = await openStorage(crypto.randomUUID());
+    const draft = newDraft();
+    const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    const { sha256, exportBackup, importBackup } = await import("@wonboard/document");
+    draft.document.media.photo = {
+      id: "photo", originalName: "undo.png", mime: "image/png",
+      width: 1, height: 1, size: bytes.length, sha256: await sha256(bytes.buffer),
+    };
+    draft.blobs.photo = new Blob([bytes], { type: "image/png" });
+    const saved = await saveDraft(db, draft, 0);
+    expect(saved.document.media).toEqual({});
+    expect((await loadDrafts(db))[0].blobs).toEqual({});
+    expect((await importBackup(await exportBackup(draft))).document.media).toEqual({});
+    expect(draft.blobs.photo.size).toBe(bytes.length);
+    draft.document.content.content!.push({ type: "media", attrs: { mediaId: "photo" } });
+    await saveDraft(db, draft, saved.document.revision);
+    expect((await loadDrafts(db))[0].blobs.photo.size).toBe(bytes.length);
     db.close();
   });
 });

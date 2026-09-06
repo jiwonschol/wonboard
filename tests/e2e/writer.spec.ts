@@ -1,5 +1,23 @@
 import { test, expect } from "./fixtures";
 
+test("title input stops at the document limit and remains saveable and restorable", async ({ page }) => {
+  await page.goto("/");
+  const title = page.getByRole("textbox", { name: "Add title" });
+  await expect(title).toHaveAttribute("maxlength", "10000");
+  const longTitle = "한글 English ".repeat(1000);
+  await title.fill(longTitle);
+  await expect(title).toHaveValue(longTitle.slice(0, 10000));
+  await expect(page.getByRole("status").last()).toHaveText("Saved locally");
+  await page.reload();
+  await expect(title).toHaveValue(longTitle.slice(0, 10000));
+  await page.getByRole("button", { name: "Options", exact: true }).click();
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download backup (.zip)", exact: true }).click();
+  await page.locator('input[accept=".zip,application/zip"]').setInputFiles((await (await downloaded).path())!);
+  await expect(page.getByText("Backup restored as a new document.")).toBeVisible();
+  await expect(title).toHaveValue(longTitle.slice(0, 10000));
+});
+
 test("writes Korean, preserves blank paragraphs, changes UI language and restores after reload", async ({
   page,
 }) => {
@@ -102,7 +120,19 @@ test("blocks stale tab writes, keeping the first document intact", async ({
   await expect(page.getByRole("status").last()).toHaveText("Saved locally");
   await other.getByRole("textbox", { name: "Add title" }).fill("stale tab");
   await expect(other.getByRole("alert")).toContainText("Another tab changed");
+  await other.getByRole("button", { name: "New document", exact: true }).first().click();
+  await other.getByRole("textbox", { name: "Add title" }).fill("다른 문서");
+  await expect(other.getByRole("status").last()).toHaveText("Saved locally");
+  await other.getByRole("button", { name: "Documents", exact: true }).first().click();
+  await other.locator(".document-list>button").filter({ hasText: "stale tab" }).click();
+  await expect(other.getByRole("alert")).toContainText("Another tab changed");
+  // Switching away must keep the unsaved conflicting copy available for recovery.
+  const download = other.waitForEvent("download");
+  await other.locator(".unsupported").getByRole("button", { name: "Download backup (.zip)" }).click();
+  expect((await download).suggestedFilename()).toMatch(/\.zip$/);
   await page.reload();
+  await page.getByRole("button", { name: "Documents", exact: true }).first().click();
+  await page.locator(".document-list>button").filter({ hasText: "first tab" }).click();
   await expect(page.getByRole("textbox", { name: "Add title" })).toHaveValue(
     "first tab",
   );
