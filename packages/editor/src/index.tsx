@@ -9,6 +9,7 @@ import {
   isComposingKey,
   safeLink,
   limits,
+  markAttrsFitDocument,
   type ContentNode,
   type Locale,
   type Media,
@@ -117,9 +118,14 @@ export const allowsTextChange = (next: MeasurableDoc, previous: MeasurableDoc) =
   textOf(next) <= limits.text || textOf(next) <= textOf(previous);
 type TraversableDoc = MeasurableDoc & {
   descendants(
-    visit: (node: { type: { name: string }; attrs: Record<string, unknown> }) =>
-      | boolean
-      | void,
+    visit: (node: {
+      type: { name: string };
+      attrs: Record<string, unknown>;
+      marks?: readonly {
+        type: { name: string };
+        attrs: Record<string, unknown>;
+      }[];
+    }) => boolean | void,
   ): void;
 };
 type StructuralNode = {
@@ -152,6 +158,20 @@ export const hasValidOrderedListStarts = (doc: TraversableDoc) => {
   });
   return valid;
 };
+export const hasValidMarkAttributes = (doc: TraversableDoc) => {
+  let valid = true;
+  doc.descendants((node) => {
+    if (
+      node.marks?.some(
+        (mark) => !markAttrsFitDocument(mark.type.name, mark.attrs),
+      )
+    ) {
+      valid = false;
+      return false;
+    }
+  });
+  return valid;
+};
 export const DocumentLimits = Extension.create({
   name: "wonboardTextLimit",
   addProseMirrorPlugins() {
@@ -161,6 +181,7 @@ export const DocumentLimits = Extension.create({
           !transaction.docChanged ||
           (allowsTextChange(transaction.doc, state.doc) &&
             hasValidOrderedListStarts(transaction.doc) &&
+            hasValidMarkAttributes(transaction.doc) &&
             hasValidDocumentStructure(transaction.doc)),
       }),
     ];

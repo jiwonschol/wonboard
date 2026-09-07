@@ -130,6 +130,28 @@ export function safeLink(value: unknown): value is string {
     return false;
   }
 }
+const currentMarks = new Set([
+  "bold",
+  "italic",
+  "underline",
+  "strike",
+  "code",
+  "link",
+]);
+const linkAttrs = new Set(["href", "target", "rel", "class", "title"]);
+export function markAttrsFitDocument(type: unknown, attrs: unknown): boolean {
+  if (typeof type !== "string" || !currentMarks.has(type)) return false;
+  if (type !== "link")
+    return attrs === undefined || (isObject(attrs) && !Object.keys(attrs).length);
+  if (!isObject(attrs) || !safeLink(attrs.href)) return false;
+  return Object.entries(attrs).every(
+    ([key, value]) =>
+      linkAttrs.has(key) &&
+      (key === "href" ||
+        value === null ||
+        (typeof value === "string" && value.length <= limits.attributeText)),
+  );
+}
 const blockNodes = new Set([
   "paragraph",
   "heading",
@@ -226,6 +248,9 @@ export function validateDocument(
         depth < 40 &&
         ++nodeCount < 100_000,
     );
+    for (const key of Object.keys(n))
+      if (!["type", "text", "attrs", "marks", "content"].includes(key))
+        throw new DocumentError("futureDocument");
     const type = n.type;
     const allowed =
       parent === ""
@@ -298,28 +323,11 @@ export function validateDocument(
       );
       for (const mark of n.marks) {
         requireThat(isObject(mark));
-        if (
-          !["bold", "italic", "underline", "strike", "code", "link"].includes(
-            String(mark.type),
-          )
-        )
-          throw new DocumentError("futureDocument");
-        if (mark.type === "link") {
-          requireThat(isObject(mark.attrs) && safeLink(mark.attrs.href));
-          for (const [key, value] of Object.entries(mark.attrs)) {
-            if (!["href", "target", "rel", "class", "title"].includes(key))
-              throw new DocumentError("futureDocument");
-            if (key !== "href" && value !== null)
-              requireThat(
-                typeof value === "string" &&
-                  value.length <= limits.attributeText,
-              );
-          }
-        } else if (mark.attrs !== undefined) {
-          requireThat(isObject(mark.attrs));
-          if (Object.keys(mark.attrs).length)
+        for (const key of Object.keys(mark))
+          if (!["type", "attrs"].includes(key))
             throw new DocumentError("futureDocument");
-        }
+        if (!markAttrsFitDocument(mark.type, mark.attrs))
+          throw new DocumentError("futureDocument");
       }
     }
     if (n.content !== undefined) {
@@ -351,10 +359,14 @@ export function plainText(node: ContentNode): string {
         : "",
     );
 }
-export const characterCount = (text: string, locale: Locale) =>
-  Array.from(
-    new Intl.Segmenter(locale, { granularity: "grapheme" }).segment(text),
-  ).length;
+export const characterCount = (text: string, locale: Locale) => {
+  let count = 0;
+  for (const _segment of new Intl.Segmenter(locale, {
+    granularity: "grapheme",
+  }).segment(text))
+    count++;
+  return count;
+};
 export function matchesQuery(
   text: string,
   query: string,

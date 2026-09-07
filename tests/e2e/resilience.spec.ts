@@ -98,6 +98,12 @@ test("a storage version change freezes editing with reload guidance", async ({ p
   await expect(
     page.getByRole("button", { name: "keep this text · Post" }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "New document", exact: true }).first().click();
+  await expect(page.getByText("Read only", { exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Add title" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "keep this text · Post" }),
+  ).toBeVisible();
 });
 
 test("quota failure never claims saved and leaves an exportable in-memory draft", async ({

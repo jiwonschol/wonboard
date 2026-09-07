@@ -22,6 +22,7 @@ import {
   DocumentLimits,
   Formatting,
   hasValidDocumentStructure,
+  hasValidMarkAttributes,
   hasValidOrderedListStarts,
 } from "../../packages/editor/src/index";
 import { capAttributeText } from "../../packages/editor/src/Inspector";
@@ -215,6 +216,62 @@ describe("편집기 구조도 문서 계약을 넘지 않는다", () => {
       filter(
         { docChanged: true, doc: measurable(nested(40)) },
         { doc: measurable(nested(1)) },
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("붙여넣은 mark 속성도 문서 계약을 지킨다", () => {
+  const marked = (attrs: Record<string, unknown>) => ({
+    content: { size: 1 },
+    textContent: "x",
+    childCount: 0,
+    child: () => { throw new Error("no child"); },
+    descendants: (
+      visit: (node: {
+        type: { name: string };
+        attrs: Record<string, unknown>;
+        marks: { type: { name: string }; attrs: Record<string, unknown> }[];
+      }) => boolean | void,
+    ) =>
+      visit({
+        type: { name: "text" },
+        attrs: {},
+        marks: [{ type: { name: "link" }, attrs }],
+      }),
+  });
+  it("현재 link 속성은 받고 긴 속성과 미래 속성은 거부한다", () => {
+    expect(hasValidMarkAttributes(marked({ href: "https://example.com" }))).toBe(true);
+    expect(
+      hasValidMarkAttributes(
+        marked({ href: "https://example.com", rel: "x".repeat(limits.attributeText + 1) }),
+      ),
+    ).toBe(false);
+    expect(
+      hasValidMarkAttributes(marked({ href: "https://example.com", future: "keep" })),
+    ).toBe(false);
+  });
+  it("transaction filter가 잘못된 mark 속성을 거부한다", () => {
+    const plugins = (
+      DocumentLimits.config.addProseMirrorPlugins as () => {
+        spec: {
+          filterTransaction?: (
+            transaction: { docChanged: boolean; doc: ReturnType<typeof marked> },
+            state: { doc: ReturnType<typeof marked> },
+          ) => boolean;
+        };
+      }[]
+    )();
+    expect(
+      plugins[0]!.spec.filterTransaction!(
+        {
+          docChanged: true,
+          doc: marked({
+            href: "https://example.com",
+            rel: "x".repeat(limits.attributeText + 1),
+          }),
+        },
+        { doc: marked({ href: "https://example.com" }) },
       ),
     ).toBe(false);
   });

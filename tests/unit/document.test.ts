@@ -162,6 +162,21 @@ describe("document contract", () => {
         }),
       ),
     ).not.toThrow();
+    expect(() =>
+      validateDocument(
+        withMark({ type: "bold", attrs: {}, future: "keep" }),
+      ),
+    ).toThrow("futureDocument");
+  });
+  it("rejects unknown fields on a current node before editing", () => {
+    const draft = newDraft().document;
+    draft.content = {
+      type: "doc",
+      content: [
+        { type: "paragraph", future: { keep: true } } as ContentNode,
+      ],
+    };
+    expect(() => validateDocument(draft)).toThrow("futureDocument");
   });
   it("rejects invalid tree structure, missing images and executable styles", () => {
     const d = newDraft().document;
@@ -177,6 +192,8 @@ describe("document contract", () => {
   it("counts visible characters, not bytes or UTF16 code units", () => {
     expect(characterCount("한글👨‍👩‍👧‍👦é", "ko")).toBe(4);
     expect(characterCount("한", "ko")).toBe(1);
+    expect(characterCount("가".repeat(200_000), "ko")).toBe(200_000);
+    expect(characterCount.toString()).not.toContain("Array.from");
   });
   it("searches NFD/NFC, case and one syllable without modifying source", () => {
     expect(matchesQuery("한글 ABC", "한글 abc", "ko")).toBe(true);
@@ -219,6 +236,29 @@ describe("document contract", () => {
   });
 });
 describe("backup boundary", () => {
+  it("rejects oversized document JSON before inspecting media", async () => {
+    const draft = newDraft();
+    draft.document.media.photo = {
+      id: "photo",
+      originalName: "missing.png",
+      mime: "image/png",
+      width: 1,
+      height: 1,
+      size: 1,
+      sha256: "a".repeat(64),
+    };
+    draft.document.content.content!.push({
+      type: "media",
+      attrs: { mediaId: "photo" },
+    });
+    const originalLimit = limits.archiveBytes;
+    try {
+      limits.archiveBytes = 1;
+      await expect(exportBackup(draft)).rejects.toThrow("archiveLimit");
+    } finally {
+      limits.archiveBytes = originalLimit;
+    }
+  });
   it("includes ZIP container overhead in the export limit and restores at the exact limit", async () => {
     const draft = newDraft();
     const archive = await exportBackup(draft);

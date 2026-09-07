@@ -30,6 +30,7 @@ export function useDrafts(locale: Locale) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const running = useRef<Promise<boolean> | null>(null);
   const frozen = useRef(false);
+  const disconnected = useRef(false);
   const conflicts = useRef(new Map<string, Draft>());
 
   function select(value: Draft) {
@@ -69,6 +70,7 @@ export function useDrafts(locale: Locale) {
       () => {
         if (!active) return;
         db.current = null;
+        disconnected.current = true;
         frozen.current = true;
         setReadOnly(true);
         setStatus("error");
@@ -207,6 +209,7 @@ export function useDrafts(locale: Locale) {
     return () => window.removeEventListener("beforeunload", before);
   }, []);
   async function activate(value: Draft) {
+    if (disconnected.current) return false;
     if (
       !frozen.current &&
       !(await saveUntilCurrent(
