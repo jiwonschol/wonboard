@@ -26,6 +26,19 @@ export function openStorage(
 }
 type StoredDraft = Draft & { blobs: Record<string, Blob | ArrayBuffer> };
 function toDraft(stored: StoredDraft): Draft {
+  // 변환이 던지는 것만 걸러서는 부족하다. `blobs` 가 멀쩡해도 `updatedAt` 이 없거나
+  // 문자열이 아니면 목록을 정렬하는 쪽에서 던져, 결국 같은 자리로 돌아온다 —
+  // 초기화가 빈 초안으로 물러나며 멀쩡한 문서까지 전부 가려진다.
+  const document = stored?.document;
+  if (
+    !document ||
+    typeof document !== "object" ||
+    typeof document.documentId !== "string" ||
+    typeof document.updatedAt !== "string" ||
+    typeof document.media !== "object" ||
+    document.media === null
+  )
+    throw new Error("malformedRecord");
   return {
     document: stored.document,
     blobs: Object.fromEntries(

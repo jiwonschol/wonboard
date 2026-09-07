@@ -3,14 +3,17 @@ import { describe, expect, it } from "vitest";
 import { Readable } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { renderToStaticMarkup } from "react-dom/server";
+import { readFileSync } from "node:fs";
 import {
   exportBackup,
   exportRawBackup,
+  importBackup,
   limits,
+  sha256,
   newDraft,
   type Draft,
 } from "@wonboard/document";
-import { allowsTextChange } from "../../packages/editor/src/index";
+import { allowsTextChange, Formatting } from "../../packages/editor/src/index";
 import { capAttributeText } from "../../packages/editor/src/Inspector";
 import { MediaNode } from "../../packages/editor/src/MediaNode";
 import { VideoNode } from "../../packages/editor/src/VideoNode";
@@ -60,8 +63,13 @@ describe("설명·사진 설명도 문서 한도를 넘지 않는다", () => {
 
 describe("편집기가 자기 표식을 되읽는다", () => {
   type Rule = { tag: string; getAttrs: (element: unknown) => unknown };
-  const rules = (node: { config: { parseHTML?: unknown } }) =>
-    ((node.config.parseHTML as (() => Rule[]) | undefined)?.() ?? []) as Rule[];
+  const rules = (
+    node: { config: { parseHTML?: unknown } },
+    options: Record<string, unknown> = { ownsMedia: () => false },
+  ) =>
+    ((node.config.parseHTML as (() => Rule[]) | undefined)?.call({
+      options,
+    }) ?? []) as Rule[];
   const element = (
     attributes: Record<string, string>,
     caption?: string,
@@ -71,7 +79,7 @@ describe("편집기가 자기 표식을 되읽는다", () => {
   });
 
   it("사진 표식을 속성까지 되살리고 남의 표식은 거부한다", () => {
-    const [rule] = rules(MediaNode);
+    const [rule] = rules(MediaNode, { ownsMedia: () => true });
     expect(rule.tag).toBe("figure[data-wonboard-media]");
     expect(
       rule.getAttrs(
@@ -109,6 +117,25 @@ describe("편집기가 자기 표식을 되읽는다", () => {
         }),
       ),
     ).toMatchObject({ width: 600, align: "left" });
+  });
+  it("이 초안이 들고 있지 않은 사진은 되살리지 않는다", () => {
+    // 다른 초안에서 복사한 사진은 id 모양만 맞고 원본도 메타도 없다. 그대로 받으면
+    // 깨진 노드가 생겨 이후 저장·백업이 missingMedia 로 실패한다.
+    const owned = element({ "data-wonboard-media": "photo-1" }, "");
+    expect(
+      rules(MediaNode, { ownsMedia: (id: string) => id === "photo-1" })[0]!
+        .getAttrs(owned),
+    ).toMatchObject({ mediaId: "photo-1" });
+    expect(
+      rules(MediaNode, { ownsMedia: (id: string) => id === "other" })[0]!
+        .getAttrs(owned),
+    ).toBe(false);
+    // 배선이 빠지면 닫는 쪽으로 넘어진다.
+    expect(
+      rules(MediaNode, {
+        ownsMedia: MediaNode.options.ownsMedia,
+      })[0]!.getAttrs(owned),
+    ).toBe(false);
   });
   it("영상 표식은 isVideo 를 통과한 값만 되살린다", () => {
     const [rule] = rules(VideoNode);
@@ -177,6 +204,34 @@ describe("미리보기가 번호 매김 방식을 지킨다", () => {
 });
 
 describe("깨진 레코드 하나가 서재 전체를 막지 않는다", () => {
+  it("정렬을 깨뜨리는 메타까지 걸러 낸다", async () => {
+    // blobs 는 멀쩡한데 updatedAt 이 없으면 변환은 통과하고 목록 정렬이 던진다.
+    // 초기화가 빈 초안으로 물러나며 멀쩡한 문서까지 전부 가려지던 자리다.
+    const db = await openStorage(crypto.randomUUID());
+    const good = newDraft();
+    good.document.title = "정렬되는 초안";
+    await new Promise((resolve, reject) => {
+      const transaction = db.transaction("drafts", "readwrite");
+      const store = transaction.objectStore("drafts");
+      store.put({ document: good.document, blobs: {} });
+      const broken = { ...newDraft().document, title: "날짜 없는 초안" } as Record<
+        string,
+        unknown
+      >;
+      delete broken.updatedAt;
+      store.put({ document: broken, blobs: {} });
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+    });
+    const drafts = await loadDrafts(db);
+    expect(drafts.map((d) => d.document.title)).toEqual(["정렬되는 초안"]);
+    expect(() =>
+      [...drafts].sort((a, b) =>
+        b.document.updatedAt.localeCompare(a.document.updatedAt),
+      ),
+    ).not.toThrow();
+    db.close();
+  });
   it("읽을 수 없는 항목만 건너뛰고 나머지 문서를 연다", async () => {
     const db = await openStorage(crypto.randomUUID());
     const good = newDraft();
@@ -255,5 +310,108 @@ describe("자격증명은 청크 경계에서 깨지지 않는다", () => {
     } as unknown as ServerResponse;
     await auth(req, res);
     expect(status).toBe(200);
+  });
+});
+
+describe("문단 서식이 붙여넣기에서 살아남는다", () => {
+  type Attribute = {
+    parseHTML: (element: unknown) => unknown;
+    renderHTML: (attrs: Record<string, unknown>) => Record<string, string>;
+  };
+  const attributes = (
+    Formatting.config.addGlobalAttributes as () => {
+      attributes: Record<string, Attribute>;
+    }[]
+  )()[0]!.attributes;
+  const read = (name: string, raw: string | null) =>
+    attributes[name]!.parseHTML({
+      getAttribute: (asked: string) =>
+        asked === `data-wb-${name.replace(/[A-Z]/gu, (c) => `-${c.toLowerCase()}`)}`
+          ? raw
+          : null,
+    });
+
+  const roundTrip: [string, unknown, string][] = [
+    ["textAlign", "center", "center"],
+    ["variant", "display", "display"],
+    ["fontSize", 42, "42"],
+    ["textColor", "#a1b2c3", "#a1b2c3"],
+    ["backgroundColor", "#000000", "#000000"],
+    ["gradient", "blue", "blue"],
+    ["padding", 24, "24"],
+    ["borderWidth", 3, "3"],
+  ];
+  it("여덟 축이 표식으로 나갔다가 같은 값으로 돌아온다", () => {
+    for (const [name, value, serialized] of roundTrip) {
+      const rendered = attributes[name]!.renderHTML({ [name]: value });
+      const key = `data-wb-${name.replace(/[A-Z]/gu, (c) => `-${c.toLowerCase()}`)}`;
+      expect(rendered[key]).toBe(serialized);
+      expect(read(name, serialized)).toBe(value);
+    }
+  });
+  it("값이 없으면 표식도 달지 않는다", () => {
+    for (const [name] of roundTrip) {
+      expect(attributes[name]!.renderHTML({ [name]: null })).not.toHaveProperty(
+        `data-wb-${name.replace(/[A-Z]/gu, (c) => `-${c.toLowerCase()}`)}`,
+      );
+      expect(read(name, null)).toBeNull();
+    }
+  });
+  it("검증기가 거부할 값은 되읽지 않는다", () => {
+    // 넓으면 붙여넣은 순간 저장이 막힌다 — 통과 폭이 validateDocument 와 같아야 한다.
+    expect(read("textAlign", "diagonal")).toBeNull();
+    expect(read("variant", "headline")).toBeNull();
+    expect(read("fontSize", "8")).toBeNull();
+    expect(read("fontSize", "200")).toBeNull();
+    expect(read("textColor", "red")).toBeNull();
+    expect(read("gradient", "sunset")).toBeNull();
+    expect(read("padding", "999")).toBeNull();
+    expect(read("borderWidth", "40")).toBeNull();
+  });
+  it("정렬은 표식과 인라인 style 을 함께 낸다", () => {
+    const rendered = attributes.textAlign!.renderHTML({ textAlign: "right" });
+    expect(rendered["data-wb-text-align"]).toBe("right");
+    expect(rendered.style).toContain("right");
+  });
+});
+
+describe("사진 한 장의 상한을 문서에 적용하지 않는다", () => {
+  it("document.json 이 20 MiB 를 넘어도 묶음을 다시 가져온다", async () => {
+    // Codex 반례 그대로 — 같은 사진 노드를 여러 번 쓰고 각 노드에 허용된 10,000자
+    // 설명을 달면 문서만으로 imageBytes 를 넘긴다. 전체 묶음은 archiveBytes 안이다.
+    const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    const draft = newDraft();
+    draft.document.media.photo = {
+      id: "photo",
+      originalName: "photo.png",
+      mime: "image/png",
+      width: 1,
+      height: 1,
+      size: bytes.byteLength,
+      sha256: await sha256(bytes.buffer as ArrayBuffer),
+    };
+    draft.blobs.photo = new Blob([bytes], { type: "image/png" });
+    const filler = "a".repeat(limits.attributeText);
+    draft.document.content = {
+      type: "doc",
+      content: Array.from({ length: 1100 }, () => ({
+        type: "media",
+        attrs: { mediaId: "photo", alt: filler, caption: filler },
+      })),
+    };
+    const archive = await exportBackup(draft);
+    expect(archive.size).toBeGreaterThan(limits.imageBytes);
+    expect(archive.size).toBeLessThan(limits.archiveBytes);
+    const restored = await importBackup(archive);
+    expect(restored.document.documentId).toBe(draft.document.documentId);
+  });
+});
+
+describe("Playwright 산출물 경로는 어디서나 만들 수 있어야 한다", () => {
+  it("macOS 전용 절대 경로를 박지 않는다", () => {
+    const config = readFileSync("playwright.config.ts", "utf8");
+    // /private 이 없는 리눅스에서는 루트 아래 경로를 못 만들어 시험이 시작도 못 한다.
+    expect(config).not.toMatch(/outputDir:\s*"\/(private|tmp)/u);
+    expect(config).toMatch(/outputDir:\s*"\.\//u);
   });
 });

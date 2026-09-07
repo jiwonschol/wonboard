@@ -41,38 +41,60 @@ export interface WonboardEditorProps {
   onCloseInsert?(): void;
   onComposition?(active: boolean): void;
 }
-const Formatting = Extension.create({
+const dashed = (key: string) =>
+  key.replace(/[A-Z]/gu, (c) => `-${c.toLowerCase()}`);
+const hexColor = /^#[\da-f]{6}$/iu;
+const oneOf = (values: readonly string[]) => (raw: string) =>
+  values.includes(raw) ? raw : null;
+const inRange = (min: number, max: number) => (raw: string) => {
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= min && value <= max ? value : null;
+};
+// 붙여넣기로 되살릴 때 통과시킬 값은 validateDocument 가 통과시키는 값과 같아야 한다.
+// 넓으면 붙여넣은 순간 저장이 막히고, 좁으면 사용자가 방금 준 서식이 조용히 사라진다.
+const blockAttributes: Record<string, (raw: string) => unknown> = {
+  textAlign: oneOf(["left", "center", "right"]),
+  variant: oneOf(["default", "display", "subtitle", "annotation"]),
+  fontSize: inRange(12, 96),
+  textColor: (raw) => (hexColor.test(raw) ? raw : null),
+  backgroundColor: (raw) => (hexColor.test(raw) ? raw : null),
+  gradient: oneOf(["none", "light", "blue"]),
+  padding: inRange(0, 80),
+  borderWidth: inRange(0, 8),
+};
+export const Formatting = Extension.create({
   name: "wonboardFormatting",
   addGlobalAttributes() {
     return [
       {
         types: ["paragraph", "heading"],
         attributes: Object.fromEntries(
-          [
-            "textAlign",
-            "variant",
-            "fontSize",
-            "textColor",
-            "backgroundColor",
-            "gradient",
-            "padding",
-            "borderWidth",
-          ].map((key) => [
+          Object.entries(blockAttributes).map(([key, coerce]) => [
             key,
             {
               default: null,
-              renderHTML: (attrs: Record<string, unknown>) =>
-                key === "textAlign"
-                  ? {
-                      style: Object.entries(blockStyle(attrs))
-                        .filter(([, v]) => v !== undefined)
-                        .map(
-                          ([k, v]) =>
-                            `${k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}:${v}`,
-                        )
-                        .join(";"),
-                    }
-                  : {},
+              // 서식은 인라인 style 로만 직렬화돼서, 문단을 복사해 붙이면 클립보드
+              // 파서가 되읽을 것이 없어 정렬·글자 크기·색·그러데이션·여백·테두리가
+              // 조용히 기본값으로 돌아갔다. 값마다 되읽을 수 있는 표식을 함께 단다.
+              parseHTML: (element: HTMLElement) => {
+                const raw = element.getAttribute(`data-wb-${dashed(key)}`);
+                return raw === null ? null : coerce(raw);
+              },
+              renderHTML: (attrs: Record<string, unknown>) => {
+                const value = attrs[key];
+                const marker =
+                  value === null || value === undefined
+                    ? {}
+                    : { [`data-wb-${dashed(key)}`]: String(value) };
+                if (key !== "textAlign") return marker;
+                return {
+                  ...marker,
+                  style: Object.entries(blockStyle(attrs))
+                    .filter(([, v]) => v !== undefined)
+                    .map(([k, v]) => `${dashed(k)}:${v}`)
+                    .join(";"),
+                };
+              },
             },
           ]),
         ),
@@ -135,7 +157,11 @@ export function WonboardEditor(props: WonboardEditorProps) {
           isAllowedUri: (url) => safeLink(url),
         },
       }),
-      MediaNode,
+      MediaNode.configure({
+        // 붙여넣기가 되살릴 수 있는 사진은 이 초안이 원본을 들고 있는 것뿐이다.
+        ownsMedia: (mediaId: string) =>
+          Object.hasOwn(latest.current.mediaUrls ?? {}, mediaId),
+      }),
       VideoNode,
       Formatting,
       TextLimit,
