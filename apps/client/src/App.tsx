@@ -173,7 +173,17 @@ export default function App({
         throw new Error("imageHistoryLimit");
       const imported = await importImages(
         files,
-        retained,
+        {
+          count: retained,
+          bytes: [...new Set(
+            attachmentNodes(snapshot.document.content)
+              .filter((node) => node.type === "media")
+              .map((node) => String(node.attrs?.mediaId)),
+          )].reduce(
+            (sum, id) => sum + (snapshot.document.media[id]?.size ?? 0),
+            0,
+          ),
+        },
       );
       const media = { ...snapshot.document.media };
       const blobs = { ...snapshot.blobs };

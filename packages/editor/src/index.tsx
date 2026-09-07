@@ -10,6 +10,7 @@ import {
   safeLink,
   limits,
   markAttrsFitDocument,
+  nodeAttrsFitDocument,
   type ContentNode,
   type Locale,
   type Media,
@@ -172,6 +173,16 @@ export const hasValidMarkAttributes = (doc: TraversableDoc) => {
   });
   return valid;
 };
+export const hasValidNodeAttributes = (doc: TraversableDoc) => {
+  let valid = true;
+  doc.descendants((node) => {
+    if (!nodeAttrsFitDocument(node.type.name, node.attrs)) {
+      valid = false;
+      return false;
+    }
+  });
+  return valid;
+};
 export const DocumentLimits = Extension.create({
   name: "wonboardTextLimit",
   addProseMirrorPlugins() {
@@ -181,6 +192,7 @@ export const DocumentLimits = Extension.create({
           !transaction.docChanged ||
           (allowsTextChange(transaction.doc, state.doc) &&
             hasValidOrderedListStarts(transaction.doc) &&
+            hasValidNodeAttributes(transaction.doc) &&
             hasValidMarkAttributes(transaction.doc) &&
             hasValidDocumentStructure(transaction.doc)),
       }),

@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { getSchema } from "../../packages/editor/node_modules/@tiptap/core/dist/index.js";
 import StarterKit from "../../packages/editor/node_modules/@tiptap/starter-kit/dist/index.js";
-import { zipSync } from "../../packages/document/node_modules/fflate";
+import { unzipSync, zipSync } from "../../packages/document/node_modules/fflate";
 import {
   exportBackup,
   exportRawBackup,
@@ -23,6 +23,7 @@ import {
   Formatting,
   hasValidDocumentStructure,
   hasValidMarkAttributes,
+  hasValidNodeAttributes,
   hasValidOrderedListStarts,
 } from "../../packages/editor/src/index";
 import { capAttributeText } from "../../packages/editor/src/Inspector";
@@ -35,8 +36,12 @@ import {
   loadDrafts,
   newestDraftFirst,
 } from "../../apps/client/src/storage";
-import { saveUntilCurrent } from "../../apps/client/src/useDrafts";
+import {
+  hasUnsavedWork,
+  saveUntilCurrent,
+} from "../../apps/client/src/useDrafts";
 import { WritingLibrary } from "../../apps/client/src/WritingLibrary";
+import { importImages } from "../../apps/client/src/media";
 
 const doc = (size: number, text: string) => ({
   content: { size },
@@ -95,6 +100,14 @@ describe("문서 전환은 마지막 편집까지 저장한다", () => {
     expect(drafts).toMatch(/await saveUntilCurrent\(\s*save,/u);
     expect(app).toMatch(/media=\{draft\.document\.media\}/u);
     expect(editor).toMatch(/Object\.hasOwn\(latest\.current\.media, mediaId\)/u);
+  });
+});
+
+describe("초기 빈 초안은 사용자 변경 전까지 깨끗하다", () => {
+  it("같은 변경 번호는 경고하지 않고 편집이나 충돌만 경고한다", () => {
+    expect(hasUnsavedWork(0, 0, 0)).toBe(false);
+    expect(hasUnsavedWork(1, 0, 0)).toBe(true);
+    expect(hasUnsavedWork(0, 0, 1)).toBe(true);
   });
 });
 
@@ -277,6 +290,74 @@ describe("붙여넣은 mark 속성도 문서 계약을 지킨다", () => {
   });
 });
 
+describe("붙여넣은 node 속성도 문서 계약을 지킨다", () => {
+  const nodes = (type: string, attrs: Record<string, unknown>) => ({
+    content: { size: 1 },
+    textContent: "x",
+    childCount: 0,
+    child: () => { throw new Error("no child"); },
+    descendants: (
+      visit: (node: {
+        type: { name: string };
+        attrs: Record<string, unknown>;
+      }) => boolean | void,
+    ) => visit({ type: { name: type }, attrs }),
+  });
+  it("현재 목록 속성은 받고 긴 값과 미래 속성은 거부한다", () => {
+    expect(hasValidNodeAttributes(nodes("orderedList", { start: 1, type: "A" })))
+      .toBe(true);
+    expect(
+      hasValidNodeAttributes(
+        nodes("orderedList", {
+          start: 1,
+          type: "x".repeat(limits.attributeText + 1),
+        }),
+      ),
+    ).toBe(false);
+    expect(hasValidNodeAttributes(nodes("paragraph", { future: "keep" })))
+      .toBe(false);
+  });
+  it("transaction filter가 잘못된 node 속성을 거부한다", () => {
+    const plugins = (
+      DocumentLimits.config.addProseMirrorPlugins as () => {
+        spec: {
+          filterTransaction?: (
+            transaction: { docChanged: boolean; doc: ReturnType<typeof nodes> },
+            state: { doc: ReturnType<typeof nodes> },
+          ) => boolean;
+        };
+      }[]
+    )();
+    expect(
+      plugins[0]!.spec.filterTransaction!(
+        {
+          docChanged: true,
+          doc: nodes("orderedList", {
+            start: 1,
+            type: "x".repeat(limits.attributeText + 1),
+          }),
+        },
+        { doc: nodes("orderedList", { start: 1, type: "A" }) },
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("사진 원본 합계가 백업 용량을 넘지 않는다", () => {
+  it("새 배치는 디코딩 전에 기존 참조 원본과 합쳐 검사한다", async () => {
+    const originalLimit = limits.mediaBytes;
+    try {
+      limits.mediaBytes = 10;
+      const file = { size: 6 } as File;
+      await expect(
+        importImages([file], { count: 1, bytes: 5 }),
+      ).rejects.toThrow("archiveLimit");
+    } finally {
+      limits.mediaBytes = originalLimit;
+    }
+  });
+});
+
 describe("설명·사진 설명도 문서 한도를 넘지 않는다", () => {
   it("검증기와 같은 상한으로 자른다", () => {
     const long = "가".repeat(limits.attributeText + 500);
@@ -427,6 +508,33 @@ describe("미리보기가 번호 매김 방식을 지킨다", () => {
   });
 });
 
+describe("속성 없는 제목은 편집기와 미리보기가 같은 기본값을 쓴다", () => {
+  const preview = (attrs?: Record<string, unknown>) =>
+    renderToStaticMarkup(
+      DocumentPreview({
+        document: {
+          ...newDraft().document,
+          content: {
+            type: "doc",
+            content: [
+              {
+                type: "heading",
+                attrs,
+                content: [{ type: "text", text: "제목" }],
+              },
+            ],
+          },
+        },
+        mediaUrls: {},
+      }),
+    );
+  it("없음과 null은 StarterKit 기본 H1이고 명시한 H2는 유지한다", () => {
+    expect(preview()).toContain('<div class="tiptap"><h1');
+    expect(preview({ level: null })).toContain('<div class="tiptap"><h1');
+    expect(preview({ level: 2 })).toContain('<div class="tiptap"><h2');
+  });
+});
+
 describe("깨진 레코드 하나가 서재 전체를 막지 않는다", () => {
   it("파싱 가능한 옛 날짜 표기도 실제 시각으로 정렬한다", () => {
     const older = newDraft();
@@ -543,10 +651,21 @@ describe("읽기 전용 초안에도 회수 경로가 있다", () => {
     const bytes = new Uint8Array(await archive.arrayBuffer());
     const text = new TextDecoder("latin1").decode(bytes);
     expect(text).toContain("document.json");
-    expect(text).toContain("media/photo");
+    expect(text).toContain("media/raw-70686f746f");
     expect(text).toContain('"schemaVersion":2');
     expect(bytes).toContain(1);
     expect(text).toContain(String.fromCharCode(1, 2, 3));
+  });
+  it("검증 없는 blob id도 ZIP 경로 밖으로 나갈 수 없다", async () => {
+    const draft = frozen();
+    draft.blobs = {
+      "../../outside": new Blob([new Uint8Array([1, 2, 3])]),
+    };
+    const archive = unzipSync(new Uint8Array(await (await exportRawBackup(draft)).arrayBuffer()));
+    const names = Object.keys(archive);
+    expect(names).toContain("media/raw-2e2e2f2e2e2f6f757473696465");
+    expect(names.every((name) => !name.includes("..") && !name.includes("\\")))
+      .toBe(true);
   });
 });
 

@@ -36,6 +36,9 @@ export const limits = {
   // 같은 상수를 써야 화면에서 넘긴 값이 저장 단계에서만 거부되는 일이 없다.
   attributeText: 10000,
   imageBytes: 20 * 1024 * 1024,
+  // 원본 합계가 ZIP 전체 상한을 다 써 버리면 정상 초안도 백업할 수 없다.
+  // document.json과 ZIP 컨테이너를 위해 36 MiB를 남긴다.
+  mediaBytes: 220 * 1024 * 1024,
   pixels: 40_000_000,
   images: 100,
   archiveBytes: 256 * 1024 * 1024,
@@ -81,15 +84,51 @@ const idPattern =
 export const isMediaId = (value: unknown): value is string =>
   typeof value === "string" && idPattern.test(value);
 
-// PNG dimensions and animation metadata live in the container, so inspect them
-// before a browser decoder can allocate the bitmap. JPEG dimensions are checked
-// after decoding because this small contract deliberately does not duplicate a
-// JPEG parser.
+const jpegStartOfFrame = (marker: number) =>
+  (marker >= 0xc0 && marker <= 0xc3) ||
+  (marker >= 0xc5 && marker <= 0xc7) ||
+  (marker >= 0xc9 && marker <= 0xcb) ||
+  (marker >= 0xcd && marker <= 0xcf);
+
+function inspectJpegDimensions(bytes: Uint8Array) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let offset = 2;
+  while (offset < view.byteLength) {
+    if (view.getUint8(offset++) !== 0xff)
+      throw new DocumentError("invalidImage");
+    while (offset < view.byteLength && view.getUint8(offset) === 0xff) offset++;
+    if (offset >= view.byteLength) throw new DocumentError("invalidImage");
+    const marker = view.getUint8(offset++);
+    if (marker === 0xd9 || marker === 0xda)
+      throw new DocumentError("invalidImage");
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+    if (offset + 2 > view.byteLength) throw new DocumentError("invalidImage");
+    const size = view.getUint16(offset);
+    if (size < 2 || size > view.byteLength - offset)
+      throw new DocumentError("invalidImage");
+    if (jpegStartOfFrame(marker)) {
+      if (size < 7) throw new DocumentError("invalidImage");
+      const height = view.getUint16(offset + 3);
+      const width = view.getUint16(offset + 5);
+      if (width === 0 || height === 0 || width * height > limits.pixels)
+        throw new DocumentError("imageLimit");
+      return;
+    }
+    offset += size;
+  }
+  throw new DocumentError("invalidImage");
+}
+
+// Dimensions and animation metadata are inspected before a browser decoder can
+// allocate a bitmap. The decoder still verifies that the complete image is usable.
 export function inspectImageBytes(
   bytes: Uint8Array,
 ): "image/png" | "image/jpeg" {
   const mime = imageMime(bytes);
-  if (mime !== "image/png") return mime;
+  if (mime === "image/jpeg") {
+    inspectJpegDimensions(bytes);
+    return mime;
+  }
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let offset = 8;
   while (offset + 12 <= view.byteLength) {
@@ -191,6 +230,70 @@ const allowedAttrs: Record<string, string[]> = {
   media: ["mediaId", "width", "align", "alt", "caption"],
   video: ["provider", "videoId", "privacyHash", "startSeconds", "autoplay"],
 };
+export function nodeAttrsFitDocument(type: unknown, attrs: unknown): boolean {
+  if (typeof type !== "string") return false;
+  if (attrs === undefined) return type !== "media" && type !== "video";
+  if (!isObject(attrs)) return false;
+  for (const [key, v] of Object.entries(attrs)) {
+    if (!(allowedAttrs[type] ?? []).includes(key)) return false;
+    if (v === null) continue;
+    if (
+      (key === "textAlign" || key === "align") &&
+      !["left", "center", "right"].includes(String(v))
+    )
+      return false;
+    if (
+      key === "variant" &&
+      !["default", "display", "subtitle", "annotation"].includes(String(v))
+    )
+      return false;
+    if (key === "fontSize" && !(typeof v === "number" && v >= 12 && v <= 96))
+      return false;
+    if (
+      (key === "textColor" || key === "backgroundColor") &&
+      !(typeof v === "string" && hexColor.test(v))
+    )
+      return false;
+    if (key === "gradient" && !["none", "light", "blue"].includes(String(v)))
+      return false;
+    if (key === "padding" && !(typeof v === "number" && v >= 0 && v <= 80))
+      return false;
+    if (
+      key === "borderWidth" &&
+      !(typeof v === "number" && v >= 0 && v <= 8)
+    )
+      return false;
+    if (
+      key === "level" &&
+      !([1, 2, 3].includes(Number(v)) && typeof v === "number")
+    )
+      return false;
+    if (
+      key === "width" &&
+      !(
+        typeof v === "number" &&
+        Number.isFinite(v) &&
+        v >= 40 &&
+        v <= 8000
+      )
+    )
+      return false;
+    if (key === "mediaId" && !isMediaId(v)) return false;
+    if (
+      ["alt", "caption", "language", "type"].includes(key) &&
+      !(typeof v === "string" && v.length <= limits.attributeText)
+    )
+      return false;
+    if (
+      key === "start" &&
+      !(Number.isSafeInteger(v) && Number(v) >= 1 && Number(v) <= 100000)
+    )
+      return false;
+  }
+  if (type === "media" && !isMediaId(attrs.mediaId)) return false;
+  if (type === "video" && !isVideo(attrs)) return false;
+  return true;
+}
 export function validateDocument(
   value: unknown,
 ): asserts value is WriterDocument {
@@ -271,46 +374,12 @@ export function validateDocument(
     requireThat(textLength <= limits.text);
     if (n.attrs !== undefined) {
       requireThat(isObject(n.attrs));
-      for (const [key, v] of Object.entries(n.attrs)) {
+      for (const key of Object.keys(n.attrs)) {
         if (!(allowedAttrs[type] ?? []).includes(key))
           throw new DocumentError("futureDocument");
-        if (v === null) continue;
-        if (key === "textAlign" || key === "align")
-          requireThat(["left", "center", "right"].includes(String(v)));
-        if (key === "variant")
-          requireThat(
-            ["default", "display", "subtitle", "annotation"].includes(
-              String(v),
-            ),
-          );
-        if (key === "fontSize")
-          requireThat(typeof v === "number" && v >= 12 && v <= 96);
-        if (key === "textColor" || key === "backgroundColor")
-          requireThat(typeof v === "string" && hexColor.test(v));
-        if (key === "gradient")
-          requireThat(["none", "light", "blue"].includes(String(v)));
-        if (key === "padding")
-          requireThat(typeof v === "number" && v >= 0 && v <= 80);
-        if (key === "borderWidth")
-          requireThat(typeof v === "number" && v >= 0 && v <= 8);
-        if (key === "level")
-          requireThat([1, 2, 3].includes(Number(v)) && typeof v === "number");
-        if (key === "width")
-          requireThat(
-            typeof v === "number" && Number.isFinite(v) && v >= 40 && v <= 8000,
-          );
-        if (key === "mediaId")
-          requireThat(typeof v === "string" && idPattern.test(v));
-        if (["alt", "caption", "language", "type"].includes(key))
-          requireThat(
-            typeof v === "string" && v.length <= limits.attributeText,
-          );
-        if (key === "start")
-          requireThat(
-            Number.isSafeInteger(v) && Number(v) >= 1 && Number(v) <= 100000,
-          );
       }
     }
+    requireThat(nodeAttrsFitDocument(type, n.attrs));
     if (type === "media") {
       requireThat(isObject(n.attrs) && typeof n.attrs.mediaId === "string");
       if (!Object.hasOwn(value.media as object, n.attrs.mediaId))

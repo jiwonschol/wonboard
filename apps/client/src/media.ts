@@ -8,10 +8,13 @@ import {
 
 export async function importImages(
   files: File[],
-  existing: number,
+  existing: { count: number; bytes: number },
 ): Promise<{ media: Media; blob: Blob }[]> {
-  if (files.length + existing > limits.images)
+  if (files.length + existing.count > limits.images)
     throw new DocumentError("imageLimit");
+  const incomingBytes = files.reduce((sum, file) => sum + file.size, 0);
+  if (incomingBytes + existing.bytes > limits.mediaBytes)
+    throw new DocumentError("archiveLimit");
   const result: { media: Media; blob: Blob }[] = [];
   for (const file of files) {
     if (file.size === 0 || file.size > limits.imageBytes)

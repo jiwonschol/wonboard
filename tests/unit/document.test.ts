@@ -10,6 +10,7 @@ import {
   exportBackup,
   importBackup,
   imageMime,
+  inspectImageBytes,
   sha256,
   limits,
   type ContentNode,
@@ -233,6 +234,20 @@ describe("document contract", () => {
   it("recognises actual signatures instead of filename", () => {
     expect(() => imageMime(strToU8("<svg/>"))).toThrow("invalidImage");
     expect(imageMime(Uint8Array.from([255, 216, 255]))).toBe("image/jpeg");
+  });
+  it("rejects oversized JPEG dimensions before browser decoding", () => {
+    const jpeg = (width: number, height: number) =>
+      Uint8Array.from([
+        0xff, 0xd8,
+        0xff, 0xc0, 0x00, 0x0b, 0x08,
+        (height >> 8) & 0xff, height & 0xff,
+        (width >> 8) & 0xff, width & 0xff,
+        0x01, 0x01, 0x11, 0x00,
+      ]);
+    expect(inspectImageBytes(jpeg(6000, 6000))).toBe("image/jpeg");
+    expect(() => inspectImageBytes(jpeg(65535, 65535))).toThrow("imageLimit");
+    expect(() => inspectImageBytes(Uint8Array.from([0xff, 0xd8, 0xff, 0xda])))
+      .toThrow("invalidImage");
   });
 });
 describe("backup boundary", () => {

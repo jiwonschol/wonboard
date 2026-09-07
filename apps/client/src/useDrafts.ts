@@ -14,6 +14,12 @@ import {
   StorageConflict,
 } from "./storage";
 
+export const hasUnsavedWork = (
+  change: number,
+  savedChange: number,
+  conflictCount: number,
+) => change !== savedChange || conflictCount > 0;
+
 export function useDrafts(locale: Locale) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [list, setList] = useState<Draft[]>([]);
@@ -33,12 +39,12 @@ export function useDrafts(locale: Locale) {
   const disconnected = useRef(false);
   const conflicts = useRef(new Map<string, Draft>());
 
-  function select(value: Draft) {
+  function select(value: Draft, clean = false) {
     if (timer.current) clearTimeout(timer.current);
     value = conflicts.current.get(value.document.documentId) ?? value;
     composing.current = false;
     change.current = 0;
-    savedChange.current = value.document.revision > 0 ? 0 : -1;
+    savedChange.current = clean || value.document.revision > 0 ? 0 : -1;
     try {
       value = withoutUnusedMedia(value);
       if (conflicts.current.has(value.document.documentId))
@@ -88,7 +94,7 @@ export function useDrafts(locale: Locale) {
         if (!active) return;
         drafts.sort(newestDraftFirst);
         setList(drafts);
-        select(drafts[0] ?? newDraft(locale));
+        select(drafts[0] ?? newDraft(locale), drafts.length === 0);
       })
       .catch((e) => {
         console.warn(
@@ -100,7 +106,7 @@ export function useDrafts(locale: Locale) {
         if (active) {
           setError(e instanceof Error ? e.message : "storageFailed");
           setStatus("error");
-          select(newDraft(locale));
+          select(newDraft(locale), true);
           setError("storageFailed");
         }
       });
@@ -200,7 +206,11 @@ export function useDrafts(locale: Locale) {
   }
   useEffect(() => {
     const before = (e: BeforeUnloadEvent) => {
-      if (change.current !== savedChange.current || conflicts.current.size > 0) {
+      if (hasUnsavedWork(
+        change.current,
+        savedChange.current,
+        conflicts.current.size,
+      )) {
         e.preventDefault();
         e.returnValue = "";
       }

@@ -52,7 +52,12 @@ export async function exportRawBackup(draft: Draft): Promise<Blob> {
     if (!(blob instanceof Blob)) continue;
     total += blob.size;
     if (total > limits.archiveBytes) throw new DocumentError("archiveLimit");
-    files[`media/${id}`] = new Uint8Array(await blob.arrayBuffer());
+    const safeId = Array.from(new TextEncoder().encode(id), (byte) =>
+      byte.toString(16).padStart(2, "0"),
+    ).join("");
+    files[`media/raw-${safeId || "empty"}`] = new Uint8Array(
+      await blob.arrayBuffer(),
+    );
   }
   const data = await new Promise<Uint8Array<ArrayBuffer>>((resolve, reject) =>
     zip(files, { level: 0 }, (error, result) =>

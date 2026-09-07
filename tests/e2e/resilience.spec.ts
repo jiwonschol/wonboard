@@ -1,5 +1,26 @@
 import { test, expect } from "./fixtures";
 
+test("the untouched bootstrap draft is clean and New stores only the requested draft", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "New document", exact: true }).first().click();
+  await expect(page.getByRole("status").last()).toHaveText("Saved locally");
+  const stored = await page.evaluate(async () => {
+    const request = indexedDB.open("wonboard-writer-v1", 1);
+    const db = await new Promise<IDBDatabase>((resolve) => {
+      request.onsuccess = () => resolve(request.result);
+    });
+    const count = db.transaction("drafts").objectStore("drafts").count();
+    const result = await new Promise<number>((resolve) => {
+      count.onsuccess = () => resolve(count.result);
+    });
+    db.close();
+    return result;
+  });
+  expect(stored).toBe(1);
+});
+
 test("an unsupported newest draft does not trap navigation, creation or backup restore", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("textbox", { name: "Add title" })).toBeVisible();

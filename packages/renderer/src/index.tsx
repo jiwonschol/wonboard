@@ -41,7 +41,7 @@ function renderNode(
   if (node.type === "paragraph")
     return <p style={style}>{children?.length ? children : <br />}</p>;
   if (node.type === "heading") {
-    const Tag = attrs.level === 1 ? "h1" : attrs.level === 3 ? "h3" : "h2";
+    const Tag = attrs.level === 2 ? "h2" : attrs.level === 3 ? "h3" : "h1";
     return <Tag style={style}>{children}</Tag>;
   }
   if (node.type === "blockquote") return <blockquote>{children}</blockquote>;
