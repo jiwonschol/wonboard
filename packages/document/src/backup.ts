@@ -37,6 +37,31 @@ export async function exportBackup(draft: Draft): Promise<Blob> {
   return new Blob([data], { type: "application/zip" });
 }
 
+// 읽기 전용으로 얼어붙은 초안(미래 스키마·지원하지 않는 노드)은 exportBackup 이 같은
+// validateDocument 에서 다시 던지므로 ZIP 을 만들 수 없다. 그러면 사진이 든 초안에는
+// 온전한 회수 경로가 없다 — JSON 내보내기는 이진 자료를 통째로 빼기 때문이다.
+// 이 경로는 검증하지 않고 저장된 것을 그대로 담는다. 되읽기용이 아니라 회수용이다.
+export async function exportRawBackup(draft: Draft): Promise<Blob> {
+  const files: Record<string, Uint8Array> = {
+    "document.json": strToU8(JSON.stringify(draft.document)),
+  };
+  let total = files["document.json"].byteLength;
+  for (const [id, blob] of Object.entries(draft.blobs)) {
+    if (!(blob instanceof Blob)) continue;
+    total += blob.size;
+    if (total > limits.archiveBytes) throw new DocumentError("archiveLimit");
+    files[`media/${id}`] = new Uint8Array(await blob.arrayBuffer());
+  }
+  const data = await new Promise<Uint8Array<ArrayBuffer>>((resolve, reject) =>
+    zip(files, { level: 0 }, (error, result) =>
+      error ? reject(error) : resolve(result as Uint8Array<ArrayBuffer>),
+    ),
+  );
+  if (data.byteLength > limits.archiveBytes)
+    throw new DocumentError("archiveLimit");
+  return new Blob([data], { type: "application/zip" });
+}
+
 export async function importBackup(blob: Blob): Promise<Draft> {
   if (blob.size > limits.archiveBytes || blob.size < 22)
     throw new DocumentError("archiveLimit");

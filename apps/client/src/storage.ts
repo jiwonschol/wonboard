@@ -24,33 +24,41 @@ export function openStorage(
     request.onblocked = () => onBlocked?.();
   });
 }
+type StoredDraft = Draft & { blobs: Record<string, Blob | ArrayBuffer> };
+function toDraft(stored: StoredDraft): Draft {
+  return {
+    document: stored.document,
+    blobs: Object.fromEntries(
+      Object.entries(stored.blobs).map(([id, value]) => [
+        id,
+        value instanceof Blob
+          ? value
+          : new Blob([value], { type: stored.document.media[id]?.mime }),
+      ]),
+    ),
+  };
+}
 export function loadDrafts(db: IDBDatabase): Promise<Draft[]> {
   return new Promise((resolve, reject) => {
     const request = db.transaction("drafts").objectStore("drafts").getAll();
     request.onsuccess = () => {
-      try {
-        resolve(
-          request.result.map(
-            (
-              stored: Draft & { blobs: Record<string, Blob | ArrayBuffer> },
-            ) => ({
-              document: stored.document,
-              blobs: Object.fromEntries(
-                Object.entries(stored.blobs).map(([id, value]) => [
-                  id,
-                  value instanceof Blob
-                    ? value
-                    : new Blob([value], {
-                        type: stored.document.media[id]?.mime,
-                      }),
-                ]),
-              ),
-            }),
-          ),
-        );
-      } catch (error) {
-        reject(error);
+      // 레코드 하나가 깨졌다고 전체 목록을 버리지 않는다. 예전에는 변환이 한 번만
+      // 던져도 loadDrafts 가 통째로 실패해 useDrafts 가 빈 초안을 열었고, 멀쩡한
+      // 문서까지 전부 사라진 것처럼 보였다. 깨진 레코드만 격리하고 나머지는 연다.
+      const drafts: Draft[] = [];
+      for (const stored of request.result as StoredDraft[]) {
+        try {
+          drafts.push(toDraft(stored));
+        } catch (error) {
+          console.warn(
+            "Wonboard skipped an unreadable stored draft",
+            error instanceof Error
+              ? `${error.name}: ${error.message}`
+              : String(error),
+          );
+        }
       }
+      resolve(drafts);
     };
     request.onerror = () => reject(request.error);
   });

@@ -8,6 +8,11 @@ import {
   type ContentNode,
   type WriterDocument,
 } from "@wonboard/document";
+const orderedListTypes = ["1", "a", "A", "i", "I"] as const;
+const listType = (value: unknown) =>
+  (orderedListTypes as readonly string[]).includes(String(value))
+    ? (String(value) as (typeof orderedListTypes)[number])
+    : undefined;
 function renderNode(
   node: ContentNode,
   urls: Record<string, string>,
@@ -42,7 +47,16 @@ function renderNode(
   if (node.type === "blockquote") return <blockquote>{children}</blockquote>;
   if (node.type === "bulletList") return <ul>{children}</ul>;
   if (node.type === "orderedList")
-    return <ol start={Number(attrs.start ?? 1)}>{children}</ol>;
+    return (
+      <ol
+        start={Number(attrs.start ?? 1)}
+        // 문서는 `type` 을 보존하고 편집기도 그대로 보여주는데 미리보기만 버리면
+        // 알파벳·로마자 목록이 숫자로 되돌아간다. HTML 이 아는 다섯 값만 넘긴다.
+        type={listType(attrs.type)}
+      >
+        {children}
+      </ol>
+    );
   if (node.type === "listItem") return <li>{children}</li>;
   if (node.type === "codeBlock")
     return (

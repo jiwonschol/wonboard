@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Extension, type Editor as EditorType } from "@tiptap/core";
+import { Plugin } from "@tiptap/pm/state";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -79,6 +80,29 @@ const Formatting = Extension.create({
     ];
   },
 });
+// 본문이 `limits.text` 를 넘은 채로 편집기에 남으면 이후 자동 저장과 ZIP 백업이 모두
+// validateDocument 에서 실패한다 — 사용자는 무엇을 지워야 하는지 모른 채 저장할 수 없는
+// 초안을 안게 된다. 넘기는 변경 자체를 편집기에서 막아 문서와 초안이 갈리지 않게 한다.
+// 이미 넘어선 문서(예: 백업 복원)에서도 줄이는 방향은 계속 허용한다.
+type MeasurableDoc = { content: { size: number }; textContent: string };
+// content.size 는 텍스트 길이의 상한이라, 상한이 한도 안이면 본문을 훑지 않는다.
+// 2,000,000자 문서에서 타이핑마다 전체를 세지 않게 하는 값싼 관문이다.
+const textOf = (doc: MeasurableDoc) =>
+  doc.content.size <= limits.text ? 0 : doc.textContent.length;
+export const allowsTextChange = (next: MeasurableDoc, previous: MeasurableDoc) =>
+  textOf(next) <= limits.text || textOf(next) <= textOf(previous);
+const TextLimit = Extension.create({
+  name: "wonboardTextLimit",
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        filterTransaction: (transaction, state) =>
+          !transaction.docChanged ||
+          allowsTextChange(transaction.doc, state.doc),
+      }),
+    ];
+  },
+});
 const insertTypes = [
   "paragraph",
   "heading",
@@ -114,6 +138,7 @@ export function WonboardEditor(props: WonboardEditorProps) {
       MediaNode,
       VideoNode,
       Formatting,
+      TextLimit,
       Placeholder.configure({
         placeholder: () => translator(latest.current.locale)("placeholder"),
       }),

@@ -3,6 +3,7 @@ import { WonboardEditor, Icon, type EditorHandle } from "@wonboard/editor";
 import { DocumentPreview } from "@wonboard/renderer";
 import {
   exportBackup,
+  exportRawBackup,
   importBackup,
   characterCount,
   attachmentNodes,
@@ -102,6 +103,33 @@ export default function App({
       );
     } catch (e) {
       report(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  // 읽기 전용은 두 가지 이유로 생긴다. 다른 탭이 먼저 써서 충돌한 사본은 검증을
+  // 통과하므로 평소 ZIP 이 그대로 나오고, 다시 가져오기도 된다. 반면 미래 스키마나
+  // 지원하지 않는 노드로 얼어붙은 초안은 exportBackup 이 얼어붙게 만든 그 검증에서
+  // 다시 던져 파일이 아예 나올 수 없었다 — 사진이 든 초안에 온전한 회수 경로가 없었다.
+  // 그래서 먼저 정식 백업을 시도하고, 검증이 막을 때만 검증 없는 원본 묶음으로 넘어간다.
+  async function recoveryBackup() {
+    const snapshot = writer.snapshot();
+    if (!snapshot) return;
+    setBusy(true);
+    try {
+      download(
+        await exportBackup(snapshot),
+        `wonboard-${snapshot.document.documentId}.zip`,
+      );
+    } catch {
+      try {
+        download(
+          await exportRawBackup(snapshot),
+          `wonboard-${snapshot.document.documentId}-original.zip`,
+        );
+      } catch (e) {
+        report(e);
+      }
     } finally {
       setBusy(false);
     }
@@ -408,7 +436,7 @@ export default function App({
             >
               {t("exportOriginal")}
             </button>
-            <button onClick={() => void backup()}>{t("backup")}</button>
+            <button onClick={() => void recoveryBackup()}>{t("backup")}</button>
           </div>
         ) : (
           <WonboardEditor

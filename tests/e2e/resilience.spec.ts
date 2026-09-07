@@ -35,6 +35,11 @@ test("an unsupported newest draft does not trap navigation, creation or backup r
   const path = (await (await downloaded).path())!;
   await page.getByRole("dialog", { name: "Options" }).getByRole("button", { name: "Close", exact: true }).click();
   await chooseFuture();
+  // 얼어붙은 초안의 백업 단추는 그것을 얼린 검증에서 다시 던져 파일을 못 냈다.
+  // 사진이 든 초안에는 온전한 회수 경로가 없었다 — 검증 없는 원본 묶음으로 넘어간다.
+  const recovery = page.waitForEvent("download");
+  await page.locator(".unsupported").getByRole("button", { name: "Download backup (.zip)", exact: true }).click();
+  expect((await recovery).suggestedFilename()).toMatch(/-original\.zip$/);
   await page.getByRole("button", { name: "New document", exact: true }).first().click();
   await page.getByRole("textbox", { name: "Add title" }).fill("created document");
   await expect(page.getByRole("status").last()).toHaveText("Saved locally");

@@ -12,7 +12,7 @@ import {
   type NodeViewProps,
 } from "@tiptap/react";
 import { translator } from "@wonboard/locales";
-import type { Locale } from "@wonboard/document";
+import { isMediaId, limits, type Locale } from "@wonboard/document";
 
 export const MediaContext = createContext<{
   urls: Record<string, string>;
@@ -118,14 +118,46 @@ export const MediaNode = Node.create({
       caption: { default: "" },
     };
   },
-  // Remote HTML images are not silently fetched or converted into owned originals.
+  // 원격 HTML 이미지는 여전히 받지 않는다. 다만 규칙이 하나도 없으면 편집기가
+  // 직렬화한 자기 표식조차 되읽지 못해, 이미지를 잘라내 옮기면 유일한 배치가
+  // 사라지고 복사해도 복제가 안 된다. Wonboard 가 쓴 표식만 좁게 되읽는다.
   parseHTML() {
-    return [];
+    return [
+      {
+        tag: "figure[data-wonboard-media]",
+        getAttrs: (element: HTMLElement) => {
+          const mediaId = element.getAttribute("data-wonboard-media");
+          if (!isMediaId(mediaId)) return false;
+          const width = Number(element.getAttribute("data-wonboard-width"));
+          const align = String(element.getAttribute("data-wonboard-align"));
+          return {
+            mediaId,
+            width:
+              Number.isFinite(width) && width >= 40 && width <= 8000
+                ? width
+                : 600,
+            align: ["left", "center", "right"].includes(align) ? align : "left",
+            alt: (element.getAttribute("data-wonboard-alt") ?? "").slice(
+              0,
+              limits.attributeText,
+            ),
+            caption: (
+              element.querySelector("figcaption")?.textContent ?? ""
+            ).slice(0, limits.attributeText),
+          };
+        },
+      },
+    ];
   },
   renderHTML({ node }) {
     return [
       "figure",
-      { "data-wonboard-media": node.attrs.mediaId },
+      {
+        "data-wonboard-media": node.attrs.mediaId,
+        "data-wonboard-width": String(node.attrs.width),
+        "data-wonboard-align": String(node.attrs.align),
+        "data-wonboard-alt": String(node.attrs.alt ?? ""),
+      },
       ["figcaption", {}, node.attrs.caption || ""],
     ];
   },

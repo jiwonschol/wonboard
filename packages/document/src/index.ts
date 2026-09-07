@@ -32,6 +32,9 @@ export type WriterDocument = {
 export type Draft = { document: WriterDocument; blobs: Record<string, Blob> };
 export const limits = {
   title: 10000,
+  // alt/caption/language/type 는 validateDocument 가 이 값으로 거른다. 입력 필드도
+  // 같은 상수를 써야 화면에서 넘긴 값이 저장 단계에서만 거부되는 일이 없다.
+  attributeText: 10000,
   imageBytes: 20 * 1024 * 1024,
   pixels: 40_000_000,
   images: 100,
@@ -73,6 +76,10 @@ export class DocumentError extends Error {
 }
 const idPattern =
   /^(?!(?:__proto__|constructor|prototype)$)[a-zA-Z0-9_-]{1,80}$/;
+// 편집기 클립보드 규칙도 이 판정을 써야 한다 — 붙여넣기에서 받아들이는 id 와
+// validateDocument 가 통과시키는 id 가 갈리면 붙여넣은 순간 저장이 막힌다.
+export const isMediaId = (value: unknown): value is string =>
+  typeof value === "string" && idPattern.test(value);
 const hexColor = /^#[\da-f]{6}$/i;
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -239,7 +246,9 @@ export function validateDocument(
         if (key === "mediaId")
           requireThat(typeof v === "string" && idPattern.test(v));
         if (["alt", "caption", "language", "type"].includes(key))
-          requireThat(typeof v === "string" && v.length <= 10000);
+          requireThat(
+            typeof v === "string" && v.length <= limits.attributeText,
+          );
         if (key === "start")
           requireThat(
             Number.isSafeInteger(v) && Number(v) >= 1 && Number(v) <= 100000,
@@ -379,4 +388,4 @@ export function withoutUnusedMedia(draft: Draft): Draft {
     ),
   };
 }
-export { exportBackup, importBackup } from "./backup";
+export { exportBackup, exportRawBackup, importBackup } from "./backup";
