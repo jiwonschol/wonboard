@@ -35,6 +35,8 @@ function toDraft(stored: StoredDraft): Draft {
     typeof document !== "object" ||
     typeof document.documentId !== "string" ||
     typeof document.updatedAt !== "string" ||
+    !Number.isFinite(Date.parse(document.updatedAt)) ||
+    typeof document.title !== "string" ||
     typeof document.media !== "object" ||
     document.media === null
   )

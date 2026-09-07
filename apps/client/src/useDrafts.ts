@@ -192,7 +192,14 @@ export function useDrafts(locale: Locale) {
     return () => window.removeEventListener("beforeunload", before);
   }, []);
   async function activate(value: Draft) {
-    if (!frozen.current && !(await save())) return false;
+    if (
+      !frozen.current &&
+      !(await saveUntilCurrent(
+        save,
+        () => savedChange.current === change.current,
+      ))
+    )
+      return false;
     select(value);
     return true;
   }
@@ -230,4 +237,14 @@ export function useDrafts(locale: Locale) {
     },
     snapshot: () => current.current,
   };
+}
+
+export async function saveUntilCurrent(
+  save: () => Promise<boolean>,
+  isCurrent: () => boolean,
+): Promise<boolean> {
+  do {
+    if (!(await save())) return false;
+  } while (!isCurrent());
+  return true;
 }

@@ -5,7 +5,7 @@ import {
   sha256,
   validateDocument,
   withoutUnusedMedia,
-  imageMime,
+  inspectImageBytes,
   type Draft,
   type WriterDocument,
 } from "./index";
@@ -119,7 +119,7 @@ export async function importBackup(blob: Blob): Promise<Draft> {
     if (
       !data ||
       data.byteLength !== media.size ||
-      imageMime(data) !== media.mime ||
+      inspectImageBytes(data) !== media.mime ||
       (await sha256(data.buffer)) !== media.sha256
     )
       throw new DocumentError("corruptBackup");

@@ -248,7 +248,9 @@ export default function App({
     );
   const content =
     typeof draft.document.title === "string" ? draft.document.title : "";
-  const attached = attachmentNodes(draft.document.content);
+  const attached = writer.readOnly
+    ? []
+    : attachmentNodes(draft.document.content);
   const attachmentCount =
     new Set(
       attached.filter((n) => n.type === "media").map((n) => n.attrs?.mediaId),
@@ -446,6 +448,7 @@ export default function App({
             locale={locale}
             documentLocale={draft.document.locale}
             mediaUrls={urls}
+            media={draft.document.media}
             readOnly={busy}
             inspectorOpen={inspector}
             insertOpen={insert}

@@ -18,6 +18,7 @@ function Example() {
         locale="ko"
         documentLocale="ko"
         mediaUrls={{}}
+        media={{}}
         onTitleChange={setTitle}
         onChange={setContent}
         onImages={async () => {

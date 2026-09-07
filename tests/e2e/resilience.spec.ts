@@ -10,7 +10,8 @@ test("an unsupported newest draft does not trap navigation, creation or backup r
     for (const [id, schemaVersion, date] of [["valid", 1, "2026-01-01"], ["future", 2, "2026-02-01"]] as const) {
       tx.objectStore("drafts").put({
         document: { documentId: id, schemaVersion, title: id, revision: 1,
-          locale: "ko", updatedAt: date, media: {}, content: { type: "doc", content: [{ type: "paragraph" }] } },
+          locale: "ko", updatedAt: date, media: {},
+          content: schemaVersion === 2 ? null : { type: "doc", content: [{ type: "paragraph" }] } },
         blobs: {},
       });
     }

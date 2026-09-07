@@ -80,6 +80,37 @@ const idPattern =
 // validateDocument 가 통과시키는 id 가 갈리면 붙여넣은 순간 저장이 막힌다.
 export const isMediaId = (value: unknown): value is string =>
   typeof value === "string" && idPattern.test(value);
+
+// PNG dimensions and animation metadata live in the container, so inspect them
+// before a browser decoder can allocate the bitmap. JPEG dimensions are checked
+// after decoding because this small contract deliberately does not duplicate a
+// JPEG parser.
+export function inspectImageBytes(
+  bytes: Uint8Array,
+): "image/png" | "image/jpeg" {
+  const mime = imageMime(bytes);
+  if (mime !== "image/png") return mime;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let offset = 8;
+  while (offset + 12 <= view.byteLength) {
+    const size = view.getUint32(offset);
+    if (size > view.byteLength - offset - 12)
+      throw new DocumentError("invalidImage");
+    const type = String.fromCharCode(
+      ...new Uint8Array(view.buffer, view.byteOffset + offset + 4, 4),
+    );
+    if (type === "acTL") throw new DocumentError("invalidImage");
+    if (type === "IHDR") {
+      if (size !== 13) throw new DocumentError("invalidImage");
+      const width = view.getUint32(offset + 8);
+      const height = view.getUint32(offset + 12);
+      if (width === 0 || height === 0 || width * height > limits.pixels)
+        throw new DocumentError("imageLimit");
+    }
+    offset += size + 12;
+  }
+  return mime;
+}
 const hexColor = /^#[\da-f]{6}$/i;
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);

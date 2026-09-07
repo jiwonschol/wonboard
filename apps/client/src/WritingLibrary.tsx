@@ -8,6 +8,16 @@ import {
 } from "@wonboard/document";
 import { translator } from "@wonboard/locales";
 
+function excerpt(draft: Draft): string {
+  try {
+    return plainText(draft.document.content).slice(0, 160);
+  } catch {
+    // Future-format documents stay selectable so their raw bytes can be
+    // recovered. Their unknown content shape must not take down the library.
+    return "";
+  }
+}
+
 export function WritingLibrary({
   draft,
   list,
@@ -99,7 +109,7 @@ export function WritingLibrary({
             </time>
             <strong>{d.document.title || t("untitled")}</strong>
             <span className="document-excerpt">
-              {plainText(d.document.content).slice(0, 160) || t("emptyExcerpt")}
+              {excerpt(d) || t("emptyExcerpt")}
             </span>
           </button>
         ))}

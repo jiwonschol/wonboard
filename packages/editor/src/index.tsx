@@ -11,6 +11,7 @@ import {
   limits,
   type ContentNode,
   type Locale,
+  type Media,
 } from "@wonboard/document";
 import { translator, type MessageKey } from "@wonboard/locales";
 import { MediaContext, MediaNode } from "./MediaNode";
@@ -27,6 +28,7 @@ export interface WonboardEditorProps {
   locale: Locale;
   documentLocale: Locale;
   mediaUrls: Record<string, string>;
+  media: Readonly<Record<string, Media>>;
   readOnly?: boolean;
   inspectorOpen?: boolean;
   insertOpen?: boolean;
@@ -113,14 +115,37 @@ const textOf = (doc: MeasurableDoc) =>
   doc.content.size <= limits.text ? 0 : doc.textContent.length;
 export const allowsTextChange = (next: MeasurableDoc, previous: MeasurableDoc) =>
   textOf(next) <= limits.text || textOf(next) <= textOf(previous);
-const TextLimit = Extension.create({
+type TraversableDoc = MeasurableDoc & {
+  descendants(
+    visit: (node: { type: { name: string }; attrs: Record<string, unknown> }) =>
+      | boolean
+      | void,
+  ): void;
+};
+export const hasValidOrderedListStarts = (doc: TraversableDoc) => {
+  let valid = true;
+  doc.descendants((node) => {
+    if (
+      node.type.name === "orderedList" &&
+      (!Number.isSafeInteger(node.attrs.start) ||
+        Number(node.attrs.start) < 1 ||
+        Number(node.attrs.start) > 100000)
+    ) {
+      valid = false;
+      return false;
+    }
+  });
+  return valid;
+};
+export const DocumentLimits = Extension.create({
   name: "wonboardTextLimit",
   addProseMirrorPlugins() {
     return [
       new Plugin({
         filterTransaction: (transaction, state) =>
           !transaction.docChanged ||
-          allowsTextChange(transaction.doc, state.doc),
+          (allowsTextChange(transaction.doc, state.doc) &&
+            hasValidOrderedListStarts(transaction.doc)),
       }),
     ];
   },
@@ -160,11 +185,11 @@ export function WonboardEditor(props: WonboardEditorProps) {
       MediaNode.configure({
         // 붙여넣기가 되살릴 수 있는 사진은 이 초안이 원본을 들고 있는 것뿐이다.
         ownsMedia: (mediaId: string) =>
-          Object.hasOwn(latest.current.mediaUrls ?? {}, mediaId),
+          Object.hasOwn(latest.current.media, mediaId),
       }),
       VideoNode,
       Formatting,
-      TextLimit,
+      DocumentLimits,
       Placeholder.configure({
         placeholder: () => translator(latest.current.locale)("placeholder"),
       }),

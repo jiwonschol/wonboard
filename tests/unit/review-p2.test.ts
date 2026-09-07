@@ -4,6 +4,7 @@ import { Readable } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
+import { zipSync } from "../../packages/document/node_modules/fflate";
 import {
   exportBackup,
   exportRawBackup,
@@ -13,13 +14,19 @@ import {
   newDraft,
   type Draft,
 } from "@wonboard/document";
-import { allowsTextChange, Formatting } from "../../packages/editor/src/index";
+import {
+  allowsTextChange,
+  DocumentLimits,
+  Formatting,
+  hasValidOrderedListStarts,
+} from "../../packages/editor/src/index";
 import { capAttributeText } from "../../packages/editor/src/Inspector";
 import { MediaNode } from "../../packages/editor/src/MediaNode";
 import { VideoNode } from "../../packages/editor/src/VideoNode";
 import { DocumentPreview } from "../../packages/renderer/src/index";
 import { createLocalAuth } from "../../apps/server/src/local-auth";
 import { openStorage, loadDrafts } from "../../apps/client/src/storage";
+import { saveUntilCurrent } from "../../apps/client/src/useDrafts";
 
 const doc = (size: number, text: string) => ({
   content: { size },
@@ -50,6 +57,70 @@ describe("본문 길이 상한은 편집기 경계에서 걸린다", () => {
     };
     expect(allowsTextChange(cheap, cheap)).toBe(true);
     expect(read).toBe(0);
+  });
+});
+
+describe("문서 전환은 마지막 편집까지 저장한다", () => {
+  it("저장 중 들어온 변경을 한 번 더 저장한 뒤 전환한다", async () => {
+    let change = 1;
+    let saved = 0;
+    let calls = 0;
+    const save = async () => {
+      const sequence = change;
+      calls++;
+      if (calls === 1) change++;
+      saved = sequence;
+      return true;
+    };
+    await expect(
+      saveUntilCurrent(save, () => saved === change),
+    ).resolves.toBe(true);
+    expect(calls).toBe(2);
+    expect(saved).toBe(change);
+  });
+  it("문서 전환과 사진 소유권이 최신 상태를 읽는 경로에 배선돼 있다", () => {
+    const drafts = readFileSync("apps/client/src/useDrafts.ts", "utf8");
+    const app = readFileSync("apps/client/src/App.tsx", "utf8");
+    const editor = readFileSync("packages/editor/src/index.tsx", "utf8");
+    expect(drafts).toMatch(/await saveUntilCurrent\(\s*save,/u);
+    expect(app).toMatch(/media=\{draft\.document\.media\}/u);
+    expect(editor).toMatch(/Object\.hasOwn\(latest\.current\.media, mediaId\)/u);
+  });
+});
+
+describe("붙여넣은 번호 목록도 문서 계약을 지킨다", () => {
+  const document = (starts: unknown[]) => ({
+    content: { size: 1 },
+    textContent: "a",
+    descendants(visit: (node: { type: { name: string }; attrs: Record<string, unknown> }) => boolean | void) {
+      for (const start of starts)
+        if (visit({ type: { name: "orderedList" }, attrs: { start } }) === false)
+          break;
+    },
+  });
+  it("0·음수·상한 밖 시작값은 편집기에 들어오기 전에 거부한다", () => {
+    expect(hasValidOrderedListStarts(document([1, 100000]))).toBe(true);
+    for (const start of [0, -1, 100001, 1.5, "1"])
+      expect(hasValidOrderedListStarts(document([start]))).toBe(false);
+  });
+  it("transaction filter가 붙여넣기 결과에도 목록 시작값을 검사한다", () => {
+    const plugins = (
+      DocumentLimits.config.addProseMirrorPlugins as () => {
+        spec: {
+          filterTransaction?: (
+            transaction: { docChanged: boolean; doc: ReturnType<typeof document> },
+            state: { doc: ReturnType<typeof document> },
+          ) => boolean;
+        };
+      }[]
+    )();
+    const filter = plugins[0]!.spec.filterTransaction!;
+    expect(
+      filter(
+        { docChanged: true, doc: document([0]) },
+        { doc: document([1]) },
+      ),
+    ).toBe(false);
   });
 });
 
@@ -232,6 +303,30 @@ describe("깨진 레코드 하나가 서재 전체를 막지 않는다", () => {
     ).not.toThrow();
     db.close();
   });
+  it("문자열 모양만 맞는 날짜와 제목도 목록에 올리지 않는다", async () => {
+    const db = await openStorage(crypto.randomUUID());
+    const good = newDraft();
+    good.document.title = "살아 있는 초안";
+    await new Promise((resolve, reject) => {
+      const transaction = db.transaction("drafts", "readwrite");
+      const store = transaction.objectStore("drafts");
+      store.put({ document: good.document, blobs: {} });
+      store.put({
+        document: { ...newDraft().document, documentId: "bad-date", updatedAt: "not-a-date" },
+        blobs: {},
+      });
+      store.put({
+        document: { ...newDraft().document, documentId: "bad-title", title: null },
+        blobs: {},
+      });
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+    });
+    expect((await loadDrafts(db)).map((d) => d.document.title)).toEqual([
+      "살아 있는 초안",
+    ]);
+    db.close();
+  });
   it("읽을 수 없는 항목만 건너뛰고 나머지 문서를 연다", async () => {
     const db = await openStorage(crypto.randomUUID());
     const good = newDraft();
@@ -404,6 +499,68 @@ describe("사진 한 장의 상한을 문서에 적용하지 않는다", () => {
     expect(archive.size).toBeLessThan(limits.archiveBytes);
     const restored = await importBackup(archive);
     expect(restored.document.documentId).toBe(draft.document.documentId);
+  });
+});
+
+describe("백업 사진은 디코더보다 먼저 PNG 구조를 검사한다", () => {
+  const chunk = (type: string, data: Uint8Array) => {
+    const bytes = new Uint8Array(data.byteLength + 12);
+    const view = new DataView(bytes.buffer);
+    view.setUint32(0, data.byteLength);
+    bytes.set(new TextEncoder().encode(type), 4);
+    bytes.set(data, 8);
+    return bytes;
+  };
+  const png = (...chunks: Uint8Array[]) => {
+    const signature = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    const bytes = new Uint8Array(
+      signature.byteLength + chunks.reduce((sum, value) => sum + value.byteLength, 0),
+    );
+    bytes.set(signature);
+    let offset = signature.byteLength;
+    for (const value of chunks) {
+      bytes.set(value, offset);
+      offset += value.byteLength;
+    }
+    return bytes;
+  };
+  const archive = async (bytes: Uint8Array) => {
+    const draft = newDraft();
+    draft.document.media.photo = {
+      id: "photo",
+      originalName: "photo.png",
+      mime: "image/png",
+      width: 1,
+      height: 1,
+      size: bytes.byteLength,
+      sha256: await sha256(bytes.buffer as ArrayBuffer),
+    };
+    draft.document.content.content!.push({
+      type: "media",
+      attrs: { mediaId: "photo" },
+    });
+    return new Blob([
+      zipSync({
+        "document.json": new TextEncoder().encode(JSON.stringify(draft.document)),
+        "media/photo": bytes,
+      }) as Uint8Array<ArrayBuffer>,
+    ]);
+  };
+  it("APNG와 실제 IHDR이 상한을 넘는 PNG를 백업 단계에서 거부한다", async () => {
+    const ihdr = new Uint8Array(13);
+    new DataView(ihdr.buffer).setUint32(0, 1);
+    new DataView(ihdr.buffer).setUint32(4, 1);
+    const animated = png(chunk("IHDR", ihdr), chunk("acTL", new Uint8Array(8)));
+    await expect(importBackup(await archive(animated))).rejects.toThrow(
+      "invalidImage",
+    );
+
+    new DataView(ihdr.buffer).setUint32(0, limits.pixels);
+    new DataView(ihdr.buffer).setUint32(4, 2);
+    const oversized = png(chunk("IHDR", ihdr));
+    await expect(importBackup(await archive(oversized))).rejects.toThrow(
+      "imageLimit",
+    );
   });
 });
 
