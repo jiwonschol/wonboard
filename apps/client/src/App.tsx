@@ -14,7 +14,11 @@ import {
 } from "@wonboard/document";
 import { translator, en, type MessageKey } from "@wonboard/locales";
 import { useDrafts } from "./useDrafts";
-import { importImages, verifyDecodedImage } from "./media";
+import {
+  importImages,
+  insertImagesWhenAccepted,
+  verifyDecodedImage,
+} from "./media";
 import { AttachmentsPanel } from "./AttachmentsPanel";
 import { WritingLibrary } from "./WritingLibrary";
 import { initialLocale } from "./locale";
@@ -190,26 +194,12 @@ export default function App({
         media[item.media.id] = item.media;
         blobs[item.media.id] = item.blob;
       }
-      writer.update({ media }, blobs);
-      instance
-        .chain()
-        .insertContentAt(
-          position,
-          imported.flatMap((item) => [
-            {
-              type: "media",
-              attrs: {
-                mediaId: item.media.id,
-                width: Math.max(40, Math.min(600, item.media.width)),
-                align: "left",
-                alt: "",
-                caption: "",
-              },
-            },
-            { type: "paragraph" },
-          ]),
+      if (
+        !insertImagesWhenAccepted(instance, position, imported, () =>
+          writer.update({ media }, blobs),
         )
-        .run();
+      )
+        throw new Error("imageInsertFailed");
       setNotice("");
     } catch (e) {
       report(e);

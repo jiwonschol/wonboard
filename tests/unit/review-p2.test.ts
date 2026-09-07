@@ -43,7 +43,11 @@ import {
   selectionAccess,
 } from "../../apps/client/src/useDrafts";
 import { WritingLibrary } from "../../apps/client/src/WritingLibrary";
-import { importImages, verifyDecodedImage } from "../../apps/client/src/media";
+import {
+  importImages,
+  insertImagesWhenAccepted,
+  verifyDecodedImage,
+} from "../../apps/client/src/media";
 
 const doc = (size: number, text: string) => ({
   content: { size },
@@ -399,6 +403,56 @@ describe("사진 원본 합계가 백업 용량을 넘지 않는다", () => {
     } finally {
       limits.mediaBytes = originalLimit;
     }
+  });
+});
+
+describe("사진 원본은 편집기가 삽입을 받아들인 뒤에만 보관한다", () => {
+  const imported = [
+    {
+      media: {
+        id: "photo-1",
+        originalName: "photo.png",
+        mime: "image/png" as const,
+        width: 40,
+        height: 40,
+        size: 1,
+        sha256: "0".repeat(64),
+      },
+      blob: new Blob([new Uint8Array([1])], { type: "image/png" }),
+    },
+  ];
+
+  it("문서 한계가 transaction을 거부하면 media commit도 하지 않는다", () => {
+    let committed = 0;
+    const editor = {
+      chain: () => ({
+        insertContentAt: () => ({ run: () => true }),
+      }),
+      getJSON: () => ({ type: "doc", content: [{ type: "paragraph" }] }),
+    };
+
+    expect(
+      insertImagesWhenAccepted(editor, 1, imported, () => committed++),
+    ).toBe(false);
+    expect(committed).toBe(0);
+  });
+
+  it("삽입된 media id를 모두 확인한 뒤 한 번만 commit한다", () => {
+    let committed = 0;
+    const editor = {
+      chain: () => ({
+        insertContentAt: () => ({ run: () => true }),
+      }),
+      getJSON: () => ({
+        type: "doc",
+        content: [{ type: "media", attrs: { mediaId: "photo-1" } }],
+      }),
+    };
+
+    expect(
+      insertImagesWhenAccepted(editor, 1, imported, () => committed++),
+    ).toBe(true);
+    expect(committed).toBe(1);
   });
 });
 
