@@ -177,7 +177,7 @@ const currentMarks = new Set([
   "code",
   "link",
 ]);
-const linkAttrs = new Set(["href", "target", "rel", "class", "title"]);
+const linkAttrs = new Set(["href", "target", "rel", "class"]);
 export function markAttrsFitDocument(type: unknown, attrs: unknown): boolean {
   if (typeof type !== "string" || !currentMarks.has(type)) return false;
   if (type !== "link")
@@ -294,11 +294,13 @@ export function nodeAttrsFitDocument(type: unknown, attrs: unknown): boolean {
   if (type === "video" && !isVideo(attrs)) return false;
   return true;
 }
-export function validateDocument(
+export function validateDocumentEnvelope(
   value: unknown,
 ): asserts value is WriterDocument {
   requireThat(isObject(value));
-  if (value.schemaVersion !== 1) throw new DocumentError("futureDocument");
+  requireThat(
+    Number.isSafeInteger(value.schemaVersion) && Number(value.schemaVersion) >= 1,
+  );
   requireThat(
     typeof value.documentId === "string" && idPattern.test(value.documentId),
   );
@@ -317,6 +319,7 @@ export function validateDocument(
     typeof value.updatedAt === "string" &&
       Number.isFinite(Date.parse(value.updatedAt)),
   );
+  requireThat(isObject(value.content));
   requireThat(
     isObject(value.media) && Object.keys(value.media).length <= limits.images,
   );
@@ -342,6 +345,13 @@ export function validateDocument(
       typeof m.sha256 === "string" && /^[a-f0-9]{64}$/.test(m.sha256),
     );
   }
+}
+export function validateDocument(
+  value: unknown,
+): asserts value is WriterDocument {
+  requireThat(isObject(value));
+  if (value.schemaVersion !== 1) throw new DocumentError("futureDocument");
+  validateDocumentEnvelope(value);
   let nodeCount = 0;
   let textLength = 0;
   const walk = (n: unknown, parent: string, depth: number) => {

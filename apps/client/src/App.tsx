@@ -9,11 +9,12 @@ import {
   attachmentNodes,
   plainText,
   limits,
+  DocumentError,
   type Locale,
 } from "@wonboard/document";
 import { translator, en, type MessageKey } from "@wonboard/locales";
 import { useDrafts } from "./useDrafts";
-import { importImages } from "./media";
+import { importImages, verifyDecodedImage } from "./media";
 import { AttachmentsPanel } from "./AttachmentsPanel";
 import { WritingLibrary } from "./WritingLibrary";
 import { initialLocale } from "./locale";
@@ -139,11 +140,9 @@ export default function App({
     try {
       const restored = await importBackup(file);
       for (const media of Object.values(restored.document.media)) {
-        const bitmap = await createImageBitmap(restored.blobs[media.id]);
-        const valid =
-          bitmap.width === media.width && bitmap.height === media.height;
-        bitmap.close();
-        if (!valid) throw new Error("corruptBackup");
+        const blob = restored.blobs[media.id];
+        if (!blob) throw new DocumentError("corruptBackup");
+        await verifyDecodedImage(blob, media);
       }
       if (await writer.restore(restored)) setNotice("imported");
     } catch (e) {

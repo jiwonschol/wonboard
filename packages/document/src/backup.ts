@@ -4,6 +4,7 @@ import {
   limits,
   sha256,
   validateDocument,
+  validateDocumentEnvelope,
   withoutUnusedMedia,
   inspectImageBytes,
   type Draft,
@@ -52,9 +53,11 @@ export async function exportRawBackup(draft: Draft): Promise<Blob> {
     if (!(blob instanceof Blob)) continue;
     total += blob.size;
     if (total > limits.archiveBytes) throw new DocumentError("archiveLimit");
-    const safeId = Array.from(new TextEncoder().encode(id), (byte) =>
-      byte.toString(16).padStart(2, "0"),
-    ).join("");
+    // Encode UTF-16 code units, not UTF-8: TextEncoder replaces lone
+    // surrogates, which can make two distinct recovery keys collide.
+    let safeId = "";
+    for (let index = 0; index < id.length; index++)
+      safeId += id.charCodeAt(index).toString(16).padStart(4, "0");
     files[`media/raw-${safeId || "empty"}`] = new Uint8Array(
       await blob.arrayBuffer(),
     );
@@ -117,7 +120,16 @@ export async function importBackup(blob: Blob): Promise<Draft> {
   } catch {
     throw new DocumentError("corruptBackup");
   }
-  validateDocument(document);
+  try {
+    validateDocument(document);
+  } catch (error) {
+    if (!(error instanceof DocumentError) || error.code !== "futureDocument")
+      throw error;
+    // Keep a newer/unsupported document inspectable through the existing
+    // read-only recovery UI, while still validating every field used to locate
+    // and verify its binary originals.
+    validateDocumentEnvelope(document);
+  }
   if (names.size !== Object.keys(document.media).length + 1)
     throw new DocumentError("corruptBackup");
   const blobs: Record<string, Blob> = {};

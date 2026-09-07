@@ -1,4 +1,11 @@
 import { test, expect } from "./fixtures";
+import { readFile, writeFile } from "node:fs/promises";
+import {
+  strFromU8,
+  strToU8,
+  unzipSync,
+  zipSync,
+} from "../../packages/document/node_modules/fflate/esm/index.mjs";
 
 test("the untouched bootstrap draft is clean and New stores only the requested draft", async ({
   page,
@@ -21,7 +28,7 @@ test("the untouched bootstrap draft is clean and New stores only the requested d
   expect(stored).toBe(1);
 });
 
-test("an unsupported newest draft does not trap navigation, creation or backup restore", async ({ page }) => {
+test("an unsupported newest draft does not trap navigation, creation or backup restore", async ({ page }, testInfo) => {
   await page.goto("/");
   await expect(page.getByRole("textbox", { name: "Add title" })).toBeVisible();
   await page.evaluate(async () => {
@@ -55,6 +62,12 @@ test("an unsupported newest draft does not trap navigation, creation or backup r
   const downloaded = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download backup (.zip)", exact: true }).click();
   const path = (await (await downloaded).path())!;
+  const entries = unzipSync(new Uint8Array(await readFile(path)));
+  const futureDocument = JSON.parse(strFromU8(entries["document.json"]!));
+  futureDocument.schemaVersion = 2;
+  entries["document.json"] = strToU8(JSON.stringify(futureDocument));
+  const futurePath = testInfo.outputPath("future-backup.zip");
+  await writeFile(futurePath, zipSync(entries));
   await page.getByRole("dialog", { name: "Options" }).getByRole("button", { name: "Close", exact: true }).click();
   await chooseFuture();
   // 얼어붙은 초안의 백업 단추는 그것을 얼린 검증에서 다시 던져 파일을 못 냈다.
@@ -66,9 +79,12 @@ test("an unsupported newest draft does not trap navigation, creation or backup r
   await page.getByRole("textbox", { name: "Add title" }).fill("created document");
   await expect(page.getByRole("status").last()).toHaveText("Saved locally");
   await chooseFuture();
-  await page.locator('input[accept=".zip,application/zip"]').setInputFiles(path);
-  await expect(page.getByText("Backup restored as a new document.")).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Add title" })).toHaveValue("valid");
+  await page.locator('input[accept=".zip,application/zip"]').setInputFiles(futurePath);
+  // The unsupported-format alert remains the dominant notice, but the backup's
+  // title proves that the newer payload replaced the selected stored draft in
+  // memory without being rewritten by this older version.
+  await expect(page.locator(".document-name")).toHaveText("valid · Post");
+  await expect(page.getByText("Read only", { exact: true })).toBeVisible();
   const version = await page.evaluate(async () => {
     const request = indexedDB.open("wonboard-writer-v1", 1);
     const db = await new Promise<IDBDatabase>((resolve) => { request.onsuccess = () => resolve(request.result); });

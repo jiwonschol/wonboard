@@ -46,3 +46,20 @@ export async function importImages(
   }
   return result;
 }
+
+export async function verifyDecodedImage(
+  blob: Blob,
+  expected: Pick<Media, "width" | "height">,
+  decode: (blob: Blob) => Promise<Pick<ImageBitmap, "width" | "height" | "close">> =
+    createImageBitmap,
+): Promise<void> {
+  let bitmap: Pick<ImageBitmap, "width" | "height" | "close">;
+  try {
+    bitmap = await decode(blob);
+  } catch {
+    throw new DocumentError("corruptBackup");
+  }
+  const valid = bitmap.width === expected.width && bitmap.height === expected.height;
+  bitmap.close();
+  if (!valid) throw new DocumentError("corruptBackup");
+}

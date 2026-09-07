@@ -20,6 +20,16 @@ export const hasUnsavedWork = (
   conflictCount: number,
 ) => change !== savedChange || conflictCount > 0;
 
+export const selectionAccess = (
+  disconnected: boolean,
+  validationError: string,
+) =>
+  disconnected
+    ? { readOnly: true, error: "storageVersionChanged" }
+    : validationError
+      ? { readOnly: true, error: validationError }
+      : { readOnly: false, error: "" };
+
 export function useDrafts(locale: Locale) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [list, setList] = useState<Draft[]>([]);
@@ -45,22 +55,25 @@ export function useDrafts(locale: Locale) {
     composing.current = false;
     change.current = 0;
     savedChange.current = clean || value.document.revision > 0 ? 0 : -1;
+    let validationError = "";
     try {
       value = withoutUnusedMedia(value);
       if (conflicts.current.has(value.document.documentId))
         throw new StorageConflict();
-      frozen.current = false;
-      setReadOnly(false);
-      setError("");
     } catch (e) {
-      frozen.current = true;
-      setReadOnly(true);
-      setError(e instanceof Error ? e.message : "invalidDocument");
+      validationError = e instanceof Error ? e.message : "invalidDocument";
     }
+    // A versionchange can close the database while the initial getAll is still
+    // finishing. That stale continuation may select a draft, but it must never
+    // make the editor writable again without a live connection.
+    const access = selectionAccess(disconnected.current, validationError);
+    frozen.current = access.readOnly;
+    setReadOnly(access.readOnly);
+    setError(access.error);
     current.current = value;
     setDraft(value);
     setStatus(
-      conflicts.current.has(value.document.documentId)
+      access.readOnly
         ? "error"
         : value.document.revision > 0 ? "saved" : "unsaved",
     );
@@ -245,6 +258,9 @@ export function useDrafts(locale: Locale) {
       },
     };
     if (!(await activate(value))) return false;
+    // A newer but structurally recoverable backup is intentionally selected in
+    // memory as read-only. Saving it would discard the unsupported information.
+    if (frozen.current) return true;
     return save();
   }
   return {

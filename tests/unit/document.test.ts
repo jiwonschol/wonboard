@@ -162,7 +162,7 @@ describe("document contract", () => {
           },
         }),
       ),
-    ).not.toThrow();
+    ).toThrow("futureDocument");
     expect(() =>
       validateDocument(
         withMark({ type: "bold", attrs: {}, future: "keep" }),
@@ -308,6 +308,37 @@ describe("backup boundary", () => {
       importBackup(zipBlob({ "document.json": strToU8("{no") })),
     ).rejects.toThrow("corruptBackup");
     await expect(importBackup(new Blob(["not a zip"]))).rejects.toThrow();
+  });
+  it("opens a newer structurally safe backup with its original media intact", async () => {
+    const bytes = Uint8Array.from(
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    );
+    const document = newDraft().document;
+    document.media.photo = {
+      id: "photo",
+      originalName: "photo.png",
+      mime: "image/png",
+      width: 1,
+      height: 1,
+      size: bytes.byteLength,
+      sha256: await sha256(bytes.buffer as ArrayBuffer),
+    };
+    document.content.content!.push({
+      type: "media",
+      attrs: { mediaId: "photo" },
+    });
+    const future = { ...document, schemaVersion: 2 };
+    const restored = await importBackup(
+      zipBlob({
+        "document.json": strToU8(JSON.stringify(future)),
+        "media/photo": bytes,
+      }),
+    );
+    expect(restored.document.schemaVersion).toBe(2);
+    expect(new Uint8Array(await restored.blobs.photo.arrayBuffer())).toEqual(bytes);
   });
   it("refuses missing original before exporting", async () => {
     const d = newDraft();

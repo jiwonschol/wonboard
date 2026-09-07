@@ -15,6 +15,7 @@ import {
   limits,
   sha256,
   newDraft,
+  validateDocument,
   type Draft,
 } from "@wonboard/document";
 import {
@@ -39,9 +40,10 @@ import {
 import {
   hasUnsavedWork,
   saveUntilCurrent,
+  selectionAccess,
 } from "../../apps/client/src/useDrafts";
 import { WritingLibrary } from "../../apps/client/src/WritingLibrary";
-import { importImages } from "../../apps/client/src/media";
+import { importImages, verifyDecodedImage } from "../../apps/client/src/media";
 
 const doc = (size: number, text: string) => ({
   content: { size },
@@ -108,6 +110,13 @@ describe("초기 빈 초안은 사용자 변경 전까지 깨끗하다", () => {
     expect(hasUnsavedWork(0, 0, 0)).toBe(false);
     expect(hasUnsavedWork(1, 0, 0)).toBe(true);
     expect(hasUnsavedWork(0, 0, 1)).toBe(true);
+  });
+  it("초기 load가 늦게 끝나도 끊긴 DB를 다시 writable로 만들지 않는다", () => {
+    expect(selectionAccess(true, "")).toEqual({
+      readOnly: true,
+      error: "storageVersionChanged",
+    });
+    expect(selectionAccess(false, "")).toEqual({ readOnly: false, error: "" });
   });
 });
 
@@ -290,6 +299,41 @@ describe("붙여넣은 mark 속성도 문서 계약을 지킨다", () => {
   });
 });
 
+describe("link 계약은 편집기 schema가 보존하는 속성만 받는다", () => {
+  it("현재 네 속성은 받고 편집기가 버리는 title은 미래 문서로 격리한다", () => {
+    const current = newDraft().document;
+    current.content = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "link",
+              marks: [
+                {
+                  type: "link",
+                  attrs: {
+                    href: "https://example.com",
+                    target: "_blank",
+                    rel: "noopener noreferrer nofollow",
+                    class: null,
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    expect(() => validateDocument(current)).not.toThrow();
+    const mark = current.content.content![0]!.content![0]!.marks![0]!;
+    mark.attrs = { ...mark.attrs, title: "future title" };
+    expect(() => validateDocument(current)).toThrow("futureDocument");
+  });
+});
+
 describe("붙여넣은 node 속성도 문서 계약을 지킨다", () => {
   const nodes = (type: string, attrs: Record<string, unknown>) => ({
     content: { size: 1 },
@@ -355,6 +399,24 @@ describe("사진 원본 합계가 백업 용량을 넘지 않는다", () => {
     } finally {
       limits.mediaBytes = originalLimit;
     }
+  });
+});
+
+describe("백업 디코더 오류는 저장 실패가 아니라 손상으로 분류한다", () => {
+  it("decoder 예외와 치수 불일치를 corruptBackup으로 바꾼다", async () => {
+    const blob = new Blob([new Uint8Array([1])]);
+    await expect(
+      verifyDecodedImage(blob, { width: 1, height: 1 }, async () => {
+        throw new DOMException("decode failed");
+      }),
+    ).rejects.toThrow("corruptBackup");
+    await expect(
+      verifyDecodedImage(blob, { width: 1, height: 1 }, async () => ({
+        width: 2,
+        height: 1,
+        close: () => undefined,
+      })),
+    ).rejects.toThrow("corruptBackup");
   });
 });
 
@@ -651,7 +713,7 @@ describe("읽기 전용 초안에도 회수 경로가 있다", () => {
     const bytes = new Uint8Array(await archive.arrayBuffer());
     const text = new TextDecoder("latin1").decode(bytes);
     expect(text).toContain("document.json");
-    expect(text).toContain("media/raw-70686f746f");
+    expect(text).toContain("media/raw-00700068006f0074006f");
     expect(text).toContain('"schemaVersion":2');
     expect(bytes).toContain(1);
     expect(text).toContain(String.fromCharCode(1, 2, 3));
@@ -663,9 +725,28 @@ describe("읽기 전용 초안에도 회수 경로가 있다", () => {
     };
     const archive = unzipSync(new Uint8Array(await (await exportRawBackup(draft)).arrayBuffer()));
     const names = Object.keys(archive);
-    expect(names).toContain("media/raw-2e2e2f2e2e2f6f757473696465");
+    expect(names).toContain(
+      "media/raw-002e002e002f002e002e002f006f007500740073006900640065",
+    );
     expect(names.every((name) => !name.includes("..") && !name.includes("\\")))
       .toBe(true);
+  });
+  it("서로 다른 잘못된 UTF-16 id도 같은 파일명으로 합쳐지지 않는다", async () => {
+    const draft = frozen();
+    draft.blobs = {
+      "\ud800": new Blob([new Uint8Array([1])]),
+      "�": new Blob([new Uint8Array([2])]),
+    };
+    const archive = unzipSync(
+      new Uint8Array(await (await exportRawBackup(draft)).arrayBuffer()),
+    );
+    expect(Object.keys(archive).sort()).toEqual([
+      "document.json",
+      "media/raw-d800",
+      "media/raw-fffd",
+    ]);
+    expect(archive["media/raw-d800"]).toEqual(Uint8Array.from([1]));
+    expect(archive["media/raw-fffd"]).toEqual(Uint8Array.from([2]));
   });
 });
 

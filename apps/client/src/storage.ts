@@ -31,6 +31,17 @@ export function openStorage(
 export const newestDraftFirst = (a: Draft, b: Draft) =>
   Date.parse(b.document.updatedAt) - Date.parse(a.document.updatedAt);
 type StoredDraft = Draft & { blobs: Record<string, Blob | ArrayBuffer> };
+const storedBinary = new WeakMap<Blob, Promise<ArrayBuffer>>();
+function bytesForStorage(blob: Blob): Promise<ArrayBuffer> {
+  const cached = storedBinary.get(blob);
+  if (cached) return cached;
+  const pending = blob.arrayBuffer().catch((error) => {
+    storedBinary.delete(blob);
+    throw error;
+  });
+  storedBinary.set(blob, pending);
+  return pending;
+}
 function toDraft(stored: StoredDraft): Draft {
   // 변환이 던지는 것만 걸러서는 부족하다. `blobs` 가 멀쩡해도 `updatedAt` 이 없거나
   // 문자열이 아니면 목록을 정렬하는 쪽에서 던져, 결국 같은 자리로 돌아온다 —
@@ -111,7 +122,7 @@ export async function saveDraft(
       await Promise.all(
         Object.entries(snapshot.blobs).map(async ([id, blob]) => [
           id,
-          await blob.arrayBuffer(),
+          await bytesForStorage(blob),
         ]),
       ),
     ),
