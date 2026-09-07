@@ -124,6 +124,45 @@ describe("document contract", () => {
       expect(safeLink(url)).toBe(false);
     expect(safeLink("https://example.com/한글")).toBe(true);
   });
+  it("rejects mark attributes the current editor cannot preserve", () => {
+    const withMark = (mark: Record<string, unknown>) => ({
+      ...newDraft().document,
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "x", marks: [mark] }],
+          },
+        ],
+      },
+    });
+    expect(() =>
+      validateDocument(withMark({ type: "bold", attrs: { future: "keep" } })),
+    ).toThrow("futureDocument");
+    expect(() =>
+      validateDocument(
+        withMark({
+          type: "link",
+          attrs: { href: "https://example.com", future: "keep" },
+        }),
+      ),
+    ).toThrow("futureDocument");
+    expect(() =>
+      validateDocument(
+        withMark({
+          type: "link",
+          attrs: {
+            href: "https://example.com",
+            target: "_blank",
+            rel: "noopener noreferrer nofollow",
+            class: null,
+            title: null,
+          },
+        }),
+      ),
+    ).not.toThrow();
+  });
   it("rejects invalid tree structure, missing images and executable styles", () => {
     const d = newDraft().document;
     for (const n of [

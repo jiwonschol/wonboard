@@ -2,8 +2,11 @@ import "fake-indexeddb/auto";
 import { describe, expect, it } from "vitest";
 import { Readable } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
+import { getSchema } from "../../packages/editor/node_modules/@tiptap/core/dist/index.js";
+import StarterKit from "../../packages/editor/node_modules/@tiptap/starter-kit/dist/index.js";
 import { zipSync } from "../../packages/document/node_modules/fflate";
 import {
   exportBackup,
@@ -18,6 +21,7 @@ import {
   allowsTextChange,
   DocumentLimits,
   Formatting,
+  hasValidDocumentStructure,
   hasValidOrderedListStarts,
 } from "../../packages/editor/src/index";
 import { capAttributeText } from "../../packages/editor/src/Inspector";
@@ -25,8 +29,13 @@ import { MediaNode } from "../../packages/editor/src/MediaNode";
 import { VideoNode } from "../../packages/editor/src/VideoNode";
 import { DocumentPreview } from "../../packages/renderer/src/index";
 import { createLocalAuth } from "../../apps/server/src/local-auth";
-import { openStorage, loadDrafts } from "../../apps/client/src/storage";
+import {
+  openStorage,
+  loadDrafts,
+  newestDraftFirst,
+} from "../../apps/client/src/storage";
 import { saveUntilCurrent } from "../../apps/client/src/useDrafts";
+import { WritingLibrary } from "../../apps/client/src/WritingLibrary";
 
 const doc = (size: number, text: string) => ({
   content: { size },
@@ -92,6 +101,8 @@ describe("붙여넣은 번호 목록도 문서 계약을 지킨다", () => {
   const document = (starts: unknown[]) => ({
     content: { size: 1 },
     textContent: "a",
+    childCount: 0,
+    child: () => { throw new Error("no child"); },
     descendants(visit: (node: { type: { name: string }; attrs: Record<string, unknown> }) => boolean | void) {
       for (const start of starts)
         if (visit({ type: { name: "orderedList" }, attrs: { start } }) === false)
@@ -119,6 +130,91 @@ describe("붙여넣은 번호 목록도 문서 계약을 지킨다", () => {
       filter(
         { docChanged: true, doc: document([0]) },
         { doc: document([1]) },
+      ),
+    ).toBe(false);
+  });
+  it("현재 StarterKit schema는 번호 목록 type을 JSON 왕복에서 보존한다", () => {
+    const schema = getSchema([StarterKit]);
+    const value = {
+      type: "doc",
+      content: [
+        {
+          type: "orderedList",
+          attrs: { start: 1, type: "A" },
+          content: [
+            {
+              type: "listItem",
+              content: [
+                {
+                  type: "paragraph",
+                  content: [{ type: "text", text: "alpha" }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    expect(schema.nodeFromJSON(value).toJSON()).toEqual(value);
+  });
+});
+
+describe("편집기 구조도 문서 계약을 넘지 않는다", () => {
+  type TestNode = { childCount: number; child(index: number): TestNode };
+  const leaf: TestNode = {
+    childCount: 0,
+    child: () => { throw new Error("no child"); },
+  };
+  const nested = (deepest: number) => {
+    let node: TestNode = leaf;
+    for (let depth = 0; depth < deepest; depth++) {
+      const child = node;
+      node = { childCount: 1, child: () => child };
+    }
+    return node;
+  };
+  it("깊이 40과 노드 100000에 닿는 변경을 거부한다", () => {
+    expect(hasValidDocumentStructure(nested(39))).toBe(true);
+    expect(hasValidDocumentStructure(nested(40))).toBe(false);
+    expect(
+      hasValidDocumentStructure({ childCount: 99_998, child: () => leaf }),
+    ).toBe(true);
+    expect(
+      hasValidDocumentStructure({ childCount: 99_999, child: () => leaf }),
+    ).toBe(false);
+  });
+  it("transaction filter가 구조 한계를 넘은 붙여넣기를 거부한다", () => {
+    type FilterDoc = ReturnType<typeof nested> & {
+      content: { size: number };
+      textContent: string;
+      descendants(
+        visit: (node: {
+          type: { name: string };
+          attrs: Record<string, unknown>;
+        }) => boolean | void,
+      ): void;
+    };
+    const plugins = (
+      DocumentLimits.config.addProseMirrorPlugins as () => {
+        spec: {
+          filterTransaction?: (
+            transaction: { docChanged: boolean; doc: FilterDoc },
+            state: { doc: FilterDoc },
+          ) => boolean;
+        };
+      }[]
+    )();
+    const measurable = (node: ReturnType<typeof nested>): FilterDoc => ({
+      ...node,
+      content: { size: 1 },
+      textContent: "a",
+      descendants: () => undefined,
+    });
+    const filter = plugins[0]!.spec.filterTransaction!;
+    expect(
+      filter(
+        { docChanged: true, doc: measurable(nested(40)) },
+        { doc: measurable(nested(1)) },
       ),
     ).toBe(false);
   });
@@ -275,6 +371,30 @@ describe("미리보기가 번호 매김 방식을 지킨다", () => {
 });
 
 describe("깨진 레코드 하나가 서재 전체를 막지 않는다", () => {
+  it("파싱 가능한 옛 날짜 표기도 실제 시각으로 정렬한다", () => {
+    const older = newDraft();
+    older.document.updatedAt = "2026-12-31T00:00:00.000Z";
+    const newer = newDraft();
+    newer.document.updatedAt = "12/31/2099";
+    expect([older, newer].sort(newestDraftFirst)[0]).toBe(newer);
+    older.document.title = "iso-older";
+    newer.document.title = "legacy-newer";
+    const markup = renderToStaticMarkup(
+      createElement(WritingLibrary, {
+        draft: older,
+        list: [newer],
+        locale: "en",
+        busy: false,
+        onSelect: async () => undefined,
+        onCreate: () => undefined,
+        onClose: () => undefined,
+        onRestore: () => undefined,
+      }),
+    );
+    expect(markup.indexOf("legacy-newer")).toBeLessThan(
+      markup.indexOf("iso-older"),
+    );
+  });
   it("정렬을 깨뜨리는 메타까지 걸러 낸다", async () => {
     // blobs 는 멀쩡한데 updatedAt 이 없으면 변환은 통과하고 목록 정렬이 던진다.
     // 초기화가 빈 초안으로 물러나며 멀쩡한 문서까지 전부 가려지던 자리다.

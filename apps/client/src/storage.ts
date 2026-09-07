@@ -8,6 +8,7 @@ export class StorageConflict extends Error {
 export function openStorage(
   name = "wonboard-writer-v1",
   onBlocked?: () => void,
+  onVersionChange?: () => void,
 ): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(name, 1);
@@ -16,7 +17,10 @@ export function openStorage(
         keyPath: "document.documentId",
       });
     request.onsuccess = () => {
-      request.result.onversionchange = () => request.result.close();
+      request.result.onversionchange = () => {
+        request.result.close();
+        onVersionChange?.();
+      };
       resolve(request.result);
     };
     request.onerror = () => reject(request.error);
@@ -24,6 +28,8 @@ export function openStorage(
     request.onblocked = () => onBlocked?.();
   });
 }
+export const newestDraftFirst = (a: Draft, b: Draft) =>
+  Date.parse(b.document.updatedAt) - Date.parse(a.document.updatedAt);
 type StoredDraft = Draft & { blobs: Record<string, Blob | ArrayBuffer> };
 function toDraft(stored: StoredDraft): Draft {
   // 변환이 던지는 것만 걸러서는 부족하다. `blobs` 가 멀쩡해도 `updatedAt` 이 없거나

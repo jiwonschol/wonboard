@@ -7,6 +7,7 @@ import {
   type Locale,
 } from "@wonboard/document";
 import { translator } from "@wonboard/locales";
+import { newestDraftFirst } from "./storage";
 
 function excerpt(draft: Draft): string {
   try {
@@ -44,7 +45,7 @@ export function WritingLibrary({
     draft,
     ...list.filter((d) => d.document.documentId !== draft.document.documentId),
   ]
-    .sort((a, b) => b.document.updatedAt.localeCompare(a.document.updatedAt))
+    .sort(newestDraftFirst)
     .filter(
       (d) =>
         matchesQuery(d.document.title, query, locale) &&

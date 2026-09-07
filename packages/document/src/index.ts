@@ -304,8 +304,22 @@ export function validateDocument(
           )
         )
           throw new DocumentError("futureDocument");
-        if (mark.type === "link")
+        if (mark.type === "link") {
           requireThat(isObject(mark.attrs) && safeLink(mark.attrs.href));
+          for (const [key, value] of Object.entries(mark.attrs)) {
+            if (!["href", "target", "rel", "class", "title"].includes(key))
+              throw new DocumentError("futureDocument");
+            if (key !== "href" && value !== null)
+              requireThat(
+                typeof value === "string" &&
+                  value.length <= limits.attributeText,
+              );
+          }
+        } else if (mark.attrs !== undefined) {
+          requireThat(isObject(mark.attrs));
+          if (Object.keys(mark.attrs).length)
+            throw new DocumentError("futureDocument");
+        }
       }
     }
     if (n.content !== undefined) {

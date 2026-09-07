@@ -6,7 +6,13 @@ import {
   type Locale,
   type ContentNode,
 } from "@wonboard/document";
-import { loadDrafts, openStorage, saveDraft, StorageConflict } from "./storage";
+import {
+  loadDrafts,
+  newestDraftFirst,
+  openStorage,
+  saveDraft,
+  StorageConflict,
+} from "./storage";
 
 export function useDrafts(locale: Locale) {
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -55,9 +61,20 @@ export function useDrafts(locale: Locale) {
   useEffect(() => {
     let active = true;
     let connection: IDBDatabase | null = null;
-    openStorage(undefined, () => {
-      if (active) setError("storageBlocked");
-    })
+    openStorage(
+      undefined,
+      () => {
+        if (active) setError("storageBlocked");
+      },
+      () => {
+        if (!active) return;
+        db.current = null;
+        frozen.current = true;
+        setReadOnly(true);
+        setStatus("error");
+        setError("storageVersionChanged");
+      },
+    )
       .then(async (value) => {
         connection = value;
         if (!active) {
@@ -67,9 +84,7 @@ export function useDrafts(locale: Locale) {
         db.current = value;
         const drafts = await loadDrafts(value);
         if (!active) return;
-        drafts.sort((a, b) =>
-          b.document.updatedAt.localeCompare(a.document.updatedAt),
-        );
+        drafts.sort(newestDraftFirst);
         setList(drafts);
         select(drafts[0] ?? newDraft(locale));
       })

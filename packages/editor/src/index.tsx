@@ -122,6 +122,21 @@ type TraversableDoc = MeasurableDoc & {
       | void,
   ): void;
 };
+type StructuralNode = {
+  childCount: number;
+  child(index: number): StructuralNode;
+};
+export const hasValidDocumentStructure = (root: StructuralNode) => {
+  let count = 0;
+  const visit = (node: StructuralNode, depth: number): boolean => {
+    count++;
+    if (depth >= 40 || count >= 100_000) return false;
+    for (let index = 0; index < node.childCount; index++)
+      if (!visit(node.child(index), depth + 1)) return false;
+    return true;
+  };
+  return visit(root, 0);
+};
 export const hasValidOrderedListStarts = (doc: TraversableDoc) => {
   let valid = true;
   doc.descendants((node) => {
@@ -145,7 +160,8 @@ export const DocumentLimits = Extension.create({
         filterTransaction: (transaction, state) =>
           !transaction.docChanged ||
           (allowsTextChange(transaction.doc, state.doc) &&
-            hasValidOrderedListStarts(transaction.doc)),
+            hasValidOrderedListStarts(transaction.doc) &&
+            hasValidDocumentStructure(transaction.doc)),
       }),
     ];
   },

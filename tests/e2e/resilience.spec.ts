@@ -59,6 +59,47 @@ test("an unsupported newest draft does not trap navigation, creation or backup r
   expect(version).toBe(2);
 });
 
+test("legacy timestamp forms sort by time rather than spelling", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("textbox", { name: "Add title" })).toBeVisible();
+  await page.evaluate(async () => {
+    const request = indexedDB.open("wonboard-writer-v1", 1);
+    const db = await new Promise<IDBDatabase>((resolve) => { request.onsuccess = () => resolve(request.result); });
+    const tx = db.transaction("drafts", "readwrite");
+    for (const [id, updatedAt] of [["iso", "2026-12-31T00:00:00.000Z"], ["legacy-newer", "12/31/2099"]])
+      tx.objectStore("drafts").put({
+        document: { documentId: id, schemaVersion: 1, title: id, revision: 1,
+          locale: "en", updatedAt, media: {},
+          content: { type: "doc", content: [{ type: "paragraph" }] } },
+        blobs: {},
+      });
+    await new Promise<void>((resolve) => { tx.oncomplete = () => resolve(); });
+    db.close();
+  });
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Add title" })).toHaveValue("legacy-newer");
+});
+
+test("a storage version change freezes editing with reload guidance", async ({ page }) => {
+  await page.goto("/");
+  const title = page.getByRole("textbox", { name: "Add title" });
+  await title.fill("keep this text");
+  await expect(page.getByRole("status").last()).toHaveText("Saved locally");
+  await page.evaluate(async () => {
+    const request = indexedDB.open("wonboard-writer-v1", 2);
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    db.close();
+  });
+  await expect(page.getByRole("alert")).toContainText("Storage changed in another tab");
+  await expect(page.getByText("Read only", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "keep this text · Post" }),
+  ).toBeVisible();
+});
+
 test("quota failure never claims saved and leaves an exportable in-memory draft", async ({
   page,
 }) => {
