@@ -84,6 +84,7 @@ export function AttachmentsPanel({
   onImages,
   onRename,
   onStorage,
+  storageMode = "local",
 }: {
   document: WriterDocument;
   locale: Locale;
@@ -97,6 +98,7 @@ export function AttachmentsPanel({
   ): Promise<void>;
   onRename(value: boolean): void;
   onStorage(): void;
+  storageMode?: "local" | "sites";
 }) {
   const t = translator(locale),
     input = useRef<HTMLInputElement>(null);
@@ -173,7 +175,7 @@ export function AttachmentsPanel({
             />
             {t("autoRename")}
           </label>
-          <p className="help">{t("renameHint")}</p>
+          <p className="help">{t(storageMode === "sites" ? "sitesRenameHint" : "renameHint")}</p>
         </section>
         <section>
           <label>
@@ -302,8 +304,8 @@ export function AttachmentsPanel({
       </fieldset>
       <section className="storage-connection">
         <h2>{t("storageConnection")}</h2>
-        <strong>{t("thisBrowser")}</strong>
-        <p className="help">{t("storageConnectionHint")}</p>
+        <strong>{t(storageMode === "sites" ? "sitesStorage" : "thisBrowser")}</strong>
+        <p className="help">{t(storageMode === "sites" ? "sitesStorageHint" : "storageConnectionHint")}</p>
         <button onClick={onStorage}>{t("storageDetails")}</button>
       </section>
     </div>

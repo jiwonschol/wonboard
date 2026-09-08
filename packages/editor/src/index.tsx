@@ -8,6 +8,8 @@ import {
   isComposingKey,
   safeLink,
   limits,
+  fontFamily,
+  type FontId,
   type ContentNode,
   type Locale,
 } from "@wonboard/document";
@@ -16,12 +18,27 @@ import { MediaContext, MediaNode } from "./MediaNode";
 import { Inspector } from "./Inspector";
 import { Icon } from "./icons";
 import { VideoNode } from "./VideoNode";
+import { TextStyle } from "./TextStyle";
+import { WritingToolbar } from "./WritingToolbar";
+import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
+import "@fontsource-variable/noto-serif-kr";
+import "@fontsource/gowun-dodum";
+import "@fontsource/nanum-gothic-coding/400.css";
+import "@fontsource/nanum-gothic-coding/700.css";
+import "@fontsource-variable/noto-sans-kr";
+import "@fontsource/nanum-myeongjo/400.css";
+import "@fontsource/nanum-myeongjo/700.css";
+import "@fontsource/gowun-batang/400.css";
+import "@fontsource/gowun-batang/700.css";
 import "@fontsource-variable/manrope";
+import "@fontsource/nanum-gothic/400.css";
+import "@fontsource/nanum-gothic/700.css";
 
 export type EditorHandle = EditorType;
 export { Icon };
 export interface WonboardEditorProps {
   content: ContentNode;
+  defaultFont?: FontId;
   title: string;
   locale: Locale;
   documentLocale: Locale;
@@ -99,6 +116,27 @@ export function WonboardEditor(props: WonboardEditorProps) {
   const [linkOpen, setLinkOpen] = useState(false);
   const [link, setLink] = useState("");
   const [linkError, setLinkError] = useState(false);
+  const [composing, setComposing] = useState(false);
+  const [toolPanel, setToolPanel] = useState<"block" | "attachments" | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!toolPanel) return;
+    const panel = panelRef.current;
+    const toolbar = panel?.closest(".wb-editing-area")?.querySelector<HTMLElement>(".wb-canvas > .writing-toolbar");
+    panel?.focus();
+    const resize = new ResizeObserver(() => {
+      if (panel && toolbar) {
+        panel.style.top = `${toolbar.offsetHeight + 8}px`;
+        panel.style.maxHeight = `calc(100% - ${toolbar.offsetHeight + 20}px)`;
+      }
+    });
+    if (toolbar) resize.observe(toolbar);
+    const dismiss = (event: PointerEvent) => {
+      if (event.target instanceof Node && !panel?.contains(event.target) && !toolbar?.contains(event.target)) setToolPanel(null);
+    };
+    document.addEventListener("pointerdown", dismiss);
+    return () => { resize.disconnect(); document.removeEventListener("pointerdown", dismiss); };
+  }, [toolPanel]);
   const fileInput = useRef<HTMLInputElement>(null);
   const title = useRef<HTMLTextAreaElement>(null);
   const editor = useEditor({
@@ -114,6 +152,7 @@ export function WonboardEditor(props: WonboardEditorProps) {
       MediaNode,
       VideoNode,
       Formatting,
+      TextStyle,
       Placeholder.configure({
         placeholder: () => translator(latest.current.locale)("placeholder"),
       }),
@@ -154,11 +193,12 @@ export function WonboardEditor(props: WonboardEditorProps) {
       },
       handleDOMEvents: {
         compositionstart: () => {
+          setComposing(true);
           latest.current.onComposition?.(true);
           return false;
         },
         compositionend: () => {
-          setTimeout(() => latest.current.onComposition?.(false), 0);
+          setTimeout(() => { setComposing(false); latest.current.onComposition?.(false); }, 0);
           return false;
         },
       },
@@ -249,11 +289,23 @@ export function WonboardEditor(props: WonboardEditorProps) {
     transaction.insert(destination, editor.schema.nodeFromJSON(json));
     editor.view.dispatch(transaction);
   }
+  function openLink() {
+    setToolPanel(null);
+    setLink(String(editor!.getAttributes("link").href ?? ""));
+    setLinkError(false);
+    setLinkOpen(true);
+  }
   return (
     <MediaContext.Provider
       value={{ urls: props.mediaUrls, locale: props.locale }}
     >
-      <div className="wb-editing-area" data-tick={tick}>
+      <div className="wb-editing-area" data-tick={tick} onKeyDown={e => {
+        if (e.altKey && e.key === "F10") {
+          e.preventDefault();
+          e.currentTarget.querySelector<HTMLElement>(".wb-canvas > .writing-toolbar select")?.focus();
+        }
+        if (e.key === "Escape" && toolPanel) { setToolPanel(null); editor.commands.focus(); }
+      }}>
         {props.overviewOpen ? (
           <nav className="outline" aria-label={t("overview")}>
             <h2>{t("overview")}</h2>
@@ -292,7 +344,19 @@ export function WonboardEditor(props: WonboardEditorProps) {
           </nav>
         ) : null}
         <main className="wb-canvas" id="document-canvas">
-          <div className="document-page">
+          <WritingToolbar editor={editor} defaultFont={props.defaultFont} locale={props.locale} composing={composing} onLink={openLink} actions={
+            <div className="writing-actions">
+              <button type="button" disabled={!editor.isEditable || composing} aria-label={t("image")} title={t("image")}
+                onMouseDown={e => e.preventDefault()} onClick={() => fileInput.current?.click()}><Icon name="image" /></button>
+              {props.attachments ? <button type="button" aria-label={t("attachments")} title={t("attachments")}
+                aria-expanded={toolPanel === "attachments"} onMouseDown={e => e.preventDefault()}
+                onClick={() => setToolPanel(toolPanel === "attachments" ? null : "attachments")}><Icon name="attachments" /><span>{props.attachmentCount ?? 0}</span></button> : null}
+              <button type="button" aria-label={t("selectionSettings")} title={t("selectionSettings")}
+                aria-expanded={toolPanel === "block"} onMouseDown={e => e.preventDefault()}
+                onClick={() => setToolPanel(toolPanel === "block" ? null : "block")}><Icon name="sliders" /></button>
+            </div>
+          } />
+          <div className="document-page" style={{ fontFamily: fontFamily(props.defaultFont) }}>
             <textarea
               ref={title}
               className="document-title"
@@ -308,43 +372,6 @@ export function WonboardEditor(props: WonboardEditorProps) {
               onCompositionStart={() => props.onComposition?.(true)}
               onCompositionEnd={() => props.onComposition?.(false)}
             />
-            {!editor.state.selection.empty &&
-            !editor.isActive("media") &&
-            !editor.isActive("video") &&
-            editor.isEditable ? (
-              <div
-                className="text-toolbar"
-                role="toolbar"
-                aria-label={t("typography")}
-              >
-                {(["bold", "italic", "underline", "strike"] as const).map(
-                  (mark, i) => (
-                    <button
-                      key={mark}
-                      aria-label={t(mark)}
-                      aria-pressed={editor.isActive(mark)}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() =>
-                        editor.chain().focus().toggleMark(mark).run()
-                      }
-                    >
-                      <span className={`mark-${mark}`}>
-                        {["B", "I", "U", "S"][i]}
-                      </span>
-                    </button>
-                  ),
-                )}
-                <button
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => {
-                    setLink(String(editor.getAttributes("link").href ?? ""));
-                    setLinkOpen(true);
-                  }}
-                >
-                  {t("link")}
-                </button>
-              </div>
-            ) : null}
             <EditorContent editor={editor} />
             {editor.isEmpty && editor.isEditable ? (
               <button
@@ -360,11 +387,23 @@ export function WonboardEditor(props: WonboardEditorProps) {
         {props.inspectorOpen ? (
           <Inspector
             editor={editor}
+            defaultFont={props.defaultFont}
             locale={props.locale}
             attachments={props.attachments}
             attachmentCount={props.attachmentCount}
+            composing={composing}
+            onLink={openLink}
             onClose={() => props.onCloseInspector?.()}
           />
+        ) : null}
+        {toolPanel ? (
+          <div ref={panelRef} tabIndex={-1} className="writing-panel" role="dialog" aria-label={t(toolPanel === "attachments" ? "attachments" : "selectionSettings")}
+            onKeyDown={e => { if (e.key === "Escape") { e.stopPropagation(); setToolPanel(null); editor.commands.focus(); } }}>
+            <Inspector key={toolPanel} editor={editor} defaultFont={props.defaultFont} locale={props.locale} initialTab={toolPanel}
+              composing={composing} attachments={props.attachments} attachmentCount={props.attachmentCount}
+              onLink={openLink}
+              onClose={() => { setToolPanel(null); editor.commands.focus(); }} />
+          </div>
         ) : null}
         {isInsert && editor.isEditable ? (
           <div className="inserter" role="dialog" aria-label={t("insert")}>

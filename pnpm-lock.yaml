@@ -77,6 +77,27 @@ importers:
       '@fontsource-variable/manrope':
         specifier: 5.3.0
         version: 5.3.0
+      '@fontsource-variable/noto-sans-kr':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource-variable/noto-serif-kr':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource/gowun-batang':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource/gowun-dodum':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource/nanum-gothic':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource/nanum-gothic-coding':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource/nanum-myeongjo':
+        specifier: 5.3.0
+        version: 5.3.0
       '@tiptap/core':
         specifier: 3.31.3
         version: 3.31.3(@tiptap/pm@3.31.3)
@@ -98,6 +119,9 @@ importers:
       '@wonboard/locales':
         specifier: workspace:*
         version: link:../locales
+      pretendard:
+        specifier: 1.3.9
+        version: 1.3.9
       react:
         specifier: ^19.0.0
         version: 19.2.8
@@ -133,6 +157,27 @@ packages:
 
   '@fontsource-variable/manrope@5.3.0':
     resolution: {integrity: sha512-6D5dgokHsWDDMtmXHznKa0hK229NN+1a4BLPmUCLqcO1Pw5EEhWY5RFt0AcXnVRAljFFPfRtLkJePQj6LSsV6g==}
+
+  '@fontsource-variable/noto-sans-kr@5.3.0':
+    resolution: {integrity: sha512-h863ZOIVMKjX0PSr0hLMUp/SjrwOul2yp0f5P61avqXdhqDABSkakzG2Ee07d3W8gVYgS9dMmxULdCkoN09f1A==}
+
+  '@fontsource-variable/noto-serif-kr@5.3.0':
+    resolution: {integrity: sha512-sy7jHCFyLRfo86KbolWCUDuWYroUvbUZqxQikjOv1F6+rOjS5PtGPS9MLB5MBCCB1gcKfBaZKzKCu3I0OqOqnw==}
+
+  '@fontsource/gowun-batang@5.3.0':
+    resolution: {integrity: sha512-wWDwzFKhKbk7l94OFQjZTH6x9PjqErCXBsXQ+h/SopIOosN2LjAN5W22Zua4unCmOIK2hc1fI6jNrB4OqYh6Qg==}
+
+  '@fontsource/gowun-dodum@5.3.0':
+    resolution: {integrity: sha512-1ToMkUzML1E0TIpvV81t1geh+1npARWbdTPwCDZZwqQxD1p/HnngbjOwiXe8Y+gkhlRThyl/HiNgY9fCMpm9OQ==}
+
+  '@fontsource/nanum-gothic-coding@5.3.0':
+    resolution: {integrity: sha512-1xUOE+ro+F1J5lYw+0WwMbhesK85JCjbAP3/rOGHB3DbZI2/s0dR4WHSuTcag1uJAfT8ozH9B50L88tMn4eFkw==}
+
+  '@fontsource/nanum-gothic@5.3.0':
+    resolution: {integrity: sha512-N1LMFJbcjDSENDs1/U3+mkqFpph0+kHrGB9mCJLdIxUiE96G5lC3XQvceJ4f6WzdevNvzQll4PCpTMwom0u/sw==}
+
+  '@fontsource/nanum-myeongjo@5.3.0':
+    resolution: {integrity: sha512-NydSAjJbL1XKHI9JIPhB0+4VgyivHhP+Po0hN33e46iMvyE8uej1d25E1/vvD0ucGuQ8A0otsqNw52Ic6JYigQ==}
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -750,6 +795,9 @@ packages:
     resolution: {integrity: sha512-RRuzqDtt5Y9h3quz5hWhK+TPnsmVs6WwSU6LkJMeY4HstUEDuYTG8UJSdawMRzmzAtV+KEoG8N3Qg2qLy5vM/A==}
     engines: {node: ^10 || ^12 || >=14}
 
+  pretendard@1.3.9:
+    resolution: {integrity: sha512-PaQAADyLY5v4kYFwkpSJHbSSYIkiriY/1xXw75TKoZ9UQQqeU+tvP05yTdZAWibiIYoo8ZKtRv8PM7w0IaywSw==}
+
   prosemirror-changeset@2.4.2:
     resolution: {integrity: sha512-ViYrjMSg3YFiXwIhKaluu+/mi3Yrxt6AR8ri14ulTaGcZtXO1CThl7A2gv79qx5fQnOw8woKwyBU2u+9PVCm3w==}
 
@@ -956,6 +1004,20 @@ snapshots:
     optional: true
 
   '@fontsource-variable/manrope@5.3.0': {}
+
+  '@fontsource-variable/noto-sans-kr@5.3.0': {}
+
+  '@fontsource-variable/noto-serif-kr@5.3.0': {}
+
+  '@fontsource/gowun-batang@5.3.0': {}
+
+  '@fontsource/gowun-dodum@5.3.0': {}
+
+  '@fontsource/nanum-gothic-coding@5.3.0': {}
+
+  '@fontsource/nanum-gothic@5.3.0': {}
+
+  '@fontsource/nanum-myeongjo@5.3.0': {}
 
   '@jridgewell/resolve-uri@3.1.2': {}
 
@@ -1404,6 +1466,8 @@ snapshots:
       nanoid: 3.3.18
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  pretendard@1.3.9: {}
 
   prosemirror-changeset@2.4.2:
     dependencies:

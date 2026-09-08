@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   newDraft,
+  writingFonts,
   validateDocument,
   plainText,
   characterCount,
@@ -40,6 +41,27 @@ const texts = [
   "끝.",
 ];
 describe("document contract", () => {
+  it("round trips all writing fonts and the document default in a backup", async () => {
+    const draft = newDraft();
+    draft.document.content.content = writingFonts.map(({ id: fontFamily }) => ({
+      type: "paragraph", content: [{ type: "text", text: "한글 English", marks: [
+        { type: "bold" }, { type: "textStyle", attrs: { fontFamily, fontSize: 24, color: "#334455", highlight: "#fff0a3" } },
+      ] }],
+    }));
+    validateDocument(draft.document);
+    expect((await importBackup(await exportBackup(draft))).document).toEqual(draft.document);
+  });
+  it("rejects an unknown document default font", () => {
+    expect(() => validateDocument({ ...newDraft().document, defaultFont: "remote-font" })).toThrow();
+  });
+  it("rejects unknown fonts, unsafe inline styles and invalid text sizes", () => {
+    for (const attrs of [{ fontFamily: "remote-font" }, { fontSize: 11 }, { fontSize: 97 }, { fontSize: Infinity },
+      { color: "url(https://example.com/track)" }, { highlight: "red;background-image:url(x)" }, { css: "display:none" }]) {
+      const draft = newDraft();
+      draft.document.content.content = [{ type: "paragraph", content: [{ type: "text", text: "한글", marks: [{ type: "textStyle", attrs }] }] }];
+      expect(() => validateDocument(draft.document)).toThrow();
+    }
+  });
   it.each(texts)("round trips fixture %#", async (text) => {
     const draft = newDraft();
     draft.document.title = text.slice(0, 100);

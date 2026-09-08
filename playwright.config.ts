@@ -18,7 +18,8 @@ export default defineConfig({
     reuseExistingServer: true,
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    { name: "chromium", use: { ...devices["Desktop Chrome"],
+      channel: process.env.WONBOARD_TEST_CHANNEL === "chrome" ? "chrome" : undefined } },
     { name: "firefox", use: { ...devices["Desktop Firefox"] } },
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
   ],

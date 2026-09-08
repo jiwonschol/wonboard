@@ -6,9 +6,10 @@ import {
   type Locale,
   type ContentNode,
 } from "@wonboard/document";
-import { loadDrafts, openStorage, saveDraft, StorageConflict } from "./storage";
+import { StorageConflict } from "./storage";
+import { openDraftRepository, type DraftRepository, type StorageMode } from "./draftRepository";
 
-export function useDrafts(locale: Locale) {
+export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [list, setList] = useState<Draft[]>([]);
   const [status, setStatus] = useState<
@@ -16,7 +17,7 @@ export function useDrafts(locale: Locale) {
   >("loading");
   const [error, setError] = useState("");
   const [readOnly, setReadOnly] = useState(false);
-  const db = useRef<IDBDatabase | null>(null);
+  const db = useRef<DraftRepository | null>(null);
   const current = useRef<Draft | null>(null);
   const change = useRef(0);
   const savedChange = useRef(-1);
@@ -54,8 +55,8 @@ export function useDrafts(locale: Locale) {
   }
   useEffect(() => {
     let active = true;
-    let connection: IDBDatabase | null = null;
-    openStorage(undefined, () => {
+    let connection: DraftRepository | null = null;
+    openDraftRepository(storageMode, () => {
       if (active) setError("storageBlocked");
     })
       .then(async (value) => {
@@ -65,17 +66,18 @@ export function useDrafts(locale: Locale) {
           return;
         }
         db.current = value;
-        const drafts = await loadDrafts(value);
-        if (!active) return;
+        const drafts = await value.list();
         drafts.sort((a, b) =>
           b.document.updatedAt.localeCompare(a.document.updatedAt),
         );
+        const first = drafts[0] ? await value.load(drafts[0]) : newDraft(locale);
+        if (!active) return;
         setList(drafts);
-        select(drafts[0] ?? newDraft(locale));
+        select(first);
       })
       .catch((e) => {
         console.warn(
-          "Wonboard local save failed",
+          "Wonboard save failed",
           e instanceof Error
             ? `${e.name}: ${e.message}`
             : "Unknown storage error",
@@ -106,7 +108,7 @@ export function useDrafts(locale: Locale) {
     const snapshot = current.current;
     const sequence = change.current;
     setStatus("saving");
-    const task = saveDraft(db.current, snapshot, snapshot.document.revision)
+    const task = db.current.save(snapshot, snapshot.document.revision)
       .then((result) => {
         savedChange.current = sequence;
         current.current = {
@@ -142,7 +144,7 @@ export function useDrafts(locale: Locale) {
           setError("storageConflict");
         } else {
           console.warn(
-            "Wonboard local save failed",
+            "Wonboard save failed",
             e instanceof Error ? `${e.name}: ${e.message}` : String(e),
           );
           setError(
@@ -193,8 +195,16 @@ export function useDrafts(locale: Locale) {
   }, []);
   async function activate(value: Draft) {
     if (!frozen.current && !(await save())) return false;
-    select(value);
-    return true;
+    try {
+      // A frozen local copy is retained for backup, never replaced by a remote load.
+      const conflict = conflicts.current.get(value.document.documentId);
+      const loaded = conflict ?? (db.current ? await db.current.load(value) : value);
+      select(loaded);
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "storageFailed");
+      return false;
+    }
   }
   async function create() {
     if (await activate(newDraft(locale))) await save();

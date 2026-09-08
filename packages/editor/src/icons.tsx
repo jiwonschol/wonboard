@@ -1,5 +1,11 @@
 import type { ReactNode } from "react";
 const paths: Record<string, ReactNode> = {
+  "align-left": <path d="M4 5h16M4 10h10M4 15h16M4 20h10" />,
+  "align-center": <path d="M4 5h16M7 10h10M4 15h16M7 20h10" />,
+  "align-right": <path d="M4 5h16M10 10h10M4 15h16M10 20h10" />,
+  link: <path d="m10 14 4-4M9 16l-2 2a4 4 0 0 1-5-5l4-4a4 4 0 0 1 5 0m2-1 2-2a4 4 0 0 1 5 5l-4 4a4 4 0 0 1-5 0" />,
+  "clear-format": <path d="m14 3 7 7-10 10H7l-5-5L14 3Zm-8 8 7 7M11 20h10" />,
+  attachments: <path d="m8 13 7-7a3 3 0 0 1 4 4L9 20a5 5 0 0 1-7-7L13 2m-7 13 9-9" />,
   plus: <path d="M12 5v14M5 12h14" />,
   back: <path d="m14 7-5 5 5 5" />,
   close: <path d="m7 7 10 10M17 7 7 17" />,

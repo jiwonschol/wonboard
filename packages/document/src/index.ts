@@ -1,4 +1,6 @@
 import { isVideo, attachmentNodes } from "./attachments";
+import { isFontId, type FontId } from "./typography";
+export * from "./typography";
 export * from "./attachments";
 export type Locale = "ko" | "en";
 export type Mark = { type: string; attrs?: Record<string, unknown> };
@@ -24,6 +26,7 @@ export type WriterDocument = {
   revision: number;
   title: string;
   locale: Locale;
+  defaultFont?: FontId;
   content: ContentNode;
   media: Record<string, Media>;
   autoRenameAttachments?: boolean;
@@ -50,6 +53,7 @@ export function newDraft(locale: Locale = "ko"): Draft {
       revision: 0,
       title: "",
       locale,
+      defaultFont: "nanum-serif",
       content: emptyContent(),
       media: {},
       updatedAt: new Date().toISOString(),
@@ -146,6 +150,7 @@ export function validateDocument(
     typeof value.title === "string" && value.title.length <= limits.title,
   );
   requireThat(value.locale === "ko" || value.locale === "en");
+  requireThat(value.defaultFont === undefined || isFontId(value.defaultFont));
   requireThat(
     value.autoRenameAttachments === undefined ||
       typeof value.autoRenameAttachments === "boolean",
@@ -259,13 +264,24 @@ export function validateDocument(
       for (const mark of n.marks) {
         requireThat(isObject(mark));
         if (
-          !["bold", "italic", "underline", "strike", "code", "link"].includes(
+          !["bold", "italic", "underline", "strike", "code", "link", "textStyle"].includes(
             String(mark.type),
           )
         )
           throw new DocumentError("futureDocument");
         if (mark.type === "link")
           requireThat(isObject(mark.attrs) && safeLink(mark.attrs.href));
+        if (mark.type === "textStyle") {
+          requireThat(isObject(mark.attrs));
+          for (const [key, v] of Object.entries(mark.attrs)) {
+            if (!["fontFamily", "fontSize", "color", "highlight"].includes(key))
+              throw new DocumentError("futureDocument");
+            if (v === null) continue;
+            if (key === "fontFamily") requireThat(isFontId(v));
+            if (key === "fontSize") requireThat(typeof v === "number" && Number.isFinite(v) && v >= 12 && v <= 96);
+            if (key === "color" || key === "highlight") requireThat(typeof v === "string" && hexColor.test(v));
+          }
+        }
       }
     }
     if (n.content !== undefined) {
