@@ -5,7 +5,9 @@ export default defineConfig({
   fullyParallel: true,
   workers: 2,
   reporter: "list",
-  outputDir: "/private/tmp/wonboard-playwright-results",
+  // macOS 전용 절대 경로를 쓰면 /private 이 없는 리눅스에서 만들지 못해 시험이
+  // 시작도 못 하고 권한 오류로 죽는다. 저장소 안의 상대 경로로 둔다(gitignore).
+  outputDir: "./test-results",
   use: {
     baseURL: "http://127.0.0.1:5173",
     locale: "en-US",

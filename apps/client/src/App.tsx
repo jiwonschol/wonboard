@@ -3,16 +3,22 @@ import { WonboardEditor, Icon, type EditorHandle } from "@wonboard/editor";
 import { DocumentPreview } from "@wonboard/renderer";
 import {
   exportBackup,
+  exportRawBackup,
   importBackup,
   characterCount,
   attachmentNodes,
   plainText,
   limits,
+  DocumentError,
   type Locale,
 } from "@wonboard/document";
 import { translator, en, type MessageKey } from "@wonboard/locales";
 import { useDrafts } from "./useDrafts";
-import { importImages } from "./media";
+import {
+  importImages,
+  insertImagesWhenAccepted,
+  verifyDecodedImage,
+} from "./media";
 import { AttachmentsPanel } from "./AttachmentsPanel";
 import { WritingLibrary } from "./WritingLibrary";
 import { initialLocale } from "./locale";
@@ -111,16 +117,41 @@ export default function App({
       setBusy(false);
     }
   }
+  // 읽기 전용은 두 가지 이유로 생긴다. 다른 탭이 먼저 써서 충돌한 사본은 검증을
+  // 통과하므로 평소 ZIP 이 그대로 나오고, 다시 가져오기도 된다. 반면 미래 스키마나
+  // 지원하지 않는 노드로 얼어붙은 초안은 exportBackup 이 얼어붙게 만든 그 검증에서
+  // 다시 던져 파일이 아예 나올 수 없었다 — 사진이 든 초안에 온전한 회수 경로가 없었다.
+  // 그래서 먼저 정식 백업을 시도하고, 검증이 막을 때만 검증 없는 원본 묶음으로 넘어간다.
+  async function recoveryBackup() {
+    const snapshot = writer.snapshot();
+    if (!snapshot) return;
+    setBusy(true);
+    try {
+      download(
+        await exportBackup(snapshot),
+        `wonboard-${snapshot.document.documentId}.zip`,
+      );
+    } catch {
+      try {
+        download(
+          await exportRawBackup(snapshot),
+          `wonboard-${snapshot.document.documentId}-original.zip`,
+        );
+      } catch (e) {
+        report(e);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
   async function restore(file: File) {
     setBusy(true);
     try {
       const restored = await importBackup(file);
       for (const media of Object.values(restored.document.media)) {
-        const bitmap = await createImageBitmap(restored.blobs[media.id]);
-        const valid =
-          bitmap.width === media.width && bitmap.height === media.height;
-        bitmap.close();
-        if (!valid) throw new Error("corruptBackup");
+        const blob = restored.blobs[media.id];
+        if (!blob) throw new DocumentError("corruptBackup");
+        await verifyDecodedImage(blob, media);
       }
       if (await writer.restore(restored)) setNotice("imported");
     } catch (e) {
@@ -150,7 +181,17 @@ export default function App({
         throw new Error("imageHistoryLimit");
       const imported = await importImages(
         files,
-        retained,
+        {
+          count: retained,
+          bytes: [...new Set(
+            attachmentNodes(snapshot.document.content)
+              .filter((node) => node.type === "media")
+              .map((node) => String(node.attrs?.mediaId)),
+          )].reduce(
+            (sum, id) => sum + (snapshot.document.media[id]?.size ?? 0),
+            0,
+          ),
+        },
       );
       const media = { ...snapshot.document.media };
       const blobs = { ...snapshot.blobs };
@@ -158,26 +199,12 @@ export default function App({
         media[item.media.id] = item.media;
         blobs[item.media.id] = item.blob;
       }
-      writer.update({ media }, blobs);
-      instance
-        .chain()
-        .insertContentAt(
-          position,
-          imported.flatMap((item) => [
-            {
-              type: "media",
-              attrs: {
-                mediaId: item.media.id,
-                width: Math.max(40, Math.min(600, item.media.width)),
-                align: "left",
-                alt: "",
-                caption: "",
-              },
-            },
-            { type: "paragraph" },
-          ]),
+      if (
+        !insertImagesWhenAccepted(instance, position, imported, () =>
+          writer.update({ media }, blobs),
         )
-        .run();
+      )
+        throw new Error("imageInsertFailed");
       setNotice("");
     } catch (e) {
       report(e);
@@ -225,7 +252,9 @@ export default function App({
     );
   const content =
     typeof draft.document.title === "string" ? draft.document.title : "";
-  const attached = attachmentNodes(draft.document.content);
+  const attached = writer.readOnly
+    ? []
+    : attachmentNodes(draft.document.content);
   const attachmentCount =
     new Set(
       attached.filter((n) => n.type === "media").map((n) => n.attrs?.mediaId),
@@ -415,7 +444,7 @@ export default function App({
             >
               {t("exportOriginal")}
             </button>
-            <button onClick={() => void backup()}>{t("backup")}</button>
+            <button onClick={() => void recoveryBackup()}>{t("backup")}</button>
           </div>
         ) : (
           <WonboardEditor
@@ -426,6 +455,7 @@ export default function App({
             locale={locale}
             documentLocale={draft.document.locale}
             mediaUrls={urls}
+            media={draft.document.media}
             readOnly={busy}
             inspectorOpen={inspector}
             insertOpen={insert}

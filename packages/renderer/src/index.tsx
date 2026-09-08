@@ -11,6 +11,11 @@ import {
   type ContentNode,
   type WriterDocument,
 } from "@wonboard/document";
+const orderedListTypes = ["1", "a", "A", "i", "I"] as const;
+const listType = (value: unknown) =>
+  (orderedListTypes as readonly string[]).includes(String(value))
+    ? (String(value) as (typeof orderedListTypes)[number])
+    : undefined;
 function renderNode(
   node: ContentNode,
   urls: Record<string, string>,
@@ -33,7 +38,7 @@ function renderNode(
       if (mark.type === "textStyle") return <span style={textStyle(mark.attrs)}>{content}</span>;
       if (mark.type === "link" && safeLink(mark.attrs?.href))
         return (
-          <a href={mark.attrs.href} target="_blank" rel="noopener noreferrer">
+          <a href={mark.attrs.href} title={typeof mark.attrs.title === "string" ? mark.attrs.title : undefined} target="_blank" rel="noopener noreferrer">
             {content}
           </a>
         );
@@ -43,13 +48,23 @@ function renderNode(
   if (node.type === "paragraph")
     return <p style={{ ...(portable ? { minHeight: "1.4em" } : {}), ...style }}>{children?.length ? children : <br />}</p>;
   if (node.type === "heading") {
-    const Tag = attrs.level === 1 ? "h1" : attrs.level === 3 ? "h3" : "h2";
+    const Tag = attrs.level === 2 ? "h2" : attrs.level === 3 ? "h3" : "h1";
     return <Tag style={{ ...(portable ? { fontSize: attrs.level === 1 ? "2em" : attrs.level === 3 ? "1.3em" : "1.65em", lineHeight: 1.2, fontWeight: 500 } : {}), ...style }}>{children}</Tag>;
   }
   if (node.type === "blockquote") return <blockquote style={portable ? { ...margin, borderLeft: "3px solid #111", paddingLeft: "1.25em" } : undefined}>{children}</blockquote>;
   if (node.type === "bulletList") return <ul style={portable ? { ...margin, paddingLeft: "1.6em" } : undefined}>{children}</ul>;
   if (node.type === "orderedList")
-    return <ol start={Number(attrs.start ?? 1)} style={portable ? { ...margin, paddingLeft: "1.6em" } : undefined}>{children}</ol>;
+    return (
+      <ol
+        start={Number(attrs.start ?? 1)}
+        // 문서는 `type` 을 보존하고 편집기도 그대로 보여주는데 미리보기만 버리면
+        // 알파벳·로마자 목록이 숫자로 되돌아간다. HTML 이 아는 다섯 값만 넘긴다.
+        type={listType(attrs.type)}
+        style={portable ? { ...margin, paddingLeft: "1.6em" } : undefined}
+      >
+        {children}
+      </ol>
+    );
   if (node.type === "listItem") return <li>{children}</li>;
   if (node.type === "codeBlock")
     return (

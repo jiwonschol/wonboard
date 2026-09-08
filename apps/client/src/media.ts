@@ -1,43 +1,73 @@
 import {
+  attachmentNodes,
   DocumentError,
-  imageMime,
+  inspectImageBytes,
   limits,
   sha256,
+  type ContentNode,
   type Media,
 } from "@wonboard/document";
 
+export type ImportedImage = { media: Media; blob: Blob };
+type ImageInsertionEditor = {
+  chain(): {
+    insertContentAt(position: number, content: ContentNode[]): {
+      run(): boolean;
+    };
+  };
+  getJSON(): ContentNode;
+};
+
+export function insertImagesWhenAccepted(
+  editor: ImageInsertionEditor,
+  position: number,
+  imported: ImportedImage[],
+  commit: () => void,
+): boolean {
+  editor
+    .chain()
+    .insertContentAt(
+      position,
+      imported.flatMap((item) => [
+        {
+          type: "media",
+          attrs: {
+            mediaId: item.media.id,
+            width: Math.max(40, Math.min(600, item.media.width)),
+            align: "left",
+            alt: "",
+            caption: "",
+          },
+        },
+        { type: "paragraph" },
+      ]),
+    )
+    .run();
+  const inserted = new Set(
+    attachmentNodes(editor.getJSON())
+      .filter((node) => node.type === "media")
+      .map((node) => node.attrs?.mediaId),
+  );
+  if (!imported.every((item) => inserted.has(item.media.id))) return false;
+  commit();
+  return true;
+}
+
 export async function importImages(
   files: File[],
-  existing: number,
-): Promise<{ media: Media; blob: Blob }[]> {
-  if (files.length + existing > limits.images)
+  existing: { count: number; bytes: number },
+): Promise<ImportedImage[]> {
+  if (files.length + existing.count > limits.images)
     throw new DocumentError("imageLimit");
-  const result: { media: Media; blob: Blob }[] = [];
+  const incomingBytes = files.reduce((sum, file) => sum + file.size, 0);
+  if (incomingBytes + existing.bytes > limits.mediaBytes)
+    throw new DocumentError("archiveLimit");
+  const result: ImportedImage[] = [];
   for (const file of files) {
     if (file.size === 0 || file.size > limits.imageBytes)
       throw new DocumentError("imageLimit");
     const bytes = await file.arrayBuffer();
-    const mime = imageMime(new Uint8Array(bytes));
-    // Animated PNG is deliberately rejected rather than flattened without telling the author.
-    if (mime === "image/png") {
-      const view = new DataView(bytes);
-      let offset = 8;
-      while (offset + 12 <= view.byteLength) {
-        const size = view.getUint32(offset);
-        const type = String.fromCharCode(
-          ...new Uint8Array(bytes, offset + 4, 4),
-        );
-        if (type === "acTL") throw new DocumentError("invalidImage");
-        if (
-          type === "IHDR" &&
-          size === 13 &&
-          view.getUint32(offset + 8) * view.getUint32(offset + 12) >
-            limits.pixels
-        )
-          throw new DocumentError("imageLimit");
-        offset += size + 12;
-      }
-    }
+    const mime = inspectImageBytes(new Uint8Array(bytes));
     const blob = new Blob([bytes], { type: mime });
     let bitmap: ImageBitmap;
     try {
@@ -62,4 +92,21 @@ export async function importImages(
     });
   }
   return result;
+}
+
+export async function verifyDecodedImage(
+  blob: Blob,
+  expected: Pick<Media, "width" | "height">,
+  decode: (blob: Blob) => Promise<Pick<ImageBitmap, "width" | "height" | "close">> =
+    createImageBitmap,
+): Promise<void> {
+  let bitmap: Pick<ImageBitmap, "width" | "height" | "close">;
+  try {
+    bitmap = await decode(blob);
+  } catch {
+    throw new DocumentError("corruptBackup");
+  }
+  const valid = bitmap.width === expected.width && bitmap.height === expected.height;
+  bitmap.close();
+  if (!valid) throw new DocumentError("corruptBackup");
 }

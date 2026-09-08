@@ -11,6 +11,7 @@ import {
   exportBackup,
   importBackup,
   imageMime,
+  inspectImageBytes,
   sha256,
   limits,
   type ContentNode,
@@ -146,6 +147,60 @@ describe("document contract", () => {
       expect(safeLink(url)).toBe(false);
     expect(safeLink("https://example.com/한글")).toBe(true);
   });
+  it("rejects mark attributes the current editor cannot preserve", () => {
+    const withMark = (mark: Record<string, unknown>) => ({
+      ...newDraft().document,
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "x", marks: [mark] }],
+          },
+        ],
+      },
+    });
+    expect(() =>
+      validateDocument(withMark({ type: "bold", attrs: { future: "keep" } })),
+    ).toThrow("futureDocument");
+    expect(() =>
+      validateDocument(
+        withMark({
+          type: "link",
+          attrs: { href: "https://example.com", future: "keep" },
+        }),
+      ),
+    ).toThrow("futureDocument");
+    expect(() =>
+      validateDocument(
+        withMark({
+          type: "link",
+          attrs: {
+            href: "https://example.com",
+            target: "_blank",
+            rel: "noopener noreferrer nofollow",
+            class: null,
+            title: null,
+          },
+        }),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      validateDocument(
+        withMark({ type: "bold", attrs: {}, future: "keep" }),
+      ),
+    ).toThrow("futureDocument");
+  });
+  it("rejects unknown fields on a current node before editing", () => {
+    const draft = newDraft().document;
+    draft.content = {
+      type: "doc",
+      content: [
+        { type: "paragraph", future: { keep: true } } as ContentNode,
+      ],
+    };
+    expect(() => validateDocument(draft)).toThrow("futureDocument");
+  });
   it("rejects invalid tree structure, missing images and executable styles", () => {
     const d = newDraft().document;
     for (const n of [
@@ -160,6 +215,8 @@ describe("document contract", () => {
   it("counts visible characters, not bytes or UTF16 code units", () => {
     expect(characterCount("한글👨‍👩‍👧‍👦é", "ko")).toBe(4);
     expect(characterCount("한", "ko")).toBe(1);
+    expect(characterCount("가".repeat(200_000), "ko")).toBe(200_000);
+    expect(characterCount.toString()).not.toContain("Array.from");
   });
   it("searches NFD/NFC, case and one syllable without modifying source", () => {
     expect(matchesQuery("한글 ABC", "한글 abc", "ko")).toBe(true);
@@ -200,8 +257,45 @@ describe("document contract", () => {
     expect(() => imageMime(strToU8("<svg/>"))).toThrow("invalidImage");
     expect(imageMime(Uint8Array.from([255, 216, 255]))).toBe("image/jpeg");
   });
+  it("rejects oversized JPEG dimensions before browser decoding", () => {
+    const jpeg = (width: number, height: number) =>
+      Uint8Array.from([
+        0xff, 0xd8,
+        0xff, 0xc0, 0x00, 0x0b, 0x08,
+        (height >> 8) & 0xff, height & 0xff,
+        (width >> 8) & 0xff, width & 0xff,
+        0x01, 0x01, 0x11, 0x00,
+      ]);
+    expect(inspectImageBytes(jpeg(6000, 6000))).toBe("image/jpeg");
+    expect(() => inspectImageBytes(jpeg(65535, 65535))).toThrow("imageLimit");
+    expect(() => inspectImageBytes(Uint8Array.from([0xff, 0xd8, 0xff, 0xda])))
+      .toThrow("invalidImage");
+  });
 });
 describe("backup boundary", () => {
+  it("rejects oversized document JSON before inspecting media", async () => {
+    const draft = newDraft();
+    draft.document.media.photo = {
+      id: "photo",
+      originalName: "missing.png",
+      mime: "image/png",
+      width: 1,
+      height: 1,
+      size: 1,
+      sha256: "a".repeat(64),
+    };
+    draft.document.content.content!.push({
+      type: "media",
+      attrs: { mediaId: "photo" },
+    });
+    const originalLimit = limits.archiveBytes;
+    try {
+      limits.archiveBytes = 1;
+      await expect(exportBackup(draft)).rejects.toThrow("archiveLimit");
+    } finally {
+      limits.archiveBytes = originalLimit;
+    }
+  });
   it("includes ZIP container overhead in the export limit and restores at the exact limit", async () => {
     const draft = newDraft();
     const archive = await exportBackup(draft);
@@ -236,6 +330,37 @@ describe("backup boundary", () => {
       importBackup(zipBlob({ "document.json": strToU8("{no") })),
     ).rejects.toThrow("corruptBackup");
     await expect(importBackup(new Blob(["not a zip"]))).rejects.toThrow();
+  });
+  it("opens a newer structurally safe backup with its original media intact", async () => {
+    const bytes = Uint8Array.from(
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    );
+    const document = newDraft().document;
+    document.media.photo = {
+      id: "photo",
+      originalName: "photo.png",
+      mime: "image/png",
+      width: 1,
+      height: 1,
+      size: bytes.byteLength,
+      sha256: await sha256(bytes.buffer as ArrayBuffer),
+    };
+    document.content.content!.push({
+      type: "media",
+      attrs: { mediaId: "photo" },
+    });
+    const future = { ...document, schemaVersion: 2 };
+    const restored = await importBackup(
+      zipBlob({
+        "document.json": strToU8(JSON.stringify(future)),
+        "media/photo": bytes,
+      }),
+    );
+    expect(restored.document.schemaVersion).toBe(2);
+    expect(new Uint8Array(await restored.blobs.photo.arrayBuffer())).toEqual(bytes);
   });
   it("refuses missing original before exporting", async () => {
     const d = newDraft();

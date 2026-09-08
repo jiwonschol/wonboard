@@ -1,6 +1,12 @@
 import { useState, type ReactNode } from "react";
 import type { Editor } from "@tiptap/react";
-import type { Locale, FontId } from "@wonboard/document";
+import { limits, type Locale, type FontId } from "@wonboard/document";
+
+// alt·caption 은 validateDocument 가 limits.attributeText 로 거른다. 그 한도를 넘긴 값이
+// 문서에 들어가면 이후 모든 자동 저장과 백업이 실패하고, 사용자는 어느 칸을 줄여야
+// 하는지 모른 채 저장할 수 없는 초안을 안는다. 화면에서 잘라 그 상태를 만들지 않는다.
+export const capAttributeText = (value: string) =>
+  value.slice(0, limits.attributeText);
 import { translator, type MessageKey } from "@wonboard/locales";
 import { Icon } from "./icons";
 import { WritingToolbar } from "./WritingToolbar";
@@ -167,9 +173,10 @@ export function Inspector({
                 {t("alt")}
                 <input
                   value={attrs.alt}
+                  maxLength={limits.attributeText}
                   onChange={(e) =>
                     editor.commands.updateAttributes("media", {
-                      alt: e.target.value,
+                      alt: capAttributeText(e.target.value),
                     })
                   }
                 />
@@ -178,9 +185,10 @@ export function Inspector({
                 {t("caption")}
                 <input
                   value={attrs.caption}
+                  maxLength={limits.attributeText}
                   onChange={(e) =>
                     editor.commands.updateAttributes("media", {
-                      caption: e.target.value,
+                      caption: capAttributeText(e.target.value),
                     })
                   }
                 />

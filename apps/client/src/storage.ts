@@ -8,6 +8,7 @@ export class StorageConflict extends Error {
 export function openStorage(
   name = "wonboard-writer-v1",
   onBlocked?: () => void,
+  onVersionChange?: () => void,
 ): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(name, 1);
@@ -16,7 +17,10 @@ export function openStorage(
         keyPath: "document.documentId",
       });
     request.onsuccess = () => {
-      request.result.onversionchange = () => request.result.close();
+      request.result.onversionchange = () => {
+        request.result.close();
+        onVersionChange?.();
+      };
       resolve(request.result);
     };
     request.onerror = () => reject(request.error);
@@ -24,33 +28,69 @@ export function openStorage(
     request.onblocked = () => onBlocked?.();
   });
 }
+export const newestDraftFirst = (a: Draft, b: Draft) =>
+  Date.parse(b.document.updatedAt) - Date.parse(a.document.updatedAt);
+type StoredDraft = Draft & { blobs: Record<string, Blob | ArrayBuffer> };
+const storedBinary = new WeakMap<Blob, Promise<ArrayBuffer>>();
+function bytesForStorage(blob: Blob): Promise<ArrayBuffer> {
+  const cached = storedBinary.get(blob);
+  if (cached) return cached;
+  const pending = blob.arrayBuffer().catch((error) => {
+    storedBinary.delete(blob);
+    throw error;
+  });
+  storedBinary.set(blob, pending);
+  return pending;
+}
+function toDraft(stored: StoredDraft): Draft {
+  // 변환이 던지는 것만 걸러서는 부족하다. `blobs` 가 멀쩡해도 `updatedAt` 이 없거나
+  // 문자열이 아니면 목록을 정렬하는 쪽에서 던져, 결국 같은 자리로 돌아온다 —
+  // 초기화가 빈 초안으로 물러나며 멀쩡한 문서까지 전부 가려진다.
+  const document = stored?.document;
+  if (
+    !document ||
+    typeof document !== "object" ||
+    typeof document.documentId !== "string" ||
+    typeof document.updatedAt !== "string" ||
+    !Number.isFinite(Date.parse(document.updatedAt)) ||
+    typeof document.title !== "string" ||
+    typeof document.media !== "object" ||
+    document.media === null
+  )
+    throw new Error("malformedRecord");
+  return {
+    document: stored.document,
+    blobs: Object.fromEntries(
+      Object.entries(stored.blobs).map(([id, value]) => [
+        id,
+        value instanceof Blob
+          ? value
+          : new Blob([value], { type: stored.document.media[id]?.mime }),
+      ]),
+    ),
+  };
+}
 export function loadDrafts(db: IDBDatabase): Promise<Draft[]> {
   return new Promise((resolve, reject) => {
     const request = db.transaction("drafts").objectStore("drafts").getAll();
     request.onsuccess = () => {
-      try {
-        resolve(
-          request.result.map(
-            (
-              stored: Draft & { blobs: Record<string, Blob | ArrayBuffer> },
-            ) => ({
-              document: stored.document,
-              blobs: Object.fromEntries(
-                Object.entries(stored.blobs).map(([id, value]) => [
-                  id,
-                  value instanceof Blob
-                    ? value
-                    : new Blob([value], {
-                        type: stored.document.media[id]?.mime,
-                      }),
-                ]),
-              ),
-            }),
-          ),
-        );
-      } catch (error) {
-        reject(error);
+      // 레코드 하나가 깨졌다고 전체 목록을 버리지 않는다. 예전에는 변환이 한 번만
+      // 던져도 loadDrafts 가 통째로 실패해 useDrafts 가 빈 초안을 열었고, 멀쩡한
+      // 문서까지 전부 사라진 것처럼 보였다. 깨진 레코드만 격리하고 나머지는 연다.
+      const drafts: Draft[] = [];
+      for (const stored of request.result as StoredDraft[]) {
+        try {
+          drafts.push(toDraft(stored));
+        } catch (error) {
+          console.warn(
+            "Wonboard skipped an unreadable stored draft",
+            error instanceof Error
+              ? `${error.name}: ${error.message}`
+              : String(error),
+          );
+        }
       }
+      resolve(drafts);
     };
     request.onerror = () => reject(request.error);
   });
@@ -82,7 +122,7 @@ export async function saveDraft(
       await Promise.all(
         Object.entries(snapshot.blobs).map(async ([id, blob]) => [
           id,
-          await blob.arrayBuffer(),
+          await bytesForStorage(blob),
         ]),
       ),
     ),

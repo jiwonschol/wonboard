@@ -213,7 +213,11 @@ export const en = {
   storageConflict:
     "Another tab changed this document. Editing is paused to protect both copies. Download this copy before reopening.",
   storageBlocked: "Close other Wonboard tabs to finish opening storage.",
+  storageVersionChanged:
+    "Storage changed in another tab. Download a backup, then reload Wonboard.",
   imageHistoryLimit: "Deleted images are still kept for undo. Save and reopen this document to make room for more images.",
+  imageInsertFailed:
+    "The image could not be added because this document reached a content limit.",
   futureDocument:
     "This document uses an unsupported format. The stored original is unchanged; open it with a compatible version.",
   invalidDocument:
@@ -457,7 +461,11 @@ export const ko: Record<MessageKey, string> = {
   storageConflict:
     "다른 탭에서 이 문서를 변경했어요. 두 사본을 보호하기 위해 편집을 멈췄습니다. 현재 사본을 백업한 뒤 다시 열어주세요.",
   storageBlocked: "저장 공간을 열 수 있도록 다른 Wonboard 탭을 닫아주세요.",
+  storageVersionChanged:
+    "다른 탭에서 저장 형식이 바뀌었습니다. 백업을 받은 뒤 Wonboard를 새로고침하세요.",
   imageHistoryLimit: "실행 취소를 위해 삭제한 사진을 보관 중이에요. 문서를 저장하고 다시 열면 새 사진을 넣을 수 있어요.",
+  imageInsertFailed:
+    "문서 내용이 한도에 닿아 사진을 넣지 못했어요.",
   futureDocument:
     "지원하지 않는 문서 형식입니다. 저장된 원본은 그대로 보존됩니다. 호환되는 버전으로 열어주세요.",
   invalidDocument: "문서 내용이 올바르지 않아 가져오지 않았어요.",

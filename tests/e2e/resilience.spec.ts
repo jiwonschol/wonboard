@@ -1,6 +1,34 @@
 import { test, expect } from "./fixtures";
+import { readFile, writeFile } from "node:fs/promises";
+import {
+  strFromU8,
+  strToU8,
+  unzipSync,
+  zipSync,
+} from "../../packages/document/node_modules/fflate/esm/index.mjs";
 
-test("an unsupported newest draft does not trap navigation, creation or backup restore", async ({ page }) => {
+test("the untouched bootstrap draft is clean and New stores only the requested draft", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "New document", exact: true }).first().click();
+  await expect(page.getByRole("status").last()).toHaveText("Saved locally");
+  const stored = await page.evaluate(async () => {
+    const request = indexedDB.open("wonboard-writer-v1", 1);
+    const db = await new Promise<IDBDatabase>((resolve) => {
+      request.onsuccess = () => resolve(request.result);
+    });
+    const count = db.transaction("drafts").objectStore("drafts").count();
+    const result = await new Promise<number>((resolve) => {
+      count.onsuccess = () => resolve(count.result);
+    });
+    db.close();
+    return result;
+  });
+  expect(stored).toBe(1);
+});
+
+test("an unsupported newest draft does not trap navigation, creation or backup restore", async ({ page }, testInfo) => {
   await page.goto("/");
   await expect(page.getByRole("textbox", { name: "Add title" })).toBeVisible();
   await page.evaluate(async () => {
@@ -10,7 +38,8 @@ test("an unsupported newest draft does not trap navigation, creation or backup r
     for (const [id, schemaVersion, date] of [["valid", 1, "2026-01-01"], ["future", 2, "2026-02-01"]] as const) {
       tx.objectStore("drafts").put({
         document: { documentId: id, schemaVersion, title: id, revision: 1,
-          locale: "ko", updatedAt: date, media: {}, content: { type: "doc", content: [{ type: "paragraph" }] } },
+          locale: "ko", updatedAt: date, media: {},
+          content: schemaVersion === 2 ? null : { type: "doc", content: [{ type: "paragraph" }] } },
         blobs: {},
       });
     }
@@ -33,15 +62,29 @@ test("an unsupported newest draft does not trap navigation, creation or backup r
   const downloaded = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download backup (.zip)", exact: true }).click();
   const path = (await (await downloaded).path())!;
+  const entries = unzipSync(new Uint8Array(await readFile(path)));
+  const futureDocument = JSON.parse(strFromU8(entries["document.json"]!));
+  futureDocument.schemaVersion = 2;
+  entries["document.json"] = strToU8(JSON.stringify(futureDocument));
+  const futurePath = testInfo.outputPath("future-backup.zip");
+  await writeFile(futurePath, zipSync(entries));
   await page.getByRole("dialog", { name: "Options" }).getByRole("button", { name: "Close", exact: true }).click();
   await chooseFuture();
+  // 얼어붙은 초안의 백업 단추는 그것을 얼린 검증에서 다시 던져 파일을 못 냈다.
+  // 사진이 든 초안에는 온전한 회수 경로가 없었다 — 검증 없는 원본 묶음으로 넘어간다.
+  const recovery = page.waitForEvent("download");
+  await page.locator(".unsupported").getByRole("button", { name: "Download backup (.zip)", exact: true }).click();
+  expect((await recovery).suggestedFilename()).toMatch(/-original\.zip$/);
   await page.getByRole("button", { name: "New document", exact: true }).first().click();
   await page.getByRole("textbox", { name: "Add title" }).fill("created document");
   await expect(page.getByRole("status").last()).toHaveText("Saved locally");
   await chooseFuture();
-  await page.locator('input[accept=".zip,application/zip"]').setInputFiles(path);
-  await expect(page.getByText("Backup restored as a new document.")).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Add title" })).toHaveValue("valid");
+  await page.locator('input[accept=".zip,application/zip"]').setInputFiles(futurePath);
+  // The unsupported-format alert remains the dominant notice, but the backup's
+  // title proves that the newer payload replaced the selected stored draft in
+  // memory without being rewritten by this older version.
+  await expect(page.locator(".document-name")).toHaveText("valid · Post");
+  await expect(page.getByText("Read only", { exact: true })).toBeVisible();
   const version = await page.evaluate(async () => {
     const request = indexedDB.open("wonboard-writer-v1", 1);
     const db = await new Promise<IDBDatabase>((resolve) => { request.onsuccess = () => resolve(request.result); });
@@ -51,6 +94,53 @@ test("an unsupported newest draft does not trap navigation, creation or backup r
     return version;
   });
   expect(version).toBe(2);
+});
+
+test("legacy timestamp forms sort by time rather than spelling", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("textbox", { name: "Add title" })).toBeVisible();
+  await page.evaluate(async () => {
+    const request = indexedDB.open("wonboard-writer-v1", 1);
+    const db = await new Promise<IDBDatabase>((resolve) => { request.onsuccess = () => resolve(request.result); });
+    const tx = db.transaction("drafts", "readwrite");
+    for (const [id, updatedAt] of [["iso", "2026-12-31T00:00:00.000Z"], ["legacy-newer", "12/31/2099"]])
+      tx.objectStore("drafts").put({
+        document: { documentId: id, schemaVersion: 1, title: id, revision: 1,
+          locale: "en", updatedAt, media: {},
+          content: { type: "doc", content: [{ type: "paragraph" }] } },
+        blobs: {},
+      });
+    await new Promise<void>((resolve) => { tx.oncomplete = () => resolve(); });
+    db.close();
+  });
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Add title" })).toHaveValue("legacy-newer");
+});
+
+test("a storage version change freezes editing with reload guidance", async ({ page }) => {
+  await page.goto("/");
+  const title = page.getByRole("textbox", { name: "Add title" });
+  await title.fill("keep this text");
+  await expect(page.getByRole("status").last()).toHaveText("Saved locally");
+  await page.evaluate(async () => {
+    const request = indexedDB.open("wonboard-writer-v1", 2);
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    db.close();
+  });
+  await expect(page.getByRole("alert")).toContainText("Storage changed in another tab");
+  await expect(page.getByText("Read only", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "keep this text · Post" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "New document", exact: true }).first().click();
+  await expect(page.getByText("Read only", { exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Add title" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "keep this text · Post" }),
+  ).toBeVisible();
 });
 
 test("quota failure never claims saved and leaves an exportable in-memory draft", async ({

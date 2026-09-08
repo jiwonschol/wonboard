@@ -6,8 +6,24 @@ import {
   type Locale,
   type ContentNode,
 } from "@wonboard/document";
-import { StorageConflict } from "./storage";
+import { StorageConflict, newestDraftFirst } from "./storage";
 import { openDraftRepository, type DraftRepository, type StorageMode } from "./draftRepository";
+
+export const hasUnsavedWork = (
+  change: number,
+  savedChange: number,
+  conflictCount: number,
+) => change !== savedChange || conflictCount > 0;
+
+export const selectionAccess = (
+  disconnected: boolean,
+  validationError: string,
+) =>
+  disconnected
+    ? { readOnly: true, error: "storageVersionChanged" }
+    : validationError
+      ? { readOnly: true, error: validationError }
+      : { readOnly: false, error: "" };
 
 export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -25,30 +41,34 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const running = useRef<Promise<boolean> | null>(null);
   const frozen = useRef(false);
+  const disconnected = useRef(false);
   const conflicts = useRef(new Map<string, Draft>());
 
-  function select(value: Draft) {
+  function select(value: Draft, clean = false) {
     if (timer.current) clearTimeout(timer.current);
     value = conflicts.current.get(value.document.documentId) ?? value;
     composing.current = false;
     change.current = 0;
-    savedChange.current = value.document.revision > 0 ? 0 : -1;
+    savedChange.current = clean || value.document.revision > 0 ? 0 : -1;
+    let validationError = "";
     try {
       value = withoutUnusedMedia(value);
       if (conflicts.current.has(value.document.documentId))
         throw new StorageConflict();
-      frozen.current = false;
-      setReadOnly(false);
-      setError("");
     } catch (e) {
-      frozen.current = true;
-      setReadOnly(true);
-      setError(e instanceof Error ? e.message : "invalidDocument");
+      validationError = e instanceof Error ? e.message : "invalidDocument";
     }
+    // A versionchange can close the database while the initial getAll is still
+    // finishing. That stale continuation may select a draft, but it must never
+    // make the editor writable again without a live connection.
+    const access = selectionAccess(disconnected.current, validationError);
+    frozen.current = access.readOnly;
+    setReadOnly(access.readOnly);
+    setError(access.error);
     current.current = value;
     setDraft(value);
     setStatus(
-      conflicts.current.has(value.document.documentId)
+      access.readOnly
         ? "error"
         : value.document.revision > 0 ? "saved" : "unsaved",
     );
@@ -56,9 +76,21 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   useEffect(() => {
     let active = true;
     let connection: DraftRepository | null = null;
-    openDraftRepository(storageMode, () => {
-      if (active) setError("storageBlocked");
-    })
+    openDraftRepository(
+      storageMode,
+      () => {
+        if (active) setError("storageBlocked");
+      },
+      () => {
+        if (!active) return;
+        db.current = null;
+        disconnected.current = true;
+        frozen.current = true;
+        setReadOnly(true);
+        setStatus("error");
+        setError("storageVersionChanged");
+      },
+    )
       .then(async (value) => {
         connection = value;
         if (!active) {
@@ -67,13 +99,11 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
         }
         db.current = value;
         const drafts = await value.list();
-        drafts.sort((a, b) =>
-          b.document.updatedAt.localeCompare(a.document.updatedAt),
-        );
+        drafts.sort(newestDraftFirst);
         const first = drafts[0] ? await value.load(drafts[0]) : newDraft(locale);
         if (!active) return;
         setList(drafts);
-        select(first);
+        select(first, drafts.length === 0);
       })
       .catch((e) => {
         console.warn(
@@ -85,7 +115,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
         if (active) {
           setError(e instanceof Error ? e.message : "storageFailed");
           setStatus("error");
-          select(newDraft(locale));
+          select(newDraft(locale), true);
           setError("storageFailed");
         }
       });
@@ -185,7 +215,11 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   }
   useEffect(() => {
     const before = (e: BeforeUnloadEvent) => {
-      if (change.current !== savedChange.current || conflicts.current.size > 0) {
+      if (hasUnsavedWork(
+        change.current,
+        savedChange.current,
+        conflicts.current.size,
+      )) {
         e.preventDefault();
         e.returnValue = "";
       }
@@ -194,7 +228,8 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
     return () => window.removeEventListener("beforeunload", before);
   }, []);
   async function activate(value: Draft) {
-    if (!frozen.current && !(await save())) return false;
+    if (disconnected.current) return false;
+    if (!frozen.current && !(await saveUntilCurrent(save, () => savedChange.current === change.current))) return false;
     try {
       // A frozen local copy is retained for backup, never replaced by a remote load.
       const conflict = conflicts.current.get(value.document.documentId);
@@ -220,6 +255,9 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
       },
     };
     if (!(await activate(value))) return false;
+    // A newer but structurally recoverable backup is intentionally selected in
+    // memory as read-only. Saving it would discard the unsupported information.
+    if (frozen.current) return true;
     return save();
   }
   return {
@@ -240,4 +278,14 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
     },
     snapshot: () => current.current,
   };
+}
+
+export async function saveUntilCurrent(
+  save: () => Promise<boolean>,
+  isCurrent: () => boolean,
+): Promise<boolean> {
+  do {
+    if (!(await save())) return false;
+  } while (!isCurrent());
+  return true;
 }

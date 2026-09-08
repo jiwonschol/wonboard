@@ -99,13 +99,18 @@ export function createLocalAuth({
     attempts++;
     let body: { username?: unknown; password?: unknown };
     try {
-      let raw = "";
+      // 청크 경계가 다바이트 UTF-8 문자를 가르면 청크마다 따로 디코딩한 문자열에
+      // 대체 문자가 박힌다. 비ASCII 자격증명이 네트워크 분할에 따라 간헐적으로 틀리게
+      // 읽히던 자리라, 바이트를 다 모은 뒤 한 번에 디코딩한다.
+      const chunks: Buffer[] = [];
+      let size = 0;
       for await (const chunk of req) {
-        raw += chunk.toString();
-        if (Buffer.byteLength(raw) > 2048)
-          return reply(res, 413, { error: "invalid" });
+        const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        size += buffer.byteLength;
+        if (size > 2048) return reply(res, 413, { error: "invalid" });
+        chunks.push(buffer);
       }
-      body = JSON.parse(raw);
+      body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
       if (
         !body ||
         typeof body.username !== "string" ||

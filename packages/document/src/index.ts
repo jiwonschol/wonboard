@@ -35,7 +35,13 @@ export type WriterDocument = {
 export type Draft = { document: WriterDocument; blobs: Record<string, Blob> };
 export const limits = {
   title: 10000,
+  // alt/caption/language/type 는 validateDocument 가 이 값으로 거른다. 입력 필드도
+  // 같은 상수를 써야 화면에서 넘긴 값이 저장 단계에서만 거부되는 일이 없다.
+  attributeText: 10000,
   imageBytes: 20 * 1024 * 1024,
+  // 원본 합계가 ZIP 전체 상한을 다 써 버리면 정상 초안도 백업할 수 없다.
+  // document.json과 ZIP 컨테이너를 위해 36 MiB를 남긴다.
+  mediaBytes: 220 * 1024 * 1024,
   pixels: 40_000_000,
   images: 100,
   archiveBytes: 256 * 1024 * 1024,
@@ -77,6 +83,77 @@ export class DocumentError extends Error {
 }
 const idPattern =
   /^(?!(?:__proto__|constructor|prototype)$)[a-zA-Z0-9_-]{1,80}$/;
+// 편집기 클립보드 규칙도 이 판정을 써야 한다 — 붙여넣기에서 받아들이는 id 와
+// validateDocument 가 통과시키는 id 가 갈리면 붙여넣은 순간 저장이 막힌다.
+export const isMediaId = (value: unknown): value is string =>
+  typeof value === "string" && idPattern.test(value);
+
+const jpegStartOfFrame = (marker: number) =>
+  (marker >= 0xc0 && marker <= 0xc3) ||
+  (marker >= 0xc5 && marker <= 0xc7) ||
+  (marker >= 0xc9 && marker <= 0xcb) ||
+  (marker >= 0xcd && marker <= 0xcf);
+
+function inspectJpegDimensions(bytes: Uint8Array) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let offset = 2;
+  while (offset < view.byteLength) {
+    if (view.getUint8(offset++) !== 0xff)
+      throw new DocumentError("invalidImage");
+    while (offset < view.byteLength && view.getUint8(offset) === 0xff) offset++;
+    if (offset >= view.byteLength) throw new DocumentError("invalidImage");
+    const marker = view.getUint8(offset++);
+    if (marker === 0xd9 || marker === 0xda)
+      throw new DocumentError("invalidImage");
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+    if (offset + 2 > view.byteLength) throw new DocumentError("invalidImage");
+    const size = view.getUint16(offset);
+    if (size < 2 || size > view.byteLength - offset)
+      throw new DocumentError("invalidImage");
+    if (jpegStartOfFrame(marker)) {
+      if (size < 7) throw new DocumentError("invalidImage");
+      const height = view.getUint16(offset + 3);
+      const width = view.getUint16(offset + 5);
+      if (width === 0 || height === 0 || width * height > limits.pixels)
+        throw new DocumentError("imageLimit");
+      return;
+    }
+    offset += size;
+  }
+  throw new DocumentError("invalidImage");
+}
+
+// Dimensions and animation metadata are inspected before a browser decoder can
+// allocate a bitmap. The decoder still verifies that the complete image is usable.
+export function inspectImageBytes(
+  bytes: Uint8Array,
+): "image/png" | "image/jpeg" {
+  const mime = imageMime(bytes);
+  if (mime === "image/jpeg") {
+    inspectJpegDimensions(bytes);
+    return mime;
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let offset = 8;
+  while (offset + 12 <= view.byteLength) {
+    const size = view.getUint32(offset);
+    if (size > view.byteLength - offset - 12)
+      throw new DocumentError("invalidImage");
+    const type = String.fromCharCode(
+      ...new Uint8Array(view.buffer, view.byteOffset + offset + 4, 4),
+    );
+    if (type === "acTL") throw new DocumentError("invalidImage");
+    if (type === "IHDR") {
+      if (size !== 13) throw new DocumentError("invalidImage");
+      const width = view.getUint32(offset + 8);
+      const height = view.getUint32(offset + 12);
+      if (width === 0 || height === 0 || width * height > limits.pixels)
+        throw new DocumentError("imageLimit");
+    }
+    offset += size + 12;
+  }
+  return mime;
+}
 const hexColor = /^#[\da-f]{6}$/i;
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -95,6 +172,39 @@ export function safeLink(value: unknown): value is string {
   } catch {
     return false;
   }
+}
+const currentMarks = new Set([
+  "bold",
+  "italic",
+  "underline",
+  "strike",
+  "code",
+  "link",
+  "textStyle",
+]);
+const linkAttrs = new Set(["href", "target", "rel", "class", "title"]);
+export function markAttrsFitDocument(type: unknown, attrs: unknown): boolean {
+  if (typeof type !== "string" || !currentMarks.has(type)) return false;
+  if (type === "textStyle") {
+    if (!isObject(attrs)) return false;
+    return Object.entries(attrs).every(([key, value]) => {
+      if (!["fontFamily", "fontSize", "color", "highlight"].includes(key)) return false;
+      if (value === null) return true;
+      if (key === "fontFamily") return isFontId(value);
+      if (key === "fontSize") return typeof value === "number" && Number.isFinite(value) && value >= 12 && value <= 96;
+      return typeof value === "string" && hexColor.test(value);
+    });
+  }
+  if (type !== "link")
+    return attrs === undefined || (isObject(attrs) && !Object.keys(attrs).length);
+  if (!isObject(attrs) || !safeLink(attrs.href)) return false;
+  return Object.entries(attrs).every(
+    ([key, value]) =>
+      linkAttrs.has(key) &&
+      (key === "href" ||
+        value === null ||
+        (typeof value === "string" && value.length <= limits.attributeText)),
+  );
 }
 const blockNodes = new Set([
   "paragraph",
@@ -135,11 +245,77 @@ const allowedAttrs: Record<string, string[]> = {
   media: ["mediaId", "width", "align", "alt", "caption"],
   video: ["provider", "videoId", "privacyHash", "startSeconds", "autoplay"],
 };
-export function validateDocument(
+export function nodeAttrsFitDocument(type: unknown, attrs: unknown): boolean {
+  if (typeof type !== "string") return false;
+  if (attrs === undefined) return type !== "media" && type !== "video";
+  if (!isObject(attrs)) return false;
+  for (const [key, v] of Object.entries(attrs)) {
+    if (!(allowedAttrs[type] ?? []).includes(key)) return false;
+    if (v === null) continue;
+    if (
+      (key === "textAlign" || key === "align") &&
+      !["left", "center", "right"].includes(String(v))
+    )
+      return false;
+    if (
+      key === "variant" &&
+      !["default", "display", "subtitle", "annotation"].includes(String(v))
+    )
+      return false;
+    if (key === "fontSize" && !(typeof v === "number" && v >= 12 && v <= 96))
+      return false;
+    if (
+      (key === "textColor" || key === "backgroundColor") &&
+      !(typeof v === "string" && hexColor.test(v))
+    )
+      return false;
+    if (key === "gradient" && !["none", "light", "blue"].includes(String(v)))
+      return false;
+    if (key === "padding" && !(typeof v === "number" && v >= 0 && v <= 80))
+      return false;
+    if (
+      key === "borderWidth" &&
+      !(typeof v === "number" && v >= 0 && v <= 8)
+    )
+      return false;
+    if (
+      key === "level" &&
+      !([1, 2, 3].includes(Number(v)) && typeof v === "number")
+    )
+      return false;
+    if (
+      key === "width" &&
+      !(
+        typeof v === "number" &&
+        Number.isFinite(v) &&
+        v >= 40 &&
+        v <= 8000
+      )
+    )
+      return false;
+    if (key === "mediaId" && !isMediaId(v)) return false;
+    if (
+      ["alt", "caption", "language", "type"].includes(key) &&
+      !(typeof v === "string" && v.length <= limits.attributeText)
+    )
+      return false;
+    if (
+      key === "start" &&
+      !(Number.isSafeInteger(v) && Number(v) >= 1 && Number(v) <= 100000)
+    )
+      return false;
+  }
+  if (type === "media" && !isMediaId(attrs.mediaId)) return false;
+  if (type === "video" && !isVideo(attrs)) return false;
+  return true;
+}
+export function validateDocumentEnvelope(
   value: unknown,
 ): asserts value is WriterDocument {
   requireThat(isObject(value));
-  if (value.schemaVersion !== 1) throw new DocumentError("futureDocument");
+  requireThat(
+    Number.isSafeInteger(value.schemaVersion) && Number(value.schemaVersion) >= 1,
+  );
   requireThat(
     typeof value.documentId === "string" && idPattern.test(value.documentId),
   );
@@ -159,6 +335,7 @@ export function validateDocument(
     typeof value.updatedAt === "string" &&
       Number.isFinite(Date.parse(value.updatedAt)),
   );
+  requireThat(isObject(value.content));
   requireThat(
     isObject(value.media) && Object.keys(value.media).length <= limits.images,
   );
@@ -184,6 +361,13 @@ export function validateDocument(
       typeof m.sha256 === "string" && /^[a-f0-9]{64}$/.test(m.sha256),
     );
   }
+}
+export function validateDocument(
+  value: unknown,
+): asserts value is WriterDocument {
+  requireThat(isObject(value));
+  if (value.schemaVersion !== 1) throw new DocumentError("futureDocument");
+  validateDocumentEnvelope(value);
   let nodeCount = 0;
   let textLength = 0;
   const walk = (n: unknown, parent: string, depth: number) => {
@@ -193,6 +377,9 @@ export function validateDocument(
         depth < 40 &&
         ++nodeCount < 100_000,
     );
+    for (const key of Object.keys(n))
+      if (!["type", "text", "attrs", "marks", "content"].includes(key))
+        throw new DocumentError("futureDocument");
     const type = n.type;
     const allowed =
       parent === ""
@@ -213,44 +400,12 @@ export function validateDocument(
     requireThat(textLength <= limits.text);
     if (n.attrs !== undefined) {
       requireThat(isObject(n.attrs));
-      for (const [key, v] of Object.entries(n.attrs)) {
+      for (const key of Object.keys(n.attrs)) {
         if (!(allowedAttrs[type] ?? []).includes(key))
           throw new DocumentError("futureDocument");
-        if (v === null) continue;
-        if (key === "textAlign" || key === "align")
-          requireThat(["left", "center", "right"].includes(String(v)));
-        if (key === "variant")
-          requireThat(
-            ["default", "display", "subtitle", "annotation"].includes(
-              String(v),
-            ),
-          );
-        if (key === "fontSize")
-          requireThat(typeof v === "number" && v >= 12 && v <= 96);
-        if (key === "textColor" || key === "backgroundColor")
-          requireThat(typeof v === "string" && hexColor.test(v));
-        if (key === "gradient")
-          requireThat(["none", "light", "blue"].includes(String(v)));
-        if (key === "padding")
-          requireThat(typeof v === "number" && v >= 0 && v <= 80);
-        if (key === "borderWidth")
-          requireThat(typeof v === "number" && v >= 0 && v <= 8);
-        if (key === "level")
-          requireThat([1, 2, 3].includes(Number(v)) && typeof v === "number");
-        if (key === "width")
-          requireThat(
-            typeof v === "number" && Number.isFinite(v) && v >= 40 && v <= 8000,
-          );
-        if (key === "mediaId")
-          requireThat(typeof v === "string" && idPattern.test(v));
-        if (["alt", "caption", "language", "type"].includes(key))
-          requireThat(typeof v === "string" && v.length <= 10000);
-        if (key === "start")
-          requireThat(
-            Number.isSafeInteger(v) && Number(v) >= 1 && Number(v) <= 100000,
-          );
       }
     }
+    requireThat(nodeAttrsFitDocument(type, n.attrs));
     if (type === "media") {
       requireThat(isObject(n.attrs) && typeof n.attrs.mediaId === "string");
       if (!Object.hasOwn(value.media as object, n.attrs.mediaId))
@@ -263,25 +418,11 @@ export function validateDocument(
       );
       for (const mark of n.marks) {
         requireThat(isObject(mark));
-        if (
-          !["bold", "italic", "underline", "strike", "code", "link", "textStyle"].includes(
-            String(mark.type),
-          )
-        )
+        for (const key of Object.keys(mark))
+          if (!["type", "attrs"].includes(key))
+            throw new DocumentError("futureDocument");
+        if (!markAttrsFitDocument(mark.type, mark.attrs))
           throw new DocumentError("futureDocument");
-        if (mark.type === "link")
-          requireThat(isObject(mark.attrs) && safeLink(mark.attrs.href));
-        if (mark.type === "textStyle") {
-          requireThat(isObject(mark.attrs));
-          for (const [key, v] of Object.entries(mark.attrs)) {
-            if (!["fontFamily", "fontSize", "color", "highlight"].includes(key))
-              throw new DocumentError("futureDocument");
-            if (v === null) continue;
-            if (key === "fontFamily") requireThat(isFontId(v));
-            if (key === "fontSize") requireThat(typeof v === "number" && Number.isFinite(v) && v >= 12 && v <= 96);
-            if (key === "color" || key === "highlight") requireThat(typeof v === "string" && hexColor.test(v));
-          }
-        }
       }
     }
     if (n.content !== undefined) {
@@ -313,10 +454,14 @@ export function plainText(node: ContentNode): string {
         : "",
     );
 }
-export const characterCount = (text: string, locale: Locale) =>
-  Array.from(
-    new Intl.Segmenter(locale, { granularity: "grapheme" }).segment(text),
-  ).length;
+export const characterCount = (text: string, locale: Locale) => {
+  let count = 0;
+  for (const _segment of new Intl.Segmenter(locale, {
+    granularity: "grapheme",
+  }).segment(text))
+    count++;
+  return count;
+};
 export function matchesQuery(
   text: string,
   query: string,
@@ -395,4 +540,4 @@ export function withoutUnusedMedia(draft: Draft): Draft {
     ),
   };
 }
-export { exportBackup, importBackup } from "./backup";
+export { exportBackup, exportRawBackup, importBackup } from "./backup";

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Extension, type Editor as EditorType } from "@tiptap/core";
+import { Plugin } from "@tiptap/pm/state";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -10,8 +11,11 @@ import {
   limits,
   fontFamily,
   type FontId,
+  markAttrsFitDocument,
+  nodeAttrsFitDocument,
   type ContentNode,
   type Locale,
+  type Media,
 } from "@wonboard/document";
 import { translator, type MessageKey } from "@wonboard/locales";
 import { MediaContext, MediaNode } from "./MediaNode";
@@ -43,6 +47,7 @@ export interface WonboardEditorProps {
   locale: Locale;
   documentLocale: Locale;
   mediaUrls: Record<string, string>;
+  media: Readonly<Record<string, Media>>;
   readOnly?: boolean;
   inspectorOpen?: boolean;
   insertOpen?: boolean;
@@ -57,42 +62,157 @@ export interface WonboardEditorProps {
   onCloseInsert?(): void;
   onComposition?(active: boolean): void;
 }
-const Formatting = Extension.create({
+const dashed = (key: string) =>
+  key.replace(/[A-Z]/gu, (c) => `-${c.toLowerCase()}`);
+const hexColor = /^#[\da-f]{6}$/iu;
+const oneOf = (values: readonly string[]) => (raw: string) =>
+  values.includes(raw) ? raw : null;
+const inRange = (min: number, max: number) => (raw: string) => {
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= min && value <= max ? value : null;
+};
+// 붙여넣기로 되살릴 때 통과시킬 값은 validateDocument 가 통과시키는 값과 같아야 한다.
+// 넓으면 붙여넣은 순간 저장이 막히고, 좁으면 사용자가 방금 준 서식이 조용히 사라진다.
+const blockAttributes: Record<string, (raw: string) => unknown> = {
+  textAlign: oneOf(["left", "center", "right"]),
+  variant: oneOf(["default", "display", "subtitle", "annotation"]),
+  fontSize: inRange(12, 96),
+  textColor: (raw) => (hexColor.test(raw) ? raw : null),
+  backgroundColor: (raw) => (hexColor.test(raw) ? raw : null),
+  gradient: oneOf(["none", "light", "blue"]),
+  padding: inRange(0, 80),
+  borderWidth: inRange(0, 8),
+};
+export const Formatting = Extension.create({
   name: "wonboardFormatting",
   addGlobalAttributes() {
     return [
       {
         types: ["paragraph", "heading"],
         attributes: Object.fromEntries(
-          [
-            "textAlign",
-            "variant",
-            "fontSize",
-            "textColor",
-            "backgroundColor",
-            "gradient",
-            "padding",
-            "borderWidth",
-          ].map((key) => [
+          Object.entries(blockAttributes).map(([key, coerce]) => [
             key,
             {
               default: null,
-              renderHTML: (attrs: Record<string, unknown>) =>
-                key === "textAlign"
-                  ? {
-                      style: Object.entries(blockStyle(attrs))
-                        .filter(([, v]) => v !== undefined)
-                        .map(
-                          ([k, v]) =>
-                            `${k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}:${v}`,
-                        )
-                        .join(";"),
-                    }
-                  : {},
+              // 서식은 인라인 style 로만 직렬화돼서, 문단을 복사해 붙이면 클립보드
+              // 파서가 되읽을 것이 없어 정렬·글자 크기·색·그러데이션·여백·테두리가
+              // 조용히 기본값으로 돌아갔다. 값마다 되읽을 수 있는 표식을 함께 단다.
+              parseHTML: (element: HTMLElement) => {
+                const raw = element.getAttribute(`data-wb-${dashed(key)}`);
+                return raw === null ? null : coerce(raw);
+              },
+              renderHTML: (attrs: Record<string, unknown>) => {
+                const value = attrs[key];
+                const marker =
+                  value === null || value === undefined
+                    ? {}
+                    : { [`data-wb-${dashed(key)}`]: String(value) };
+                if (key !== "textAlign") return marker;
+                return {
+                  ...marker,
+                  style: Object.entries(blockStyle(attrs))
+                    .filter(([, v]) => v !== undefined)
+                    .map(([k, v]) => `${dashed(k)}:${v}`)
+                    .join(";"),
+                };
+              },
             },
           ]),
         ),
       },
+    ];
+  },
+});
+// 본문이 `limits.text` 를 넘은 채로 편집기에 남으면 이후 자동 저장과 ZIP 백업이 모두
+// validateDocument 에서 실패한다 — 사용자는 무엇을 지워야 하는지 모른 채 저장할 수 없는
+// 초안을 안게 된다. 넘기는 변경 자체를 편집기에서 막아 문서와 초안이 갈리지 않게 한다.
+// 이미 넘어선 문서(예: 백업 복원)에서도 줄이는 방향은 계속 허용한다.
+type MeasurableDoc = { content: { size: number }; textContent: string };
+// content.size 는 텍스트 길이의 상한이라, 상한이 한도 안이면 본문을 훑지 않는다.
+// 2,000,000자 문서에서 타이핑마다 전체를 세지 않게 하는 값싼 관문이다.
+const textOf = (doc: MeasurableDoc) =>
+  doc.content.size <= limits.text ? 0 : doc.textContent.length;
+export const allowsTextChange = (next: MeasurableDoc, previous: MeasurableDoc) =>
+  textOf(next) <= limits.text || textOf(next) <= textOf(previous);
+type TraversableDoc = MeasurableDoc & {
+  descendants(
+    visit: (node: {
+      type: { name: string };
+      attrs: Record<string, unknown>;
+      marks?: readonly {
+        type: { name: string };
+        attrs: Record<string, unknown>;
+      }[];
+    }) => boolean | void,
+  ): void;
+};
+type StructuralNode = {
+  childCount: number;
+  child(index: number): StructuralNode;
+};
+export const hasValidDocumentStructure = (root: StructuralNode) => {
+  let count = 0;
+  const visit = (node: StructuralNode, depth: number): boolean => {
+    count++;
+    if (depth >= 40 || count >= 100_000) return false;
+    for (let index = 0; index < node.childCount; index++)
+      if (!visit(node.child(index), depth + 1)) return false;
+    return true;
+  };
+  return visit(root, 0);
+};
+export const hasValidOrderedListStarts = (doc: TraversableDoc) => {
+  let valid = true;
+  doc.descendants((node) => {
+    if (
+      node.type.name === "orderedList" &&
+      (!Number.isSafeInteger(node.attrs.start) ||
+        Number(node.attrs.start) < 1 ||
+        Number(node.attrs.start) > 100000)
+    ) {
+      valid = false;
+      return false;
+    }
+  });
+  return valid;
+};
+export const hasValidMarkAttributes = (doc: TraversableDoc) => {
+  let valid = true;
+  doc.descendants((node) => {
+    if (
+      node.marks?.some(
+        (mark) => !markAttrsFitDocument(mark.type.name, mark.attrs),
+      )
+    ) {
+      valid = false;
+      return false;
+    }
+  });
+  return valid;
+};
+export const hasValidNodeAttributes = (doc: TraversableDoc) => {
+  let valid = true;
+  doc.descendants((node) => {
+    if (!nodeAttrsFitDocument(node.type.name, node.attrs)) {
+      valid = false;
+      return false;
+    }
+  });
+  return valid;
+};
+export const DocumentLimits = Extension.create({
+  name: "wonboardTextLimit",
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        filterTransaction: (transaction, state) =>
+          !transaction.docChanged ||
+          (allowsTextChange(transaction.doc, state.doc) &&
+            hasValidOrderedListStarts(transaction.doc) &&
+            hasValidNodeAttributes(transaction.doc) &&
+            hasValidMarkAttributes(transaction.doc) &&
+            hasValidDocumentStructure(transaction.doc)),
+      }),
     ];
   },
 });
@@ -149,10 +269,15 @@ export function WonboardEditor(props: WonboardEditorProps) {
           isAllowedUri: (url) => safeLink(url),
         },
       }),
-      MediaNode,
+      MediaNode.configure({
+        // 붙여넣기가 되살릴 수 있는 사진은 이 초안이 원본을 들고 있는 것뿐이다.
+        ownsMedia: (mediaId: string) =>
+          Object.hasOwn(latest.current.media, mediaId),
+      }),
       VideoNode,
       Formatting,
       TextStyle,
+      DocumentLimits,
       Placeholder.configure({
         placeholder: () => translator(latest.current.locale)("placeholder"),
       }),

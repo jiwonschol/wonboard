@@ -60,6 +60,34 @@ describe("atomic browser draft storage", () => {
     );
     db.close();
   });
+  it("converts an unchanged original only once across text autosaves", async () => {
+    const db = await openStorage(crypto.randomUUID());
+    const draft = newDraft();
+    const blob = new Blob([new Uint8Array([1, 2, 3])], { type: "image/png" });
+    const convert = vi.spyOn(blob, "arrayBuffer");
+    draft.document.media.photo = {
+      id: "photo",
+      originalName: "photo.png",
+      mime: "image/png",
+      width: 1,
+      height: 1,
+      size: blob.size,
+      sha256: "a".repeat(64),
+    };
+    draft.document.content.content!.push({
+      type: "media",
+      attrs: { mediaId: "photo" },
+    });
+    draft.blobs.photo = blob;
+    const saved = await saveDraft(db, draft, 0);
+    await saveDraft(
+      db,
+      { ...saved, document: { ...saved.document, title: "글자만 변경" } },
+      saved.document.revision,
+    );
+    expect(convert).toHaveBeenCalledOnce();
+    db.close();
+  });
   it("saves and reloads a full document", async () => {
     const db = await openStorage(crypto.randomUUID());
     const draft = newDraft();

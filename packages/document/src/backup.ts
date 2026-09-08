@@ -4,8 +4,9 @@ import {
   limits,
   sha256,
   validateDocument,
+  validateDocumentEnvelope,
   withoutUnusedMedia,
-  imageMime,
+  inspectImageBytes,
   type Draft,
   type WriterDocument,
 } from "./index";
@@ -16,6 +17,7 @@ export async function exportBackup(draft: Draft): Promise<Blob> {
     "document.json": strToU8(JSON.stringify(draft.document)),
   };
   let total = files["document.json"].byteLength;
+  if (total > limits.archiveBytes) throw new DocumentError("archiveLimit");
   for (const media of Object.values(draft.document.media)) {
     const blob = draft.blobs[media.id];
     if (!blob || blob.size !== media.size)
@@ -26,6 +28,39 @@ export async function exportBackup(draft: Draft): Promise<Blob> {
     if ((await sha256(buffer)) !== media.sha256)
       throw new DocumentError("corruptBackup");
     files[`media/${media.id}`] = new Uint8Array(buffer);
+  }
+  const data = await new Promise<Uint8Array<ArrayBuffer>>((resolve, reject) =>
+    zip(files, { level: 0 }, (error, result) =>
+      error ? reject(error) : resolve(result as Uint8Array<ArrayBuffer>),
+    ),
+  );
+  if (data.byteLength > limits.archiveBytes)
+    throw new DocumentError("archiveLimit");
+  return new Blob([data], { type: "application/zip" });
+}
+
+// 읽기 전용으로 얼어붙은 초안(미래 스키마·지원하지 않는 노드)은 exportBackup 이 같은
+// validateDocument 에서 다시 던지므로 ZIP 을 만들 수 없다. 그러면 사진이 든 초안에는
+// 온전한 회수 경로가 없다 — JSON 내보내기는 이진 자료를 통째로 빼기 때문이다.
+// 이 경로는 검증하지 않고 저장된 것을 그대로 담는다. 되읽기용이 아니라 회수용이다.
+export async function exportRawBackup(draft: Draft): Promise<Blob> {
+  const files: Record<string, Uint8Array> = {
+    "document.json": strToU8(JSON.stringify(draft.document)),
+  };
+  let total = files["document.json"].byteLength;
+  if (total > limits.archiveBytes) throw new DocumentError("archiveLimit");
+  for (const [id, blob] of Object.entries(draft.blobs)) {
+    if (!(blob instanceof Blob)) continue;
+    total += blob.size;
+    if (total > limits.archiveBytes) throw new DocumentError("archiveLimit");
+    // Encode UTF-16 code units, not UTF-8: TextEncoder replaces lone
+    // surrogates, which can make two distinct recovery keys collide.
+    let safeId = "";
+    for (let index = 0; index < id.length; index++)
+      safeId += id.charCodeAt(index).toString(16).padStart(4, "0");
+    files[`media/raw-${safeId || "empty"}`] = new Uint8Array(
+      await blob.arrayBuffer(),
+    );
   }
   const data = await new Promise<Uint8Array<ArrayBuffer>>((resolve, reject) =>
     zip(files, { level: 0 }, (error, result) =>
@@ -57,7 +92,12 @@ export async function importBackup(blob: Blob): Promise<Draft> {
                 file.name,
               ) ||
               !Number.isSafeInteger(file.originalSize) ||
-              file.originalSize > limits.imageBytes ||
+              // 사진 한 장의 상한이지 문서의 상한이 아니다. document.json 에 걸면
+              // exportBackup 이 정상으로 만들어 낸 묶음을 가져오기가 거부한다 —
+              // 같은 사진 노드를 여러 번 쓰면서 설명을 길게 단 문서로 실제로 닿는다.
+              // 문서 크기는 아래 total 이 archiveBytes 로 이미 막는다.
+              (file.name !== "document.json" &&
+                file.originalSize > limits.imageBytes) ||
               total > limits.archiveBytes ||
               names.size >= limits.images + 1
             )
@@ -80,7 +120,16 @@ export async function importBackup(blob: Blob): Promise<Draft> {
   } catch {
     throw new DocumentError("corruptBackup");
   }
-  validateDocument(document);
+  try {
+    validateDocument(document);
+  } catch (error) {
+    if (!(error instanceof DocumentError) || error.code !== "futureDocument")
+      throw error;
+    // Keep a newer/unsupported document inspectable through the existing
+    // read-only recovery UI, while still validating every field used to locate
+    // and verify its binary originals.
+    validateDocumentEnvelope(document);
+  }
   if (names.size !== Object.keys(document.media).length + 1)
     throw new DocumentError("corruptBackup");
   const blobs: Record<string, Blob> = {};
@@ -89,7 +138,7 @@ export async function importBackup(blob: Blob): Promise<Draft> {
     if (
       !data ||
       data.byteLength !== media.size ||
-      imageMime(data) !== media.mime ||
+      inspectImageBytes(data) !== media.mime ||
       (await sha256(data.buffer)) !== media.sha256
     )
       throw new DocumentError("corruptBackup");

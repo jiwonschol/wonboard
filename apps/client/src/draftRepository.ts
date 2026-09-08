@@ -18,9 +18,9 @@ export async function sitesRequest(path: string, init: RequestInit = {}) {
   }
   return response;
 }
-export async function openDraftRepository(mode: StorageMode, onBlocked: () => void): Promise<DraftRepository> {
+export async function openDraftRepository(mode: StorageMode, onBlocked: () => void, onDisconnected?: () => void): Promise<DraftRepository> {
   if (mode === "local") {
-    const db = await openStorage(undefined, onBlocked);
+    const db = await openStorage(undefined, onBlocked, onDisconnected);
     return { list: () => loadDrafts(db), load: async draft => draft,
       save: (draft, revision) => saveDraft(db, draft, revision), close: () => db.close() };
   }
