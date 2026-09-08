@@ -22,6 +22,8 @@ import {
 import { AttachmentsPanel } from "./AttachmentsPanel";
 import { WritingLibrary } from "./WritingLibrary";
 import { initialLocale } from "./locale";
+import { PublicationPanel } from "./PublicationPanel";
+import type { StorageMode } from "./draftRepository";
 
 function download(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
@@ -33,12 +35,15 @@ function download(blob: Blob, name: string) {
 }
 export default function App({
   onLogout,
+  storageMode = "local",
 }: {
   onLogout: () => Promise<boolean>;
+  storageMode?: StorageMode;
 }) {
   const [locale, setLocale] = useState<Locale>(initialLocale);
   const t = translator(locale);
-  const writer = useDrafts(locale);
+  const writer = useDrafts(locale, storageMode);
+  const [publication, setPublication] = useState(false);
   const [editor, setEditor] = useState<EditorHandle | null>(null);
   const [inspector, setInspector] = useState(true);
   const [insert, setInsert] = useState(false);
@@ -255,7 +260,7 @@ export default function App({
       attached.filter((n) => n.type === "media").map((n) => n.attrs?.mediaId),
     ).size + attached.filter((n) => n.type === "video").length;
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-storage-mode={storageMode}>
       <a className="skip-link" href="#document-canvas">
         {t("skip")}
       </a>
@@ -273,7 +278,7 @@ export default function App({
           {t("newDocument")}
         </button>
         <span className="admin-spacer" />
-        <span className="local-mode">{t("noCloud")}</span>
+        <span className="local-mode">{t(storageMode === "sites" ? "sitesStorage" : "noCloud")}</span>
         <select
           aria-label={t("language")}
           value={locale}
@@ -360,9 +365,10 @@ export default function App({
           >
             <Icon name="settings" />
           </button>
-          <span title={t("publishLater")}>
-            <button className="publish-button" disabled>
-              {t("publish")}
+          <span title={storageMode === "local" ? t("publishLater") : undefined}>
+            <button className="publish-button" disabled={storageMode === "local" || busy || writer.readOnly}
+              onClick={() => setPublication(true)}>
+              {t(storageMode === "sites" ? "prepareExport" : "publish")}
             </button>
           </span>
           <button
@@ -396,6 +402,7 @@ export default function App({
       <div className="writing-workspace">
         {library ? (
           <WritingLibrary
+            storageMode={storageMode}
             draft={draft}
             list={writer.list}
             locale={locale}
@@ -443,6 +450,7 @@ export default function App({
           <WonboardEditor
             key={draft.document.documentId}
             content={draft.document.content}
+            defaultFont={draft.document.defaultFont}
             title={content}
             locale={locale}
             documentLocale={draft.document.locale}
@@ -475,6 +483,7 @@ export default function App({
                   setOptions(true);
                   void storageInfo();
                 }}
+                storageMode={storageMode}
               />
             }
           />
@@ -494,7 +503,7 @@ export default function App({
         </span>
         <span className="save-state" role="status">
           {t(
-            writer.status === "error"
+            writer.status === "saved" && storageMode === "sites" ? "savedToSites" : writer.status === "error"
               ? "unsaved"
               : writer.status === "loading"
                 ? "loading"
@@ -525,7 +534,8 @@ export default function App({
           </label>
           <hr />
           <h2>{t("storage")}</h2>
-          <p>{t("localOnly")}</p>
+          <p>{t(storageMode === "sites" ? "sitesStorageHint" : "localOnly")}</p>
+          {storageMode === "local" && <>
           <p>{usage}</p>
           {persistent !== null ? (
             <p>{t(persistent ? "persistent" : "notPersistent")}</p>
@@ -541,9 +551,12 @@ export default function App({
           >
             {t("requestPersistence")}
           </button>
+          </>}
           <button onClick={() => setOptions(false)}>{t("close")}</button>
         </div>
       ) : null}
+      {publication && <PublicationPanel locale={locale} documentId={draft.document.documentId}
+        save={writer.save} snapshot={writer.snapshot} onBusy={setBusy} onClose={() => setPublication(false)} />}
       {preview ? (
         <div
           className="preview-overlay"

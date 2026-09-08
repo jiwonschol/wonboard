@@ -6,13 +6,8 @@ import {
   type Locale,
   type ContentNode,
 } from "@wonboard/document";
-import {
-  loadDrafts,
-  newestDraftFirst,
-  openStorage,
-  saveDraft,
-  StorageConflict,
-} from "./storage";
+import { StorageConflict, newestDraftFirst } from "./storage";
+import { openDraftRepository, type DraftRepository, type StorageMode } from "./draftRepository";
 
 export const hasUnsavedWork = (
   change: number,
@@ -30,7 +25,7 @@ export const selectionAccess = (
       ? { readOnly: true, error: validationError }
       : { readOnly: false, error: "" };
 
-export function useDrafts(locale: Locale) {
+export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [list, setList] = useState<Draft[]>([]);
   const [status, setStatus] = useState<
@@ -38,7 +33,7 @@ export function useDrafts(locale: Locale) {
   >("loading");
   const [error, setError] = useState("");
   const [readOnly, setReadOnly] = useState(false);
-  const db = useRef<IDBDatabase | null>(null);
+  const db = useRef<DraftRepository | null>(null);
   const current = useRef<Draft | null>(null);
   const change = useRef(0);
   const savedChange = useRef(-1);
@@ -80,9 +75,9 @@ export function useDrafts(locale: Locale) {
   }
   useEffect(() => {
     let active = true;
-    let connection: IDBDatabase | null = null;
-    openStorage(
-      undefined,
+    let connection: DraftRepository | null = null;
+    openDraftRepository(
+      storageMode,
       () => {
         if (active) setError("storageBlocked");
       },
@@ -103,15 +98,16 @@ export function useDrafts(locale: Locale) {
           return;
         }
         db.current = value;
-        const drafts = await loadDrafts(value);
-        if (!active) return;
+        const drafts = await value.list();
         drafts.sort(newestDraftFirst);
+        const first = drafts[0] ? await value.load(drafts[0]) : newDraft(locale);
+        if (!active) return;
         setList(drafts);
-        select(drafts[0] ?? newDraft(locale), drafts.length === 0);
+        select(first, drafts.length === 0);
       })
       .catch((e) => {
         console.warn(
-          "Wonboard local save failed",
+          "Wonboard save failed",
           e instanceof Error
             ? `${e.name}: ${e.message}`
             : "Unknown storage error",
@@ -142,7 +138,7 @@ export function useDrafts(locale: Locale) {
     const snapshot = current.current;
     const sequence = change.current;
     setStatus("saving");
-    const task = saveDraft(db.current, snapshot, snapshot.document.revision)
+    const task = db.current.save(snapshot, snapshot.document.revision)
       .then((result) => {
         savedChange.current = sequence;
         current.current = {
@@ -178,7 +174,7 @@ export function useDrafts(locale: Locale) {
           setError("storageConflict");
         } else {
           console.warn(
-            "Wonboard local save failed",
+            "Wonboard save failed",
             e instanceof Error ? `${e.name}: ${e.message}` : String(e),
           );
           setError(
@@ -233,16 +229,17 @@ export function useDrafts(locale: Locale) {
   }, []);
   async function activate(value: Draft) {
     if (disconnected.current) return false;
-    if (
-      !frozen.current &&
-      !(await saveUntilCurrent(
-        save,
-        () => savedChange.current === change.current,
-      ))
-    )
+    if (!frozen.current && !(await saveUntilCurrent(save, () => savedChange.current === change.current))) return false;
+    try {
+      // A frozen local copy is retained for backup, never replaced by a remote load.
+      const conflict = conflicts.current.get(value.document.documentId);
+      const loaded = conflict ?? (db.current ? await db.current.load(value) : value);
+      select(loaded);
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "storageFailed");
       return false;
-    select(value);
-    return true;
+    }
   }
   async function create() {
     if (await activate(newDraft(locale))) await save();

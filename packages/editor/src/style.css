@@ -1,12 +1,25 @@
 :root {
   --wb-ui:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu,
+    "Pretendard Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu,
     Cantarell, "Helvetica Neue", sans-serif;
   --wb-border: #ddd;
   --wb-ink: #1e1e1e;
   --wb-accent: #4f46e5;
   --wb-paper: #fff;
 }
+.writing-font-notice {
+  flex: 0 0 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: #f5f3ff;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.writing-font-notice p { margin: 4px 0 0; }
+.writing-font-notice button { flex-shrink: 0; }
 .wb-editing-area {
   display: flex;
   flex: 1;
@@ -39,11 +52,10 @@
   padding: 0 5%;
   color: #111;
   font-family:
-    "Manrope Variable", Manrope, "Apple SD Gothic Neo", "Malgun Gothic",
-    sans-serif;
+    "Pretendard Variable", sans-serif;
   font-size: 19.3642px;
   line-height: 1.4;
-  font-weight: 300;
+  font-weight: 400;
   letter-spacing: -0.1px;
 }
 .document-title {
@@ -132,7 +144,7 @@
   white-space: pre-wrap;
 }
 .tiptap code {
-  font-family: ui-monospace, monospace;
+  font-family: "Nanum Gothic Coding", "Pretendard Variable", monospace;
 }
 .tiptap hr {
   border: 0;
@@ -540,28 +552,76 @@
 .link-popover p {
   color: #b32d2e;
 }
-.text-toolbar {
+.writing-toolbar {
   display: flex;
   position: sticky;
-  top: 8px;
+  top: 0;
   z-index: 4;
-  margin-bottom: 10px;
-  width: max-content;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  min-height: 49px;
   background: #fff;
-  border: 1px solid #bbb;
-  box-shadow: 0 2px 8px #0001;
-  letter-spacing: 0;
+  border-bottom: 1px solid var(--wb-border);
 }
-.text-toolbar button {
+.writing-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
   border: 0;
-  border-right: 1px solid #eee;
-  min-width: 40px;
-  height: 36px;
-  background: white;
 }
-.text-toolbar button[aria-pressed="true"] {
-  background: #1e1e1e;
-  color: white;
+.writing-toolbar button, .writing-toolbar select, .writing-toolbar input[type="number"], .writing-toolbar summary {
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: #fff;
+  color: var(--wb-ink);
+  padding: 0 7px;
+  font: 13px var(--wb-ui);
+}
+.writing-toolbar button { min-width: 30px; }
+.writing-toolbar button:hover, .writing-toolbar summary:hover, .writing-toolbar select:hover { background: #f3f3f3; }
+.writing-toolbar button[aria-pressed="true"] { background: #eeedff; color: #3730a3; }
+.writing-toolbar select { max-width: 100%; }
+.writing-font { width: 170px; }
+.writing-block { width: 100px; }
+.writing-toolbar input.writing-size { width: 52px; border-color: #ddd; padding: 0 5px; }
+.toolbar-divider { height: 20px; border-left: 1px solid #ddd; margin: 0 4px; }
+.writing-color { width: 30px; height: 32px; position: relative; display: grid; place-content: center; font: 600 16px var(--wb-ui); }
+.writing-color input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.writing-color:focus-within { outline: 2px solid var(--wb-accent); outline-offset: 1px; }
+.writing-color span { border-bottom: 3px solid currentColor; padding: 0 3px; }
+.writing-highlight span { border: 0; border-radius: 2px; }
+.writing-more, .writing-help { flex: none; }
+.writing-toolbar summary { display: flex; align-items: center; cursor: pointer; list-style: none; padding: 0 4px; }
+.writing-toolbar summary::-webkit-details-marker { display: none; }
+.writing-toolbar summary:focus-visible { outline: 2px solid var(--wb-accent); }
+.writing-toolbar svg { width: 20px; height: 20px; }
+.writing-extra, .writing-help-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 12px;
+  width: min(240px, calc(100% - 24px));
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px #0001;
+  background: white;
+  font: 13px/1.6 var(--wb-ui);
+}
+.writing-extra-row { display: flex; gap: 4px; margin-bottom: 8px; }
+.writing-help-panel { width: min(300px, calc(100% - 24px)); }
+.writing-help-panel p { margin: 6px 0 14px; }
+.writing-help-panel a { display: block; color: var(--wb-accent); margin-top: 4px; }
+.writing-controls:disabled .writing-more { pointer-events: none; opacity: .5; }
+@container (max-width: 540px) {
+  .writing-toolbar { padding: 8px; align-items: flex-start; }
+  .writing-font { width: 145px; }
 }
 .mark-bold {
   font-weight: 700;
@@ -662,6 +722,21 @@
   padding: 40px;
   font: 13px var(--wb-ui);
 }
+.writing-actions { display: flex; align-items: center; gap: 3px; flex: 0 0 auto; }
+.writing-toolbar button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 32px; }
+.writing-toolbar > .writing-controls { display: contents; }
+.writing-toolbar { flex-wrap: wrap; }
+.writing-toolbar-expanded { position: static; padding: 0; border: 0; min-height: 0; }
+.wb-inspector .writing-toolbar-expanded .writing-controls { display: flex; gap: 6px; flex-wrap: wrap; }
+.writing-toolbar-expanded .toolbar-divider { width: 100%; height: 1px; margin: 4px 0; }
+.wb-inspector .writing-toolbar-expanded .writing-font { width: 100%; }
+.wb-inspector .writing-toolbar-expanded .writing-block { width: calc(100% - 66px); }
+.wb-inspector .writing-toolbar-expanded input.writing-size { width: 60px; }
+.wb-inspector .writing-toolbar-expanded label.writing-color { margin: 0; display: grid; width: 32px; height: 32px; }
+.wb-inspector .writing-toolbar-expanded .writing-color input { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; opacity: 0; }
+.writing-panel { position: absolute; z-index: 9; top: 58px; right: 12px; width: min(340px, calc(100% - 24px)); max-height: calc(100% - 70px); overflow: auto; border: 1px solid var(--wb-border); border-radius: 8px; background: #fff; box-shadow: 0 8px 32px #0002; outline: none; }
+.writing-panel > .wb-inspector { position: static; width: 100%; border: 0; overflow: visible; box-shadow: none; }
+.writing-panel:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
 @media (max-width: 700px) {
   .wb-inspector {
     position: absolute;

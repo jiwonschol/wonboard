@@ -790,3 +790,26 @@ button:not(.icon-button):hover:enabled {
   border-radius: 4px;
   background: transparent;
 }
+.sites-onboarding { max-width: 560px; }
+.sites-notices { padding-left: 1.4em; text-align: left; line-height: 1.65; }
+.sites-notices li { margin: 12px 0; }
+.sites-consent { display: flex; align-items: flex-start; gap: 10px; margin: 20px 0; font-size: 14px; line-height: 1.6; }
+.auth-card .sites-consent input, .sites-consent input { width: 18px; height: 18px; flex: 0 0 18px; margin-top: 3px; }
+.sites-signin { display: block; padding: 12px 18px; background: #3858e9; color: #fff; border-radius: 4px; text-align: center; text-decoration: none; }
+.publication-dialog { width: min(620px, calc(100vw - 32px)); box-sizing: border-box; max-height: calc(100dvh - 48px); overflow: auto; border: 1px solid #ddd; border-radius: 8px; padding: 24px; color: #1e1e1e; background: #fff; font-size: 14px; line-height: 1.6; }
+.publication-dialog::backdrop { background: #0005; }
+.publication-dialog header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.publication-dialog h2 { margin: 0; font-size: 20px; }
+.publication-dialog button { padding: 8px 12px; min-height: 40px; cursor: pointer; }
+.publication-dialog button:not(.publish-button) { border: 1px solid #b8b8b8; border-radius: 2px; background: #fff; color: inherit; font: inherit; }
+.publication-dialog button:disabled { cursor: default; opacity: .5; }
+.publication-dialog textarea { box-sizing: border-box; width: 100%; min-height: 140px; margin: 12px 0; font-family: ui-monospace, monospace; font-size: 13px; }
+.publication-dialog ul { padding-left: 20px; overflow-wrap: anywhere; }
+.publication-dialog .export-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 700px) {
+  .app-shell[data-storage-mode="sites"] .topbar { height: auto; flex-basis: auto; row-gap: 4px; }
+  .app-shell[data-storage-mode="sites"] .topbar .publish-button,
+  .publication-dialog .publish-button { display: inline-block; }
+}
+.withdraw-section { margin-top: 24px; border-top: 1px solid #ddd; padding-top: 16px; }
+.sites-connection-id { overflow-wrap: anywhere; }

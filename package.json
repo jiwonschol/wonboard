@@ -11,9 +11,11 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "build": "tsc --noEmit && vite build",
+    "build:sites": "tsc --noEmit && vite build --mode sites && vite build --config vite.sites-worker.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:sites": "playwright test --config playwright.sites.config.ts",
     "preview": "vite preview --host 127.0.0.1 --port 4173"
   },
   "dependencies": {
