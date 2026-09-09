@@ -3,6 +3,7 @@ import type { Editor } from "@tiptap/core";
 import { writingFonts, primaryFontIds, type FontId, type Locale } from "@wonboard/document";
 import { translator } from "@wonboard/locales";
 import { Icon } from "./icons";
+import { SpellcheckTool } from "./SpellcheckTool";
 import pretendardLicense from "./licenses/Pretendard-OFL.txt?url";
 import serifLicense from "@fontsource-variable/noto-serif-kr/LICENSE?url";
 import softLicense from "@fontsource/gowun-dodum/LICENSE?url";
@@ -139,6 +140,7 @@ export function WritingToolbar({ editor, defaultFont = "sans", locale, composing
         <button type="button" aria-label={t("horizontalRule")} title={t("horizontalRule")} onMouseDown={e => e.preventDefault()} onClick={() => editor.chain().focus().setHorizontalRule().run()}><Icon name="horizontalRule" />{expanded ? <span>{t("horizontalRule")}</span> : null}</button>
         <button type="button" aria-label={t("link")} title={t("link")} onMouseDown={e => e.preventDefault()} onClick={onLink}><Icon name="link" />{expanded ? <span>{t("link")}</span> : null}</button>
         <button type="button" aria-label={t("clearTextStyle")} title={t("clearTextStyleHint")} onMouseDown={e => e.preventDefault()} onClick={clearFormatting}><Icon name="clear-format" /><span>{t("clearTextStyleShort")}</span></button>
+        <SpellcheckTool editor={editor} locale={locale} disabled={disabled} />
       </fieldset>
       {actions}
       {!expanded ? (

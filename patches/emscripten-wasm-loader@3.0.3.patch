@@ -1,0 +1,18 @@
+diff --git a/dist/esm/path/mountBuffer.js b/dist/esm/path/mountBuffer.js
+index a494e92439fa467745f010df220b3b131d0ce868..dfac5c04b0b4e09975cd6a1c534524e250f98735 100644
+--- a/dist/esm/path/mountBuffer.js
++++ b/dist/esm/path/mountBuffer.js
+@@ -1,4 +1,3 @@
+-import * as nanoid from 'nanoid';
+ import { log } from '../util/logger';
+ import { isMounted } from './isMounted';
+ /**
+@@ -14,7 +13,7 @@ import { isMounted } from './isMounted';
+  * does not validate contents of buffer to find out already mounted one.
+  */
+ const mountBuffer = (FS, memPathId) => (contents, fileName) => {
+-    const file = fileName || nanoid(45);
++    const file = fileName || crypto.randomUUID();
+     const mountedFilePath = `${memPathId}/${file}`;
+     if (isMounted(FS, mountedFilePath, 'file')) {
+         log(`mountTypedArrayFile: file is already mounted, return it`);

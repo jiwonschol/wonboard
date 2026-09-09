@@ -5,6 +5,7 @@ import { localAuthPlugin } from "./apps/server/src/vite-auth.ts";
 
 export default defineConfig(({ mode }) => ({
   plugins: [localAuthPlugin(), react()],
+  optimizeDeps: { include: ["@wonboard/editor > hunspell-asm"] },
   server: { watch: { usePolling: true, interval: 500 } },
   build: {
     outDir: mode.startsWith("sites") ? "dist/client" : "dist",

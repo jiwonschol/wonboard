@@ -39,3 +39,7 @@ minimumReleaseAgeExclude:
 
 onlyBuiltDependencies:
   - esbuild
+
+patchedDependencies:
+  emscripten-wasm-loader@3.0.3: patches/emscripten-wasm-loader@3.0.3.patch
+  hunspell-asm@4.0.2: patches/hunspell-asm@4.0.2.patch

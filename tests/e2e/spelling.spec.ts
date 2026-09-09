@@ -1,0 +1,34 @@
+import { test, expect } from "./fixtures";
+
+test("Korean spelling applies only chosen words and persists personal exceptions", async ({ page }) => {
+  page.on("console", message => { if (message.type() === "error") console.log(message.text()); });
+  await page.goto("/");
+  const body = page.getByRole("textbox", { name: "Document body", exact: true });
+  await body.fill("됬어요 맞춥법 실바나스");
+  const tool = page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true });
+  await tool.click();
+  const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await expect(dialog.getByRole("button", { name: "됐어요", exact: true })).toBeVisible({ timeout: 20000 });
+  await dialog.getByRole("button", { name: "됐어요", exact: true }).click();
+  await expect(body).toHaveText("됐어요 맞춥법 실바나스");
+  await dialog.getByRole("button", { name: "Skip once" }).click();
+  await dialog.getByRole("button", { name: "Add to dictionary" }).click();
+  await expect(dialog).toContainText("No more flagged words.");
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await body.press("ControlOrMeta+z");
+  await expect(body).toHaveText("됬어요 맞춥법 실바나스");
+  await page.reload();
+  await tool.click();
+  await expect(dialog.getByRole("button", { name: "됐어요", exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Skip once" }).click();
+  await dialog.getByRole("button", { name: "Skip once" }).click();
+  await expect(dialog).toContainText("No more flagged words.");
+  await dialog.getByText("Personal dictionary (1)", { exact: true }).click();
+  await dialog.getByRole("button", { name: "Remove", exact: true }).click();
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await tool.click();
+  await expect(dialog.getByRole("button", { name: "됐어요", exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Skip once" }).click();
+  await dialog.getByRole("button", { name: "Skip once" }).click();
+  await expect(dialog).toContainText("Review word: 실바나스");
+});
