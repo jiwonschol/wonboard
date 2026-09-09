@@ -214,6 +214,7 @@ export default function App({
     }
   }
   async function storageInfo() {
+    if (storageMode === "desktop") return;
     try {
       setPersistent(await navigator.storage.persisted());
       const e = await navigator.storage.estimate();
@@ -278,7 +279,7 @@ export default function App({
           {t("newDocument")}
         </button>
         <span className="admin-spacer" />
-        <span className="local-mode">{t(storageMode === "sites" ? "sitesStorage" : "noCloud")}</span>
+        <span className="local-mode">{t(storageMode === "desktop" ? "deviceStorage" : storageMode === "sites" ? "sitesStorage" : "noCloud")}</span>
         <select
           aria-label={t("language")}
           value={locale}
@@ -287,9 +288,9 @@ export default function App({
           <option value="ko">한국어</option>
           <option value="en">English</option>
         </select>
-        <button disabled={busy} onClick={() => void logout()}>
+        {storageMode !== "desktop" && <button disabled={busy} onClick={() => void logout()}>
           {t("logout")}
-        </button>
+        </button>}
       </div>
       <header className="topbar">
         <div
@@ -365,8 +366,8 @@ export default function App({
           >
             <Icon name="settings" />
           </button>
-          <span title={storageMode === "local" ? t("publishLater") : undefined}>
-            <button className="publish-button" disabled={storageMode === "local" || busy || writer.readOnly}
+          <span title={storageMode !== "sites" ? t("publishLater") : undefined}>
+            <button className="publish-button" disabled={storageMode !== "sites" || busy || writer.readOnly}
               onClick={() => setPublication(true)}>
               {t(storageMode === "sites" ? "prepareExport" : "publish")}
             </button>
@@ -503,7 +504,7 @@ export default function App({
         </span>
         <span className="save-state" role="status">
           {t(
-            writer.status === "saved" && storageMode === "sites" ? "savedToSites" : writer.status === "error"
+            writer.status === "saved" && storageMode === "desktop" ? "savedToDevice" : writer.status === "saved" && storageMode === "sites" ? "savedToSites" : writer.status === "error"
               ? "unsaved"
               : writer.status === "loading"
                 ? "loading"
@@ -534,7 +535,7 @@ export default function App({
           </label>
           <hr />
           <h2>{t("storage")}</h2>
-          <p>{t(storageMode === "sites" ? "sitesStorageHint" : "localOnly")}</p>
+          <p>{t(storageMode === "desktop" ? "deviceStorageHint" : storageMode === "sites" ? "sitesStorageHint" : "localOnly")}</p>
           {storageMode === "local" && <>
           <p>{usage}</p>
           {persistent !== null ? (

@@ -34,7 +34,7 @@ export function WritingLibrary({
   list: Draft[];
   locale: Locale;
   busy: boolean;
-  storageMode?: "local" | "sites";
+  storageMode?: "local" | "sites" | "desktop";
   onSelect(draft: Draft): Promise<void>;
   onCreate(): void;
   onClose(): void;
@@ -119,7 +119,7 @@ export function WritingLibrary({
         {!documents.length ? <p>{t("noDocuments")}</p> : null}
       </nav>
       <footer>
-        <p>{t(storageMode === "sites" ? "sitesStorage" : "thisBrowser")}</p>
+        <p>{t(storageMode === "desktop" ? "deviceStorage" : storageMode === "sites" ? "sitesStorage" : "thisBrowser")}</p>
         <button disabled={busy} onClick={onRestore}>
           {t("restore")}
         </button>
