@@ -1,0 +1,32 @@
+diff --git a/dist/esm/hunspellLoader.js b/dist/esm/hunspellLoader.js
+index a95a3d39912df63dd8bfdaf531b2b5997d82efa2..219ecc356ec475bd410303a5eb960118e1fa9b68 100644
+--- a/dist/esm/hunspellLoader.js
++++ b/dist/esm/hunspellLoader.js
+@@ -1,5 +1,4 @@
+ import { mountBuffer, unmount } from 'emscripten-wasm-loader';
+-import * as nanoid from 'nanoid';
+ import { log } from './util/logger';
+ import { wrapHunspellInterface } from './wrapHunspellInterface';
+ /**
+@@ -15,7 +14,7 @@ export const hunspellLoader = (asmModule) => {
+     const { cwrap, FS, _free, allocateUTF8, _malloc, getValue, UTF8ToString } = asmModule;
+     const hunspellInterface = wrapHunspellInterface(cwrap);
+     //creating top-level path to mount files
+-    const memPathId = `/${nanoid(45)}`;
++    const memPathId = `/${crypto.randomUUID()}`;
+     FS.mkdir(memPathId);
+     log(`hunspellLoader: mount path for bufferFile created at ${memPathId}`);
+     /**
+diff --git a/dist/esm/loadModule.js b/dist/esm/loadModule.js
+index 0bb04bb9be8d45c3f6351728e51ec9c5ee7a7364..8eab556f7a78b9baae7026cd05f8d7a0be4db07d 100644
+--- a/dist/esm/loadModule.js
++++ b/dist/esm/loadModule.js
+@@ -2,7 +2,7 @@ import { getModuleLoader } from 'emscripten-wasm-loader';
+ import { hunspellLoader } from './hunspellLoader';
+ import { log } from './util/logger';
+ //imports MODULARIZED emscripten preamble
+-import * as runtime from './lib/node/hunspell';
++import runtime from './lib/node/hunspell';
+ /**
+  * Load, initialize wasm binary to use actual hunspell wasm instances.
+  *
