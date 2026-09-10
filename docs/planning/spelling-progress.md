@@ -111,3 +111,49 @@ Tests  139 passed (139)
 `node node_modules/typescript/bin/tsc --noEmit`: exit 0, 출력 없음.
 
 미실행: C의 공유 UI 통합, Worker 교체, 실제 편집 적용/undo/IME/브라우저/네이티브 앱 시험, D의 장문 성능과 빌드/배포 자산 제거. B 게이트에서 중단했기 때문이다. 기존 엔진·고지·사용자 초안·개인 사전·문단 정리 변경은 유지했다. 새 자료는 아직 공개 배포 자산이 아니므로 public/ 고지를 교체하지 않았다. 기존 자산 제거가 없으므로 제거 전 전수 검사도 아직 실행하지 않았다. PR 생성·merge·배포·설치 앱 교체 없음.
+
+## 2026-09-10 — 재개 승인, 두 번째 프로토타입
+
+지원의 “해봐”로 평가 자료 수정과 활용형 보강을 재개했다. 시작 HEAD `cbc15532462d5ec99524e5c37f4ff8e110728d36`. style.css/locales와 WhitespaceTool 트랙의 사용자 변경은 그대로 남겼다.
+
+`spelling-rules-v2.md`에 이번에 실제 조회한 국립국어원 규정/상담 출처와 확인 범위를 기록했다. 보조 용언 붙여쓰기가 허용되는 `열어주세요`를 오류 사례에서 빼고 정상 사례로 넣었다. 오류 사례는 `열고있어요`로 변경했다. 200문장 전체 정답 검토가 끝난 것은 아니며 미확인 표시는 유지한다.
+
+`korean-morphology.mjs`: 어간·존대·관형형·모음 축약·과거형을 분석한다. 가능한 모든 어미 결합을 메모리에 펼치지 않고 어간/어미 경계를 조회한다. 미등록 명사에는 명시한 조사 집합만 허용한다. `-걸`은 해석이 모호함을 결과에 표시한다. 철자 후보는 원문 위치를 유지하면서 한글 자모로 비교한다. 기존 한국어 분절 코드는 제거했으나 배포 Worker는 교체하지 않았다.
+
+회귀 검사에서 `질게에서답변하시는걸 → 질게에서 답변하시는 걸`, 사전 등록 전/후/삭제 후, 별도 약칭 10종, 수정 후 `질게` 미등록 안내가 통과했다. 문장 전체를 정확하게 교정한다는 뜻은 아니다.
+
+### 동일 시험지 전후 평가
+
+실행 명령:
+```
+git show cbc1553:packages/editor/src/proofreading/engine.mjs > /private/tmp/wonboard-engine-v1.mjs
+node scripts/eval-spelling.mjs --engine /private/tmp/wonboard-eval-v1.mjs > docs/planning/spelling-v1-corrected-evaluation.txt
+node scripts/eval-spelling.mjs --engine scripts/spelling-prototype.mjs > docs/planning/spelling-v2-evaluation.txt
+node scripts/eval-spelling.mjs --engine scripts/spelling-prototype.mjs --cases tests/fixtures/spelling/fresh-v2.json > docs/planning/spelling-v2-fresh-evaluation.txt
+```
+임시 구버전 adapter는 보존된 구버전 createChecker에 현재와 같은 lexicon.json을 전달했다. 각 출력 전문은 위 파일에 있다.
+
+| 항목 | 구버전 / 수정된 시험지 | 두 번째 버전 |
+| --- | --- | --- |
+| 분리 한국어 탐지 | 9/21 | 11/21 |
+| 분리 정상 문장 변경추천 | 2/10 | 1/10 |
+| 전체 한국어 철자 탐지 | 1/25 | 5/25 |
+| 전체 한국어 띄어쓰기 탐지 | 23/36 | 21/36 |
+| 전체 정상 문장 변경추천 | 6/30 | 8/30 |
+
+조기 게이트 FAIL. 성능이 전반적으로 개선됐다고 판단할 수 없다. 이전 시험지에서 정상 오탐은 5건이었지만 수정된 같은 시험지의 구버전은 6건이다. 진행 메시지에서 잠시 5→8로 언급한 수치를 6→8로 정정한다. 정상 변경추천에는 허용 표기를 불필요하게 바꾸라는 것도 포함한다.
+
+실패 예: `남았어요 → 남 았 어요`, `시작합니다 → 시작 합 니다`, `기다릴게요 → 기다릴 게요`. 축약형을 일부 추가했으나 받침과 결합하는 어미(예: -ㅂ니다), 연결 어미와 과거 선어말어미의 조합, 문법적 연결 제약이 불완전하다. 데이터에서 인정되는 짧은 조각을 분절 후보로 쓰는 방식이 여전히 정상 활용형을 쪼갠다. 이 결과를 본 뒤 엔진을 수정하지 않고 중단했다.
+
+새 20문장은 한국어 띄어쓰기 4/5 탐지, 정상 5문장 오탐 0; 영어 철자 상위3 5/5; 혼용 정상 5문장 중 변경추천 2건이다. 작은 부분집합의 출력에 PASS가 표시되지만 전체 계획 게이트 통과를 뜻하지 않는다. 새 자료도 이제 사용된 자료이며 독립 평가가 아니다.
+
+### 검증 / 인계
+
+`node --test tests/unit/korean-morphology.test.mjs tests/unit/spelling-evaluator.test.mjs`: 11 passed, 0 failed.
+`node node_modules/typescript/bin/tsc --noEmit`: exit 0.
+`node node_modules/vitest/vitest.mjs run`: 최초 권한 제한으로 .vite-temp 생성 EPERM; 승인된 경로 쓰기 권한으로 다시 실행해 9 files / 139 tests passed.
+`git diff --check`: exit 0.
+
+기존 어휘 자산과 라이선스는 변경하지 않았다. UI/Worker 통합, 새 빌드, 배포, 설치 앱 교체, 데이터 변경은 하지 않았다. 전체 규범 검증과 완성된 문맥 분석, 장문 성능은 미완료다.
+
+다음 추천은 문법 조각을 더 임의로 추가하는 것보다, 허용된 형태소 데이터의 활용/연결 정보를 조사해 자체 분석기의 표현 방식을 먼저 확정하는 것이다. 그 연구·구현 비용을 별도 작업으로 잡아야 한다. 이번 결과를 실제 맞춤법 검사 완료로 취급하지 않는다.

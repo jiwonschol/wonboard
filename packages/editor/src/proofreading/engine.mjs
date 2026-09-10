@@ -1,52 +1,15 @@
 // Original Wonboard prototype (MIT). Not connected to the production Worker.
 // No network access; dictionaries are supplied by the caller.
+import {createMorphology} from './korean-morphology.mjs';
 export function createChecker(data) {
   const sets=Object.fromEntries(Object.entries(data.ko).map(([k,v])=>[k,new Set(v)]));
   const stems=new Set([...sets.verb,...sets.adjective]);
+  const morphology=createMorphology(sets);
   const english=new Set(data.en);
   const enLower=new Set(data.en.filter(w=>w===w.toLowerCase()));
   const koWords=[...new Set([...sets.noun,...sets.adverb,...stems])];
   const koByLength=new Map();
   for(const word of koWords){const bucket=koByLength.get(word.length)||[];bucket.push(word);koByLength.set(word.length,bucket);}
-  function ending(s) {
-    if(sets.ending.has(s))return true;
-    for(let i=1;i<s.length;i++) if(sets.preEnding.has(s.slice(0,i))&&sets.ending.has(s.slice(i)))return true;
-    return false;
-  }
-  function verb(s) {
-    for(let i=1;i<s.length;i++) {
-      const stem=s.slice(0,i), tail=s.slice(i);
-      if((stems.has(stem)||(stem.endsWith('하')&&sets.noun.has(stem.slice(0,-1))))&&ending(tail))return true;
-      // Honorific marker follows the lexical stem, before the ending.
-      if(stem.endsWith('시')&&stems.has(stem.slice(0,-1))&&ending(tail))return true;
-      if(stem.endsWith('하시')&&sets.noun.has(stem.slice(0,-2))&&ending(tail))return true;
-    }
-    return false;
-  }
-  function analysis(s,personal,allowUnknown=false) {
-    if(personal.has(s)||sets.noun.has(s))return {cost:1,base:s};
-    if(sets.adverb.has(s))return {cost:1,base:s};
-    if(verb(s))return {cost:.8,base:s};
-    for(let i=s.length-1;i>0;i--) if(sets.josa.has(s.slice(i))) {
-      const base=s.slice(0,i);
-      if(personal.has(base)||sets.noun.has(base))return {cost:.6,base};
-      if(allowUnknown&&base.length>=2&&base.length<=6)return {cost:4,base,unknown:true};
-    }
-    return null;
-  }
-  function segment(word,personal) {
-    // Bound work for pathological unspaced input; caller sees unknown, not success.
-    if(word.length>64)return null;
-    const best=Array(word.length+1).fill(null);best[0]={cost:0,parts:[]};
-    for(let end=1;end<=word.length;end++)for(let start=Math.max(0,end-24);start<end;start++) {
-      if(!best[start])continue;
-      const part=word.slice(start,end),a=analysis(part,personal,true);
-      if(!a)continue;
-      const candidate={cost:best[start].cost+a.cost+1.3,parts:[...best[start].parts,part]};
-      if(!best[end]||candidate.cost<best[end].cost)best[end]=candidate;
-    }
-    return best.at(-1)?.parts.length>1?best.at(-1).parts.join(' '):null;
-  }
   // Damerau distance one: insertion/deletion/substitution/adjacent transposition.
   function nearOne(a,b) {
     if(Math.abs(a.length-b.length)>1||a===b)return false;
@@ -68,9 +31,9 @@ export function createChecker(data) {
     const suggestions=[];
     for(let split=word.length;split>=2;split--) {
       const root=word.slice(0,split),suffix=word.slice(split);
-      if(suffix&&!sets.josa.has(suffix)&&!ending(suffix))continue;
-      for(const n of [root.length,root.length-1,root.length+1])for(const candidate of koByLength.get(n)||[]) {
-        if(nearOne(root,candidate))suggestions.push(candidate+suffix);
+      if(suffix&&!sets.josa.has(suffix)&&!sets.ending.has(suffix))continue;
+      for(const candidate of koByLength.get(root.length)||[]) {
+        if(root.length>=3&&nearOne(root.normalize('NFD'),candidate.normalize('NFD')))suggestions.push(candidate+suffix);
       }
     }
     return [...new Set(suggestions)].slice(0,5);
@@ -89,13 +52,14 @@ export function createChecker(data) {
         emit(from,to,'en',candidates.length?'spelling':'unknown',candidates,word);
       } else {
         // A trailing Korean particle on an English word is not a separate error.
-        if(/[A-Za-z]/.test(text[from-1]||'')&&(sets.josa.has(word)||ending(word)))continue;
-        if(analysis(word,personal))continue;
-        const spaced=segment(word,personal);
-        if(spaced&&spaced.replaceAll(' ','')===word){emit(from,to,'ko','spacing',[spaced]);continue;}
-        const unknown=analysis(word,personal,true);
-        if(unknown?.unknown){emit(from,from+unknown.base.length,'ko','unknown',[],unknown.base);continue;}
+        if(/[A-Za-z]/.test(text[from-1]||'')&&(sets.josa.has(word)||sets.ending.has(word)||morphology.predicate(word)))continue;
+        const spaced=morphology.spacing(word,personal);
+        if(spaced&&spaced.text.replaceAll(' ','')===word){emit(from,to,'ko','spacing',[spaced.text]);Object.assign(results.at(-1),{ambiguous:spaced.ambiguous,reason:`Spacing rule ${spaced.rule}; review interpretation`});continue;}
+        if(morphology.analyze(word,personal))continue;
+        const unknown=morphology.unknownNoun(word);
         const candidates=koreanSuggestions(word);
+        if(candidates.length){emit(from,to,'ko','spelling',candidates,unknown?.base??word);continue;}
+        if(unknown?.unknown){emit(from,from+unknown.base.length,'ko','unknown',[],unknown.base);continue;}
         emit(from,to,'ko',candidates.length?'spelling':'unknown',candidates,word);
       }
     }
