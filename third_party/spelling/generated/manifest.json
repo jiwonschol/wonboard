@@ -1,0 +1,58 @@
+{
+  "acquired": "2026-09-10T00:23:41.406Z",
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/open-korean-text/open-korean-text/74cc4ae7d3dab232747cd5ddb723e4b73c476e4f/src/main/resources/org/openkoreantext/processor/util/noun/nouns.txt",
+      "bytes": 219319,
+      "sha256": "06b5abbe9e69eb3ffa1cb971fe69cea43940be9d9e859f4a51bdfc72e6f9001f"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/open-korean-text/open-korean-text/74cc4ae7d3dab232747cd5ddb723e4b73c476e4f/src/main/resources/org/openkoreantext/processor/util/adverb/adverb.txt",
+      "bytes": 65572,
+      "sha256": "28dca3f0ca09703ca923b836a0e03d3509ede5540198fb242f78c5041d030434"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/open-korean-text/open-korean-text/74cc4ae7d3dab232747cd5ddb723e4b73c476e4f/src/main/resources/org/openkoreantext/processor/util/verb/verb.txt",
+      "bytes": 32765,
+      "sha256": "edfc23b2ac252c6ed60ab0021068f5e51c21f5708606d9b3035dc2b28cca8f1f"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/open-korean-text/open-korean-text/74cc4ae7d3dab232747cd5ddb723e4b73c476e4f/src/main/resources/org/openkoreantext/processor/util/adjective/adjective.txt",
+      "bytes": 27250,
+      "sha256": "7d7a257cedcf57f8532a89ef450614a71c1ad60f43248e75b8cadac20b75a34d"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/open-korean-text/open-korean-text/74cc4ae7d3dab232747cd5ddb723e4b73c476e4f/src/main/resources/org/openkoreantext/processor/util/josa/josa.txt",
+      "bytes": 5219,
+      "sha256": "d0c2be2f0d8b69ddbfd7c2eff4136768c97fa521aa8db388a053935e9d1f75a2"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/open-korean-text/open-korean-text/74cc4ae7d3dab232747cd5ddb723e4b73c476e4f/src/main/resources/org/openkoreantext/processor/util/verb/eomi.txt",
+      "bytes": 12618,
+      "sha256": "8e64ba9f86f3033320bac902554c6274db289f690bacf66584dae88e4c09e7b5"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/open-korean-text/open-korean-text/74cc4ae7d3dab232747cd5ddb723e4b73c476e4f/src/main/resources/org/openkoreantext/processor/util/verb/pre_eomi.txt",
+      "bytes": 285,
+      "sha256": "b433f5c1c006f2dec41e0c72099718109ba43c0227a3735453bed0be4a62fba7"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/en-wl/wordlist/1e5b7d3a72f47a71da5d28686c1dd4b397178485/data/scowl-pre.txt",
+      "bytes": 14394793,
+      "sha256": "a5fe3f11682a6ab9d31f2ea2a185833b1a01be7af83409c671bd0756a870f6c7"
+    }
+  ],
+  "bytes": 1739636,
+  "gzipBytes": 439759,
+  "koCounts": {
+    "noun": 26498,
+    "adverb": 5539,
+    "verb": 3242,
+    "adjective": 2518,
+    "josa": 506,
+    "ending": 1236,
+    "preEnding": 69
+  },
+  "englishWords": 112742,
+  "limitations": "Prototype extraction, not upstream speller generation. Annotated inflections may be omitted. Proper names are not lowercased."
+}

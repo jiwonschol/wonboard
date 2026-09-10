@@ -1,0 +1,13 @@
+✔ fixed corpus has 200 examples and proportional holdout counts (3.116875ms)
+✔ missing detections remain in the denominator (0.421209ms)
+✔ unknown notices do not masquerade as detected errors (0.154ms)
+✔ equivalent wider range correction counts; extra edits do not (0.278ms)
+✔ normal texts and UTF-16 offsets are measured (0.160333ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 57.767875
