@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "independent": false,
+  "annotation": "Own examples fixed before engine implementation. Brackets mark the expected error range; replacements are allowed alternatives. Unverified rule references stay in the denominator. Holdout is author-separated, not blind independent evaluation.",
+  "groups": [
+    {"language":"ko","type":"spelling","holdout":8,"basis":"orthography-unverified","rows":[
+      ["문제를 [됬다]고 말했어요.","됐다"],
+      ["[맞춥법]을 확인해 주세요.","맞춤법"],
+      ["오늘은 [웬지] 기분이 좋아요.","왠지"],
+      ["신청서를 [몇일] 전에 냈어요.","며칠"],
+      ["계획을 [금새] 바꿨어요.","금세"],
+      ["말을 [어의없게] 하네요.","어이없게"],
+      ["[설겆이]를 마쳤습니다.","설거지"],
+      ["두 사람은 [연애인]이 아닙니다.","연예인"],
+      ["장비를 [일일히] 확인했어요.","일일이"],
+      ["오늘 [역활]을 나눕시다.","역할"],
+      ["자료를 [꼼꼼이] 읽었어요.","꼼꼼히"],
+      ["이 옷은 [문안한] 색이에요.","무난한"],
+      ["[왠만하면] 포기하지 마세요.","웬만하면"],
+      ["손님을 [환골탈퇴]한 모습으로 만났어요.","환골탈태"],
+      ["[오랫만에] 친구를 만났어요.","오랜만에"],
+      ["그건 [희안한] 일이에요.","희한한"],
+      ["[구지] 지금 갈 필요는 없어요.","굳이"],
+      ["먼저 [뵈요].","봬요"],
+      ["방을 [깨끗히] 치웠어요.","깨끗이"],
+      ["그 일은 [않되요].","안 돼요"],
+      ["[어떻해] 해야 하나요?","어떻게"],
+      ["빨리 [낳으세요]. 감기가 심하네요.","나으세요"],
+      ["항상 [되물림]되는 문제입니다.","대물림"],
+      ["[뒤치닥거리]를 했어요.","뒤치다꺼리"],
+      ["[곰곰히] 생각했어요.","곰곰이"]
+    ]},
+    {"language":"ko","type":"spacing","holdout":12,"basis":"spacing-unverified","rows":[
+      ["오늘 [학교에갔어요].","학교에 갔어요"],
+      ["우리는 [함께책을] 읽어요.","함께 책을"],
+      ["그림을 [그릴수] 있어요.","그릴 수"],
+      ["먹을 [것이없어요].","것이 없어요"],
+      ["사진을 [찍은후에] 보냈어요.","찍은 후에"],
+      ["문을 [열어주세요].","열어 주세요"],
+      ["[누구나할] 수 있는 일이에요.","누구나 할"],
+      ["[나는오늘] 쉬어요.","나는 오늘"],
+      ["회의는 [세시]에 시작해요.","세 시"],
+      ["사과 [두개]를 샀어요.","두 개"],
+      ["[한번더] 확인해요.","한 번 더"],
+      ["여기 [앉아도되나요]?","앉아도 되나요"],
+      ["[보는사람이] 많아요.","보는 사람이"],
+      ["별로 [어렵지않아요].","어렵지 않아요"],
+      ["[좋은글을] 읽었어요.","좋은 글을"],
+      ["[나만아는] 장소예요.","나만 아는"],
+      ["조금 [기다린뒤] 출발해요.","기다린 뒤"],
+      ["[지금부터다시] 시작해요.","지금부터 다시"],
+      ["[화면에서보이는] 색이에요.","화면에서 보이는"],
+      ["[질문이있으면] 말해요.","질문이 있으면"],
+      ["밖에 [나갈때] 입어요.","나갈 때"],
+      ["[정말고마운] 사람이에요.","정말 고마운"],
+      ["[이야기를듣고] 웃었어요.","이야기를 듣고"],
+      ["친구와 [밥을먹었어요].","밥을 먹었어요"],
+      ["[비가오면] 쉬어요.","비가 오면"],
+      ["[할일이] 남았어요.","할 일이"],
+      ["[마음에드는] 사진이에요.","마음에 드는"],
+      ["[일주일동안] 여행했어요.","일주일 동안"],
+      ["[누군지모르겠어요].","누군지 모르겠어요"],
+      ["[문서를저장하고] 닫아요.","문서를 저장하고"],
+      ["[이것만으로는부족해요].","이것만으로는 부족해요"],
+      ["[친구에게보낼] 편지예요.","친구에게 보낼"],
+      ["[어제보다많이] 걸었어요.","어제보다 많이"],
+      ["[도서관 에서] 만나요.","도서관에서"],
+      ["[작은 것 부터] 해요.","작은 것부터"]
+    ]},
+    {"language":"ko","type":"normal","holdout":10,"basis":"preserve","rows":[
+      ["창밖에 비가 내려요."],["방금 밥을 먹었어요."],["오늘 날씨가 좋아요."],["내일 다시 만나요."],["책을 천천히 읽습니다."],
+      ["친구에게 편지를 썼어요."],["시간이 조금 남았어요."],["같이 걸어도 괜찮아요."],["파일을 저장했습니다."],["아이들이 운동장에서 놀아요."],
+      ["문을 닫고 나왔어요."],["아직 끝나지 않았어요."],["무엇을 보고 있나요?"],["이 사진은 제가 찍었어요."],["이번에는 쉬운 문제예요."],
+      ["그 말을 믿고 싶어요."],["학교 앞에서 기다릴게요."],["다음 주에 시작합니다."],["원하는 것을 골라 주세요."],["우리 집에는 고양이가 있어요."],
+      ["가끔 혼자 산책합니다."],["읽을 수 있는 책입니다."],["보이는 대로 적었어요."],["서로 다른 길을 걸었어요."],["사진 두 장을 골랐어요."],
+      ["우리는 늘 같은 자리에 앉아요."],["오늘도 무사히 돌아왔어요."],["이제 잠시 쉬어 갑시다."],["수고 많으셨습니다."],["좋은 하루 보내세요."]
+    ]},
+    {"language":"ko","type":"protected","holdout":10,"basis":"unknown-allowed-preserve","rows":[
+      ["질게에 질문했어요."],["실바나스는 어디 있나요?"],["헐 대박이다 ㅋㅋ"],["원보드로 썼어요."],["레이드팟 구해요."],
+      ["아즈샤라에서 만나요."],["오리보스는 처음이에요."],["막공은 힘들었어요."],["부캐도 데려갈까요?"],["득템 축하해요!"],
+      ["와우헤드를 읽었어요."],["어둠땅은 낯설어요."],["쐐기팟에 들어갔어요."],["딜사이클을 바꿨어요."],["탱커님 감사합니다."],
+      ["쿨타임이 남았어요."],["애드온을 껐어요."],["길마가 공지했어요."],["쩐다 진짜."],["앗 넵 감사합니다."],
+      ["PGR에서 봤어요."],["WoW를 시작했어요."],["FAQ는 읽었습니다."],["RTX4090을 쓰고 있어요."],["iPhone으로 찍었어요."],
+      ["온순랩스 소식입니다."],["짤방 하나 올립니다."],["갓겜 인정합니다."],["눈팅만 했어요."],["닉변하고 왔어요."]
+    ]},
+    {"language":"en","type":"spelling","holdout":10,"basis":"lexical-unverified","rows":[
+      ["Please [recieve] the package.","receive"],["This is a [seperate] room.","separate"],["It is [definately] ready.","definitely"],["That was [wierd].","weird"],["The [adress] is missing.","address"],
+      ["A [freind] called.","friend"],["It was an [accidently] deleted file.","accidentally"],["Please [remeber] this.","remember"],["The [begining] is slow.","beginning"],["We need [accomodation].","accommodation"],
+      ["An [arguement] followed.","argument"],["This is [neccessary].","necessary"],["The [enviroment] is clean.","environment"],["It happened [tommorow].","tomorrow"],["Check your [calender].","calendar"],
+      ["The [goverment] responded.","government"],["It was a great [acheivement].","achievement"],["I [beleive] you.","believe"],["A [buisness] opened.","business"],["The [commitee] agreed.","committee"],
+      ["The [concious] patient spoke.","conscious"],["This is [exellent].","excellent"],["A [foriegn] visitor arrived.","foreign"],["That is [immediatly] useful.","immediately"],["I [occassionally] walk.","occasionally"],
+      ["The [priviledge] matters.","privilege"],["A [succesful] launch followed.","successful"],["A [thouroughly] checked file.","thoroughly"],["Your [writting] is clear.","writing"],["This is [untill] Friday.","until"]
+    ]},
+    {"language":"en","type":"normal","holdout":5,"basis":"preserve","rows":[
+      ["The window is open."],["Please save this document."],["I read a book yesterday."],["We can try again."],["The image looks clear."],
+      ["My brother lives nearby."],["The train arrived on time."],["I will bring some water."],["She enjoys writing stories."],["They have already left."],
+      ["You can change the title."],["This folder contains pictures."],["The road was quiet."],["We found a better solution."],["Thank you for your help."]
+    ]},
+    {"language":"en","type":"protected","holdout":5,"basis":"unknown-allowed-preserve","rows":[
+      ["Don't change my name."],["Jiwon's document is ready."],["This is a well-known game."],["The colour is beautiful."],["Please organize the files."],
+      ["We travelled yesterday."],["My favorite color is blue."],["Wonboard supports writing."],["macOS is running."],["The GPU uses PCIe4."],
+      ["NASA published a photo."],["I'm ready."],["They're waiting."],["Please analyse the result."],["The model is RTX5090."]
+    ]},
+    {"language":"mixed","type":"spelling","holdout":5,"basis":"lexical-unverified","rows":[
+      ["아이템을 [upgarde]했어요.","upgrade"],["화면의 [buton]을 눌러요.","button"],["[conection]이 끊겼어요.","connection"],["[downlaod]를 눌렀어요.","download"],["새 [versoin]입니다.","version"],
+      ["그 [funtion]은 느려요.","function"],["[setings]에서 바꿔요.","settings"],["[passwrod]를 잊었어요.","password"],["[uplod]가 끝났어요.","upload"],["[screnshot]을 저장해요.","screenshot"]
+    ]},
+    {"language":"mixed","type":"protected","holdout":5,"basis":"unknown-allowed-preserve","rows":[
+      ["WoW에서 만나요."],["URL은 https://example.com/recieve 입니다."],["`const recieve = 1` 코드는 보존해요."],["Ctrl+S로 저장해요."],["iOS26을 설치했어요."],
+      ["README.md를 열어요."],["API키는 필요 없어요."],["YouTube에 올렸어요."],["GitHub에서 가져왔어요."],["D1과 R2를 써요."]
+    ]}
+  ]
+}
