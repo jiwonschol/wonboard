@@ -12,7 +12,9 @@ test("Korean spelling applies only chosen words and persists personal exceptions
   await expect(dialog.getByRole("textbox", { name: "Replace with" })).toHaveValue("됐어요");
   await dialog.getByRole("button", { name: "됐어요", exact: true }).click();
   await expect(body).toHaveText("됬어요 맞춥법 실바나스");
-  await expect(dialog).toContainText("Context and sentence-level spacing are not checked.");
+  await expect(dialog).toContainText("English grammar and context are not checked.");
+  await dialog.getByRole("textbox", { name: "Replace with" }).press("Enter");
+  await expect(body).toHaveText("됬어요 맞춥법 실바나스");
   await dialog.getByRole("button", { name: "Change", exact: true }).click();
   await expect(body).toHaveText("됐어요 맞춥법 실바나스");
   await dialog.getByRole("button", { name: "Skip once" }).click();
@@ -34,8 +36,69 @@ test("Korean spelling applies only chosen words and persists personal exceptions
   await expect(dialog.getByRole("button", { name: "됐어요", exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "Skip once" }).click();
   await dialog.getByRole("button", { name: "Skip once" }).click();
-  await expect(dialog).toContainText("Review word: 실바나스");
+  await expect(dialog).toContainText("Unrecognized expression: 실바나스");
   await dialog.getByRole("textbox", { name: "Replace with" }).fill("실바나스님");
   await dialog.getByRole("button", { name: "Change", exact: true }).click();
   await expect(body).toHaveText("됬어요 맞춥법 실바나스님");
+});
+
+test("spacing applies, then registers a base term without suppressing spacing", async ({ page }) => {
+  await page.goto("/");
+  const body = page.getByRole("textbox", { name: "Document body", exact: true });
+  await body.fill("질게에서답변하시는걸");
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await expect(dialog.getByRole("button", { name: "질게에서 답변하시는 걸", exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Skip once" })).toBeFocused();
+  await dialog.getByRole("button", { name: "Change", exact: true }).click();
+  await expect(body).toHaveText("질게에서 답변하시는 걸");
+  await expect(dialog.getByRole("textbox", { name: "Base word to add" })).toHaveValue("질게");
+  await dialog.getByRole("button", { name: "Add to dictionary" }).click();
+  await expect(dialog).toContainText("Spelling review complete.");
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await body.press("ControlOrMeta+z");
+  await expect(body).toHaveText("질게에서답변하시는걸");
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  await expect(dialog.getByRole("button", { name: "질게에서 답변하시는 걸", exact: true })).toBeVisible();
+});
+
+test("English suggestions share the review flow", async ({ page }) => {
+  await page.goto("/");
+  const body = page.getByRole("textbox", { name: "Document body", exact: true });
+  await body.fill("teh");
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await expect(dialog.getByRole("button", { name: "the", exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "the", exact: true }).click();
+  await expect(body).toHaveText("teh");
+  await dialog.getByRole("button", { name: "Change", exact: true }).click();
+  await expect(body).toHaveText("the");
+});
+
+for (const locale of ["ko", "en"]) test(`review remains usable at 390px (${locale})`, async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(value => localStorage.setItem("wonboard-locale", value), locale);
+  await page.goto("/");
+  await expect(page).toHaveTitle(/Wonboard/i);
+  const settings = page.getByRole("button", { name: locale === "ko" ? "설정" : "Settings", exact: true });
+  await expect(settings).toBeVisible();
+  if (await settings.getAttribute("aria-pressed") === "true") await settings.click();
+  const body = page.locator('[contenteditable="true"]').first();
+  await body.fill("질게에서답변하시는걸");
+  await page.getByRole("button", { name: locale === "ko" ? "맞춤법 검사" : "Check spelling", exact: true }).first().click();
+  const dialog = page.getByRole("dialog");
+  const suggestion = dialog.getByRole("button", { name: "질게에서 답변하시는 걸", exact: true });
+  await expect(suggestion).toBeVisible();
+  const bounds = await dialog.boundingBox();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+  expect(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await page.screenshot({ path: `/private/tmp/wonboard-spelling-${locale}-390.png` });
+  await dialog.getByRole("button", { name: locale === "ko" ? "바꾸기" : "Change", exact: true }).click();
+  await expect(body).toHaveText("질게에서 답변하시는 걸");
+  await dialog.getByRole("button", { name: locale === "ko" ? "닫기" : "Close", exact: true }).click();
+  expect(errors).toEqual([]);
 });

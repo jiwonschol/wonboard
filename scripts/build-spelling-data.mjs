@@ -22,7 +22,8 @@ const en=new Set();
 // Union US/UK variants, size <=60 lines. Omit annotations and phrases.
 for(const line of raw.split('\n')) {
   if(!/^\d/.test(line)||Number.parseInt(line)>60)continue;
-  for(const part of line.split(':').slice(1)) for(const item of part.replace(/<[^>]*>/g,'').split(',')) {
+  const lexical=line.slice(line.indexOf(':')+1).replace(/<[^>]*>/g,'').replace(/(^|[|(])\s*(?:[A-Z]+|@)\s*:/g,'$1');
+  for(const item of lexical.split(/[,|():]/)) {
     const word=item.trim();if(/^[A-Za-z]+(?:['’-][A-Za-z]+)*$/.test(word))en.add(word);
   }
 }
@@ -31,6 +32,6 @@ const gzipBytes=gzipSync(payload).length;
 if(gzipBytes>2_000_000)throw Error(`Data hard cap exceeded: ${gzipBytes}`);
 await mkdir('third_party/spelling/generated',{recursive:true});
 await writeFile('third_party/spelling/generated/lexicon.json',payload);
-const manifest={acquired:new Date().toISOString(),sources,bytes:Buffer.byteLength(payload),gzipBytes,koCounts:Object.fromEntries(Object.entries(ko).map(([p,v])=>[p,v.length])),englishWords:en.size,limitations:'Prototype extraction, not upstream speller generation. Annotated inflections may be omitted. Proper names are not lowercased.'};
+const manifest={acquired:new Date().toISOString(),sources,bytes:Buffer.byteLength(payload),gzipBytes,koCounts:Object.fromEntries(Object.entries(ko).map(([p,v])=>[p,v.length])),englishWords:en.size,limitations:'Prototype extraction, not upstream speller generation. Parenthesized alternatives and dialect labels are handled; unsupported markup and phrases are omitted. Proper names are not lowercased.'};
 await writeFile('third_party/spelling/generated/manifest.json',JSON.stringify(manifest,null,2)+'\n');
 console.log(JSON.stringify(manifest,null,2));

@@ -1,5 +1,5 @@
 {
-  "acquired": "2026-09-10T00:23:41.406Z",
+  "acquired": "2026-09-10T01:10:30.226Z",
   "sources": [
     {
       "url": "https://raw.githubusercontent.com/open-korean-text/open-korean-text/74cc4ae7d3dab232747cd5ddb723e4b73c476e4f/src/main/resources/org/openkoreantext/processor/util/noun/nouns.txt",
@@ -42,8 +42,8 @@
       "sha256": "a5fe3f11682a6ab9d31f2ea2a185833b1a01be7af83409c671bd0756a870f6c7"
     }
   ],
-  "bytes": 1739636,
-  "gzipBytes": 439759,
+  "bytes": 1760437,
+  "gzipBytes": 443778,
   "koCounts": {
     "noun": 26498,
     "adverb": 5539,
@@ -53,6 +53,6 @@
     "ending": 1236,
     "preEnding": 69
   },
-  "englishWords": 112742,
-  "limitations": "Prototype extraction, not upstream speller generation. Annotated inflections may be omitted. Proper names are not lowercased."
+  "englishWords": 114496,
+  "limitations": "Prototype extraction, not upstream speller generation. Parenthesized alternatives and dialect labels are handled; unsupported markup and phrases are omitted. Proper names are not lowercased."
 }

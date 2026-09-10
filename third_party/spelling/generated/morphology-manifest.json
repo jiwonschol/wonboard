@@ -1,0 +1,21 @@
+{
+  "revision": "12439fb32808b9244ded56d7dfed96e4b8d76869",
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/lindera/mecab-ko-dic/12439fb32808b9244ded56d7dfed96e4b8d76869/Inflect.csv",
+      "bytes": 4042583,
+      "sha256": "ff9a82d6f97aa75b86f03c33e2d615486200d7433f1c86c2e33a8c18d647064c"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/lindera/mecab-ko-dic/12439fb32808b9244ded56d7dfed96e4b8d76869/MAG.csv",
+      "bytes": 842240,
+      "sha256": "d9842fd7f1efc6398fb06c0d3b4c881571b49b91fb340017a8a688f7bd4a4785"
+    }
+  ],
+  "acquired": "2026-09-10T01:10:31.065Z",
+  "bytes": 1359594,
+  "gzipBytes": 219364,
+  "combinedGzipBytes": 663142,
+  "forms": 38277,
+  "adverbs": 14233
+}

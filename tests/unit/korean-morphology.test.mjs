@@ -30,3 +30,23 @@ test('spelling uses decomposed Hangul without changing source offsets',()=>{
 test('ending versus dependent noun ambiguity is exposed',()=>{
   assert.equal(check('하시는걸')[0].ambiguous,true);
 });
+test('finite endings, plural nouns and permitted auxiliary spelling stay intact',()=>{
+  for(const text of ['시작합니다','기다릴게요','남았어요','아이들이','문을 열어주세요.','오리보스는','어둠땅은'])assert.equal(check(text).filter(f=>f.suggestions.length).length,0,text);
+});
+test('separated particles keep exact offsets and never bridge a newline',()=>{
+  const f=check('😀 도서관 에서').find(f=>f.type==='spacing');
+  assert.equal(f.original,'도서관 에서');assert.equal(f.from,3);assert.deepEqual(f.suggestions,['도서관에서']);
+  assert.equal(check('도서관\n에서').filter(f=>f.type==='spacing').length,0);
+});
+test('bounded orthography rules preserve names and ordinary endings',()=>{
+  for(const [text,expected] of [['설겆이를','설거지를'],['됬지만','됐지만'],['산뜻히','산뜻이']])assert.ok(check(text).some(f=>f.suggestions.includes(expected)));
+  for(const text of ['되면','되고','몇일이라는닉네임'])assert.equal(check(text).filter(f=>f.type==='spelling').length,0);
+  assert.equal(check('산뜻히',['산뜻히']).filter(f=>f.suggestions.length).length,0);
+});
+test('English alternatives and case-preserving names survive extraction',()=>{
+  for(const text of ['The road was quiet.','We travelled yesterday.','Wonboard supports writing.'])assert.equal(check(text).filter(f=>f.suggestions.length).length,0,text);
+  assert.ok(check('Recieve').some(f=>f.suggestions.includes('Receive')));
+});
+test('pathological unbroken text reports an explicit analysis limitation',()=>{
+  const f=check('가'.repeat(10000));assert.equal(f.length,1);assert.match(f[0].reason,/64/);assert.equal(f[0].applicable,false);
+});
