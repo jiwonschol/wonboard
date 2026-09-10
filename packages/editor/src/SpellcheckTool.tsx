@@ -62,20 +62,22 @@ function SpellingReview({ editor, locale, close }: { editor: Editor; locale: Loc
   };
   return <dialog ref={dialog} className="spelling-dialog" aria-label={ko ? "맞춤법 검사" : "Check spelling"} onCancel={close}>
     <h2>{ko ? "맞춤법 검사" : "Check spelling"}</h2>
-    <p>{ko ? "한국어 철자 검사 · 자동으로 고치지 않습니다. 문맥과 띄어쓰기 판단에는 한계가 있습니다." : "Korean spelling · No automatic corrections. Context and spacing checks are limited."}</p>
+    <p>{ko ? "추천을 선택하거나 직접 입력한 뒤 ‘바꾸기’를 누르세요. 선택한 표현만 본문에 적용합니다." : "Choose a suggestion or enter your own replacement, then press Change. Only that expression will change."}</p>
+    <p className="spelling-coverage">{ko ? "한국어 철자 검사 · 기기 안에서 처리" : "Korean spelling · checked on this device"}<br />
+      {ko ? "문맥과 문장 단위 띄어쓰기는 검사하지 않습니다." : "Context and sentence-level spacing are not checked."}</p>
     {error && <p role="alert">{error}</p>}
     {stale && <p role="alert">{ko ? "본문이 변경되었습니다. 닫고 다시 검사하세요." : "Document changed. Close and check again."}</p>}
     {error ? null : busy ? <p role="status">{ko ? "검사 중…" : "Checking…"}</p> : current ? <section>
       <p>{ko ? "확인할 표현" : "Review word"}: <strong>{current.word}</strong></p>
-      <p className="spelling-context">{snapshot.current.textBetween(Math.max(0, current.from + offset - 35), Math.min(snapshot.current.content.size, current.to + offset + 35), " ")}</p>
-      <div className="spelling-actions">{results[current.word].map(text => <button type="button" key={text} disabled={stale || !!error} onClick={() => replace(text)}>{text}</button>)}</div>
-      {!results[current.word].length && <p>{ko ? "추천 단어가 없습니다." : "No suggestions."}</p>}
+      <p className="spelling-context">{snapshot.current.textBetween(Math.max(0, current.from + offset - 35), current.from + offset, " ")}<mark>{current.word}</mark>{snapshot.current.textBetween(current.to + offset, Math.min(snapshot.current.content.size, current.to + offset + 35), " ")}</p>
+      <SpellingReplacement key={current.from} word={current.word} suggestions={results[current.word]}
+        ko={ko} disabled={stale || !!error} replace={replace} />
       <div className="spelling-actions">
         <button type="button" onClick={next}>{ko ? "이번만 건너뛰기" : "Skip once"}</button>
         <button type="button" onClick={() => setIgnored(value => [...value, current.word])}>{ko ? "이번 검사에서 무시" : "Ignore this check"}</button>
         <button type="button" onClick={() => save([...personal, current.word])}>{ko ? "사용자 사전에 추가" : "Add to dictionary"}</button>
       </div>
-    </section> : <p role="status">{ko ? "더 확인할 표현이 없습니다." : "No more flagged words."}</p>}
+    </section> : <p role="status" className="spelling-complete">{ko ? "철자 검사를 마쳤습니다. 추가 제안이 없더라도 띄어쓰기와 문맥은 직접 확인해 주세요." : "Spelling review complete. Even with no further suggestions, please review spacing and context yourself."}</p>}
     <details><summary>{ko ? "사용자 사전" : "Personal dictionary"} ({personal.length})</summary>
       <p>{ko ? "이 브라우저에 저장됩니다. 등록한 표현만 제외하며 조사가 붙은 표현은 별도로 등록하세요." : "Saved in this browser. Exact words only; add inflected forms separately."}</p>
       {personal.map(word => <div key={word}>{word} <button type="button" onClick={() => save(personal.filter(item => item !== word))}>{ko ? "삭제" : "Remove"}</button></div>)}
@@ -83,4 +85,24 @@ function SpellingReview({ editor, locale, close }: { editor: Editor; locale: Loc
     <p><a href="/spelling/ko/LICENSE.md" target="_blank" rel="noreferrer">{ko ? "한국어 사전 라이선스" : "Korean dictionary license"}</a></p>
     <button type="button" onClick={close}>{ko ? "닫기" : "Close"}</button>
   </dialog>;
+}
+
+function SpellingReplacement({ word, suggestions, ko, disabled, replace }: {
+  word: string; suggestions: string[]; ko: boolean; disabled: boolean; replace(text: string): void;
+}) {
+  const [text, setText] = useState(suggestions[0] ?? word);
+  return <form className="spelling-replacement" onSubmit={event => {
+    event.preventDefault();
+    if (!disabled && text.trim() && text !== word) replace(text);
+  }}>
+    <div className="spelling-suggestions" role="group" aria-label={ko ? "추천 표현" : "Suggestions"}>
+      {suggestions.map(suggestion => <button type="button" key={suggestion} disabled={disabled}
+        aria-pressed={text === suggestion} onClick={() => setText(suggestion)}>{suggestion}</button>)}
+      {!suggestions.length && <p>{ko ? "사전에 없는 표현입니다. 직접 바꾸거나, 그대로 두거나, 사용자 사전에 추가할 수 있습니다." : "This expression is not in the dictionary. Enter a replacement, skip it, or add it to your dictionary."}</p>}
+    </div>
+    <label>{ko ? "바꿀 표현" : "Replace with"}
+      <input value={text} maxLength={200} disabled={disabled} onChange={event => setText(event.target.value)} />
+    </label>
+    <button type="submit" disabled={disabled || !text.trim() || text === word}>{ko ? "바꾸기" : "Change"}</button>
+  </form>;
 }

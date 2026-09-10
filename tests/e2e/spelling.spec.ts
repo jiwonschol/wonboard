@@ -9,11 +9,15 @@ test("Korean spelling applies only chosen words and persists personal exceptions
   await tool.click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
   await expect(dialog.getByRole("button", { name: "됐어요", exact: true })).toBeVisible({ timeout: 20000 });
+  await expect(dialog.getByRole("textbox", { name: "Replace with" })).toHaveValue("됐어요");
   await dialog.getByRole("button", { name: "됐어요", exact: true }).click();
+  await expect(body).toHaveText("됬어요 맞춥법 실바나스");
+  await expect(dialog).toContainText("Context and sentence-level spacing are not checked.");
+  await dialog.getByRole("button", { name: "Change", exact: true }).click();
   await expect(body).toHaveText("됐어요 맞춥법 실바나스");
   await dialog.getByRole("button", { name: "Skip once" }).click();
   await dialog.getByRole("button", { name: "Add to dictionary" }).click();
-  await expect(dialog).toContainText("No more flagged words.");
+  await expect(dialog).toContainText("Spelling review complete.");
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await body.press("ControlOrMeta+z");
   await expect(body).toHaveText("됬어요 맞춥법 실바나스");
@@ -22,7 +26,7 @@ test("Korean spelling applies only chosen words and persists personal exceptions
   await expect(dialog.getByRole("button", { name: "됐어요", exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "Skip once" }).click();
   await dialog.getByRole("button", { name: "Skip once" }).click();
-  await expect(dialog).toContainText("No more flagged words.");
+  await expect(dialog).toContainText("Spelling review complete.");
   await dialog.getByText("Personal dictionary (1)", { exact: true }).click();
   await dialog.getByRole("button", { name: "Remove", exact: true }).click();
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
@@ -31,4 +35,7 @@ test("Korean spelling applies only chosen words and persists personal exceptions
   await dialog.getByRole("button", { name: "Skip once" }).click();
   await dialog.getByRole("button", { name: "Skip once" }).click();
   await expect(dialog).toContainText("Review word: 실바나스");
+  await dialog.getByRole("textbox", { name: "Replace with" }).fill("실바나스님");
+  await dialog.getByRole("button", { name: "Change", exact: true }).click();
+  await expect(body).toHaveText("됬어요 맞춥법 실바나스님");
 });
