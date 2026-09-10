@@ -1,7 +1,8 @@
 import { withoutUnusedMedia, validateDocument, sha256, type Draft } from "@wonboard/document";
 import { loadDrafts, openStorage, saveDraft, StorageConflict } from "./storage";
+import { openDesktopRepository } from "./desktopRepository";
 
-export type StorageMode = "local" | "sites";
+export type StorageMode = "local" | "sites" | "desktop";
 export type DraftRepository = {
   list(): Promise<Draft[]>;
   load(draft: Draft): Promise<Draft>;
@@ -19,6 +20,7 @@ export async function sitesRequest(path: string, init: RequestInit = {}) {
   return response;
 }
 export async function openDraftRepository(mode: StorageMode, onBlocked: () => void, onDisconnected?: () => void): Promise<DraftRepository> {
+  if (mode === "desktop") return openDesktopRepository();
   if (mode === "local") {
     const db = await openStorage(undefined, onBlocked, onDisconnected);
     return { list: () => loadDrafts(db), load: async draft => draft,

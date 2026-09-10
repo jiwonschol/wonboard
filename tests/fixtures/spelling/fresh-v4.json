@@ -1,0 +1,26 @@
+{"version":4,"independent":false,"annotation":"New sentences fixed after initial v4 implementation and before evaluation. Same author; not independent. No reuse of original benchmark word roots in error cases.","groups":[
+{"language":"ko","type":"spacing","holdout":5,"basis":"particle boundary / dependent noun 41,42","rows":[
+["도착하면 [우체국으로보내세요].","우체국으로 보내세요"],
+["[수첩을꺼냈어요].","수첩을 꺼냈어요"],
+["옆에서 [기다리는사람이] 있어요.","기다리는 사람이"],
+["다음 [소식을알려주세요].","소식을 알려주세요"],
+["미리 [준비한것을] 꺼냈어요.","준비한 것을"]]},
+{"language":"ko","type":"normal","holdout":5,"basis":"preserve ordinary prose and colloquial expressions","rows":[
+["어제는 비가 제법 내렸어요."],
+["그걸로 충분하잖아요."],
+["뭔지 몰라도 재미있네요."],
+["두시까지 도착해 주세요."],
+["다 읽고 나서 결정할게요."]]},
+{"language":"en","type":"spelling","holdout":5,"basis":"own typographic mistakes","rows":[
+["The [gardne] is beautiful.","garden"],
+["Please [remmeber] this.","remember"],
+["An [improtant] message arrived.","important"],
+["The [pictuer] looks nice.","picture"],
+["I bought a [tickte].","ticket"]]},
+{"language":"mixed","type":"protected","holdout":5,"basis":"preserve code, brands and user vocabulary","rows":[
+["Figma에서 작업했어요."],
+["Alt+Tab을 눌렀어요."],
+["notes.txt를 첨부했어요."],
+["USB-C 케이블입니다."],
+["`const colour = 1` 그대로 두세요."]]}
+]}

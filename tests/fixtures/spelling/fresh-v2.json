@@ -1,0 +1,7 @@
+{"version":2,"independent":false,"groups":[
+{"language":"ko","type":"spacing","holdout":5,"basis":"41/42; lexical interpretation remains author-annotated","rows":[
+["[상자에담았어요].","상자에 담았어요"],["[다시만날] 약속이에요.","다시 만날"],["[실험을마쳤어요].","실험을 마쳤어요"],["[읽는것을] 좋아해요.","읽는 것을"],["[도움을받았어요].","도움을 받았어요"]]},
+{"language":"ko","type":"normal","holdout":5,"basis":"preserve","rows":[["달빛이 창문을 비췄어요."],["연락을 기다리고 있어요."],["문장을 바꿔 봤어요."],["그냥 넘어가도 괜찮습니다."],["이 표현은 제가 골랐어요."]]},
+{"language":"en","type":"spelling","holdout":5,"basis":"lexical-unverified","rows":[["A [strnage] sound.","strange"],["A [usefull] tool.","useful"],["My [keybaord] works.","keyboard"],["A new [windwo].","window"],["The [anser] is here.","answer"]]},
+{"language":"mixed","type":"protected","holdout":5,"basis":"preserve","rows":[["Steam에서 샀어요."],["Figma로 그렸어요."],["UTF-8로 저장해요."],["SSD에 보관해요."],["JSON 파일입니다."]]}
+]}

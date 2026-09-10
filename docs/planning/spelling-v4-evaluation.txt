@@ -1,0 +1,374 @@
+Cases: 200. Independent evaluation: false. Engine: scripts/spelling-prototype.mjs
+set | cases | detection | top1 | top3 | exact sentences | false-recommendation cases | wrong suggestions | unknown notices
+all/ko/spelling | 25 | 22/25 | 22/25 | 22/25 | 22/25 | 1 | 1 | 0
+holdout/ko/spelling | 8 | 7/8 | 7/8 | 7/8 | 7/8 | 0 | 0 | 0
+development/ko/spelling | 17 | 15/17 | 15/17 | 15/17 | 15/17 | 1 | 1 | 0
+all/ko/spacing | 35 | 35/36 | 35/36 | 35/36 | 34/35 | 0 | 0 | 0
+holdout/ko/spacing | 12 | 12/13 | 12/13 | 12/13 | 11/12 | 0 | 0 | 0
+development/ko/spacing | 23 | 23/23 | 23/23 | 23/23 | 23/23 | 0 | 0 | 0
+all/ko/normal | 30 | 0/0 | 0/0 | 0/0 | 30/30 | 0 | 0 | 1
+holdout/ko/normal | 10 | 0/0 | 0/0 | 0/0 | 10/10 | 0 | 0 | 0
+development/ko/normal | 20 | 0/0 | 0/0 | 0/0 | 20/20 | 0 | 0 | 1
+all/ko/protected | 30 | 0/0 | 0/0 | 0/0 | 30/30 | 0 | 0 | 22
+holdout/ko/protected | 10 | 0/0 | 0/0 | 0/0 | 10/10 | 0 | 0 | 8
+development/ko/protected | 20 | 0/0 | 0/0 | 0/0 | 20/20 | 0 | 0 | 14
+all/en/spelling | 30 | 27/30 | 27/30 | 27/30 | 27/30 | 4 | 7 | 2
+holdout/en/spelling | 10 | 9/10 | 9/10 | 9/10 | 9/10 | 3 | 4 | 1
+development/en/spelling | 20 | 18/20 | 18/20 | 18/20 | 18/20 | 1 | 3 | 1
+all/en/normal | 15 | 0/0 | 0/0 | 0/0 | 15/15 | 0 | 0 | 0
+holdout/en/normal | 5 | 0/0 | 0/0 | 0/0 | 5/5 | 0 | 0 | 0
+development/en/normal | 10 | 0/0 | 0/0 | 0/0 | 10/10 | 0 | 0 | 0
+all/en/protected | 15 | 0/0 | 0/0 | 0/0 | 15/15 | 0 | 0 | 4
+holdout/en/protected | 5 | 0/0 | 0/0 | 0/0 | 5/5 | 0 | 0 | 1
+development/en/protected | 10 | 0/0 | 0/0 | 0/0 | 10/10 | 0 | 0 | 3
+all/mixed/spelling | 10 | 10/10 | 9/10 | 10/10 | 9/10 | 4 | 6 | 1
+holdout/mixed/spelling | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 2 | 4 | 1
+development/mixed/spelling | 5 | 5/5 | 4/5 | 5/5 | 4/5 | 2 | 2 | 0
+all/mixed/protected | 10 | 0/0 | 0/0 | 0/0 | 10/10 | 0 | 0 | 0
+holdout/mixed/protected | 5 | 0/0 | 0/0 | 0/0 | 5/5 | 0 | 0 | 0
+development/mixed/protected | 5 | 0/0 | 0/0 | 0/0 | 5/5 | 0 | 0 | 0
+Early gate (holdout): Korean detection 19/21; normal false-recommendation cases 0; PASS
+Failures:
+[
+  {
+    "id": "ko-spelling-5",
+    "text": "계획을 금새 바꿨어요.",
+    "expected": [
+      "계획을 금세 바꿨어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-12",
+    "text": "이 옷은 문안한 색이에요.",
+    "expected": [
+      "이 옷은 무난한 색이에요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-21",
+    "text": "어떻해 해야 하나요?",
+    "expected": [
+      "어떻게 해야 하나요?"
+    ],
+    "detected": 1,
+    "events": 1,
+    "findings": [
+      {
+        "from": 0,
+        "to": 3,
+        "original": "어떻해",
+        "language": "ko",
+        "type": "spelling",
+        "suggestions": [
+          "어떻게",
+          "어떡해"
+        ],
+        "base": "어떻해",
+        "applicable": true,
+        "reason": "어떻게 modifies a predicate; 어떡해 means 어떻게 해",
+        "ambiguous": true
+      }
+    ],
+    "wrong": 1
+  },
+  {
+    "id": "ko-spelling-22",
+    "text": "빨리 낳으세요. 감기가 심하네요.",
+    "expected": [
+      "빨리 나으세요. 감기가 심하네요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-9",
+    "text": "회의는 세시에 시작해요.",
+    "expected": [
+      "회의는 세 시에 시작해요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-1",
+    "text": "Please recieve the package.",
+    "expected": [
+      "Please receive the package."
+    ],
+    "detected": 1,
+    "events": 1,
+    "findings": [
+      {
+        "from": 7,
+        "to": 14,
+        "original": "recieve",
+        "language": "en",
+        "type": "spelling",
+        "suggestions": [
+          "receive",
+          "relieve"
+        ],
+        "base": "recieve",
+        "applicable": true,
+        "reason": "Prototype lexical candidate; rule source not yet verified"
+      }
+    ],
+    "wrong": 1
+  },
+  {
+    "id": "en-spelling-4",
+    "text": "That was wierd.",
+    "expected": [
+      "That was weird."
+    ],
+    "detected": 1,
+    "events": 1,
+    "findings": [
+      {
+        "from": 9,
+        "to": 14,
+        "original": "wierd",
+        "language": "en",
+        "type": "spelling",
+        "suggestions": [
+          "weird",
+          "wired",
+          "wield"
+        ],
+        "base": "wierd",
+        "applicable": true,
+        "reason": "Prototype lexical candidate; rule source not yet verified"
+      }
+    ],
+    "wrong": 2
+  },
+  {
+    "id": "en-spelling-5",
+    "text": "The adress is missing.",
+    "expected": [
+      "The address is missing."
+    ],
+    "detected": 1,
+    "events": 1,
+    "findings": [
+      {
+        "from": 4,
+        "to": 10,
+        "original": "adress",
+        "language": "en",
+        "type": "spelling",
+        "suggestions": [
+          "address",
+          "dress"
+        ],
+        "base": "adress",
+        "applicable": true,
+        "reason": "Prototype lexical candidate; rule source not yet verified"
+      }
+    ],
+    "wrong": 1
+  },
+  {
+    "id": "en-spelling-7",
+    "text": "It was an accidently deleted file.",
+    "expected": [
+      "It was an accidentally deleted file."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [
+      {
+        "from": 10,
+        "to": 20,
+        "original": "accidently",
+        "language": "en",
+        "type": "unknown",
+        "suggestions": [],
+        "base": "accidently",
+        "applicable": false,
+        "reason": "Not in the selected vocabulary"
+      }
+    ],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-14",
+    "text": "It happened tommorow.",
+    "expected": [
+      "It happened tomorrow."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [
+      {
+        "from": 12,
+        "to": 20,
+        "original": "tommorow",
+        "language": "en",
+        "type": "unknown",
+        "suggestions": [],
+        "base": "tommorow",
+        "applicable": false,
+        "reason": "Not in the selected vocabulary"
+      }
+    ],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-15",
+    "text": "Check your calender.",
+    "expected": [
+      "Check your calendar."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-29",
+    "text": "Your writting is clear.",
+    "expected": [
+      "Your writing is clear."
+    ],
+    "detected": 1,
+    "events": 1,
+    "findings": [
+      {
+        "from": 5,
+        "to": 13,
+        "original": "writting",
+        "language": "en",
+        "type": "spelling",
+        "suggestions": [
+          "writing",
+          "gritting",
+          "writhing",
+          "witting"
+        ],
+        "base": "writting",
+        "applicable": true,
+        "reason": "Prototype lexical candidate; rule source not yet verified"
+      }
+    ],
+    "wrong": 3
+  },
+  {
+    "id": "mixed-spelling-2",
+    "text": "화면의 buton을 눌러요.",
+    "expected": [
+      "화면의 button을 눌러요."
+    ],
+    "detected": 1,
+    "events": 1,
+    "findings": [
+      {
+        "from": 4,
+        "to": 9,
+        "original": "buton",
+        "language": "en",
+        "type": "spelling",
+        "suggestions": [
+          "button",
+          "baton",
+          "futon"
+        ],
+        "base": "buton",
+        "applicable": true,
+        "reason": "Prototype lexical candidate; rule source not yet verified"
+      }
+    ],
+    "wrong": 2
+  },
+  {
+    "id": "mixed-spelling-3",
+    "text": "conection이 끊겼어요.",
+    "expected": [
+      "connection이 끊겼어요."
+    ],
+    "detected": 1,
+    "events": 1,
+    "findings": [
+      {
+        "from": 0,
+        "to": 9,
+        "original": "conection",
+        "language": "en",
+        "type": "spelling",
+        "suggestions": [
+          "connection",
+          "confection",
+          "convection"
+        ],
+        "base": "conection",
+        "applicable": true,
+        "reason": "Prototype lexical candidate; rule source not yet verified"
+      }
+    ],
+    "wrong": 2
+  },
+  {
+    "id": "mixed-spelling-7",
+    "text": "setings에서 바꿔요.",
+    "expected": [
+      "settings에서 바꿔요."
+    ],
+    "detected": 1,
+    "events": 1,
+    "findings": [
+      {
+        "from": 0,
+        "to": 7,
+        "original": "setings",
+        "language": "en",
+        "type": "spelling",
+        "suggestions": [
+          "settings",
+          "stings"
+        ],
+        "base": "setings",
+        "applicable": true,
+        "reason": "Prototype lexical candidate; rule source not yet verified"
+      }
+    ],
+    "wrong": 1
+  },
+  {
+    "id": "mixed-spelling-9",
+    "text": "uplod가 끝났어요.",
+    "expected": [
+      "upload가 끝났어요."
+    ],
+    "detected": 1,
+    "events": 1,
+    "findings": [
+      {
+        "from": 0,
+        "to": 5,
+        "original": "uplod",
+        "language": "en",
+        "type": "spelling",
+        "suggestions": [
+          "plod",
+          "upload"
+        ],
+        "base": "uplod",
+        "applicable": true,
+        "reason": "Prototype lexical candidate; rule source not yet verified"
+      }
+    ],
+    "wrong": 1
+  }
+]

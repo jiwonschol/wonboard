@@ -98,7 +98,7 @@ export function AttachmentsPanel({
   ): Promise<void>;
   onRename(value: boolean): void;
   onStorage(): void;
-  storageMode?: "local" | "sites";
+  storageMode?: "local" | "sites" | "desktop";
 }) {
   const t = translator(locale),
     input = useRef<HTMLInputElement>(null);
@@ -304,8 +304,8 @@ export function AttachmentsPanel({
       </fieldset>
       <section className="storage-connection">
         <h2>{t("storageConnection")}</h2>
-        <strong>{t(storageMode === "sites" ? "sitesStorage" : "thisBrowser")}</strong>
-        <p className="help">{t(storageMode === "sites" ? "sitesStorageHint" : "storageConnectionHint")}</p>
+        <strong>{t(storageMode === "desktop" ? "deviceStorage" : storageMode === "sites" ? "sitesStorage" : "thisBrowser")}</strong>
+        <p className="help">{t(storageMode === "desktop" ? "deviceStorageHint" : storageMode === "sites" ? "sitesStorageHint" : "storageConnectionHint")}</p>
         <button onClick={onStorage}>{t("storageDetails")}</button>
       </section>
     </div>
