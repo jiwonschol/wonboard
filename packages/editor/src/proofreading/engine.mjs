@@ -5,6 +5,11 @@ import {orthography} from './korean-orthography.mjs';
 export function createChecker(data) {
   const sets=Object.fromEntries(Object.entries(data.ko).map(([k,v])=>[k,new Set(v)]));
   const morphology=createMorphology(sets,data.morphology);
+  // An extended recognition vocabulary must not flood candidate generation or
+  // split community names into obscure dictionary nouns.
+  const recognizedNouns=new Set(data.morphology?.recognizedNouns??[]);
+  const particles=[...sets.josa];
+  const recognizedNoun=word=>recognizedNouns.has(word)||particles.some(p=>word.endsWith(p)&&recognizedNouns.has(word.slice(0,-p.length)));
   const english=new Set(data.en);
   const enLower=new Set(data.en.filter(w=>w===w.toLowerCase()));
   const koWords=[...new Set([...sets.noun,...sets.adverb,...(data.morphology?.adverbs??[]),...(data.morphology?.forms??[]).filter(([,tag])=>['EF','EC','ETM','ETN'].includes(tag)).map(([word])=>word)])];
@@ -25,9 +30,13 @@ export function createChecker(data) {
       if(i+1<lower.length)add(lower.slice(0,i)+lower[i+1]+lower[i]+lower.slice(i+2));
       for(const c of alphabet){add(lower.slice(0,i)+c+lower.slice(i));if(i<lower.length)add(lower.slice(0,i)+c+lower.slice(i+1));}
     }
-    const transpositions=new Set();
+    const transpositions=new Set(),doubled=new Set();
     for(let i=0;i+1<lower.length;i++)transpositions.add(lower.slice(0,i)+lower[i+1]+lower[i]+lower.slice(i+2));
-    return [...candidates].filter(s=>!(/^[A-Z]/.test(word)&&word.length>3)||s[0]===lower[0]).sort((a,b)=>Number(transpositions.has(b))-Number(transpositions.has(a))||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
+    for(let i=0;i<lower.length;i++){
+      doubled.add(lower.slice(0,i)+lower[i]+lower.slice(i));
+      if(lower[i]===lower[i+1])doubled.add(lower.slice(0,i)+lower.slice(i+1));
+    }
+    return [...candidates].filter(s=>!(/^[A-Z]/.test(word)&&word.length>3)||s[0]===lower[0]).sort((a,b)=>Number(transpositions.has(b))-Number(transpositions.has(a))||Number(doubled.has(b))-Number(doubled.has(a))||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
   }
   function koreanSuggestions(word) {
     const suggestions=[];
@@ -70,7 +79,7 @@ export function createChecker(data) {
         if(/[A-Za-z]/.test(text[from-1]||'')&&(sets.josa.has(word)||sets.ending.has(word)||morphology.predicate(word)))continue;
         const spaced=morphology.spacing(word,personal);
         if(spaced&&spaced.text.replaceAll(' ','')===word){emit(from,to,'ko','spacing',[spaced.text]);Object.assign(results.at(-1),{ambiguous:spaced.ambiguous,reason:`Spacing rule ${spaced.rule}; review interpretation`});continue;}
-        if(morphology.analyze(word,personal))continue;
+        if(morphology.analyze(word,personal)||recognizedNoun(word))continue;
         const unknown=morphology.unknownNoun(word);
         const candidates=koreanSuggestions(word);
         if(candidates.length){emit(from,to,'ko','spelling',candidates,unknown?.base??word);continue;}

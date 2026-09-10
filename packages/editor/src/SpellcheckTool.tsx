@@ -38,17 +38,21 @@ function SpellingReview({ editor, locale, close }: { editor: Editor; locale: Loc
   const skipButton = useRef<HTMLButtonElement>(null);
   const message = ko ? "검사 또는 사전 저장에 실패했습니다. 닫고 다시 시도하세요." : "Check or dictionary storage failed. Close and retry.";
   const check = (saved = personal) => {
+    if (!worker.current) { setError(message); setBusy(false); return; }
     if (editor.view.composing) { setStale(true); return; }
     snapshot.current = editor.state.doc;
     setStale(false); setBusy(true); setIndex(0); setError("");
-    worker.current?.postMessage({ id: ++request.current, segments: spellingSegments(snapshot.current), personal: saved });
+    worker.current.postMessage({ id: ++request.current, segments: spellingSegments(snapshot.current), personal: saved });
   };
   useEffect(() => {
-    dialog.current?.showModal();
+    if (!dialog.current?.open) dialog.current?.showModal();
+    skipped.current = []; setIgnored([]); setResults([]);
     let saved: string[];
     try { saved = readPersonalDictionary(); setPersonal(saved); }
     catch { setError(message); setBusy(false); return; }
-    const active = new Worker(new URL("./proofreading/review.worker.ts", import.meta.url), { type: "module" });
+    let active: Worker;
+    try { active = new Worker(new URL("./proofreading/review.worker.ts", import.meta.url), { type: "module" }); }
+    catch { setError(message); setBusy(false); return; }
     worker.current = active;
     active.onerror = () => { setError(message); setBusy(false); };
     active.onmessage = ({ data }) => {
@@ -59,13 +63,13 @@ function SpellingReview({ editor, locale, close }: { editor: Editor; locale: Loc
     };
     const changed = () => {
       if (!applying.current && !editor.state.doc.eq(snapshot.current)) {
-        request.current++; skipped.current = []; setStale(true); setBusy(false);
+        request.current++; skipped.current = []; setIgnored([]); setStale(true); setBusy(false);
       }
     };
     editor.on("transaction", changed);
     check(saved);
     return () => { active.terminate(); worker.current = null; editor.off("transaction", changed); };
-  }, []);
+  }, [editor]);
   useEffect(() => { if (!busy && current) skipButton.current?.focus(); }, [busy, current]);
   const next = () => { if (current) { skipped.current.push(current); setIndex(results.indexOf(current) + 1); } };
   const replace = (text: string) => {
@@ -85,14 +89,15 @@ function SpellingReview({ editor, locale, close }: { editor: Editor; locale: Loc
     try { localStorage.setItem(dictionaryKey, JSON.stringify(value)); setPersonal(value); check(value); }
     catch { setError(message); }
   };
-  return <dialog ref={dialog} className="spelling-dialog" aria-label={ko ? "맞춤법 검사" : "Check spelling"} onCancel={close}>
+  return <dialog ref={dialog} className="spelling-dialog" aria-label={ko ? "맞춤법 검사" : "Check spelling"} onCancel={close}
+    onKeyDown={event => { if (event.key === "Enter" && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) event.preventDefault(); }}>
     <h2>{ko ? "맞춤법 검사" : "Check spelling"}</h2>
     <p>{ko ? "추천을 선택하거나 직접 입력한 뒤 ‘바꾸기’를 누르세요. 선택한 표현만 본문에 적용합니다." : "Choose a suggestion or enter your own replacement, then press Change. Only that expression will change."}</p>
     <p className="spelling-coverage">{ko ? "한국어 철자·띄어쓰기 / 영어 철자 · 기기 안에서 처리" : "Korean spelling and spacing / English spelling · on this device"}<br />
       {ko ? "개발 중인 검사입니다. 한국어 철자 검출은 아직 제한적이며, 영어 문법과 문맥은 검사하지 않습니다." : "Experimental checker. Korean spelling coverage is limited; English grammar and context are not checked."}</p>
     {error && <p role="alert">{error}</p>}
     {stale && <p role="alert">{ko ? "본문이 변경되었거나 입력 중입니다. 다시 검사하세요." : "Document changed or input is composing. Check again."}</p>}
-    {(stale || error) && <button type="button" onClick={() => check()}>{ko ? "다시 검사" : "Check again"}</button>}
+    {stale && !error && <button type="button" onClick={() => check()}>{ko ? "다시 검사" : "Check again"}</button>}
     {error ? null : busy ? <p role="status">{ko ? "검사 중…" : "Checking…"}</p> : current ? <section>
       <p>{current.type === "unknown" ? (ko ? "사전에 없는 표현" : "Unrecognized expression") : current.type === "spacing" ? (ko ? "띄어쓰기 제안" : "Spacing suggestion") : (ko ? "철자 제안" : "Spelling suggestion")}: <strong>{current.original}</strong></p>
       {current.ambiguous && <p>{ko ? "문맥에 따라 원문도 맞을 수 있습니다." : "The original may be correct in context."}</p>}

@@ -5,5 +5,5 @@ export type Finding = {
 };
 export function createChecker(data: {
   ko: Record<string, string[]>; en: string[];
-  morphology: { forms: string[][]; adverbs: string[] };
+  morphology: { forms: string[][]; adverbs: string[]; recognizedNouns?: string[] };
 }): (text: string, personalWords?: string[]) => Finding[];

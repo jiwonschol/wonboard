@@ -186,3 +186,41 @@ Browser plugin not available: 저장소 Playwright 사용. 390px 영어 창은 �
 남은 완료 조건: 전체 한국어 철자 품질, 혼용 오탐, 새 독립성 제한 명시 평가, Worker 반응/취소 계측, IME·문서 전환·실제 macOS 저장/재실행, 전체 E2E, 구 엔진 배포 자산 제거 전후 검사. 이 상태는 통합 프로토타입이며 완성된 맞춤법 검사기라고 표시하지 않는다.
 
 추가 검증: 설정 토글을 접근성 이름으로 찾아 닫은 뒤 Chromium 5/5 통과. ko/en 390px에서 dialog 경계 및 내부 가로 넘침 없음, console/pageerror 없음, 실제 수정 확인. 스크린샷은 `/private/tmp/wonboard-spelling-{ko,en}-390.png`에 생성했으나 이미지 보기 도구의 파일 시스템에서는 접근되지 않아 육안 확인은 하지 못했다. 테스트 결과만으로 시각적 완성도를 주장하지 않는다. 파일명 확장자와 키보드 단축키 구간을 검사에서 제외해 기존 혼용 보호 사례의 잘못된 변경 추천을 제거했다. 64자 초과 분석 제한도 화면에 명시했다. 이후 타입 검사와 Node 16개 검사를 다시 통과했다.
+
+## 2026-09-10 — 네 번째 구현: 실제 앱 교정·저장과 회귀 검증
+
+출발 커밋은 b629d4a. 지원이 완성도를 높여 보여 달라고 요청해 재승인 없이 같은 범위를 계속 구현했다. 기존 style.css/locales 수정, WhitespaceTool 및 테스트, .DS_Store는 보존하고 커밋에 포함하지 않는다. PR·배포·설치 앱 교체·기존 사용자 초안 변경은 하지 않았다.
+
+### 수정 내용과 데이터 판단
+
+공식 표기 근거는 spelling-orthography-sources.md에 추가했다. 형태 분석이 단어를 인식하는 것과 표준 표기 판정은 분리한다. 임의 선어말어미 연결로 생기던 `질문 이있으면`과 명사/용언 중의성 때문에 누락되던 띄어쓰기를 수정했다. `그걸로`, `알려주려고`, `충분하잖아요` 같은 정상 표현을 보존한다. 사용자가 처음 제시한 문장에서는 `질게에서 답변하시는 걸`, `뵌 걸로 보면`, `아닌 것`을 각각 검토할 수 있다. 문장 전체의 유일한 정답이라는 뜻은 아니다. 영어 겹자 삽입/삭제 후보의 우선순위도 보강했다.
+
+NNG.csv 204,250개 일반 명사 표기를 추가했다. 같은 Apache-2.0 원문 라이선스가 선행 커밋에 있으며 출처·원본 크기·해시는 morphology-manifest.json에 있다. 명사를 분절과 교체 후보에 모두 넣은 임시 메모리 시험은 보호 표현 3건을 잘못 바꾸고 약 1만 자 검사가 834ms로 느려져 채택하지 않았다. 최종본은 이 목록을 정상 단어 인식에만 사용한다. 이로써 `댓글로` 같은 단어를 미등록으로 띄우지 않으면서 기존 보호 표현 30개에서 변경 추천 0건을 유지한다.
+
+가공 데이터 합산 gzip 1,403,510 bytes: 1MB 목표는 초과하지만 승인된 2MB 상한 이하다. 실제 Mac Worker review.worker-B1a6ZlTO.js gzip 1,384,797 bytes. 비용/엔진 ID는 제거했다. 원문 고지는 검사창과 public/THIRD_PARTY_NOTICES.txt에 포함한다. `node scripts/build-spelling-notices.mjs`는 통합 고지를 재생성하며 원본 LICENSE/Copyright 파일을 바꾸지 않는다. 기존 GPL 자산과 고지는 전체 게이트 통과 전이므로 제거하지 않았다.
+
+Open Korean Text의 typos.txt도 읽었으나 채택하지 않았다. `뭔지`, `걸로` 등 정상 준말을 풀어 쓰는 정규화가 섞여 있어 작성자의 글맛을 보존하는 계약과 맞지 않는다. 외부 검사기 응답이나 엔진 코드는 수록하지 않았다.
+
+검사창은 사전 읽기 실패/Worker 생성 실패를 명시하고, 실패한 Worker에 다시 검사를 보내며 멈추지 않는다. 본문 변경 시 오래된 제안과 건너뛰기 위치를 무효화한다. IME Enter로 적용·건너뛰기가 실행되지 않으며 창을 닫으면 Worker를 종료한다. 기존 사용자 사전을 초기화하지 않는다.
+
+### 현재 수치와 완료 판단
+
+평가 명령: `node scripts/eval-spelling.mjs --engine scripts/spelling-prototype.mjs`. 전문은 spelling-v4-evaluation.txt. 한국어 철자 22/25 검출 및 상위3 추천, 띄어쓰기 35/36 검출 및 추천, 정상/보호 문장 각각 30개 변경 추천 0건. 영어 철자 27/30 검출 및 상위3 추천, 정상/보호 각각 15개 변경 추천 0건. 혼용 철자 10/10 상위3 추천. 모두 재사용한 자체 시험이며 일반 정확도나 독립 평가가 아니다.
+
+새 20문장은 구현 후 고정하고 평가했으나 이후 발견한 오탐(`그걸로`, `충분하잖아요`) 수정에 재사용했다. 최종 전문은 spelling-v4-reused-fresh-evaluation.txt. 한국어 띄어쓰기 5/5, 정상 5개 변경 추천 0, 영어 5/5, 혼용 보호 5개 변경 추천 0. 영어 ticket의 추가 후보 tickle는 잘못된 후보로 계속 집계한다.
+
+**전체 품질 게이트 미통과.** 한국어 철자 22/25는 90% 미만이다. 남은 세 사례는 정상 단어인 금새/문안한/낳으세요가 문맥에서 잘못 쓰인 경우다. 이번 범위의 ‘한국어 철자·띄어쓰기’와 후속 범위의 ‘일반 문맥’ 사이에 시험 계약 충돌이 있다. 문맥 판정을 추가하거나 완료 기준을 바꾸는 결정 없이 시험 분모를 줄이거나 이 실패를 통과로 바꾸지 않는다. 시간 표현 `세시에`도 허용 표기이지만 기존 시험 분모에 그대로 남았다. 자동으로 모든 금새를 금세로 바꾸는 식의 규칙을 추가하지 않는다.
+
+### 실행 증거
+
+* `node --test tests/unit/korean-morphology.test.mjs tests/unit/spelling-evaluator.test.mjs`: 21 passed, 0 failed.
+* `npm test`: 10 files, 142 passed. `/private/tmp/wonboard-v4-unit-final.log`.
+* `npm run build:desktop`, `npm run build:sites`: 타입 검사 포함 exit 0. 큰 청크 경고는 남았다. 로컬 빌드이며 배포가 아니다.
+* 전체 Chromium 최초 38개 중 36 passed, 2 failed. 별도 WhitespaceTool 시험은 현재 UI에 없는 Tidy whitespace 버튼을 기다려 실패했고 변경하지 않았다. 기존 부분 선택 시험은 Hello 대신 Hello world를 선택해 실패했으나 단독 재실행과 이후 전체 실행에서 통과했다. 간헐 실패였다는 기록은 유지한다.
+* 최종 `node node_modules/@playwright/test/cli.js test --project chromium --grep-invert 'whitespace review'`: **38 passed** (34.0s). 제외한 별도 미완성 트랙까지 통과했다는 뜻이 아니다. `/private/tmp/wonboard-v4-regression-final.log`. 맞춤법 자체 10개 시험에는 전체 원문 교정·건너뛰기·새로고침 보존, 손상된 사전, stale 본문, Worker 종료, 모의 IME, ko/en 390px를 포함한다.
+* `/private/tmp/wonboard-v4-desktop-qa.mjs`: 별도 user-data-dir로 Electron 앱 실제 실행. 원문 전체의 세 제안을 바꾸기 버튼으로 적용하고 질게는 건너뛴 뒤 저장, 종료, 같은 데이터 경로로 재실행하여 본문 일치. `passed: true`, URL wonboard://app/, title Wonboard, errors []. 마지막 테스트 데이터 `/private/tmp/wonboard-proofreading-qa-I7Pauv`. 실제 사용자 앱 데이터는 접근하지 않았다.
+* `/private/tmp/wonboard-v4-worker-qa.mjs`: 실제 Electron Chromium Worker에서 1만 자씩 5회. 한국어 85.7/74.3/70.3/69.2/68.8ms, 영어 13.1/8.4/8.1/7.7/7.7ms, 혼용 29.9/27.7/26.8/26.4/25.9ms. 별도 초기화 220.6ms. 메인 스레드 타이머 지연 최대 0.1ms, terminate 호출 반환 0ms(시계 해상도 이내). 타이머 계측은 실제 사람의 입력 지연 측정과 구분한다. 원본 `/private/tmp/wonboard-v4-worker-final.json`.
+* Browser plugin not available: 기존 Playwright 사용. Mac 검사창과 한국어 390px 스크린샷을 호스트에서 base64로 읽어 이미지 도구로 육안 확인했다. 버튼·입력·닫기가 보이고 가로 넘침이 없다. `/private/tmp/wonboard-v4-mac-before.png`, `/private/tmp/wonboard-v4-mac-after.png`, `/private/tmp/wonboard-spelling-ko-390.png`. 영어 390px는 자동 동작/경계 시험 통과, 이번 육안 재확인은 하지 않았다.
+* `git diff --check`: 통합 라이선스 표시본의 원본 줄 끝 공백을 정리한 뒤 exit 0. 원본 라이선스 바이트는 보존했다.
+
+미확인: Windows 실제 실행, OS 한글 입력기의 실제 조합, 외부 문맥 정확도. 모의 IME·Electron QA·재사용 시험 점수를 이들 검증으로 대체하지 않는다. 다음 단계는 위 세 문맥 사례의 완료 계약을 확정한 뒤 해당 게이트 및 기존 엔진 제거를 이어가는 것이다.

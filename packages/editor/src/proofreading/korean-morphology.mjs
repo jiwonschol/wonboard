@@ -1,6 +1,8 @@
 // Original MIT morphology prototype. Lexical data is supplied, never downloaded.
 export function createMorphology(sets,data) {
-  const roots=new Set([...sets.verb,...sets.adjective]);
+  // 말하다 is absent from the supplied stem subset. Treat it as a verb;
+  // unrestricted one-syllable noun + 하 would also invent 나하다.
+  const roots=new Set([...sets.verb,...sets.adjective,'말하']);
   const final=s=>(s.charCodeAt(s.length-1)-0xac00)%28;
   const withFinal=(s,n)=>s.slice(0,-1)+String.fromCharCode(s.charCodeAt(s.length-1)-final(s)+n);
   const forms=new Map();
@@ -53,8 +55,11 @@ export function createMorphology(sets,data) {
   }
   const adverbs=new Set([...sets.adverb,...(data?.adverbs??[])]);
   function isEnding(s){
+    if(['잖아','잖아요','잖니'].includes(s))return true;
     if(sets.ending.has(s))return true;
-    for(let i=1;i<s.length;i++)if(sets.preEnding.has(s.slice(0,i))&&sets.ending.has(s.slice(i)))return true;
+    // The surface inventory includes spoken fragments such as 있 and 싶.
+    // They are not freely attachable pre-endings (이 + 있 + 으면 is invalid).
+    for(let i=1;i<s.length;i++)if(/^(시|으시|았|었|였|겠|더)$/.test(s.slice(0,i))&&sets.ending.has(s.slice(i)))return true;
     return false;
   }
   // Noun + 하다 is checked lazily; do not materialize millions of combinations.
@@ -70,7 +75,11 @@ export function createMorphology(sets,data) {
     }
     return null;
   }
+  const contractedDemonstrative=s=>/^(?:이|그|저|요|새)걸로(?:는|도|만)?$/.test(s)||/^뭘로(?:는|도|만)?$/.test(s);
   function noun(s,personal) {
+    // Rule 33: demonstrative + 것으로 can contract to 걸로, without
+    // becoming a misspelling of a similar-looking dictionary word.
+    if(contractedDemonstrative(s))return {base:s,unknown:false};
     if(personal.has(s)||sets.noun.has(s))return {base:s,unknown:false};
     for(let i=1;i<s.length;i++)if(s.slice(i).startsWith('들')&&(!s.slice(i+1)||sets.josa.has(s.slice(i+1)))&&(sets.noun.has(s.slice(0,i))||personal.has(s.slice(0,i))))return {base:s.slice(0,i),unknown:false};
     // Longest particle first, to avoid treating a piece of the particle as a noun.
@@ -92,15 +101,17 @@ export function createMorphology(sets,data) {
     const p=predicate(s);if(p)return {...p,kind:'predicate',cost:.8};
     if(adverbs.has(s))return {kind:'adverb',cost:1};
     // Preserve a permitted auxiliary spelling; do not recommend optional spaces.
-    for(const tail of ['주세요','주다','줬어요','보세요','보다','봤어요'])if(s.endsWith(tail)){
-      const left=s.slice(0,-tail.length),p=predicate(left);
-      if(p&&/[아어해]$/.test(left)&&left.length<=2)return {kind:'predicate',cost:.8,root:p.root};
+    for(let i=1;i<=2&&i<s.length;i++){
+      const left=s.slice(0,i),p=predicate(left),aux=predicate(s.slice(i));
+      const contractedVowel=final(left)===0&&[6,9,14,10].includes(Math.floor((left.charCodeAt(left.length-1)-0xac00)%588/28));
+      if(p&&(/[아어해]$/.test(left)||contractedVowel)&&aux&&['주','보'].includes(aux.root))return {kind:'predicate',cost:.8,root:p.root};
     }
     const u=unknown&&unknownNoun(s);return u?{...u,kind:'noun',cost:2.5}:null;
   }
   function dependent(s) {
+    if(contractedDemonstrative(s))return null;
     // Surface -걸 is also an ending. Return a review candidate, not a certainty.
-    for(const dep of ['것을','것이','것은','것','걸','수','때','뿐']) {
+    for(const dep of ['것을','것이','것은','걸로','걸로는','걸로도','일이','일을','일은','것','걸','수','때','뿐']) {
       if(!s.endsWith(dep))continue;
       const left=s.slice(0,-dep.length),p=predicate(left);
       if(p?.adnominal)return {text:left+' '+dep,ambiguous:dep==='걸',rule:'42'};
@@ -132,7 +143,7 @@ export function createMorphology(sets,data) {
     const result=best.at(-1);
     // Adjacent dictionary nouns may be one name/compound. Without a predicate
     // or adverb boundary, do not recommend splitting an unknown proper name.
-    if(result&&result.parts.every(p=>analyze(p,personal,true)?.kind==='noun'&&!adverbs.has(p)&&!predicate(p)?.adnominal))return null;
+    if(result&&result.parts.every(p=>analyze(p,personal,true)?.kind==='noun'&&!adverbs.has(p)&&!predicate(p)?.adnominal)&&!predicate(result.parts.at(-1)))return null;
     return result&&result.parts.length>1?{text:result.parts.join(' '),ambiguous:result.unknowns.length>0||result.parts.some(p=>p.endsWith(' 걸')),rule:'41/42',unknowns:result.unknowns}:null;
   }
   return {analyze,predicate,spacing,unknownNoun};
