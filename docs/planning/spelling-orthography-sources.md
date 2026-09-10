@@ -1,5 +1,11 @@
 # 표기 규칙 출처 / 2026-09-10
 
+## 제한된 혼동어 문맥 후보 — 추가 승인 범위
+
+2026-09-10 공식 출처 재확인: [국립국어원 금새/금세 설명](https://www.korean.go.kr/nkview/news_pdf/2023_9%282%29.pdf), [무난하다 표제어](https://krdict.korean.go.kr/eng/dicSearch/SearchView?ParaWordNo=57814&nation=eng), [낫다/낳다 설명](https://www.korean.go.kr/nkview/news_pdf/2022_1.pdf). 표기와 의미 차이만 확인했으며 정의·예문·외부 검사 결과를 데이터로 복사하지 않았다.
+
+자체 구현은 주변 술어, 뒤따르는 대상 명사, 회복/출산 단서로 후보를 제한한다. 이 단서 선택은 공식 규칙이 아닌 Wonboard의 휴리스틱이다. 모든 결과는 ambiguous=true인 검토 후보이며 사용자의 바꾸기 동작이 있어야 적용된다. 48자 주변과 같은 문단만 보고, 인용된 표제어·정상 물건값/문안 인사/출산 표현·사용자 사전 항목을 보호한다. 임의 문맥 전체를 판정한다고 보장하지 않는다. 직접 작성한 긍정·부정 예제는 시험지이자 회귀 자료로 쓰이며 독립 평가가 아니다.
+
 * 보조 용언 붙임 허용: [국립국어원 제47항 상담](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&qna_seq=308411). 활용형이 두 음절인 경우 붙임이 허용됨을 확인했다. `알려주려고`처럼 축약 모음이 있는 활용도 불필요하게 띄우지 않는다. `-잖아요`는 [국립국어원 분석 지침](https://korean.go.kr/common/download.do?c_file_name=35c6ff74-7598-438d-ab4c-a7d91a5908d9.pdf&file_path=reportData)의 종결 어미 분석을 확인하고 정상 표현을 보존한다. 해당 말뭉치나 설명을 데이터로 수록하지 않는다.
 
 * 대물림: [한국어기초사전 표제어](https://krdict.korean.go.kr/m/eng/searchResultView?ParaWordNo=58141&currentPage=27&exaType=&font_size=12&mainSearchWord=%EB%8C%80&nation=eng&nationCode=6&proverbType=&searchType=W&sort=W&viewType=A&wordMatchFlag=N). 이어 물려준다는 뜻의 명사 표기만 확인했다. `되물림` 뒤의 조사/되- 활용형에 의미 확인이 필요한 후보를 제공한다. 사전의 정의·예문은 수록하지 않는다.

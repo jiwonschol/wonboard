@@ -2,6 +2,7 @@
 // No network access; dictionaries are supplied by the caller.
 import {createMorphology} from './korean-morphology.mjs';
 import {orthography} from './korean-orthography.mjs';
+import {contextSuggestion} from './korean-context.mjs';
 export function createChecker(data) {
   const sets=Object.fromEntries(Object.entries(data.ko).map(([k,v])=>[k,new Set(v)]));
   const morphology=createMorphology(sets,data.morphology);
@@ -12,6 +13,8 @@ export function createChecker(data) {
   const recognizedNoun=word=>recognizedNouns.has(word)||particles.some(p=>word.endsWith(p)&&recognizedNouns.has(word.slice(0,-p.length)));
   const english=new Set(data.en);
   const enLower=new Set(data.en.filter(w=>w===w.toLowerCase()));
+  const englishByLength=new Map();
+  for(const word of enLower){const key=word.slice(0,3)+':'+word.length;const bucket=englishByLength.get(key)||[];bucket.push(word);englishByLength.set(key,bucket);}
   const koWords=[...new Set([...sets.noun,...sets.adverb,...(data.morphology?.adverbs??[]),...(data.morphology?.forms??[]).filter(([,tag])=>['EF','EC','ETM','ETN'].includes(tag)).map(([word])=>word)])];
   const koByLength=new Map();
   for(const word of koWords){const bucket=koByLength.get(word.length)||[];bucket.push([word,word.normalize('NFD')]);koByLength.set(word.length,bucket);}
@@ -30,13 +33,35 @@ export function createChecker(data) {
       if(i+1<lower.length)add(lower.slice(0,i)+lower[i+1]+lower[i]+lower.slice(i+2));
       for(const c of alphabet){add(lower.slice(0,i)+c+lower.slice(i));if(i<lower.length)add(lower.slice(0,i)+c+lower.slice(i+1));}
     }
+    // Recover compound typos only when a one-edit candidate does not exist.
+    // Keep the search bounded and preserve the initial letter for names.
+    if(!candidates.size&&lower.length>=6&&lower.length<=32&&/^[a-z]+$/.test(lower)){
+      const distanceTwo=(a,b)=>{
+        let previous=Array.from({length:b.length+1},(_,i)=>i),before;
+        for(let i=1;i<=a.length;i++){
+          const row=[i];let minimum=i;
+          for(let j=1;j<=b.length;j++){
+            row[j]=Math.min(previous[j]+1,row[j-1]+1,previous[j-1]+Number(a[i-1]!==b[j-1]));
+            if(i>1&&j>1&&a[i-1]===b[j-2]&&a[i-2]===b[j-1])row[j]=Math.min(row[j],before[j-2]+1);
+            minimum=Math.min(minimum,row[j]);
+          }
+          if(minimum>2)return false;
+          before=previous;previous=row;
+        }
+        return previous[b.length]<=2;
+      };
+      for(let length=lower.length-2;length<=lower.length+2;length++)for(const candidate of englishByLength.get(lower.slice(0,3)+':'+length)||[]){
+        if(candidate[0]===lower[0]&&distanceTwo(lower,candidate))candidates.add(candidate);
+      }
+    }
     const transpositions=new Set(),doubled=new Set();
     for(let i=0;i+1<lower.length;i++)transpositions.add(lower.slice(0,i)+lower[i+1]+lower[i]+lower.slice(i+2));
     for(let i=0;i<lower.length;i++){
       doubled.add(lower.slice(0,i)+lower[i]+lower.slice(i));
       if(lower[i]===lower[i+1])doubled.add(lower.slice(0,i)+lower.slice(i+1));
     }
-    return [...candidates].filter(s=>!(/^[A-Z]/.test(word)&&word.length>3)||s[0]===lower[0]).sort((a,b)=>Number(transpositions.has(b))-Number(transpositions.has(a))||Number(doubled.has(b))-Number(doubled.has(a))||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
+    const suffixScore=s=>['ly','ing','ed'].some(ending=>lower.endsWith(ending)&&s.endsWith(ending))?1:0;
+    return [...candidates].filter(s=>!(/^[A-Z]/.test(word)&&word.length>3)||s[0]===lower[0]).sort((a,b)=>Number(transpositions.has(b))-Number(transpositions.has(a))||Number(doubled.has(b))-Number(doubled.has(a))||suffixScore(b)-suffixScore(a)||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
   }
   function koreanSuggestions(word) {
     const suggestions=[];
@@ -54,9 +79,15 @@ export function createChecker(data) {
     const personal=new Set(words),results=[];
     const excluded=[...text.matchAll(/https?:\/\/[^\s]+|`[^`]*`|\b[A-Za-z0-9_-]+\.(?:md|txt|png|jpe?g|gif|webp|pdf|json|tsx?|jsx?|html|css|zip)\b|\b(?:Ctrl|Control|Alt|Option|Shift|Cmd|Command|Meta)(?:\+[A-Za-z0-9]+)+/g)].map(m=>[m.index,m.index+m[0].length]);
     function emit(from,to,language,type,suggestions,base) {results.push({from,to,original:text.slice(from,to),language,type,suggestions,base,applicable:suggestions.length>0,reason:type==='unknown'?'Not in the selected vocabulary':'Prototype lexical candidate; rule source not yet verified'});}
-    for(const m of text.matchAll(/[A-Za-z]+(?:['’-][A-Za-z]+)*|[가-힣]+/g)) {
+    for(const m of text.matchAll(/[A-Za-z]+(?:['’-][A-Za-z]+)*|[가-힣ㄱ-ㅎㅏ-ㅣ]+/g)) {
       const word=m[0],from=m.index,to=from+word.length;
       if(excluded.some(([a,b])=>from<b&&to>a)||/[0-9_]/.test(text[from-1]||'')||/[0-9_]/.test(text[to]||''))continue;
+      // Internet shorthand is reviewable, not automatically standard spelling.
+      // Do not invent an expansion; explicit personal entries remain respected.
+      if(/[ㄱ-ㅎㅏ-ㅣ]/.test(word)){
+        if(!personal.has(word))emit(from,to,'ko','unknown',[],word);
+        continue;
+      }
       if(word.length>64){emit(from,to,/^[A-Za-z]/.test(word)?'en':'ko','unknown',[],word);results.at(-1).reason='Prototype cannot analyze an unbroken span longer than 64 characters';continue;}
       if(/^[A-Za-z]/.test(word)) {
         if(personal.has(word)||english.has(word)||enLower.has(word.toLowerCase())||english.has(word.replace(/['’]s$/,'')))continue;
@@ -73,7 +104,7 @@ export function createChecker(data) {
             }
           }
         }
-        const rule=orthography(word,sets,personal);
+        const rule=orthography(word,sets,personal)??contextSuggestion(text,from,to,personal,w=>Boolean(morphology.predicate(w)));
         if(rule){emit(from,to,'ko','spelling',rule.suggestions,word);Object.assign(results.at(-1),rule);continue;}
         // A trailing Korean particle on an English word is not a separate error.
         if(/[A-Za-z]/.test(text[from-1]||'')&&(sets.josa.has(word)||sets.ending.has(word)||morphology.predicate(word)))continue;

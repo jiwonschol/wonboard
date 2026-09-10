@@ -1,5 +1,33 @@
 import { test, expect } from "./fixtures";
 
+test("context suggestions require Change and survive save, reload and undo", async ({ page }) => {
+  await page.goto("/");
+  const body = page.getByRole("textbox", { name: "Document body", exact: true });
+  const source = "계획을 금새 바꿨어요. 이 옷은 문안한 색이에요. 빨리 낳으세요. 감기가 심하네요.";
+  await body.fill(source);
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  for (const suggestion of ["금세", "무난한", "나으세요"]) {
+    const before = await body.textContent();
+    await expect(dialog.getByRole("button", { name: suggestion, exact: true })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Skip once", exact: true })).toBeFocused();
+    await dialog.getByRole("button", { name: suggestion, exact: true }).click();
+    await expect(body).toHaveText(before!);
+    await dialog.getByRole("button", { name: "Change", exact: true }).click();
+  }
+  await expect(dialog).toContainText("Spelling review complete.");
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  const expected = "계획을 금세 바꿨어요. 이 옷은 무난한 색이에요. 빨리 나으세요. 감기가 심하네요.";
+  await expect(body).toHaveText(expected);
+  await body.press("ControlOrMeta+z");
+  await expect(body).toHaveText(expected.replace("나으세요", "낳으세요"));
+  await body.press("ControlOrMeta+Shift+z");
+  await expect(body).toHaveText(expected);
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await page.reload();
+  await expect(body).toHaveText(expected);
+});
+
 test("Korean spelling applies only chosen words and persists personal exceptions", async ({ page }) => {
   page.on("console", message => { if (message.type() === "error") console.log(message.text()); });
   await page.goto("/");

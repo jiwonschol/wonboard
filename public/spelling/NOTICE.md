@@ -8,13 +8,8 @@ The current review Worker uses original Wonboard checking code and selected Open
 
 Korean spelling and spacing and English spelling are processed on the device. Drafts are not sent to a checking service. Personal words are stored on this device; supported Korean particles are recognized separately. General grammar and contextual correctness are not guaranteed.
 
-## Retained legacy resources
+## Historical releases
 
-These resources remain in the build pending replacement qualification. They are not used as a hidden fallback by the current review Worker. Their existing license obligations remain applicable.
+The legacy Hunspell implementation, its patches and Korean GPL dictionary are no longer shipped. There is no hidden fallback. Historical source and license notices remain in Git history at revision 6ff8520f9d718ea18d90baef6992d0713d4332e8 under public/spelling. This change does not remove obligations for past distributions.
 
-- Korean dictionary: hunspell-dict-ko 0.7.94, https://github.com/spellcheck-ko/hunspell-dict-ko/releases/tag/0.7.94 . Unmodified ko.aff and ko.dic; GPLv3. License and source information: ko/LICENSE.md and ko/LICENSE.GPL-3. Corresponding source: https://github.com/spellcheck-ko/hunspell-dict-ko/tree/0.7.94 .
-- hunspell-asm 4.0.2 wrapper: MIT, https://github.com/kwonoj/hunspell-asm . Local pnpm patch corrects the runtime ESM import and uses Web Crypto for temporary filesystem names. License: engine/hunspell-asm-LICENSE.
-- Bundled Hunspell engine: MPL 1.1 / LGPL 2.1 / GPL tri-license, using MPL 1.1 terms. License: engine/COPYING.MPL. Upstream source and build instructions: https://github.com/kwonoj/hunspell-asm/blob/master/bootstrap.ts and https://github.com/hunspell/hunspell . The package records engine revision c06cd95-210713. No engine binary modifications.
-- emscripten-wasm-loader 3.0.3: package metadata declares MIT, author OJ Kwon; https://github.com/kwonoj/emscripten-wasm-loader . Local pnpm patch uses Web Crypto for temporary filesystem names. Upstream package does not include a standalone license file; retain its package metadata and source attribution. Verify distribution notices before a public service release.
-
-The legacy implementation checked Korean only. Its behavior description does not describe the experimental bilingual review above.
+Historical component versions: hunspell-dict-ko 0.7.94 (GPLv3), hunspell-asm 4.0.2 wrapper (MIT), bundled Hunspell engine (MPL 1.1 option), emscripten-wasm-loader 3.0.3 (MIT metadata). Their detailed notices and source links are preserved in the historical revision, not silently relicensed as Wonboard code.

@@ -2,6 +2,16 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('jamo shorthand requires review until explicitly registered',()=>{
+  for(const word of ['ㅋㅋ','ㅎㅎ','ㄱㄱ','ㅇㅇ']){
+    const findings=check(word);assert.equal(findings.length,1);
+    assert.equal(findings[0].type,'unknown');assert.deepEqual(findings[0].suggestions,[]);
+    assert.equal(check(word,[word]).length,0);
+  }
+  assert.equal(check('`ㅋㅋ`').length,0);
+  const finding=check('😀 ㅋㅋ')[0];assert.equal(finding.from,3);assert.equal(finding.to,5);
+});
+
 test('unknown noun remains intact while surrounding spacing is suggested',()=>{
   const source='질게에서답변하시는걸';
   for(const personal of [[],['질게'],[]])assert.ok(check(source,personal).some(f=>f.suggestions.includes('질게에서 답변하시는 걸')));
@@ -47,6 +57,13 @@ test('English alternatives and case-preserving names survive extraction',()=>{
   for(const text of ['The road was quiet.','We travelled yesterday.','Wonboard supports writing.'])assert.equal(check(text).filter(f=>f.suggestions.length).length,0,text);
   assert.ok(check('Recieve').some(f=>f.suggestions.includes('Receive')));
   for(const [word,target] of [['writting','writing'],['buton','button'],['conection','connection']])assert.equal(check(word)[0].suggestions[0],target);
+});
+test('compound English typos yield bounded candidates without replacing registered words',()=>{
+  assert.equal(check("Jiwon's document is ready.").filter(f=>f.suggestions.length).length,0);
+  for(const [source,target] of [['tommorow','tomorrow'],['accidently','accidentally']]){
+    assert.ok(check(source).some(f=>f.suggestions.includes(target)));
+    assert.deepEqual(check(source,[source]),[]);
+  }
 });
 test('pathological unbroken text reports an explicit analysis limitation',()=>{
   const f=check('가'.repeat(10000));assert.equal(f.length,1);assert.match(f[0].reason,/64/);assert.equal(f[0].applicable,false);

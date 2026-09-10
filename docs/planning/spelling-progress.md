@@ -224,3 +224,56 @@ Open Korean Text의 typos.txt도 읽었으나 채택하지 않았다. `뭔지`, 
 * `git diff --check`: 통합 라이선스 표시본의 원본 줄 끝 공백을 정리한 뒤 exit 0. 원본 라이선스 바이트는 보존했다.
 
 미확인: Windows 실제 실행, OS 한글 입력기의 실제 조합, 외부 문맥 정확도. 모의 IME·Electron QA·재사용 시험 점수를 이들 검증으로 대체하지 않는다. 다음 단계는 위 세 문맥 사례의 완료 계약을 확정한 뒤 해당 게이트 및 기존 엔진 제거를 이어가는 것이다.
+
+## 2026-09-10 — 로컬 말뭉치 검증과 사용자 사전 평가
+
+지원이 계획 범위의 작업은 재승인 없이 진행하도록 확인했다. 원문 말뭉치는 local-corpora 아래 비공개 로컬 자료로만 유지한다. 검증기에 사례별 personal 배열과 유형별 missed 집계를 추가했다. 실제 사용자 사전에는 접근하지 않는다.
+
+직접 작성한 12개 정책 회귀 사례에서 미등록 안내 6/6, 등록 후 불필요한 안내 0, 등록된 약칭 주변 띄어쓰기 추천 1/1, 잘못된 추천 0을 확인했다. 이는 독립 정확도 시험이 아니다. 최초 실행은 시험에 적은 문자열 끝 위치가 1자 길어 주석 검증에서 실패했고, 실제 10자로 정정했다. 판정기를 완화하지 않았다.
+
+실행: node --test tests/unit/corpus-validator.test.mjs tests/unit/corpus-boundary.test.mjs tests/unit/korean-morphology.test.mjs tests/unit/spelling-evaluator.test.mjs — 28 passed, 0 failed. npm run typecheck 및 git diff --check exit 0.
+
+기존 200개 평가를 재실행했다(node scripts/eval-spelling.mjs --engine scripts/spelling-prototype.mjs). 한국어 철자 22/25, 띄어쓰기 35/36, 정상/보호 문장 잘못된 교체 각 0건으로 기존 결과와 동일하다. 전체 품질 게이트는 여전히 미통과다. 미사용 원문 holdout은 실행하지 않았다. 배포·원격 push·기존 엔진 제거는 수행하지 않았다.
+
+## 2026-09-10 — 복합 영어 오타 후보와 성능 검증
+
+후보가 없던 두 글자 편집 오류에 자체 거리 계산을 추가했다. 런타임 의존성·어휘 데이터 추가 없이 기존 영어 어휘만 검색한다. 한 글자 수정 후보가 없는 6~32자 알파벳 입력에만 적용하고, 앞 세 글자가 같은 어휘 인덱스로 탐색한다. apostrophe가 포함된 이름 소유격은 확장 탐색에서 제외한다. 검사 결과 캐시는 추가하지 않았다. ly/ing/ed 어미 보존을 후보 순위에 반영한다.
+
+실패와 개선: 최초 일반 탐색은 이름 소유격에 잘못된 후보 1건, 1만 자 반복 오타에 약 3초로 실패했다. 최종본은 보호 표현의 잘못된 추천 0건을 회복했다. 1만 자씩 워밍 후 5회: tommorow 76.63~78.12ms, accidently 197.36~201.37ms, 미등록 반복 문자열 51.75~53.03ms. Node 실행 수치이며 브라우저 입력 지연으로 표현하지 않는다.
+
+고정 200개 평가: 영어 철자 검출/첫 후보/상위3 29/30으로 이전 27/30에서 개선. 정상 영어 15개, 보호 영어 15개 잘못된 추천 0건. 오류 문장 내 부정확한 추가 후보는 11개로 증가했으며 숨기지 않는다. 한국어는 철자 22/25, 띄어쓰기 35/36으로 동일하다. 기존 공개 시험을 재사용했다.
+
+npm test 142 passed, Node 관련 시험 29 passed, 타입 검사 통과. Chromium 맞춤법 시험 10/10 통과(인덱스 최적화 전); 최종 인덱스 변경 후 관련 Node 23개와 build:sites 및 diff 검사 통과. Browser plugin not available: 기존 Playwright를 사용했다. 실제 바꾸기·사전·IME 모의·stale·Worker 종료·390px ko/en 경로를 검사했으며 이번에 별도 육안 스크린샷 검사는 하지 않았다. 로컬 빌드는 배포가 아니다.
+
+남은 핵심 충돌: 계획은 일반 문맥 판단을 후속 범위로 두었지만 철자 시험에는 정상 단어 금새/문안한/낳으세요의 문맥 오류가 포함되어 있다. 이를 무조건 오자로 치환하거나 시험 분모를 줄이지 않았다. 전체 완료 및 기존 엔진 제거는 여전히 승인된 게이트를 만족하지 못한다.
+
+## 2026-09-10 — 승인된 제한 문맥 구현과 구 검사기 제거
+
+지원이 혼동어 문맥 후보 범위와 재승인 없는 실행을 승인했다. korean-context.mjs는 금새/금세, 문안/무난, 낳다/낫다를 48자 주변의 제한된 단서로 검토한다. ambiguous=true로만 제시하고 사용자 사전이 우선한다. 인용·출산·문안 인사 반례를 보강했다. 최초 반례에서 코드로 인용된 감기와 문안한 결과에 후보가 생겼고 이를 수정했다. 공식 의미 출처와 휴리스틱의 구분은 spelling-orthography-sources.md에 기록했다.
+
+### 고정 평가와 원자료 검증
+
+`node scripts/eval-spelling.mjs --engine scripts/spelling-prototype.mjs` 전문: spelling-v5-evaluation.txt. 한국어 철자 25/25, 띄어쓰기 35/36 검출 및 상위3; 영어 철자 29/30; 혼용 상위3 10/10. 정상/보호 세트의 잘못된 변경 추천은 한국어·영어 각각 0건이다. 오류 문장 내 불필요한 추가 후보(한국어 1개, 영어 11개, 혼용 6개)는 남아 있으며 숨기지 않았다. 기존 시험을 재사용했으므로 일반 정확도나 독립 검증이 아니다. 세시에의 허용 붙임과 calender의 정상 단어 중의성 때문에 남은 사례를 임의 변경하지 않았다.
+
+별도 fresh-v4 20문장은 재사용하여 한국어 띄어쓰기 5/5, 영어 철자 5/5, 정상/혼용 보호 변경 추천 0건을 확인했다. ticket의 추가 후보는 계속 잘못된 후보로 계수된다.
+
+`validate-corpus.mjs --documents 100 --split development --output context-development.json`은 20,670개 발화, `--split holdout --output context-holdout.json`은 처음 남겨 둔 18,242개 발화를 검사했다. 구조/실행 오류 0건. 원문은 출력·공개하지 않았고 모든 결과는 local-corpora/reports에만 있다. 두 모드 모두 정답 주석이 없어 정확도는 null이다. 이번 실행 후 이 표본은 미사용 홀드아웃이라고 부르지 않는다.
+
+### 실행과 화면
+
+- Node 관련 32개, Vitest 142개, 타입 검사 통과.
+- Chromium 전체 관련 39/39 통과. 별도 미완성 whitespace review 트랙만 제외했다. 새 시험은 문맥 후보 선택 시 미적용, 명시적 바꾸기, undo/redo, 저장/새로고침을 검증한다.
+- Mac은 첫 시험에서 localStorage를 직접 바꾸는 설정 경로가 반영되지 않아 입력란 탐색에 실패했다. 이어 버튼이라고 가정한 시험도 실패했다. 소스에서 실제 select를 확인하고 selectOption('en')로 정상 사용자 경로를 실행해 통과했다. 앱 코드를 이 시험에 맞춰 수정하지 않았다.
+- `/private/tmp/wonboard-context-mac-qa.mjs`: 별도 임시 사용자 데이터로 세 후보를 적용하고 저장·종료·재실행 후 본문 일치, passed=true, page errors=[]; 최종 데이터 /private/tmp/wonboard-context-mac-6GOjql. 실제 사용자 데이터·설치된 앱은 교체하지 않았다.
+- Mac 검사창 스크린샷 /private/tmp/wonboard-context-mac-review.png를 육안 확인했다. 본문 문맥·후보·바꾸기·건너뛰기·닫기 표시와 창 내부 배치가 보였다. ko/en 390px는 Chromium의 bbox/가로 넘침 및 실제 적용 시험으로 검증했다. Browser plugin not available: 기존 Playwright 사용.
+- 실제 Mac Worker 1만 자 5회: 한국어 73.8~90.3ms, 영어 7.6~14.2ms, 혼용 63.8~68.6ms. 초기 응답 273.3ms, 메인 스레드 타이머 지연 최대 0.1ms, terminate 반환 0ms(시계 해상도 이내). 사람의 실제 입력 반응 측정과 구분한다.
+
+### 레거시 제거와 복구
+
+사용처 조사에서 활성 진입점은 proofreading/review.worker.ts 하나였다. 미사용 spelling.worker.ts, hunspell-asm, emscripten 전용 패치와 의존성, GPL ko.aff/ko.dic 및 구 엔진 배포 고지를 작업 트리에서 제거했다. 과거 상세 고지는 Git 6ff8520f9d718ea18d90baef6992d0713d4332e8에 보존되어 있고 현재 NOTICE가 그 위치를 안내한다. 제거 파일은 /private/tmp/wonboard-legacy-backup-5d8BPp에도 보관했다. 과거 의무 소멸이나 앱 전체 라이선스에 관한 법률 판단으로 표현하지 않는다.
+
+잠금 갱신은 65줄 삭제만 있었고 새 버전 추가는 없다. 설치는 비대화형 옵션 부재로 한 번, 오프라인 tarball 부재로 한 번 실패한 뒤 CI=true pnpm install --ignore-scripts --frozen-lockfile로 지정 버전 그대로 복구했다. Electron 실행 파일은 해당 버전의 install.js로 복원했다.
+
+빈 /private/tmp/wonboard-clean-build-q0ko22에 Sites client/server 빌드 성공. 파일 2,018개 검사에서 구 사전·WASM·local-corpora 경로 0개. review Worker gzip 1,386,369 bytes로 1MB 목표는 넘지만 2MB 상한 이하다. 구 사전 제거 후 Mac 빌드와 39개 Chromium 시험을 다시 통과했다.
+
+남은 한계: 일반 문맥 전체·영어 문법·독립 한국어 정확도·Windows 실제 실행·OS IME의 직접 입력은 보장하지 않는다. 로컬 검증 결과이며 Sites 배포·PR·main 변경은 하지 않았다. 별도 WhitespaceTool와 style/locales의 기존 변경은 보존하고 이번 커밋에서 제외한다.
