@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "independent": false,
   "annotation": "Own examples fixed before engine implementation. Brackets mark the expected error range; replacements are allowed alternatives. Unverified rule references stay in the denominator. Holdout is author-separated, not blind independent evaluation.",
   "groups": [
@@ -30,7 +30,10 @@
       ["[뒤치닥거리]를 했어요.","뒤치다꺼리"],
       ["[곰곰히] 생각했어요.","곰곰이"]
     ]},
-    {"language":"ko","type":"spacing","holdout":12,"basis":"spacing-unverified","rows":[
+    {"language":"ko","type":"optional","holdout":1,"basis":"NIKL rule 43, qna_seq=335096: clock readings permit joined units; reclassified from ko-spacing-9, not a detector improvement","rows":[
+      ["회의는 [세시]에 시작해요.","세 시"]
+    ]},
+    {"language":"ko","type":"spacing","holdout":11,"basis":"spacing-unverified","rows":[
       ["오늘 [학교에갔어요].","학교에 갔어요"],
       ["우리는 [함께책을] 읽어요.","함께 책을"],
       ["그림을 [그릴수] 있어요.","그릴 수"],
@@ -39,7 +42,6 @@
       ["문을 [열고있어요].","열고 있어요"],
       ["[누구나할] 수 있는 일이에요.","누구나 할"],
       ["[나는오늘] 쉬어요.","나는 오늘"],
-      ["회의는 [세시]에 시작해요.","세 시"],
       ["사과 [두개]를 샀어요.","두 개"],
       ["[한번더] 확인해요.","한 번 더"],
       ["여기 [앉아도되나요]?","앉아도 되나요"],

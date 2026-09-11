@@ -9,7 +9,8 @@ import { replaceSpelling, spellingSegments } from "./proofreading/document";
 import type { Finding } from "./proofreading/engine.mjs";
 import oktLicense from "../../../third_party/spelling/open-korean-text/LICENSE?raw";
 import morphologyLicense from "../../../third_party/spelling/mecab-ko-dic/COPYING?raw";
-import englishLicense from "../../../third_party/spelling/scowl/Copyright?raw";
+import englishLicense from "../../../third_party/spelling/wordnik/LICENSE?raw";
+import ownLicense from "../../../LICENSE?raw";
 import "./spelling.css";
 
 export function SpellcheckTool({ editor, locale, disabled }: { editor: Editor; locale: Locale; disabled: boolean }) {
@@ -109,15 +110,15 @@ function SpellingReview({ editor, locale, close }: { editor: Editor; locale: Loc
         <button ref={skipButton} type="button" onClick={next}>{ko ? "이번만 건너뛰기" : "Skip once"}</button>
         <button type="button" onClick={() => setIgnored(value => [...value, current.original])}>{ko ? "이번 검사에서 무시" : "Ignore this check"}</button>
       </div>
-      {current.type === "unknown" && <DictionaryEntry key={`dictionary:${current.from}:${current.original}`} initial={current.base ?? current.original} ko={ko} disabled={stale} add={word => save([...new Set([...personal, word])])} />}
+      {current.type !== "spacing" && <DictionaryEntry key={`dictionary:${current.from}:${current.original}`} initial={current.type === "unknown" ? current.base ?? current.original : current.original} ko={ko} disabled={stale} add={word => save([...new Set([...personal, word])])} />}
     </section> : <p role="status" className="spelling-complete">{ko ? "철자 검사를 마쳤습니다. 추가 제안이 없더라도 띄어쓰기와 문맥은 직접 확인해 주세요." : "Spelling review complete. Even with no further suggestions, please review spacing and context yourself."}</p>}
     <details><summary>{ko ? "사용자 사전" : "Personal dictionary"} ({personal.length})</summary>
       <p>{ko ? "이 기기에 저장됩니다. 기본 단어와 지원하는 조사 결합을 인식하며 주변 띄어쓰기는 계속 검사합니다." : "Saved on this device. Recognizes base words and supported Korean particles; surrounding spacing is still checked."}</p>
       {personal.map(word => <div key={word}>{word} <button type="button" onClick={() => save(personal.filter(item => item !== word))}>{ko ? "삭제" : "Remove"}</button></div>)}
     </details>
     <details><summary>{ko ? "사전 출처와 라이선스" : "Dictionary sources and licenses"}</summary>
-      <p>Open Korean Text · MeCab Ko Dic (data only) · SCOWL/ESDB. Wonboard generated subsets; original notices retained.</p>
-      <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{oktLicense}{"\n"}{morphologyLicense}{"\n"}{englishLicense}</pre>
+      <p>Open Korean Text · MeCab Ko Dic (data only) · Wordnik · Wonboard basic forms. Apache-2.0 / MIT; original notices retained.</p>
+      <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{oktLicense}{"\n"}{morphologyLicense}{"\n"}{englishLicense}{"\n"}{ownLicense}</pre>
     </details>
     <button type="button" onClick={close}>{ko ? "닫기" : "Close"}</button>
   </dialog>;

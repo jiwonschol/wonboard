@@ -2,8 +2,8 @@
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {gzipSync} from 'node:zlib';
 import {createHash} from 'node:crypto';
+import {stageWordnikCandidate} from './stage-wordnik-candidate.mjs';
 await readFile('third_party/spelling/open-korean-text/LICENSE');
-await readFile('third_party/spelling/scowl/Copyright');
 const sources=[];
 async function get(repo,rev,path) {
   const url=`https://raw.githubusercontent.com/${repo}/${rev}/${path}`;
@@ -17,21 +17,17 @@ for(const [pos,path] of Object.entries({noun:'noun/nouns.txt',adverb:'adverb/adv
   const raw=await get('open-korean-text/open-korean-text','74cc4ae7d3dab232747cd5ddb723e4b73c476e4f',`src/main/resources/org/openkoreantext/processor/util/${path}`);
   ko[pos]=[...new Set(raw.split(/\r?\n/).map(s=>s.trim()).filter(s=>/^[가-힣]+$/.test(s)))].sort();
 }
-const raw=await get('en-wl/wordlist','1e5b7d3a72f47a71da5d28686c1dd4b397178485','data/scowl-pre.txt');
-const en=new Set();
-// Union US/UK variants, size <=60 lines. Omit annotations and phrases.
-for(const line of raw.split('\n')) {
-  if(!/^\d/.test(line)||Number.parseInt(line)>60)continue;
-  const lexical=line.slice(line.indexOf(':')+1).replace(/<[^>]*>/g,'').replace(/(^|[|(])\s*(?:[A-Z]+|@)\s*:/g,'$1');
-  for(const item of lexical.split(/[,|():]/)) {
-    const word=item.trim();if(/^[A-Za-z]+(?:['’-][A-Za-z]+)*$/.test(word))en.add(word);
-  }
-}
-const payload=JSON.stringify({notice:'Modified by Wonboard: selected lists, filtered fields, deduplicated and sorted. Original licenses in third_party/spelling.',ko,en:[...en].sort()})+'\n';
+const english=await stageWordnikCandidate();
+const {en}=JSON.parse(await readFile(english.directory+'/english-with-basics.json'));
+sources.push(...english.sources);
+const payload=JSON.stringify({notice:'Modified by Wonboard: selected Open Korean Text lists (Apache-2.0), Wordnik wordlist (MIT), and original basic forms (MIT). Original licenses in third_party/spelling.',ko,en})+'\n';
 const gzipBytes=gzipSync(payload).length;
-if(gzipBytes>2_000_000)throw Error(`Data hard cap exceeded: ${gzipBytes}`);
+const combinedGzipBytes=gzipBytes+gzipSync(await readFile('third_party/spelling/generated/morphology.json')).length;
+if(combinedGzipBytes>2_000_000)throw Error(`Data hard cap exceeded: ${combinedGzipBytes}`);
 await mkdir('third_party/spelling/generated',{recursive:true});
+await mkdir('third_party/spelling/wordnik',{recursive:true});
+await writeFile('third_party/spelling/wordnik/LICENSE',await readFile(english.directory+'/LICENSE'));
 await writeFile('third_party/spelling/generated/lexicon.json',payload);
-const manifest={acquired:new Date().toISOString(),sources,bytes:Buffer.byteLength(payload),gzipBytes,koCounts:Object.fromEntries(Object.entries(ko).map(([p,v])=>[p,v.length])),englishWords:en.size,limitations:'Prototype extraction, not upstream speller generation. Parenthesized alternatives and dialect labels are handled; unsupported markup and phrases are omitted. Proper names are not lowercased.'};
+const manifest={acquired:new Date().toISOString(),sources,bytes:Buffer.byteLength(payload),gzipBytes,combinedGzipBytes,sha256:createHash('sha256').update(payload).digest('hex'),koCounts:Object.fromEntries(Object.entries(ko).map(([p,v])=>[p,v.length])),englishWords:en.length,englishSupplement:{...english.supplement,notice:{...english.supplement.notice,file:"LICENSE"}},limitations:'Experimental spelling data; word-game vocabulary is not a grammar model. Proper names and candidate ranking remain incomplete.'};
 await writeFile('third_party/spelling/generated/manifest.json',JSON.stringify(manifest,null,2)+'\n');
 console.log(JSON.stringify(manifest,null,2));

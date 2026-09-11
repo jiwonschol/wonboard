@@ -2,13 +2,19 @@
 // These are review suggestions, never a claim of full sentence understanding.
 export function contextSuggestion(text,from,to,personal,predicate){
   const word=text.slice(from,to);
-  if(personal.has(word)||!['금새','문안한','낳으세요','낳으면','낳아서','낳았다','낳았어요'].includes(word))return null;
+  if(personal.has(word)||!['어떻해','현제','현제는','현제의','금새','문안한','낳으세요','낳으면','낳아서','낳았다','낳았어요'].includes(word))return null;
   const left=text.slice(Math.max(0,from-48),from).split('\n').at(-1);
   const right=text.slice(to,to+48).split('\n')[0];
   // Do not interpret quoted spellings or dictionary discussions as assertions.
   if(/["'“‘「『]$/.test(left)||/^["'”’」』]/.test(right))return null;
   const next=right.match(/^[ \u00a0]+([가-힣]+)/)?.[1];
   const suggest=(replacement,reason)=>({suggestions:[replacement],ambiguous:true,reason});
+  if(word==='어떻해'&&next&&next.startsWith('해야')&&predicate(next)){
+    return suggest('어떻게','Context review: 어떻게 modifies the following 해야 predicate; 어떡해 already contains 해');
+  }
+  if(word.startsWith('현제')&&!personal.has('현제')&&next&&/^(?:직장|상황|상태|사용|이용|진행|근무|접속|위치|시간)(?:$|[가-힣])/.test(next)&&!/(?:賢弟|아우|동생|형제)/.test(left+right)){
+    return suggest('현재'+word.slice(2),'Context review: if this means now or the present state, use 현재; confirm the intended meaning');
+  }
   if(word==='금새'&&next&&predicate(next)&&!/(?:물건값|가격|시세|값|금새)[가-힣]*[ \u00a0]*$/.test(left)&&! /^(?:모르|알|따지|매기|정하)/.test(next)){
     return suggest('금세','Context review: if this means a short time, use 금세; 금새 can mean a price');
   }

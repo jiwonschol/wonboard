@@ -1,15 +1,332 @@
 import { test, expect } from "./fixtures";
 
-test("context suggestions require Change and survive save, reload and undo", async ({ page }) => {
+for (const sample of [
+  { name: "copula contraction", source: "무슨소린데. 소린데. 학굔데. 가순데.", target: "무슨 소린데. 소린데. 학굔데. 가순데.", suggestion: "무슨 소린데", screenshot: "copula-contraction" },
+  { name: "auxiliary space", source: "갈만 할까요. 시각화합니다. 있다던데.", target: "갈 만할까요. 시각화합니다. 있다던데.", suggestion: "갈 만할까요", screenshot: "manhada" },
+  { name: "state quotation", source: "좋는다던데. 먹는다던데. 있다던데.", target: "좋다던데. 먹는다던데. 있다던데.", suggestion: "좋다던데", screenshot: "reported-state" },
+  { name: "quoted reason", source: "좋는대서. 나온대서. 고민되네요. 이후로도.", target: "좋대서. 나온대서. 고민되네요. 이후로도.", suggestion: "좋대서", screenshot: "quoted-reason" },
+]) {
+test(`Korean review applies ${sample.name} and preserves normal derivation`, async ({ page, browserName }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  await page.addInitScript(() => localStorage.setItem("wonboard-locale", "ko"));
+  await page.goto("/");
+  await expect(page).toHaveTitle(/Wonboard/i);
+  const body = page.locator('[contenteditable="true"]').first();
+  const { source, target } = sample;
+  await body.fill(source);
+  await page.getByRole("button", { name: "맞춤법 검사", exact: true }).first().click();
+  const dialog = page.getByRole("dialog", { name: "맞춤법 검사" });
+  await expect(dialog.getByRole("button", { name: "이번만 건너뛰기", exact: true })).toBeFocused();
+  await dialog.getByRole("button", { name: sample.suggestion, exact: true }).click();
+  await expect(body).toHaveText(source);
+  await page.screenshot({ path: `/private/tmp/wonboard-${sample.screenshot}-ko-${browserName}.png` });
+  await dialog.getByRole("button", { name: "바꾸기", exact: true }).click();
+  await expect(dialog).toContainText("철자 검사를 마쳤습니다.");
+  await dialog.getByRole("button", { name: "닫기", exact: true }).click();
+  await expect(body).toHaveText(target);
+  await body.press("ControlOrMeta+z");
+  await expect(body).toHaveText(source);
+  await body.press("ControlOrMeta+Shift+z");
+  await expect(body).toHaveText(target);
+  await expect(page.getByRole("button", { name: "임시저장", exact: true })).toBeDisabled();
+  await page.reload();
+  await expect(body).toHaveText(target);
+  await expect(page.locator("vite-error-overlay")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+}
+
+for (const word of ["제미나이", "유의미하다까진", "연태고량주라고"]) {
+test(`uncertain lexical candidate can be skipped without rewriting ${word}`, async ({ page, browserName }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  await page.goto("/");
+  await expect(page).toHaveTitle(/Wonboard/i);
+  const body = page.getByRole("textbox", { name: "Document body", exact: true });
+  await body.fill(word);
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  if (word === "제미나이") await expect(dialog).toContainText("The original may be correct in context.");
+  else await expect(dialog.getByRole("button", {
+    name: word === "연태고량주라고" ? "연태 고량주라고" : "유의미하다 까진", exact: true,
+  })).toHaveCount(0);
+  const skip = dialog.getByRole("button", { name: "Skip once", exact: true });
+  await expect(skip).toBeFocused();
+  await expect(body).toHaveText(word);
+  await page.screenshot({ path: `/private/tmp/wonboard-lexical-uncertainty-${word}-${browserName}.png` });
+  await skip.click();
+  await expect(dialog).toContainText("Spelling review complete.");
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(body).toHaveText(word);
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  await expect(dialog.getByRole("textbox", { name: "Base word to add" })).toHaveValue(word);
+  await page.screenshot({ path: `/private/tmp/wonboard-lexical-dictionary-${word}-${browserName}.png` });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const bounds = await dialog.boundingBox();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+  expect(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await dialog.getByRole("button", { name: "Add to dictionary", exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `/private/tmp/wonboard-lexical-dictionary-mobile-${word}-${browserName}.png` });
+  await dialog.getByRole("button", { name: "Add to dictionary", exact: true }).click();
+  await expect(dialog).toContainText("Spelling review complete.");
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await page.reload();
+  await expect(body).toHaveText(word);
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  await expect(dialog).toContainText("Spelling review complete.");
+  await dialog.getByText("Personal dictionary (1)", { exact: true }).click();
+  await expect(dialog).toContainText(word);
+  await expect(page.locator("vite-error-overlay")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+}
+
+test("normal inflection and numeral survive a nearby spelling correction", async ({ page, browserName }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  await page.goto("/");
+  await expect(page).toHaveTitle(/Wonboard/i);
+  const body = page.getByRole("textbox", { name: "Document body", exact: true });
+  const original = "흥미로워서 보고싶어요. 질문 하나 드립니다. 언제부터인가. 쳐내려고. 추천드립니다.";
+  await body.fill(original);
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await dialog.getByRole("button", { name: "보고 싶어요", exact: true }).click();
+  await expect(body).toHaveText(original);
+  await dialog.getByRole("button", { name: "Change", exact: true }).click();
+  await expect(dialog).toContainText("Spelling review complete.");
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await page.reload();
+  await expect(body).toHaveText("흥미로워서 보고 싶어요. 질문 하나 드립니다. 언제부터인가. 쳐내려고. 추천드립니다.");
+  await expect(page.locator("vite-error-overlay")).toHaveCount(0);
+  await page.screenshot({ path: `/private/tmp/wonboard-irregular-${browserName}.png` });
+  expect(errors).toEqual([]);
+});
+
+test("particle typo and noun boundary apply together and survive reload", async ({ page, browserName }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  await page.goto("/");
+  await expect(page).toHaveTitle(/Wonboard/i);
+  const body = page.getByRole("textbox", { name: "Document body", exact: true });
+  await body.fill("상품설명에넌 색상이 달라요.");
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await expect(dialog.getByRole("button", { name: "Skip once", exact: true })).toBeFocused();
+  await dialog.getByRole("button", { name: "상품 설명에는", exact: true }).click();
+  await expect(body).toHaveText("상품설명에넌 색상이 달라요.");
+  await page.screenshot({ path: `/private/tmp/wonboard-particle-typo-${browserName}.png` });
+  await dialog.getByRole("button", { name: "Change", exact: true }).click();
+  await expect(body).toHaveText("상품 설명에는 색상이 달라요.");
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await page.reload();
+  await expect(body).toHaveText("상품 설명에는 색상이 달라요.");
+  await expect(page.locator("vite-error-overlay")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("particle boundary correction applies explicitly and survives reload", async ({ page, browserName }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  await page.goto("/");
+  await expect(page).toHaveTitle(/Wonboard/i);
+  const body = page.getByRole("textbox", { name: "Document body", exact: true });
+  await body.fill("화면에서보이는 색이에요.");
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await expect(dialog.getByRole("button", { name: "Skip once", exact: true })).toBeFocused();
+  await dialog.getByRole("button", { name: "화면에서 보이는", exact: true }).click();
+  await expect(body).toHaveText("화면에서보이는 색이에요.");
+  await page.screenshot({ path: `/private/tmp/wonboard-particle-${browserName}.png` });
+  await dialog.getByRole("button", { name: "Change", exact: true }).click();
+  await expect(dialog).toContainText("Spelling review complete.");
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(body).toHaveText("화면에서 보이는 색이에요.");
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await page.reload();
+  await expect(body).toHaveText("화면에서 보이는 색이에요.");
+  await expect(page.locator("vite-error-overlay")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("adverb and negative spacing apply together without changing compound words", async ({ page, browserName }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  await page.goto("/");
+  await expect(page).toHaveTitle(/Wonboard/i);
+  const body = page.getByRole("textbox", { name: "Document body", exact: true });
+  const original = "잘알려지지않은. 잘생긴. 잘못한.";
+  await body.fill(original);
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await expect(dialog.getByRole("button", { name: "Skip once", exact: true })).toBeFocused();
+  await dialog.getByRole("button", { name: "잘 알려지지 않은", exact: true }).click();
+  await expect(dialog).toContainText("The original may be correct in context.");
+  await expect(body).toHaveText(original);
+  await page.screenshot({ path: `/private/tmp/wonboard-adverb-${browserName}-review.png` });
+  await dialog.getByRole("button", { name: "Change", exact: true }).click();
+  await expect(dialog).toContainText("Spelling review complete.");
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  const expected = "잘 알려지지 않은. 잘생긴. 잘못한.";
+  await expect(body).toHaveText(expected);
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await page.reload();
+  await expect(body).toHaveText(expected);
+  await expect(page.locator("vite-error-overlay")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("successive inflection and noun-boundary changes preserve offsets and saved text", async ({ page }) => {
   await page.goto("/");
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
-  const source = "계획을 금새 바꿨어요. 이 옷은 문안한 색이에요. 빨리 낳으세요. 감기가 심하네요.";
+  await body.fill("소설이였으면 찾아볼건데. 고민중입니다. 검색 했다가. 잠궈서 오염되서 해야함.");
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  for (const suggestion of ["소설이었으면", "찾아볼 건데", "고민 중입니다", "검색했다가", "잠가서", "오염돼서", "해야 함"]) {
+    await expect(dialog.getByRole("button", { name: "Skip once", exact: true })).toBeFocused();
+    const before = await body.textContent();
+    await dialog.getByRole("button", { name: suggestion, exact: true }).click();
+    await expect(body).toHaveText(before!);
+    await dialog.getByRole("button", { name: "Change", exact: true }).click();
+  }
+  await expect(dialog).toContainText("Spelling review complete.");
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  const expected = "소설이었으면 찾아볼 건데. 고민 중입니다. 검색했다가. 잠가서 오염돼서 해야 함.";
+  await expect(body).toHaveText(expected);
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await page.reload();
+  await expect(body).toHaveText(expected);
+});
+
+test("skipping a Latin name still allows particle spacing and ending review", async ({ page }) => {
+  await page.goto("/");
+  const body = page.getByRole("textbox", { name: "Document body", exact: true });
+  await body.fill("Imgur 에 좋더라구요 10년넘게");
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await expect(dialog).toContainText("Unrecognized expression: Imgur");
+  await dialog.getByRole("button", { name: "Skip once", exact: true }).click();
+  for (const suggestion of ["에", "좋더라고요", "10년 넘게"]) {
+    await expect(dialog.getByRole("button", { name: suggestion, exact: true })).toBeVisible();
+    await dialog.getByRole("button", { name: suggestion, exact: true }).click();
+    await dialog.getByRole("button", { name: "Change", exact: true }).click();
+  }
+  await expect(dialog).toContainText("Spelling review complete.");
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(body).toHaveText("Imgur에 좋더라고요 10년 넘게");
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await page.reload();
+  await expect(body).toHaveText("Imgur에 좋더라고요 10년 넘게");
+});
+
+test("adverb acronym and ending corrections are explicit and survive reload", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  await page.goto("/");
+  await expect(page).toHaveTitle(/Wonboard/i);
+  const body = page.getByRole("textbox", { name: "Document body", exact: true });
+  await body.fill("어짜피 api 감사합니나");
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  for (const suggestion of ["어차피", "API", "감사합니다"]) {
+    await expect(dialog.getByRole("button", { name: "Skip once", exact: true })).toBeFocused();
+    const before = await body.textContent();
+    await dialog.getByRole("button", { name: suggestion, exact: true }).click();
+    await expect(body).toHaveText(before!);
+    await dialog.getByRole("button", { name: "Change", exact: true }).click();
+  }
+  await expect(dialog).toContainText("Spelling review complete.");
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(body).toHaveText("어차피 API 감사합니다");
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await page.reload();
+  await expect(body).toHaveText("어차피 API 감사합니다");
+  await expect(page.locator("vite-error-overlay")).toHaveCount(0);
+  await page.screenshot({ path: "/private/tmp/wonboard-spelling-ending-applied.png" });
+  expect(errors).toEqual([]);
+});
+
+test("combined spacing corrections preserve normal endings through save and reload", async ({ page }) => {
+  await page.goto("/");
+  const body = page.getByRole("textbox", { name: "Document body", exact: true });
+  await body.fill("이런게 세네개 있는데 뭘 해야할런지 모르겠더라고요.");
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  for (const suggestion of ["이런 게", "서너 개", "해야 할는지"]) {
+    await expect(dialog.getByRole("button", { name: suggestion, exact: true })).toBeVisible();
+    const before = await body.textContent();
+    await dialog.getByRole("button", { name: suggestion, exact: true }).click();
+    await expect(body).toHaveText(before!);
+    await dialog.getByRole("button", { name: "Change", exact: true }).click();
+  }
+  await expect(dialog).toContainText("Spelling review complete.");
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  const expected = "이런 게 서너 개 있는데 뭘 해야 할는지 모르겠더라고요.";
+  await expect(body).toHaveText(expected);
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await page.reload();
+  await expect(body).toHaveText(expected);
+});
+
+test("new noun and stem corrections apply through the Worker and survive reload", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  await page.goto("/");
+  await expect(page).toHaveTitle(/Wonboard/i);
+  const body = page.getByRole("textbox", { name: "Document body", exact: true });
+  await body.fill("키보드 메세지를 티이어를 제테크는 부딛히면");
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  for (const suggestion of ["메시지를", "타이어를", "재테크는", "부딪히면"]) {
+    await expect(dialog.getByRole("button", { name: suggestion, exact: true })).toBeVisible();
+    const before = await body.textContent();
+    await dialog.getByRole("button", { name: suggestion, exact: true }).click();
+    await expect(body).toHaveText(before!);
+    await dialog.getByRole("button", { name: "Change", exact: true }).click();
+  }
+  await expect(dialog).toContainText("Spelling review complete.");
+  await page.screenshot({ path: "/private/tmp/wonboard-spelling-new-corrections.png" });
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  const expected = "키보드 메시지를 타이어를 재테크는 부딪히면";
+  await expect(body).toHaveText(expected);
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await page.reload();
+  await expect(body).toHaveText(expected);
+  expect(errors).toEqual([]);
+});
+
+test("context suggestions require Change and survive save, reload and undo", async ({ page, browserName }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  await page.goto("/");
+  await expect(page).toHaveTitle(/Wonboard/i);
+  const body = page.getByRole("textbox", { name: "Document body", exact: true });
+  const source = "어떻해 해야 하나요? 계획을 금새 바꿨어요. 이 옷은 문안한 색이에요. 빨리 낳으세요. 감기가 심하네요.";
   await body.fill(source);
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
-  for (const suggestion of ["금세", "무난한", "나으세요"]) {
+  for (const suggestion of ["어떻게", "금세", "무난한", "나으세요"]) {
     const before = await body.textContent();
     await expect(dialog.getByRole("button", { name: suggestion, exact: true })).toBeVisible();
+    if (suggestion === "어떻게") {
+      await expect(dialog.getByRole("button", { name: "어떡해", exact: true })).toHaveCount(0);
+      await page.screenshot({ path: `/private/tmp/wonboard-how-${browserName}.png` });
+    }
     await expect(dialog.getByRole("button", { name: "Skip once", exact: true })).toBeFocused();
     await dialog.getByRole("button", { name: suggestion, exact: true }).click();
     await expect(body).toHaveText(before!);
@@ -17,7 +334,7 @@ test("context suggestions require Change and survive save, reload and undo", asy
   }
   await expect(dialog).toContainText("Spelling review complete.");
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
-  const expected = "계획을 금세 바꿨어요. 이 옷은 무난한 색이에요. 빨리 나으세요. 감기가 심하네요.";
+  const expected = "어떻게 해야 하나요? 계획을 금세 바꿨어요. 이 옷은 무난한 색이에요. 빨리 나으세요. 감기가 심하네요.";
   await expect(body).toHaveText(expected);
   await body.press("ControlOrMeta+z");
   await expect(body).toHaveText(expected.replace("나으세요", "낳으세요"));
@@ -26,6 +343,8 @@ test("context suggestions require Change and survive save, reload and undo", asy
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
   await page.reload();
   await expect(body).toHaveText(expected);
+  await expect(page.locator("vite-error-overlay")).toHaveCount(0);
+  expect(errors).toEqual([]);
 });
 
 test("Korean spelling applies only chosen words and persists personal exceptions", async ({ page }) => {
@@ -90,18 +409,35 @@ test("spacing applies, then registers a base term without suppressing spacing", 
   await expect(dialog.getByRole("button", { name: "질게에서 답변하시는 걸", exact: true })).toBeVisible();
 });
 
-test("English suggestions share the review flow", async ({ page }) => {
+for (const sample of [
+  { id: "vs", source: "vs teh VS", target: "vs the VS", suggestion: "the" },
+  { id: "ahk", source: "ahk", target: "AHK", suggestion: "AHK" },
+]) {
+test(`English suggestions share the review flow: ${sample.id}`, async ({ page, browserName }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
   await page.goto("/");
+  await expect(page).toHaveTitle(/Wonboard/i);
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
-  await body.fill("teh");
+  await body.fill(sample.source);
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
-  await expect(dialog.getByRole("button", { name: "the", exact: true })).toBeVisible();
-  await dialog.getByRole("button", { name: "the", exact: true }).click();
-  await expect(body).toHaveText("teh");
+  await expect(dialog.getByRole("button", { name: sample.suggestion, exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: sample.suggestion, exact: true }).click();
+  await expect(body).toHaveText(sample.source);
   await dialog.getByRole("button", { name: "Change", exact: true }).click();
-  await expect(body).toHaveText("the");
+  await expect(body).toHaveText(sample.target);
+  await expect(dialog).toContainText("Spelling review complete.");
+  await page.screenshot({ path: `/private/tmp/wonboard-${sample.id}-review-${browserName}.png` });
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await page.reload();
+  await expect(body).toHaveText(sample.target);
+  await expect(page.locator("vite-error-overlay")).toHaveCount(0);
+  expect(errors).toEqual([]);
 });
+}
 
 test("the complete source sentence can be corrected while its community term is skipped", async ({ page }) => {
   await page.goto("/");

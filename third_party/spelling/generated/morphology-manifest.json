@@ -15,13 +15,20 @@
       "url": "https://raw.githubusercontent.com/lindera/mecab-ko-dic/12439fb32808b9244ded56d7dfed96e4b8d76869/NNG.csv",
       "bytes": 14868349,
       "sha256": "93be2e17bf9349f400bd24baa47fc3edee997c61727f5df95677714ed3f35745"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/lindera/mecab-ko-dic/12439fb32808b9244ded56d7dfed96e4b8d76869/Foreign.csv",
+      "bytes": 648134,
+      "sha256": "1d18687e258cd7fef5971d7fef207ec15aee98c2e58e2ba7088c419396c5b6fc"
     }
   ],
-  "acquired": "2026-09-10T02:05:55.329Z",
-  "bytes": 3847509,
-  "gzipBytes": 959732,
-  "combinedGzipBytes": 1403510,
+  "acquired": "2026-09-11T02:44:04.799Z",
+  "bytes": 4065382,
+  "gzipBytes": 1027441,
+  "combinedGzipBytes": 1688608,
   "forms": 38277,
   "adverbs": 14233,
-  "recognizedNouns": 204250
+  "recognizedNouns": 215810,
+  "actionNouns": 5411,
+  "stateChangeNouns": 270
 }
