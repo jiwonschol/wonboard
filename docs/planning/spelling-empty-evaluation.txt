@@ -1,0 +1,1133 @@
+Cases: 200. Independent evaluation: false. Engine: empty baseline
+set | cases | detection | top1 | top3 | exact sentences | false-recommendation cases | wrong suggestions | unknown notices
+all/ko/spelling | 25 | 0/25 | 0/25 | 0/25 | 0/25 | 0 | 0 | 0
+holdout/ko/spelling | 8 | 0/8 | 0/8 | 0/8 | 0/8 | 0 | 0 | 0
+development/ko/spelling | 17 | 0/17 | 0/17 | 0/17 | 0/17 | 0 | 0 | 0
+all/ko/spacing | 35 | 0/36 | 0/36 | 0/36 | 0/35 | 0 | 0 | 0
+holdout/ko/spacing | 12 | 0/13 | 0/13 | 0/13 | 0/12 | 0 | 0 | 0
+development/ko/spacing | 23 | 0/23 | 0/23 | 0/23 | 0/23 | 0 | 0 | 0
+all/ko/normal | 30 | 0/0 | 0/0 | 0/0 | 30/30 | 0 | 0 | 0
+holdout/ko/normal | 10 | 0/0 | 0/0 | 0/0 | 10/10 | 0 | 0 | 0
+development/ko/normal | 20 | 0/0 | 0/0 | 0/0 | 20/20 | 0 | 0 | 0
+all/ko/protected | 30 | 0/0 | 0/0 | 0/0 | 30/30 | 0 | 0 | 0
+holdout/ko/protected | 10 | 0/0 | 0/0 | 0/0 | 10/10 | 0 | 0 | 0
+development/ko/protected | 20 | 0/0 | 0/0 | 0/0 | 20/20 | 0 | 0 | 0
+all/en/spelling | 30 | 0/30 | 0/30 | 0/30 | 0/30 | 0 | 0 | 0
+holdout/en/spelling | 10 | 0/10 | 0/10 | 0/10 | 0/10 | 0 | 0 | 0
+development/en/spelling | 20 | 0/20 | 0/20 | 0/20 | 0/20 | 0 | 0 | 0
+all/en/normal | 15 | 0/0 | 0/0 | 0/0 | 15/15 | 0 | 0 | 0
+holdout/en/normal | 5 | 0/0 | 0/0 | 0/0 | 5/5 | 0 | 0 | 0
+development/en/normal | 10 | 0/0 | 0/0 | 0/0 | 10/10 | 0 | 0 | 0
+all/en/protected | 15 | 0/0 | 0/0 | 0/0 | 15/15 | 0 | 0 | 0
+holdout/en/protected | 5 | 0/0 | 0/0 | 0/0 | 5/5 | 0 | 0 | 0
+development/en/protected | 10 | 0/0 | 0/0 | 0/0 | 10/10 | 0 | 0 | 0
+all/mixed/spelling | 10 | 0/10 | 0/10 | 0/10 | 0/10 | 0 | 0 | 0
+holdout/mixed/spelling | 5 | 0/5 | 0/5 | 0/5 | 0/5 | 0 | 0 | 0
+development/mixed/spelling | 5 | 0/5 | 0/5 | 0/5 | 0/5 | 0 | 0 | 0
+all/mixed/protected | 10 | 0/0 | 0/0 | 0/0 | 10/10 | 0 | 0 | 0
+holdout/mixed/protected | 5 | 0/0 | 0/0 | 0/0 | 5/5 | 0 | 0 | 0
+development/mixed/protected | 5 | 0/0 | 0/0 | 0/0 | 5/5 | 0 | 0 | 0
+Early gate (holdout): Korean detection 0/21; normal false-recommendation cases 0; FAIL
+Failures:
+[
+  {
+    "id": "ko-spelling-1",
+    "text": "문제를 됬다고 말했어요.",
+    "expected": [
+      "문제를 됐다고 말했어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-2",
+    "text": "맞춥법을 확인해 주세요.",
+    "expected": [
+      "맞춤법을 확인해 주세요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-3",
+    "text": "오늘은 웬지 기분이 좋아요.",
+    "expected": [
+      "오늘은 왠지 기분이 좋아요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-4",
+    "text": "신청서를 몇일 전에 냈어요.",
+    "expected": [
+      "신청서를 며칠 전에 냈어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-5",
+    "text": "계획을 금새 바꿨어요.",
+    "expected": [
+      "계획을 금세 바꿨어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-6",
+    "text": "말을 어의없게 하네요.",
+    "expected": [
+      "말을 어이없게 하네요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-7",
+    "text": "설겆이를 마쳤습니다.",
+    "expected": [
+      "설거지를 마쳤습니다."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-8",
+    "text": "두 사람은 연애인이 아닙니다.",
+    "expected": [
+      "두 사람은 연예인이 아닙니다."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-9",
+    "text": "장비를 일일히 확인했어요.",
+    "expected": [
+      "장비를 일일이 확인했어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-10",
+    "text": "오늘 역활을 나눕시다.",
+    "expected": [
+      "오늘 역할을 나눕시다."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-11",
+    "text": "자료를 꼼꼼이 읽었어요.",
+    "expected": [
+      "자료를 꼼꼼히 읽었어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-12",
+    "text": "이 옷은 문안한 색이에요.",
+    "expected": [
+      "이 옷은 무난한 색이에요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-13",
+    "text": "왠만하면 포기하지 마세요.",
+    "expected": [
+      "웬만하면 포기하지 마세요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-14",
+    "text": "손님을 환골탈퇴한 모습으로 만났어요.",
+    "expected": [
+      "손님을 환골탈태한 모습으로 만났어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-15",
+    "text": "오랫만에 친구를 만났어요.",
+    "expected": [
+      "오랜만에 친구를 만났어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-16",
+    "text": "그건 희안한 일이에요.",
+    "expected": [
+      "그건 희한한 일이에요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-17",
+    "text": "구지 지금 갈 필요는 없어요.",
+    "expected": [
+      "굳이 지금 갈 필요는 없어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-18",
+    "text": "먼저 뵈요.",
+    "expected": [
+      "먼저 봬요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-19",
+    "text": "방을 깨끗히 치웠어요.",
+    "expected": [
+      "방을 깨끗이 치웠어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-20",
+    "text": "그 일은 않되요.",
+    "expected": [
+      "그 일은 안 돼요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-21",
+    "text": "어떻해 해야 하나요?",
+    "expected": [
+      "어떻게 해야 하나요?"
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-22",
+    "text": "빨리 낳으세요. 감기가 심하네요.",
+    "expected": [
+      "빨리 나으세요. 감기가 심하네요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-23",
+    "text": "항상 되물림되는 문제입니다.",
+    "expected": [
+      "항상 대물림되는 문제입니다."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-24",
+    "text": "뒤치닥거리를 했어요.",
+    "expected": [
+      "뒤치다꺼리를 했어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spelling-25",
+    "text": "곰곰히 생각했어요.",
+    "expected": [
+      "곰곰이 생각했어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-1",
+    "text": "오늘 학교에갔어요.",
+    "expected": [
+      "오늘 학교에 갔어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-2",
+    "text": "우리는 함께책을 읽어요.",
+    "expected": [
+      "우리는 함께 책을 읽어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-3",
+    "text": "그림을 그릴수 있어요.",
+    "expected": [
+      "그림을 그릴 수 있어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-4",
+    "text": "먹을 것이없어요.",
+    "expected": [
+      "먹을 것이 없어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-5",
+    "text": "사진을 찍은후에 보냈어요.",
+    "expected": [
+      "사진을 찍은 후에 보냈어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-6",
+    "text": "문을 열어주세요.",
+    "expected": [
+      "문을 열어 주세요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-7",
+    "text": "누구나할 수 있는 일이에요.",
+    "expected": [
+      "누구나 할 수 있는 일이에요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-8",
+    "text": "나는오늘 쉬어요.",
+    "expected": [
+      "나는 오늘 쉬어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-9",
+    "text": "회의는 세시에 시작해요.",
+    "expected": [
+      "회의는 세 시에 시작해요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-10",
+    "text": "사과 두개를 샀어요.",
+    "expected": [
+      "사과 두 개를 샀어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-11",
+    "text": "한번더 확인해요.",
+    "expected": [
+      "한 번 더 확인해요."
+    ],
+    "detected": 0,
+    "events": 2,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-12",
+    "text": "여기 앉아도되나요?",
+    "expected": [
+      "여기 앉아도 되나요?"
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-13",
+    "text": "보는사람이 많아요.",
+    "expected": [
+      "보는 사람이 많아요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-14",
+    "text": "별로 어렵지않아요.",
+    "expected": [
+      "별로 어렵지 않아요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-15",
+    "text": "좋은글을 읽었어요.",
+    "expected": [
+      "좋은 글을 읽었어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-16",
+    "text": "나만아는 장소예요.",
+    "expected": [
+      "나만 아는 장소예요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-17",
+    "text": "조금 기다린뒤 출발해요.",
+    "expected": [
+      "조금 기다린 뒤 출발해요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-18",
+    "text": "지금부터다시 시작해요.",
+    "expected": [
+      "지금부터 다시 시작해요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-19",
+    "text": "화면에서보이는 색이에요.",
+    "expected": [
+      "화면에서 보이는 색이에요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-20",
+    "text": "질문이있으면 말해요.",
+    "expected": [
+      "질문이 있으면 말해요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-21",
+    "text": "밖에 나갈때 입어요.",
+    "expected": [
+      "밖에 나갈 때 입어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-22",
+    "text": "정말고마운 사람이에요.",
+    "expected": [
+      "정말 고마운 사람이에요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-23",
+    "text": "이야기를듣고 웃었어요.",
+    "expected": [
+      "이야기를 듣고 웃었어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-24",
+    "text": "친구와 밥을먹었어요.",
+    "expected": [
+      "친구와 밥을 먹었어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-25",
+    "text": "비가오면 쉬어요.",
+    "expected": [
+      "비가 오면 쉬어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-26",
+    "text": "할일이 남았어요.",
+    "expected": [
+      "할 일이 남았어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-27",
+    "text": "마음에드는 사진이에요.",
+    "expected": [
+      "마음에 드는 사진이에요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-28",
+    "text": "일주일동안 여행했어요.",
+    "expected": [
+      "일주일 동안 여행했어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-29",
+    "text": "누군지모르겠어요.",
+    "expected": [
+      "누군지 모르겠어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-30",
+    "text": "문서를저장하고 닫아요.",
+    "expected": [
+      "문서를 저장하고 닫아요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-31",
+    "text": "이것만으로는부족해요.",
+    "expected": [
+      "이것만으로는 부족해요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-32",
+    "text": "친구에게보낼 편지예요.",
+    "expected": [
+      "친구에게 보낼 편지예요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-33",
+    "text": "어제보다많이 걸었어요.",
+    "expected": [
+      "어제보다 많이 걸었어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-34",
+    "text": "도서관 에서 만나요.",
+    "expected": [
+      "도서관에서 만나요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "ko-spacing-35",
+    "text": "작은 것 부터 해요.",
+    "expected": [
+      "작은 것부터 해요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-1",
+    "text": "Please recieve the package.",
+    "expected": [
+      "Please receive the package."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-2",
+    "text": "This is a seperate room.",
+    "expected": [
+      "This is a separate room."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-3",
+    "text": "It is definately ready.",
+    "expected": [
+      "It is definitely ready."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-4",
+    "text": "That was wierd.",
+    "expected": [
+      "That was weird."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-5",
+    "text": "The adress is missing.",
+    "expected": [
+      "The address is missing."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-6",
+    "text": "A freind called.",
+    "expected": [
+      "A friend called."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-7",
+    "text": "It was an accidently deleted file.",
+    "expected": [
+      "It was an accidentally deleted file."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-8",
+    "text": "Please remeber this.",
+    "expected": [
+      "Please remember this."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-9",
+    "text": "The begining is slow.",
+    "expected": [
+      "The beginning is slow."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-10",
+    "text": "We need accomodation.",
+    "expected": [
+      "We need accommodation."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-11",
+    "text": "An arguement followed.",
+    "expected": [
+      "An argument followed."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-12",
+    "text": "This is neccessary.",
+    "expected": [
+      "This is necessary."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-13",
+    "text": "The enviroment is clean.",
+    "expected": [
+      "The environment is clean."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-14",
+    "text": "It happened tommorow.",
+    "expected": [
+      "It happened tomorrow."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-15",
+    "text": "Check your calender.",
+    "expected": [
+      "Check your calendar."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-16",
+    "text": "The goverment responded.",
+    "expected": [
+      "The government responded."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-17",
+    "text": "It was a great acheivement.",
+    "expected": [
+      "It was a great achievement."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-18",
+    "text": "I beleive you.",
+    "expected": [
+      "I believe you."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-19",
+    "text": "A buisness opened.",
+    "expected": [
+      "A business opened."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-20",
+    "text": "The commitee agreed.",
+    "expected": [
+      "The committee agreed."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-21",
+    "text": "The concious patient spoke.",
+    "expected": [
+      "The conscious patient spoke."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-22",
+    "text": "This is exellent.",
+    "expected": [
+      "This is excellent."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-23",
+    "text": "A foriegn visitor arrived.",
+    "expected": [
+      "A foreign visitor arrived."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-24",
+    "text": "That is immediatly useful.",
+    "expected": [
+      "That is immediately useful."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-25",
+    "text": "I occassionally walk.",
+    "expected": [
+      "I occasionally walk."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-26",
+    "text": "The priviledge matters.",
+    "expected": [
+      "The privilege matters."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-27",
+    "text": "A succesful launch followed.",
+    "expected": [
+      "A successful launch followed."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-28",
+    "text": "A thouroughly checked file.",
+    "expected": [
+      "A thoroughly checked file."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-29",
+    "text": "Your writting is clear.",
+    "expected": [
+      "Your writing is clear."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-30",
+    "text": "This is untill Friday.",
+    "expected": [
+      "This is until Friday."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "mixed-spelling-1",
+    "text": "아이템을 upgarde했어요.",
+    "expected": [
+      "아이템을 upgrade했어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "mixed-spelling-2",
+    "text": "화면의 buton을 눌러요.",
+    "expected": [
+      "화면의 button을 눌러요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "mixed-spelling-3",
+    "text": "conection이 끊겼어요.",
+    "expected": [
+      "connection이 끊겼어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "mixed-spelling-4",
+    "text": "downlaod를 눌렀어요.",
+    "expected": [
+      "download를 눌렀어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "mixed-spelling-5",
+    "text": "새 versoin입니다.",
+    "expected": [
+      "새 version입니다."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "mixed-spelling-6",
+    "text": "그 funtion은 느려요.",
+    "expected": [
+      "그 function은 느려요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "mixed-spelling-7",
+    "text": "setings에서 바꿔요.",
+    "expected": [
+      "settings에서 바꿔요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "mixed-spelling-8",
+    "text": "passwrod를 잊었어요.",
+    "expected": [
+      "password를 잊었어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "mixed-spelling-9",
+    "text": "uplod가 끝났어요.",
+    "expected": [
+      "upload가 끝났어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  },
+  {
+    "id": "mixed-spelling-10",
+    "text": "screnshot을 저장해요.",
+    "expected": [
+      "screenshot을 저장해요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [],
+    "wrong": 0
+  }
+]

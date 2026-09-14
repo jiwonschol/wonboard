@@ -1,0 +1,58 @@
+{
+  "revision": "12439fb32808b9244ded56d7dfed96e4b8d76869",
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/lindera/mecab-ko-dic/12439fb32808b9244ded56d7dfed96e4b8d76869/Inflect.csv",
+      "bytes": 4042583,
+      "sha256": "ff9a82d6f97aa75b86f03c33e2d615486200d7433f1c86c2e33a8c18d647064c"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/lindera/mecab-ko-dic/12439fb32808b9244ded56d7dfed96e4b8d76869/MAG.csv",
+      "bytes": 842240,
+      "sha256": "d9842fd7f1efc6398fb06c0d3b4c881571b49b91fb340017a8a688f7bd4a4785"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/lindera/mecab-ko-dic/12439fb32808b9244ded56d7dfed96e4b8d76869/NNG.csv",
+      "bytes": 14868349,
+      "sha256": "93be2e17bf9349f400bd24baa47fc3edee997c61727f5df95677714ed3f35745"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/lindera/mecab-ko-dic/12439fb32808b9244ded56d7dfed96e4b8d76869/Foreign.csv",
+      "bytes": 648134,
+      "sha256": "1d18687e258cd7fef5971d7fef207ec15aee98c2e58e2ba7088c419396c5b6fc"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/lindera/mecab-ko-dic/12439fb32808b9244ded56d7dfed96e4b8d76869/VV.csv",
+      "bytes": 362987,
+      "sha256": "2929d7cfd45c30d64bfe2b8e6e31f6362772c95a7e2646968a10df04116f60d2"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/lindera/mecab-ko-dic/12439fb32808b9244ded56d7dfed96e4b8d76869/VA.csv",
+      "bytes": 117146,
+      "sha256": "5508849ef6054533ffe1e81a8c2351838e538e98ba62a9f97a09836f2f19dbab"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/lindera/mecab-ko-dic/12439fb32808b9244ded56d7dfed96e4b8d76869/VX.csv",
+      "bytes": 5204,
+      "sha256": "b8168dcdf7bcb0d7aadbd91b5372f24bfd5d4908f631a561f31e4945daf0a543"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/lindera/mecab-ko-dic/12439fb32808b9244ded56d7dfed96e4b8d76869/Place.csv",
+      "bytes": 2527890,
+      "sha256": "78939dc1daa157ed49e34c96f1a2af25dda7c0f37856ea8212089dab4df7035b"
+    }
+  ],
+  "acquired": "2026-09-13T04:32:07.415Z",
+  "bytes": 4679129,
+  "gzipBytes": 1200128,
+  "combinedGzipBytes": 1861303,
+  "forms": 38277,
+  "adverbs": 14233,
+  "recognizedNouns": 215810,
+  "recognizedPlaceNames": 30240,
+  "actionNouns": 5411,
+  "stateChangeNouns": 270,
+  "recognitionVerbRoots": 7357,
+  "recognitionAdjectiveRoots": 2355,
+  "recognitionStaticStateNouns": 2708
+}

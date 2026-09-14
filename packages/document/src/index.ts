@@ -1,4 +1,6 @@
 import { isVideo, attachmentNodes } from "./attachments";
+import { isFontId, type FontId } from "./typography";
+export * from "./typography";
 export * from "./attachments";
 export type Locale = "ko" | "en";
 export type Mark = { type: string; attrs?: Record<string, unknown> };
@@ -24,6 +26,7 @@ export type WriterDocument = {
   revision: number;
   title: string;
   locale: Locale;
+  defaultFont?: FontId;
   content: ContentNode;
   media: Record<string, Media>;
   autoRenameAttachments?: boolean;
@@ -56,6 +59,7 @@ export function newDraft(locale: Locale = "ko"): Draft {
       revision: 0,
       title: "",
       locale,
+      defaultFont: "nanum-serif",
       content: emptyContent(),
       media: {},
       updatedAt: new Date().toISOString(),
@@ -176,10 +180,21 @@ const currentMarks = new Set([
   "strike",
   "code",
   "link",
+  "textStyle",
 ]);
-const linkAttrs = new Set(["href", "target", "rel", "class"]);
+const linkAttrs = new Set(["href", "target", "rel", "class", "title"]);
 export function markAttrsFitDocument(type: unknown, attrs: unknown): boolean {
   if (typeof type !== "string" || !currentMarks.has(type)) return false;
+  if (type === "textStyle") {
+    if (!isObject(attrs)) return false;
+    return Object.entries(attrs).every(([key, value]) => {
+      if (!["fontFamily", "fontSize", "color", "highlight"].includes(key)) return false;
+      if (value === null) return true;
+      if (key === "fontFamily") return isFontId(value);
+      if (key === "fontSize") return typeof value === "number" && Number.isFinite(value) && value >= 12 && value <= 96;
+      return typeof value === "string" && hexColor.test(value);
+    });
+  }
   if (type !== "link")
     return attrs === undefined || (isObject(attrs) && !Object.keys(attrs).length);
   if (!isObject(attrs) || !safeLink(attrs.href)) return false;
@@ -311,6 +326,7 @@ export function validateDocumentEnvelope(
     typeof value.title === "string" && value.title.length <= limits.title,
   );
   requireThat(value.locale === "ko" || value.locale === "en");
+  requireThat(value.defaultFont === undefined || isFontId(value.defaultFont));
   requireThat(
     value.autoRenameAttachments === undefined ||
       typeof value.autoRenameAttachments === "boolean",

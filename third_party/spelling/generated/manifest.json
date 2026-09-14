@@ -1,0 +1,157 @@
+{
+  "acquired": "2026-09-11T11:12:06.474Z",
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/open-korean-text/open-korean-text/74cc4ae7d3dab232747cd5ddb723e4b73c476e4f/src/main/resources/org/openkoreantext/processor/util/noun/nouns.txt",
+      "bytes": 219319,
+      "sha256": "06b5abbe9e69eb3ffa1cb971fe69cea43940be9d9e859f4a51bdfc72e6f9001f"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/open-korean-text/open-korean-text/74cc4ae7d3dab232747cd5ddb723e4b73c476e4f/src/main/resources/org/openkoreantext/processor/util/adverb/adverb.txt",
+      "bytes": 65572,
+      "sha256": "28dca3f0ca09703ca923b836a0e03d3509ede5540198fb242f78c5041d030434"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/open-korean-text/open-korean-text/74cc4ae7d3dab232747cd5ddb723e4b73c476e4f/src/main/resources/org/openkoreantext/processor/util/verb/verb.txt",
+      "bytes": 32765,
+      "sha256": "edfc23b2ac252c6ed60ab0021068f5e51c21f5708606d9b3035dc2b28cca8f1f"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/open-korean-text/open-korean-text/74cc4ae7d3dab232747cd5ddb723e4b73c476e4f/src/main/resources/org/openkoreantext/processor/util/adjective/adjective.txt",
+      "bytes": 27250,
+      "sha256": "7d7a257cedcf57f8532a89ef450614a71c1ad60f43248e75b8cadac20b75a34d"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/open-korean-text/open-korean-text/74cc4ae7d3dab232747cd5ddb723e4b73c476e4f/src/main/resources/org/openkoreantext/processor/util/josa/josa.txt",
+      "bytes": 5219,
+      "sha256": "d0c2be2f0d8b69ddbfd7c2eff4136768c97fa521aa8db388a053935e9d1f75a2"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/open-korean-text/open-korean-text/74cc4ae7d3dab232747cd5ddb723e4b73c476e4f/src/main/resources/org/openkoreantext/processor/util/verb/eomi.txt",
+      "bytes": 12618,
+      "sha256": "8e64ba9f86f3033320bac902554c6274db289f690bacf66584dae88e4c09e7b5"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/open-korean-text/open-korean-text/74cc4ae7d3dab232747cd5ddb723e4b73c476e4f/src/main/resources/org/openkoreantext/processor/util/verb/pre_eomi.txt",
+      "bytes": 285,
+      "sha256": "b433f5c1c006f2dec41e0c72099718109ba43c0227a3735453bed0be4a62fba7"
+    },
+    {
+      "file": "wordlist-20210729.txt",
+      "sha256": "bfd1b4eb4ade1ba81e84c7e24248b9a1aecec9d9baa427453b367a83e30e0451",
+      "url": "https://raw.githubusercontent.com/wordnik/wordlist/46e6215d0f90356afe9c8ba4be347e7e98cb425c/wordlist-20210729.txt",
+      "size": 2366872
+    },
+    {
+      "file": "LICENSE",
+      "sha256": "a568f0ac4c7ad5248ff748387d41e39519811b4a3e07d7438c9d1465dd4c9339",
+      "url": "https://raw.githubusercontent.com/wordnik/wordlist/46e6215d0f90356afe9c8ba4be347e7e98cb425c/LICENSE",
+      "size": 1064
+    }
+  ],
+  "bytes": 2810026,
+  "gzipBytes": 661175,
+  "combinedGzipBytes": 1688616,
+  "sha256": "582a81dcf351da3b369eb4d7cb4b8f3410612dadf60ded14f35af74ffd8000cc",
+  "koCounts": {
+    "noun": 26498,
+    "adverb": 5539,
+    "verb": 3242,
+    "adjective": 2518,
+    "josa": 506,
+    "ending": 1236,
+    "preEnding": 69
+  },
+  "englishWords": 198499,
+  "englishSupplement": {
+    "source": "Wonboard original enumeration; not SCOWL-derived",
+    "license": "MIT",
+    "forms": [
+      "I",
+      "a",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+      "API",
+      "USB",
+      "HTML",
+      "CSS",
+      "SQL",
+      "PDF",
+      "URL",
+      "Unicode",
+      "AHK",
+      "I'm",
+      "I've",
+      "I'll",
+      "I'd",
+      "you're",
+      "you've",
+      "you'll",
+      "you'd",
+      "we're",
+      "we've",
+      "we'll",
+      "we'd",
+      "they're",
+      "they've",
+      "they'll",
+      "they'd",
+      "he's",
+      "he'll",
+      "he'd",
+      "she's",
+      "she'll",
+      "she'd",
+      "it's",
+      "it'll",
+      "it'd",
+      "that's",
+      "there's",
+      "what's",
+      "who's",
+      "don't",
+      "doesn't",
+      "didn't",
+      "isn't",
+      "aren't",
+      "wasn't",
+      "weren't",
+      "haven't",
+      "hasn't",
+      "hadn't",
+      "can't",
+      "couldn't",
+      "won't",
+      "wouldn't",
+      "shouldn't",
+      "mustn't",
+      "needn't",
+      "let's"
+    ],
+    "count": 198499,
+    "file": "english-with-basics.json",
+    "sha256": "43b41076ef93e8504272091585f83064797aeee8684d20b85f6fce1a7b05e19a",
+    "notice": {
+      "file": "LICENSE",
+      "sha256": "83fb8204af826845bbb3e6c01e3d73c97b58a2e79e95616624b090a83ad01d5f"
+    }
+  },
+  "limitations": "Experimental spelling data; word-game vocabulary is not a grammar model. Proper names and candidate ranking remain incomplete."
+}

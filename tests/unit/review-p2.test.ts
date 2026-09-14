@@ -304,7 +304,7 @@ describe("붙여넣은 mark 속성도 문서 계약을 지킨다", () => {
 });
 
 describe("link 계약은 편집기 schema가 보존하는 속성만 받는다", () => {
-  it("현재 네 속성은 받고 편집기가 버리는 title은 미래 문서로 격리한다", () => {
+  it("현재 링크 속성과 title은 받고 알 수 없는 속성은 미래 문서로 격리한다", () => {
     const current = newDraft().document;
     current.content = {
       type: "doc",
@@ -333,7 +333,11 @@ describe("link 계약은 편집기 schema가 보존하는 속성만 받는다", 
     };
     expect(() => validateDocument(current)).not.toThrow();
     const mark = current.content.content![0]!.content![0]!.marks![0]!;
-    mark.attrs = { ...mark.attrs, title: "future title" };
+    mark.attrs = { ...mark.attrs, title: null };
+    expect(() => validateDocument(current)).not.toThrow();
+    mark.attrs = { ...mark.attrs, title: "Link title" };
+    expect(() => validateDocument(current)).not.toThrow();
+    mark.attrs = { ...mark.attrs, futureAttribute: "unsupported" };
     expect(() => validateDocument(current)).toThrow("futureDocument");
   });
 });

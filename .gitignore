@@ -1,4 +1,6 @@
 # Logs
+# Licensed local corpora, agreements and private evaluation artifacts
+/local-corpora/
 logs
 *.log
 npm-debug.log*

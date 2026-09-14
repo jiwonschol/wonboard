@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import type { Editor } from "@tiptap/react";
-import { limits, type Locale } from "@wonboard/document";
+import { limits, type Locale, type FontId } from "@wonboard/document";
 
 // alt·caption 은 validateDocument 가 limits.attributeText 로 거른다. 그 한도를 넘긴 값이
 // 문서에 들어가면 이후 모든 자동 저장과 백업이 실패하고, 사용자는 어느 칸을 줄여야
@@ -9,19 +9,28 @@ export const capAttributeText = (value: string) =>
   value.slice(0, limits.attributeText);
 import { translator, type MessageKey } from "@wonboard/locales";
 import { Icon } from "./icons";
+import { WritingToolbar } from "./WritingToolbar";
 
 export function Inspector({
   editor,
+  defaultFont,
   locale,
   onClose,
   attachments,
   attachmentCount = 0,
+  initialTab = "block",
+  composing = false,
+  onLink,
 }: {
   editor: Editor;
+  defaultFont?: FontId;
   locale: Locale;
   onClose(): void;
   attachments?: ReactNode;
   attachmentCount?: number;
+  initialTab?: "block" | "attachments";
+  composing?: boolean;
+  onLink(): void;
 }) {
   const t = translator(locale);
   const image = editor.isActive("media");
@@ -36,9 +45,8 @@ export function Inspector({
       .chain()
       .updateAttributes(type, { [key]: value })
       .run();
-  const [tab, setTab] = useState<"post" | "block" | "attachments">("block");
+  const [tab, setTab] = useState<"post" | "block" | "attachments">(initialTab);
   const [color, setColor] = useState<string | null>(null);
-  const [custom, setCustom] = useState(false);
   const [gradient, setGradient] = useState(false);
   const [sectionOptions, setSectionOptions] = useState<string | null>(null);
   function heading(key: "styles" | "typography" | "background") {
@@ -125,7 +133,7 @@ export function Inspector({
           </button>
         </section>
       ) : (
-        <fieldset disabled={!editor.isEditable}>
+        <fieldset disabled={!editor.isEditable || composing}>
           <section className="block-summary">
             <h2>
               <Icon name={image ? "image" : type} />
@@ -207,63 +215,8 @@ export function Inspector({
                 </div>
               </section>
               <section>
-                {heading("typography")}
-                <button
-                  className="property-button"
-                  onClick={() =>
-                    setColor(color === "textColor" ? null : "textColor")
-                  }
-                >
-                  <span
-                    className="color-swatch"
-                    style={{ background: attrs.textColor ?? undefined }}
-                  />
-                  {t("color")}
-                </button>
-                {color === "textColor" ? (
-                  <input
-                    type="color"
-                    aria-label={t("color")}
-                    value={attrs.textColor ?? "#111111"}
-                    onChange={(e) => change("textColor", e.target.value)}
-                  />
-                ) : null}
-                <div className="font-label">
-                  <span>{t("fontSize")}</span>
-                  <button
-                    className="icon-button"
-                    aria-label={t("customSize")}
-                    aria-pressed={custom}
-                    onClick={() => setCustom(!custom)}
-                  >
-                    <Icon name="sliders" />
-                  </button>
-                </div>
-                {custom ? (
-                  <input
-                    type="number"
-                    min="12"
-                    max="96"
-                    aria-label={t("fontSize")}
-                    value={attrs.fontSize ?? 19}
-                    onChange={(e) => {
-                      const v = Number(e.target.value);
-                      if (v >= 12 && v <= 96) change("fontSize", v);
-                    }}
-                  />
-                ) : (
-                  <div className="font-sizes">
-                    {[14, 18, 24, 32, 40].map((size, i) => (
-                      <button
-                        key={size}
-                        aria-pressed={attrs.fontSize === size}
-                        onClick={() => change("fontSize", size)}
-                      >
-                        {["S", "M", "L", "XL", "XXL"][i]}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <h2>{t("inspectorWritingTools")}</h2>
+                <WritingToolbar editor={editor} defaultFont={defaultFont} locale={locale} composing={composing} onLink={onLink} expanded />
               </section>
               <section>
                 {heading("background")}

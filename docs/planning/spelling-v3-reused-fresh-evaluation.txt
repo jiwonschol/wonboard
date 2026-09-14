@@ -1,0 +1,66 @@
+Cases: 20. Independent evaluation: false. Engine: scripts/spelling-prototype.mjs
+set | cases | detection | top1 | top3 | exact sentences | false-recommendation cases | wrong suggestions | unknown notices
+all/ko/spacing | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 0 | 0 | 0
+holdout/ko/spacing | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 0 | 0 | 0
+all/ko/normal | 5 | 0/0 | 0/0 | 0/0 | 5/5 | 0 | 0 | 0
+holdout/ko/normal | 5 | 0/0 | 0/0 | 0/0 | 5/5 | 0 | 0 | 0
+all/en/spelling | 5 | 5/5 | 4/5 | 5/5 | 4/5 | 2 | 2 | 0
+holdout/en/spelling | 5 | 5/5 | 4/5 | 5/5 | 4/5 | 2 | 2 | 0
+all/mixed/protected | 5 | 0/0 | 0/0 | 0/0 | 5/5 | 0 | 0 | 4
+holdout/mixed/protected | 5 | 0/0 | 0/0 | 0/0 | 5/5 | 0 | 0 | 4
+Early gate (holdout): Korean detection 5/5; normal false-recommendation cases 0; PASS
+Failures:
+[
+  {
+    "id": "en-spelling-2",
+    "text": "A usefull tool.",
+    "expected": [
+      "A useful tool."
+    ],
+    "detected": 1,
+    "events": 1,
+    "findings": [
+      {
+        "from": 2,
+        "to": 9,
+        "original": "usefull",
+        "language": "en",
+        "type": "spelling",
+        "suggestions": [
+          "useful",
+          "usefully"
+        ],
+        "base": "usefull",
+        "applicable": true,
+        "reason": "Prototype lexical candidate; rule source not yet verified"
+      }
+    ],
+    "wrong": 1
+  },
+  {
+    "id": "en-spelling-5",
+    "text": "The anser is here.",
+    "expected": [
+      "The answer is here."
+    ],
+    "detected": 1,
+    "events": 1,
+    "findings": [
+      {
+        "from": 4,
+        "to": 9,
+        "original": "anser",
+        "language": "en",
+        "type": "spelling",
+        "suggestions": [
+          "anger",
+          "answer"
+        ],
+        "base": "anser",
+        "applicable": true,
+        "reason": "Prototype lexical candidate; rule source not yet verified"
+      }
+    ],
+    "wrong": 1
+  }
+]

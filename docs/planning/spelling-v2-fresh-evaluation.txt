@@ -1,0 +1,171 @@
+Cases: 20. Independent evaluation: false. Engine: scripts/spelling-prototype.mjs
+set | cases | detection | top1 | top3 | exact sentences | false-recommendation cases | wrong suggestions | unknown notices
+all/ko/spacing | 5 | 4/5 | 3/5 | 3/5 | 3/5 | 1 | 1 | 1
+holdout/ko/spacing | 5 | 4/5 | 3/5 | 3/5 | 3/5 | 1 | 1 | 1
+all/ko/normal | 5 | 0/0 | 0/0 | 0/0 | 5/5 | 0 | 0 | 1
+holdout/ko/normal | 5 | 0/0 | 0/0 | 0/0 | 5/5 | 0 | 0 | 1
+all/en/spelling | 5 | 5/5 | 4/5 | 5/5 | 4/5 | 2 | 2 | 0
+holdout/en/spelling | 5 | 5/5 | 4/5 | 5/5 | 4/5 | 2 | 2 | 0
+all/mixed/protected | 5 | 0/0 | 0/0 | 0/0 | 3/5 | 2 | 2 | 3
+holdout/mixed/protected | 5 | 0/0 | 0/0 | 0/0 | 3/5 | 2 | 2 | 3
+Early gate (holdout): Korean detection 4/5; normal false-recommendation cases 0; PASS
+Failures:
+[
+  {
+    "id": "ko-spacing-1",
+    "text": "상자에담았어요.",
+    "expected": [
+      "상자에 담았어요."
+    ],
+    "detected": 1,
+    "events": 1,
+    "findings": [
+      {
+        "from": 0,
+        "to": 7,
+        "original": "상자에담았어요",
+        "language": "ko",
+        "type": "spacing",
+        "suggestions": [
+          "상자에 담 았 어요"
+        ],
+        "applicable": true,
+        "reason": "Spacing rule 41/42; review interpretation",
+        "ambiguous": false
+      }
+    ],
+    "wrong": 1
+  },
+  {
+    "id": "ko-spacing-5",
+    "text": "도움을받았어요.",
+    "expected": [
+      "도움을 받았어요."
+    ],
+    "detected": 0,
+    "events": 1,
+    "findings": [
+      {
+        "from": 0,
+        "to": 7,
+        "original": "도움을받았어요",
+        "language": "ko",
+        "type": "unknown",
+        "suggestions": [],
+        "base": "도움을받았어요",
+        "applicable": false,
+        "reason": "Not in the selected vocabulary"
+      }
+    ],
+    "wrong": 0
+  },
+  {
+    "id": "en-spelling-2",
+    "text": "A usefull tool.",
+    "expected": [
+      "A useful tool."
+    ],
+    "detected": 1,
+    "events": 1,
+    "findings": [
+      {
+        "from": 2,
+        "to": 9,
+        "original": "usefull",
+        "language": "en",
+        "type": "spelling",
+        "suggestions": [
+          "useful",
+          "usefully"
+        ],
+        "base": "usefull",
+        "applicable": true,
+        "reason": "Prototype lexical candidate; rule source not yet verified"
+      }
+    ],
+    "wrong": 1
+  },
+  {
+    "id": "en-spelling-5",
+    "text": "The anser is here.",
+    "expected": [
+      "The answer is here."
+    ],
+    "detected": 1,
+    "events": 1,
+    "findings": [
+      {
+        "from": 4,
+        "to": 9,
+        "original": "anser",
+        "language": "en",
+        "type": "spelling",
+        "suggestions": [
+          "anger",
+          "answer"
+        ],
+        "base": "anser",
+        "applicable": true,
+        "reason": "Prototype lexical candidate; rule source not yet verified"
+      }
+    ],
+    "wrong": 1
+  },
+  {
+    "id": "mixed-protected-2",
+    "text": "Figma로 그렸어요.",
+    "expected": [],
+    "detected": 0,
+    "events": 0,
+    "findings": [
+      {
+        "from": 0,
+        "to": 5,
+        "original": "Figma",
+        "language": "en",
+        "type": "spelling",
+        "suggestions": [
+          "Sigma"
+        ],
+        "base": "Figma",
+        "applicable": true,
+        "reason": "Prototype lexical candidate; rule source not yet verified"
+      }
+    ],
+    "wrong": 1
+  },
+  {
+    "id": "mixed-protected-5",
+    "text": "JSON 파일입니다.",
+    "expected": [],
+    "detected": 0,
+    "events": 0,
+    "findings": [
+      {
+        "from": 0,
+        "to": 4,
+        "original": "JSON",
+        "language": "en",
+        "type": "unknown",
+        "suggestions": [],
+        "base": "JSON",
+        "applicable": false,
+        "reason": "Not in the selected vocabulary"
+      },
+      {
+        "from": 5,
+        "to": 10,
+        "original": "파일입니다",
+        "language": "ko",
+        "type": "spacing",
+        "suggestions": [
+          "파일 입니다"
+        ],
+        "applicable": true,
+        "reason": "Spacing rule 41/42; review interpretation",
+        "ambiguous": false
+      }
+    ],
+    "wrong": 1
+  }
+]
