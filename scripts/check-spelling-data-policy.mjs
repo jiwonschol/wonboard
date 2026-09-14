@@ -19,7 +19,7 @@ export const reviewedAssets = [
   },
   {
     file:'third_party/spelling/generated/morphology.json',
-    sha256:'d6bc76d4a6cbcff44388fdd8c42677cdbb294927f416cfc2af883da20e3eaa23',
+    sha256:'38a8386eace92d1e1ecff9c9a2f2c40989c851651305511f537314885d9f257a',
     licenses:['Apache-2.0'],
     notices:[{file:'third_party/spelling/mecab-ko-dic/COPYING',sha256:'c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4'}],
   },

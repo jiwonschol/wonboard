@@ -78,9 +78,9 @@ test('state quotation ending offers an actionable repair without changing action
   assert.equal(check('아즈휼는다던데').some(f=>f.reason.startsWith('State predicate quoted')),false);
 });
 
-test('generic segmentation stays uncertain even when every fragment is recognized',()=>{
+test('nested spacing repairs stay uncertain even when every fragment is recognized',()=>{
   for(const text of ['잘알려지지않은']) {
-    const finding=check(text).find(f=>f.reason.startsWith('Spacing rule 41/42'));
+    const finding=check(text).find(f=>f.type==='spacing'&&f.suggestions.includes('잘 알려지지 않은'));
     assert.ok(finding,text);
     assert.equal(finding.ambiguous,true,text);
     assert.ok(finding.suggestions.length>0);
@@ -149,13 +149,13 @@ test('attested nae stems expand beyond individual source surfaces',()=>{
   assert.equal(createMorphology(sets,{forms:records.slice(0,1)}).predicate('쳐내려고'),null);
 });
 
-test('lexical similarity suggestions disclose uncertainty and keep personal exceptions',()=>{
+test('unverified noun similarity stays review-only and keeps personal exceptions',()=>{
   for(const word of ['제미나이','연애인이','티이어를']){
     const findings=check(word);
-    assert.ok(findings.some(f=>f.suggestions.length&&f.ambiguous===true),word);
+    assert.ok(findings.some(f=>f.type==='unknown'&&!f.applicable),word);
     assert.deepEqual(check(word,[word]),[]);
   }
-  assert.deepEqual(check('연애인이')[0].suggestions,['연예인이']);
+  assert.deepEqual(check('연애인이')[0].suggestions,[]);
   assert.ok(check('됬어요').some(f=>f.suggestions.includes('됐어요')));
 });
 
@@ -167,7 +167,7 @@ test('known nominal plus particle stays attached before a copula',()=>{
   assert.equal(morphology.analyze('아즈휼부터인가',new Set()),null);
   assert.equal(morphology.analyze('언제아즈휼인가',new Set()),null);
   assert.ok(morphology.analyze('아즈휼부터인가',new Set(['아즈휼'])));
-  assert.ok(check('연애인이').some(f=>f.suggestions.includes('연예인이')));
+  assert.ok(check('연애인이').some(f=>f.type==='unknown'));
   assert.ok(check('제미나이를').some(f=>f.type==='unknown'));
 });
 
@@ -207,7 +207,7 @@ test('unknown name repairs cannot shift the identified particle boundary',()=>{
     assert.deepEqual(findings[0].suggestions,[]);
     assert.deepEqual(check(source,[base]),[]);
   }
-  assert.ok(check('티이어를').some(f=>f.suggestions.includes('타이어를')));
+  assert.ok(check('티이어를').some(f=>f.type==='unknown'));
   for(const word of ['라스트라도','세미나를'])assert.equal(check(word).filter(f=>f.applicable).length,0);
 });
 
@@ -508,8 +508,8 @@ test('whole noun recognition follows explicit spacing rules but precedes specula
   for(const [word,expected]of [['두개가','두 개가'],['한군데','한 군데'],['탈일이','탈 일이']])assert.ok(check(word).some(f=>f.suggestions.includes(expected)),word);
 });
 
-test('noun typo alternatives survive particles without displacing predicate spacing',()=>{
-  for(const [source,target]of [['티이어를','타이어를'],['티이어는','타이어는'],['티이어에서','타이어에서']])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
+test('unverified noun typos remain reviewable without displacing predicate spacing',()=>{
+  for(const source of ['티이어를','티이어는','티이어에서'])assert.ok(check(source).some(f=>f.type==='unknown'&&!f.applicable),source);
   assert.ok(check('자기전에').some(f=>f.suggestions.includes('자기 전에')));
   assert.equal(check('티이어를',['티이어']).length,0);
   assert.equal(check('`티이어를`').length,0);
@@ -542,7 +542,7 @@ test('spelling candidates do not attach endings to already inflected surfaces',(
   const suggestions=check('해치우고').flatMap(f=>f.suggestions);
   for(const invalid of ['해치운고','해치울고','해치워고'])assert.ok(!suggestions.includes(invalid),invalid);
   assert.ok(check('맞춥법을').some(f=>f.suggestions.includes('맞춤법을')));
-  assert.ok(check('티이어를').some(f=>f.suggestions.includes('타이어를')));
+  assert.ok(check('티이어를').some(f=>f.type==='unknown'));
 });
 
 test('missing doubled finals recover inflected predicates without changing valid single finals',()=>{

@@ -7,7 +7,7 @@ export interface Statement {
 }
 export interface Database {
   prepare(sql: string): Statement;
-  batch(statements: Statement[]): Promise<unknown[]>;
+  batch(statements: Statement[]): Promise<{ meta: { changes: number } }[]>;
 }
 export interface ObjectStore {
   get(key: string): Promise<{ body: ReadableStream; size: number;

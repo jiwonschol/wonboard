@@ -33,6 +33,26 @@ describe("spelling document boundaries", () => {
     expect(redo(state, dispatch)).toBe(true);
     expect(state.doc.eq(changed)).toBe(true);
   });
+  it("passes only adjacency for excluded marks and keeps outer gap edits outside their content", () => {
+    for (const mark of ["code", "link"]) {
+      const protectedText = text("private_identifier", mark);
+      const doc = schema.node("doc", null, [paragraph(protectedText, text(" 에", "bold"), text("서 봐요")),
+        paragraph(text("다음", mark)), paragraph(text(" 에서")),
+        paragraph(text("그림", mark), schema.node("image"), text(" 에서"))]);
+      const segments = spellingSegments(doc);
+      expect(segments.map(segment => !!segment.afterProtected)).toEqual([true, false, false]);
+      expect(segments[0].text).toBe(" 에서 봐요");
+      expect(segments.some(segment => segment.text.includes("private_identifier"))).toBe(false);
+      let state = EditorState.create({ doc, plugins: [history()] });
+      const dispatch = (tr: typeof state.tr) => { state = state.apply(tr); };
+      const start = segments[0].from;
+      dispatch(replaceSpelling(closeHistory(state.tr), start, start + 3, " 에서", "에서"));
+      expect(state.doc.nodeAt(1)?.eq(protectedText)).toBe(true);
+      expect(state.doc.textContent.startsWith("private_identifier에서 봐요")).toBe(true);
+      expect(undo(state, dispatch)).toBe(true);
+      expect(state.doc.eq(doc)).toBe(true);
+    }
+  });
   it("rejects stale text and attempts to cross excluded content", () => {
     const doc = schema.node("doc", null, paragraph(text("one"), text("link", "link"), text("two")));
     const state = EditorState.create({ doc });

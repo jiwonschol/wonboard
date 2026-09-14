@@ -191,9 +191,12 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
           mime = excluded.mime, filename = excluded.filename, published = 1`)
           .bind(crypto.randomUUID(), id, mediaId, key, mime, attachmentFilename(document, mediaId), id, document.revision));
       }
-      if (statements.length) await env.DB.batch(statements);
-      // Return only this committed snapshot; stale writers must explicitly retry.
-      if ((await loadDocument(env, id)).revision !== document.revision) throw new HttpError(409, "storageConflict");
+      // Every conditional write runs in the same transaction. Inspect that
+      // transaction's result, not a later document version after publication.
+      if (statements.length) {
+        const committed = await env.DB.batch(statements);
+        if (committed.some(result => result.meta.changes === 0)) throw new HttpError(409, "storageConflict");
+      } else if ((await loadDocument(env, id)).revision !== document.revision) throw new HttpError(409, "storageConflict");
       const { results } = await env.DB.prepare("SELECT media_id, public_id FROM publications WHERE document_id = ? AND published = 1")
         .bind(id).all<Pick<Publication, "media_id" | "public_id">>();
       return json({ urls: Object.fromEntries(results.filter(row => ids.includes(row.media_id))

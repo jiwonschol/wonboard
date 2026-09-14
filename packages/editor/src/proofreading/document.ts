@@ -1,19 +1,25 @@
 import type { Node } from "@tiptap/pm/model";
 import type { Transaction } from "@tiptap/pm/state";
 
-export type TextSegment = { text: string; from: number; to: number };
+export type TextSegment = { text: string; from: number; to: number; afterProtected?: boolean };
 
 /** Positions and string offsets are both UTF-16. Inline exclusions split a segment. */
 export function spellingSegments(doc: Node): TextSegment[] {
   const segments: TextSegment[] = [];
+  let protectedEnd = -1;
   doc.descendants((node, pos) => {
     if (node.type.name === "codeBlock") return false;
-    if (!node.isText || node.marks.some(mark => ["code", "link"].includes(mark.type.name))) return;
+    if (!node.isText) return;
+    if (node.marks.some(mark => ["code", "link"].includes(mark.type.name))) {
+      protectedEnd = pos + node.nodeSize;
+      return;
+    }
     const last = segments.at(-1);
     if (last?.to === pos) {
       last.text += node.text!;
       last.to += node.nodeSize;
-    } else segments.push({ text: node.text!, from: pos, to: pos + node.nodeSize });
+    } else segments.push({ text: node.text!, from: pos, to: pos + node.nodeSize,
+      ...(protectedEnd === pos ? { afterProtected: true } : {}) });
   });
   return segments;
 }

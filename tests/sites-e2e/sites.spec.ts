@@ -107,7 +107,7 @@ test("owner setup, private save, photo export, anonymous embed, rename, withdraw
     await external.goto(`${externalOrigin}/community-fixture`);
     await expect(external.getByText("둘째 줄 한글", { exact: true })).toBeVisible();
     await expect.poll(() => external.locator("img").evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
-    if (testInfo.project.name === "chromium") await page.screenshot({ path: "/private/tmp/wonboard-sites-export.png", fullPage: false });
+    if (testInfo.project.name === "chromium") await page.screenshot({ path: testInfo.outputPath("wonboard-sites-export.png"), fullPage: false });
     await dialog.getByRole("button", { name: "Close", exact: true }).click();
     await page.getByRole("textbox", { name: "Add title" }).fill("Renamed guide");
     await expect(page.getByText("Saved to my Site", { exact: true })).toBeVisible();
@@ -138,7 +138,7 @@ test("owner setup, private save, photo export, anonymous embed, rename, withdraw
     expect(bounds!.x).toBeGreaterThanOrEqual(0); expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
     await expect(page.getByRole("dialog").getByRole("button", { name: "사진 공개하고 HTML 준비" })).toBeVisible();
     expect(await page.locator("vite-error-overlay").count()).toBe(0);
-    if (testInfo.project.name === "chromium") await page.screenshot({ path: "/private/tmp/wonboard-sites-mobile.png", fullPage: false });
+    if (testInfo.project.name === "chromium") await page.screenshot({ path: testInfo.outputPath("wonboard-sites-mobile.png"), fullPage: false });
     expect(errors).toEqual([]);
     expect(consoleMessages).toEqual([]);
   } finally {

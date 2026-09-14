@@ -1,12 +1,50 @@
-import { describe, expect, it } from "vitest";
-import { mkdtempSync } from "node:fs";
+import { describe, expect, it, vi } from "vitest";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { newDraft } from "@wonboard/document";
 import { openDesktopStore } from "../../apps/desktop/src/store";
+import { openDesktopRepository } from "../../apps/client/src/desktopRepository";
 
 describe("desktop storage", () => {
+  it("omits persisted photo bytes on later text saves and after loading", async () => {
+    const store = openDesktopStore(mkdtempSync(join(tmpdir(), "wonboard-ipc-")));
+    const save = vi.fn(async (...args: Parameters<typeof store.save>) => store.save(...args));
+    vi.stubGlobal("window", { wonboardDesktop: { list: async () => store.list(), load: async (id: string) => store.load(id), save } });
+    try {
+      const draft = newDraft(), bytes = new Uint8Array([1, 2, 3]);
+      draft.document.media.photo = { id: "photo", originalName: "p.png", mime: "image/png", width: 1, height: 1, size: 3, sha256: createHash("sha256").update(bytes).digest("hex") };
+      draft.document.content.content!.push({ type: "media", attrs: { mediaId: "photo" } });
+      draft.blobs.photo = new Blob([bytes]);
+      const repository = openDesktopRepository();
+      const first = await repository.save(draft, 0);
+      expect(Object.keys(save.mock.calls[0][0].blobs)).toEqual(["photo"]);
+      first.document.title = "text edit";
+      const second = await repository.save(first, 1);
+      expect(save.mock.calls[1][0].blobs).toEqual({});
+      const reopened = openDesktopRepository(), loaded = await reopened.load(second);
+      await reopened.save(loaded, 2);
+      expect(save.mock.calls[2][0].blobs).toEqual({});
+    } finally { store.close(); vi.unstubAllGlobals(); }
+  });
+  it("isolates malformed rows and repairs an incomplete image using verified incoming bytes", () => {
+    const directory = mkdtempSync(join(tmpdir(), "wonboard-recovery-")), store = openDesktopStore(directory);
+    const draft = newDraft(), bytes = new Uint8Array([1, 2, 3]), hash = createHash("sha256").update(bytes).digest("hex");
+    draft.document.media.photo = { id: "photo", originalName: "p.png", mime: "image/png", width: 1, height: 1, size: 3, sha256: hash };
+    draft.document.content.content!.push({ type: "media", attrs: { mediaId: "photo" } });
+    writeFileSync(join(directory, "images", hash), new Uint8Array([1]));
+    try {
+      const saved = store.save({ document: draft.document, blobs: { photo: bytes.buffer } }, 0);
+      expect(new Uint8Array(store.load(saved.document.documentId).blobs.photo)).toEqual(bytes);
+      const raw = new DatabaseSync(join(directory, "documents.sqlite"));
+      raw.prepare("INSERT INTO documents VALUES (?, ?, ?)").run("broken", 1, "not-json"); raw.close();
+      expect(store.list().map(d => d.document.documentId)).toEqual([saved.document.documentId]);
+      writeFileSync(join(directory, "images", hash), new Uint8Array([4, 5, 6]));
+      expect(() => store.save({ document: saved.document, blobs: {} }, 1)).toThrow("missingMedia");
+    } finally { store.close(); }
+  });
   it("restores Korean text and binary photos after closing SQLite", () => {
     const directory = mkdtempSync(join(tmpdir(), "wonboard-store-"));
     let store = openDesktopStore(directory);

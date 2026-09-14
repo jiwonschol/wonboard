@@ -126,7 +126,7 @@ async function main(){
   const root=join(local,'nikl');if(await realpath(root)!==root)fail();
   const {check}=await import('./spelling-prototype.mjs');
   const fingerprints={};
-  for(const file of ['scripts/spelling-prototype.mjs','packages/editor/src/proofreading/engine.mjs','packages/editor/src/proofreading/korean-morphology.mjs','packages/editor/src/proofreading/korean-orthography.mjs','packages/editor/src/proofreading/korean-context.mjs','third_party/spelling/generated/lexicon.json','third_party/spelling/generated/morphology.json'])fingerprints[file]=digest(await readFile(join(project,file)));
+  for(const file of ['scripts/spelling-prototype.mjs','packages/editor/src/proofreading/engine.mjs','packages/editor/src/proofreading/korean-morphology.mjs','packages/editor/src/proofreading/korean-orthography.mjs','packages/editor/src/proofreading/korean-context.mjs','packages/editor/src/proofreading/community-vocabulary.mjs','third_party/spelling/generated/lexicon.json','third_party/spelling/generated/morphology.json'])fingerprints[file]=digest(await readFile(join(project,file)));
   let report;
   if(opts['--labels']){
     const file=await realpath(resolve(local,opts['--labels']));if(!file.startsWith(local+sep))fail();

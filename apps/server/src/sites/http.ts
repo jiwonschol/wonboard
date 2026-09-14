@@ -34,7 +34,9 @@ export async function readBytes(request: Request, max: number) {
 export async function readJson(request: Request) {
   if (request.headers.get("content-type")?.split(";")[0] !== "application/json")
     throw new HttpError(415, "invalidDocument");
-  try { return JSON.parse(new TextDecoder().decode(await readBytes(request, 1024 * 1024))); }
+  // Reuse the document/envelope budget reserved by the backup contract;
+  // 1 MiB rejected ordinary Korean text well below limits.text.
+  try { return JSON.parse(new TextDecoder().decode(await readBytes(request, limits.archiveBytes - limits.mediaBytes))); }
   catch (error) { if (error instanceof HttpError) throw error; throw new HttpError(400, "invalidDocument"); }
 }
 export function validId(value: string) {
@@ -66,20 +68,43 @@ export async function readImage(request: Request) {
     }
     if (!ended) throw new HttpError(400, "invalidImage");
   } else {
-    let offset = 2;
-    while (offset + 4 < data.length && data[offset] === 0xff) {
+    let offset = 2, orientation = 1, scan = false, ended = false;
+    while (offset < data.length) {
+      if (scan && data[offset] !== 0xff) { offset++; continue; }
+      if (data[offset] !== 0xff) throw new HttpError(400, "invalidImage");
       while (data[offset] === 0xff) offset++;
+      if (offset >= data.length) break;
       const marker = data[offset++];
-      if (marker === 0xd9 || marker === 0xda) break;
+      if (scan && (marker === 0 || marker >= 0xd0 && marker <= 0xd7)) continue;
+      if (marker === 0xd9) { ended = true; break; }
+      if (marker === 0x01) continue;
+      if (offset + 2 > data.length) break;
       const length = view.getUint16(offset);
       if (length < 2 || offset + length > data.length) break;
       if ([0xc0, 0xc1, 0xc2].includes(marker) && length >= 8) {
-        height = view.getUint16(offset + 3); width = view.getUint16(offset + 5); break;
+        height = view.getUint16(offset + 3); width = view.getUint16(offset + 5);
+      }
+      if (marker === 0xe1 && length >= 16 && String.fromCharCode(...data.slice(offset + 2, offset + 8)) === "Exif\0\0") {
+        const tiff = offset + 8, end = offset + length;
+        const order = view.getUint16(tiff), little = order === 0x4949;
+        if (![0x4949, 0x4d4d].includes(order) || view.getUint16(tiff + 2, little) !== 42) throw new HttpError(400, "invalidImage");
+        const directory = tiff + view.getUint32(tiff + 4, little);
+        if (directory < tiff + 8 || directory + 2 > end) throw new HttpError(400, "invalidImage");
+        const count = view.getUint16(directory, little);
+        if (directory + 2 + count * 12 > end) throw new HttpError(400, "invalidImage");
+        for (let i = 0; i < count; i++) {
+          const entry = directory + 2 + i * 12;
+          if (view.getUint16(entry, little) === 0x112 && view.getUint16(entry + 2, little) === 3 && view.getUint32(entry + 4, little) === 1) {
+            orientation = view.getUint16(entry + 8, little);
+            if (orientation < 1 || orientation > 8) throw new HttpError(400, "invalidImage");
+          }
+        }
       }
       offset += length;
+      scan = marker === 0xda || scan;
     }
-    if (data.at(-2) !== 0xff || data.at(-1) !== 0xd9)
-      throw new HttpError(400, "invalidImage");
+    if (!ended) throw new HttpError(400, "invalidImage");
+    if (orientation >= 5) [width, height] = [height, width];
   }
   if (!width || !height || width * height > limits.pixels)
     throw new HttpError(400, "imageLimit");

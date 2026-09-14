@@ -100,9 +100,11 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
         db.current = value;
         const drafts = await value.list();
         drafts.sort(newestDraftFirst);
+        if (!active) return;
+        // A broken newest draft must not hide the healthy library entries.
+        setList(drafts);
         const first = drafts[0] ? await value.load(drafts[0]) : newDraft(locale);
         if (!active) return;
-        setList(drafts);
         select(first, drafts.length === 0);
       })
       .catch((e) => {

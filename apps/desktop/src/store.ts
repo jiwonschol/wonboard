@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, statSync, renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { validateDocument, type WriterDocument } from "@wonboard/document";
 import type { StoredDraft } from "./bridge";
 
@@ -16,9 +16,24 @@ export function openDesktopStore(directory: string) {
     validateDocument(document);
     return document;
   };
+  const verified = new Map<string, string>();
+  const stamp = (file: string) => {
+    const s = statSync(file);
+    return `${s.size}:${s.mtimeMs}:${s.ctimeMs}:${s.ino}`;
+  };
+  const verifyImage = (hash: string, size: number) => {
+    const file = join(images, hash), current = stamp(file);
+    if (verified.get(hash) === `${size}:${current}`) return;
+    const bytes = readFileSync(file);
+    if (bytes.length !== size || createHash("sha256").update(bytes).digest("hex") !== hash) throw new Error("missingMedia");
+    verified.set(hash, `${size}:${current}`);
+  };
   return {
     list(): StoredDraft[] {
-      return db.prepare("SELECT body FROM documents").all().map(row => ({ document: decode(row.body), blobs: {} }));
+      return db.prepare("SELECT body FROM documents").all().flatMap(row => {
+        try { return [{ document: decode(row.body), blobs: {} }]; }
+        catch { return []; } // Preserve unreadable rows on disk; isolate them from the library.
+      });
     },
     load(id: unknown): StoredDraft {
       if (typeof id !== "string") throw new Error("invalidDocument");
@@ -31,6 +46,7 @@ export function openDesktopStore(directory: string) {
         if (bytes.byteLength !== media.size || createHash("sha256").update(bytes).digest("hex") !== media.sha256)
           throw new Error("missingMedia");
         blobs[media.id] = Uint8Array.from(bytes).buffer;
+        verified.set(media.sha256, `${media.size}:${stamp(join(images, media.sha256))}`);
       }
       return { document, blobs };
     },
@@ -43,16 +59,21 @@ export function openDesktopStore(directory: string) {
       // A failed save may leave an orphan, but never a document pointing at a partial photo.
       for (const media of Object.values(document.media)) {
         const bytes = input.blobs?.[media.id];
+        if (bytes === undefined) {
+          try { verifyImage(media.sha256, media.size); } catch { throw new Error("missingMedia"); }
+          continue;
+        }
         if (!(bytes instanceof ArrayBuffer) || bytes.byteLength !== media.size ||
             createHash("sha256").update(new Uint8Array(bytes)).digest("hex") !== media.sha256)
           throw new Error("missingMedia");
         const destination = join(images, media.sha256);
-        try { writeFileSync(destination, new Uint8Array(bytes), { flag: "wx", flush: true }); }
-        catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-          const existing = readFileSync(destination);
-          if (createHash("sha256").update(existing).digest("hex") !== media.sha256) throw new Error("missingMedia");
-        }
+        try { verifyImage(media.sha256, media.size); continue; } catch { /* Install verified incoming bytes. */ }
+        const temporary = join(images, `${media.sha256}.${randomUUID()}.tmp`);
+        try {
+          writeFileSync(temporary, new Uint8Array(bytes), { flag: "wx", flush: true });
+          renameSync(temporary, destination);
+          verified.set(media.sha256, `${media.size}:${stamp(destination)}`);
+        } finally { rmSync(temporary, { force: true }); }
       }
       db.exec("BEGIN IMMEDIATE");
       try {

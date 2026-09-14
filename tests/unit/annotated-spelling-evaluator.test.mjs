@@ -83,6 +83,29 @@ test('wrong first choice is not rescued by a good second choice',async()=>{
   assert.equal(report.correctionMetrics['all/ko/combined'].top1,0);
 });
 
+test('normal sentences permit annotated spacing alternatives but reject damage in any displayed choice',async()=>{
+  const normal=row('책을 읽어보았다.',{classification:'normal',normalSentenceEligible:true,
+    optional:[range(3,'읽어보았다','spacing',['읽어 보았다'])]});
+  const valid=await evaluateAnnotatedRows([normal],()=>[range(3,'읽어보았다','spacing',['읽어 보았다'])]);
+  assert.equal(valid.metrics.normalSentences,1);
+  assert.equal(valid.normalFalseSuggestionRate,0);
+  assert.equal(valid.firstSuggestionPrecision,1);
+  assert.equal(valid.correctionMetrics['all/ko/optional'].events,0);
+  for(const suggestions of [['읽어 보았다','일어 보았다'],['일어 보았다','읽어 보았다']]){
+    const damaged=await evaluateAnnotatedRows([normal],()=>[range(3,'읽어보았다','spacing',suggestions)]);
+    assert.equal(damaged.normalFalseSuggestionRate,1);
+    assert.equal(damaged.firstSuggestionPrecision,suggestions[0]==='읽어 보았다'?1:0);
+  }
+  const outside=await evaluateAnnotatedRows([normal],()=>[range(0,'책을 읽어보았다','spacing',['책은 읽어 보았다'])]);
+  assert.equal(outside.normalFalseSuggestionRate,1);
+  assert.equal(outside.firstSuggestionPrecision,0);
+  for(const qualifications of [
+    {ranges:[range(0,'책을','spelling',['책은'])]},
+    {ranges:[range(0,'책을','unknown')]},
+    {protectedRanges:[range(0,'책을','name')]},
+  ])assert.throws(()=>prepareAnnotatedCases([{...normal,...qualifications}]),/Normal annotation contains/);
+});
+
 test('normal sentence notices have a separate denominator from corrections and expected reviews',async()=>{
   const normal=row('ab cd',{classification:'normal',normalSentenceEligible:true});
   const rows=[normal,{...normal,key:'duplicate'},

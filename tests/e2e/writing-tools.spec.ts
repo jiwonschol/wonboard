@@ -149,9 +149,15 @@ test("clear formatting works at the cursor, preserves links and supports undo an
   await expect(body.locator("strong")).toHaveText("Hello world");
   await expect(body.locator("span")).toHaveCSS("font-family", /Gowun Batang/);
   await body.press("ControlOrMeta+a");
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("Hello world");
+  // Let the browser's selectionchange reach the editor before navigating it.
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   await body.press("ArrowLeft");
-  for (let i = 0; i < 5; i++) await body.press("Shift+ArrowRight");
-  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("Hello");
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("");
+  for (let i = 0; i < 5; i++) {
+    await body.press("Shift+ArrowRight");
+    await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("Hello".slice(0, i + 1));
+  }
   await toolbar.getByRole("button", { name: "Clear text formatting", exact: true }).click();
   await expect(body.locator("strong")).toHaveText(" world");
   await expect(body).toHaveText("Hello world");

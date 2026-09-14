@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { handleSitesRequest } from "../../apps/server/src/sites/worker";
 import { createSitesTestRuntime, createSyntheticPng, syntheticPng } from "../helpers/sites-runtime";
 import { newDraft, sha256, type WriterDocument } from "@wonboard/document";
+import { readImage, readJson } from "../../apps/server/src/sites/http";
 
 describe("personal Sites API with real SQLite and simulated R2/identity", () => {
   let runtime: ReturnType<typeof createSitesTestRuntime>;
@@ -36,6 +37,47 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
   }
   beforeEach(() => { runtime = createSitesTestRuntime(); });
   afterEach(() => runtime.close());
+
+  it("keeps a successful publication successful when a later save changes revision", async () => {
+    const document = await photoDocument();
+    const batch = runtime.env.DB.batch.bind(runtime.env.DB);
+    runtime.env.DB.batch = async statements => {
+      const result = await batch(statements);
+      const changed = { ...document, revision: document.revision + 1 };
+      runtime.sqlite.prepare("UPDATE documents SET revision = ?, body = ? WHERE id = ?").run(changed.revision, JSON.stringify(changed), document.documentId);
+      return result;
+    };
+    const url = await publish(document);
+    expect((await call(new URL(url).pathname, "GET", undefined, null)).status).toBe(200);
+  });
+  it("does not publish when the revision changes before the conditional transaction", async () => {
+    const document = await photoDocument();
+    const variant = await (await call(`/api/documents/${document.documentId}/media/photo/variant`, "PUT", syntheticPng)).json();
+    const batch = runtime.env.DB.batch.bind(runtime.env.DB);
+    runtime.env.DB.batch = async statements => {
+      runtime.sqlite.prepare("UPDATE documents SET revision = revision + 1 WHERE id = ?").run(document.documentId);
+      return batch(statements);
+    };
+    expect((await call(`/api/documents/${document.documentId}/publish`, "POST", { revision: document.revision, variants: { photo: variant.hash } })).status).toBe(409);
+    expect(runtime.sqlite.prepare("SELECT count(*) AS count FROM publications WHERE published = 1").get()!.count).toBe(0);
+  });
+  it("accepts the full Korean text budget in JSON", async () => {
+    const text = "한".repeat(2_000_000);
+    const result = await readJson(new Request(origin, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) }));
+    expect(result.text).toBe(text);
+  });
+  it("uses EXIF orientation and accepts trailing camera data after JPEG EOI", async () => {
+    for (const orientation of [1, 6, 8]) {
+      const exif = Buffer.alloc(32); exif.write("Exif\0\0", 0, "binary"); exif.write("II", 6); exif.writeUInt16LE(42, 8); exif.writeUInt32LE(8, 10);
+      exif.writeUInt16LE(1, 14); exif.writeUInt16LE(0x112, 16); exif.writeUInt16LE(3, 18); exif.writeUInt32LE(1, 20); exif.writeUInt16LE(orientation, 24);
+      const app1 = Buffer.concat([Buffer.from([0xff, 0xe1, 0, exif.length + 2]), exif]);
+      const bytes = Buffer.concat([Buffer.from([0xff, 0xd8]), app1, Buffer.from([0xff, 0xc0, 0, 8, 8, 0, 2, 0, 3, 1, 0xff, 0xda, 0, 2, 12, 0xff, 0, 4, 0xff, 0xd9]), Buffer.from("camera trailer")]);
+      const image = await readImage(new Request(origin, { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: bytes }));
+      expect([image.width, image.height]).toEqual(orientation === 1 ? [3, 2] : [2, 3]);
+      const truncated = bytes.subarray(0, bytes.indexOf(Buffer.from([0xff, 0xd9])));
+      await expect(readImage(new Request(origin, { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: truncated }))).rejects.toThrow("invalidImage");
+    }
+  });
 
   it("fails closed before owner binding and prevents public first-visitor ownership claims", async () => {
     runtime.env.WONBOARD_OWNER_ID = undefined;

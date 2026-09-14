@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, session } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, session, shell } from "electron";
 import { join, resolve, relative, isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
 import { openDesktopStore } from "./store";
@@ -46,12 +46,20 @@ if (ownsLock) void app.whenReady().then(() => {
   const createWindow = () => {
     window = new BrowserWindow({ width: 1440, height: 960, minWidth: 800, minHeight: 600, title: "Wonboard",
       webPreferences: { preload: join(__dirname, "preload.cjs"), contextIsolation: true, nodeIntegration: false, sandbox: true } });
-    window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-    window.webContents.on("will-navigate", event => event.preventDefault());
-    window.webContents.on("will-prevent-unload", async () => {
-      // Keep the window open while unsaved edits are present; do not silently discard them.
-      await dialog.showMessageBox(window!, { type: "warning", message: "아직 저장되지 않은 글이 있습니다. / Unsaved changes",
-        detail: "저장이 완료된 뒤 다시 종료해주세요. / Finish saving before closing.", buttons: ["확인 / OK"] });
+    const openLink = (url: string) => {
+      try {
+        const target = new URL(url);
+        if (target.protocol === "https:" && !target.username && !target.password)
+          void shell.openExternal(target.href).catch(() => {});
+      } catch { /* Invalid and non-web targets remain blocked. */ }
+    };
+    window.webContents.setWindowOpenHandler(({ url }) => { openLink(url); return { action: "deny" }; });
+    window.webContents.on("will-navigate", (event, url) => { event.preventDefault(); openLink(url); });
+    window.webContents.on("will-prevent-unload", event => {
+      const choice = dialog.showMessageBoxSync(window!, { type: "warning", message: "아직 저장되지 않은 글이 있습니다. / Unsaved changes",
+        detail: "저장하지 않고 종료하면 마지막 변경을 잃습니다. / Unsaved changes will be lost.",
+        buttons: ["계속 작성 / Stay", "저장하지 않고 종료 / Quit without saving"], defaultId: 0, cancelId: 0 });
+      if (choice === 1) event.preventDefault();
     });
     window.on("closed", () => { window = null; });
     void window.loadURL("wonboard://app/");

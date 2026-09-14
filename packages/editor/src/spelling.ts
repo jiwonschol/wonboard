@@ -8,6 +8,28 @@ export function readPersonalDictionary(): string[] {
   return value;
 }
 
+// Personal spelling is case-sensitive, as in the checker. Typography-only
+// apostrophe variants share an entry; never lowercase nicknames or acronyms.
+export const personalWordKey = (word: string) => word.normalize("NFC").replaceAll("’", "'");
+export function validPersonalWord(word: string): boolean {
+  return word.length <= 64 && (/^[\p{L}][\p{L}'’-]*$/u.test(word) || /^[ㄱ-ㅎㅏ-ㅣ]+(?:_[ㄱ-ㅎㅏ-ㅣ]+)+$/u.test(word));
+}
+export async function updatePersonalDictionary(operation: "add" | "remove", word: string, signal?: AbortSignal): Promise<string[]> {
+  if (operation === "add" && !validPersonalWord(word)) throw new Error("Invalid dictionary word");
+  // The read and write share one origin-wide lock, including other tabs.
+  // Without coordination, a read-modify-write could discard another entry.
+  if (!navigator.locks) throw new Error("Dictionary storage coordination unavailable");
+  return navigator.locks.request(dictionaryKey, { signal }, () => {
+    const saved = readPersonalDictionary();
+    const key = personalWordKey(word);
+    const next = operation === "remove" ? saved.filter(item => personalWordKey(item) !== key)
+      : saved.some(item => personalWordKey(item) === key) ? saved : [...saved, word.normalize("NFC")];
+    localStorage.setItem(dictionaryKey, JSON.stringify(next));
+    window.dispatchEvent(new Event(dictionaryKey));
+    return next;
+  });
+}
+
 export function spellingWords(doc: Node): SpellingWord[] {
   const words: SpellingWord[] = [];
   doc.descendants((node, pos) => {

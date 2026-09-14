@@ -69,7 +69,7 @@ export function prepareAnnotatedCases(rows) {
       if (!range.suggestions.length) fail('Empty optional annotation');
     }
     for (const range of row.protectedRanges) validateRange(row.text,range,false);
-    if (row.classification === 'normal' && (row.ranges.length || row.optional.length || row.protectedRanges.length)) fail('Normal annotation contains qualifications');
+    if (row.classification === 'normal' && (row.ranges.length || row.protectedRanges.length)) fail('Normal annotation contains required or protected ranges');
     validateAnnotationConsistency(row);
     const group = groups.get(row.text) ?? [];
     group.push(row); groups.set(row.text,group);
@@ -149,8 +149,12 @@ export async function evaluateAnnotatedRows(rows, check) {
       metrics.firstSuggestions++;
       const changes=edits(row.text,row.text.slice(0,f.from)+f.suggestions[0]+row.text.slice(f.to),false);
       if (changes.length && alternatives.some(a => changes.every(e => a.has(editKey(e))))) metrics.correctFirstSuggestions++;
-      // Count any bad displayed suggestion, not just the first, on normal text.
-      if (f.suggestions.some(s => s !== f.original)) wrong=true;
+      // A permitted alternative is still normal. Check every displayed choice,
+      // including later choices that would damage an otherwise correct sentence.
+      if (f.suggestions.some(s => {
+        const candidateEdits=edits(row.text,row.text.slice(0,f.from)+s+row.text.slice(f.to),false);
+        return candidateEdits.length && !alternatives.some(a => candidateEdits.every(e => a.has(editKey(e))));
+      })) wrong=true;
     }
     if (row.normalSentenceEligible) {
       metrics.normalSentences++;
