@@ -155,3 +155,15 @@ WebKit의 Blob 저장에서 `Error preparing Blob/File data to be stored in obje
 이 환경에서는 설치 저장소를 `/private/tmp/wonboard-pnpm-store`, Playwright 바이너리를 `/private/tmp/wonboard-browsers`로 격리했다. 기존 설치 후 `npm run typecheck`, `npm test`, `npm run build`, `PLAYWRIGHT_BROWSERS_PATH=/private/tmp/wonboard-browsers npm run test:e2e`로 검증했다. 프로젝트 의존성 설치 정본은 pnpm lockfile이다.
 
 지원은 실행 중 실시간으로 보고 있지 않을 수 있다. 다음 구현 전에 이 기록, 계획의 확정 결정, 실제 git 상태를 확인한다. 기존 초안·사용자 수정은 보존하고, 자동화 시험은 격리된 브라우저 문맥에서 한다. 서버 단계의 승인 범위·저장소 선택·공개 행위를 확인한 뒤 진행한다. 현재 로컬 구현 권한을 main push·merge·배포 권한으로 확대하지 않는다.
+
+
+## #9 1단계 — 2026-09-15
+
+정본: https://github.com/jiwonschol/wonboard/issues/9#issuecomment-5674269504
+브랜치: `claude/trash-stage-1`; 기준 main: `aa85253ec5ce5ccf96508f9d386b73da6d591ebe`.
+
+- W0 완료: 별도 작업 공간 설치 완료, 잠금 파일 변경 없음. 메인 미커밋 공백 도구 원본은 보존.
+- G0: 타입 검사 오류 0, Vitest 152/152 + Node 341/341 = 단위 493/493, Chromium 일반 E2E 164/164(4.2분), Sites E2E 3/3(5.9초). 새 실패 없음. 로컬 시험용 합성 계정과 Sites 대역을 사용.
+- 이후 순서: W1 문서 상태 → W2 저장소 → W3 수명주기 → W4 화면 → W5 복구 보관 → W6 전체 검증·PR.
+- 전체 요청: #9 1단계 PR 후 #13은 병합 선행 조건. #9 2단계는 후속 계획, #6은 현재 코드 게이트 재점검, #8 계정/실측·#10 표 검토·#11 선택 시안 확보가 남음. 미커밋 공백 도구는 기존 보관 브랜치와 여섯 파일이 일치함을 확인.
+- 브랜치 정리: main에 포함된 로컬 `codex/desktop-local-storage`, `codex/korean-spelling-review`, `codex/web-editor-checkpoint`, `codex/writing-fonts-sites-update` 삭제. 원격 삭제는 자동 승인 검토가 구체적 승인을 요구해 보류.
