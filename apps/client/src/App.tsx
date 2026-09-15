@@ -11,6 +11,7 @@ import {
   limits,
   DocumentError,
   type Locale,
+  type Draft,
 } from "@wonboard/document";
 import { translator, en, type MessageKey } from "@wonboard/locales";
 import { useDrafts } from "./useDrafts";
@@ -23,7 +24,9 @@ import { AttachmentsPanel } from "./AttachmentsPanel";
 import { WritingLibrary } from "./WritingLibrary";
 import { initialLocale } from "./locale";
 import { PublicationPanel } from "./PublicationPanel";
-import type { StorageMode } from "./draftRepository";
+import { sitesRequest, type StorageMode } from "./draftRepository";
+import { publications } from "./publishing";
+import { TrashDialog } from "./TrashDialog";
 
 function download(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
@@ -53,7 +56,12 @@ export default function App({
     () => window.matchMedia("(min-width: 900px)").matches,
   );
   const [preview, setPreview] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [localBusy, setBusy] = useState(false);
+  const busy = localBusy || writer.mutating;
+  const [trashDialog, setTrashDialog] = useState<{ action: "move" | "remove" | "empty"; value?: Draft; count: number } | null>(null);
+  const [trashUndo, setTrashUndo] = useState<Draft | null>(null);
+  const [withdrawRetry, setWithdrawRetry] = useState<string | null>(null);
+  const [trashFailures, setTrashFailures] = useState<number | null>(null);
   const importing = useRef(false);
   const [notice, setNotice] = useState("");
   const [persistent, setPersistent] = useState<boolean | null>(null);
@@ -239,6 +247,46 @@ export default function App({
       setBusy(false);
     }
   }
+  const canTrash = Boolean(draft && !writer.readOnly && (draft.document.revision > 0 ||
+    draft.document.title || plainText(draft.document.content) || Object.keys(draft.document.media).length));
+  async function withdrawPhotos(id: string) {
+    try {
+      await sitesRequest(`/api/documents/${id}/publications`, { method: "DELETE" });
+      setWithdrawRetry(null);
+    } catch { setWithdrawRetry(id); }
+  }
+  async function executeTrash(action: "move" | "remove" | "empty", value?: Draft, withdraw = false) {
+    setBusy(true); setTrashFailures(null);
+    try {
+      if (action === "move" && value) {
+        const moved = await writer.moveToTrash(value);
+        if (!moved) return;
+        setTrashUndo(moved);
+        if (withdraw) await withdrawPhotos(moved.document.documentId);
+      } else if (action === "remove" && value) {
+        if (!(await writer.permanentlyRemove(value, withdraw))) return;
+        if (trashUndo?.document.documentId === value.document.documentId) setTrashUndo(null);
+      } else if (action === "empty") {
+        const failures = await writer.emptyTrash();
+        if (failures === null) return;
+        setTrashUndo(null);
+        if (failures) setTrashFailures(failures);
+      }
+      setTrashDialog(null);
+    } catch (e) { report(e); }
+    finally { setBusy(false); }
+  }
+  async function requestTrash(action: "move" | "remove" | "empty", value?: Draft) {
+    if (busy) return;
+    setOptions(false); setBusy(true);
+    try {
+      const count = storageMode === "sites" && value
+        ? (await publications(value.document.documentId)).filter(p => p.published).length : 0;
+      if (action === "move" && count === 0) await executeTrash(action, value);
+      else setTrashDialog({ action, value, count });
+    } catch (e) { report(e); }
+    finally { setBusy(false); }
+  }
   if (!draft)
     return (
       <main className="startup" role="status">
@@ -400,6 +448,12 @@ export default function App({
           ) : null}
         </div>
       ) : null}
+      {trashUndo && <div className="notice" role="status">{t("trashMoved")}
+        <button disabled={busy} onClick={async () => { if (await writer.restoreFromTrash(trashUndo)) setTrashUndo(null); }}>{t("trashUndo")}</button>
+        <button aria-label={t("close")} onClick={() => setTrashUndo(null)}><Icon name="close" /></button></div>}
+      {withdrawRetry && <div className="notice error" role="alert">{t("trashWithdrawFailed")}
+        <button disabled={busy} onClick={async () => { setBusy(true); try { await withdrawPhotos(withdrawRetry); } finally { setBusy(false); } }}>{t("trashRetry")}</button></div>}
+      {trashFailures !== null && <div className="notice error" role="alert">{t("trashPartialFailure", { count: trashFailures })}</div>}
       <div className="writing-workspace">
         {library ? (
           <WritingLibrary
@@ -408,6 +462,11 @@ export default function App({
             list={writer.list}
             locale={locale}
             busy={busy}
+            canTrash={canTrash}
+            onTrash={value => void requestTrash("move", value)}
+            onUntrash={async value => { if (await writer.restoreFromTrash(value)) setTrashUndo(null); }}
+            onRemove={value => void requestTrash("remove", value)}
+            onEmptyTrash={() => void requestTrash("empty")}
             onClose={() => setLibrary(false)}
             onCreate={() => void writer.create()}
             onRestore={() => restoreInput.current?.click()}
@@ -514,6 +573,7 @@ export default function App({
       </footer>
       {options ? (
         <div className="options-menu" role="dialog" aria-label={t("options")}>
+          <button disabled={busy || !canTrash} onClick={() => void requestTrash("move", draft)}>{t("moveToTrash")}</button>
           <button disabled={busy} onClick={() => void backup()}>
             {t("backup")}
           </button>
@@ -556,6 +616,8 @@ export default function App({
           <button onClick={() => setOptions(false)}>{t("close")}</button>
         </div>
       ) : null}
+      {trashDialog && <TrashDialog locale={locale} action={trashDialog.action} count={trashDialog.count} working={busy}
+        onConfirm={withdraw => executeTrash(trashDialog.action, trashDialog.value, withdraw)} onClose={() => setTrashDialog(null)} />}
       {publication && <PublicationPanel locale={locale} documentId={draft.document.documentId}
         save={writer.save} snapshot={writer.snapshot} onBusy={setBusy} onClose={() => setPublication(false)} />}
       {preview ? (

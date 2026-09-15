@@ -673,7 +673,7 @@ describe("깨진 레코드 하나가 서재 전체를 막지 않는다", () => {
         onSelect: async () => undefined,
         onCreate: () => undefined,
         onClose: () => undefined,
-        onRestore: () => undefined,
+        onRestore: () => undefined, onTrash: () => undefined, onUntrash: () => undefined, onRemove: () => undefined, onEmptyTrash: () => undefined, canTrash: false,
       }),
     );
     expect(markup.indexOf("legacy-newer")).toBeLessThan(
