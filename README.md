@@ -26,7 +26,7 @@ Wonboard는 글과 사진을 한곳에서 작성하고 보관한 뒤, 원하는 
 
 ### 소유자 연결과 개인정보
 
-Sites판은 ChatGPT 로그인을 사용합니다. 설치 뒤 연결 화면에서 확인한 계정 ID를 `WONBOARD_OWNER_USER_ID`에 설정하고 다시 배포한 뒤 설치 상태를 확인합니다. 환경 값 설정 방법은 [공식 설정 안내](https://learn.chatgpt.com/docs/sites?surface=app#configure-runtime-environment-values)를 따르세요. 이름·이메일로 소유자를 지정하지 않습니다.
+Sites판은 ChatGPT 로그인을 사용합니다. 설치 뒤 연결 화면에서 확인한 계정 ID를 `WONBOARD_OWNER_ID`에 설정하고 다시 배포한 뒤 설치 상태를 확인합니다. 환경 값 설정 방법은 [공식 설정 안내](https://learn.chatgpt.com/docs/sites?surface=app#configure-runtime-environment-values)를 따르세요. 이름·이메일로 소유자를 지정하지 않습니다.
 
 이 Site는 로그인한 방문자의 ChatGPT 사용자 ID를 소유자 확인에, 제공되는 이름·이메일을 화면 표시에 사용합니다. 글·사진·안내 확인 기록은 이 Site에 저장하며 Onsoon Labs 중계 서버로 전송하지 않습니다. 설치자는 방문자에게 정보의 수집·이용을 설명할 책임이 있습니다. 플랫폼의 방문 통계는 [공식 Analytics 안내](https://learn.chatgpt.com/docs/sites?surface=app#review-site-analytics)를 확인하세요.
 
