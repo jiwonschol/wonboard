@@ -377,3 +377,12 @@ describe("backup boundary", () => {
     await expect(exportBackup(d)).rejects.toThrow("missingMedia");
   });
 });
+
+
+it("accepts an optional trash timestamp and rejects malformed values", () => {
+  const { document } = newDraft();
+  expect(() => validateDocument(document)).not.toThrow();
+  expect(() => validateDocument({ ...document, trashedAt: "2026-09-15T00:00:00.000Z" })).not.toThrow();
+  for (const trashedAt of [123, "invalid", null])
+    expect(() => validateDocument({ ...document, trashedAt })).toThrow();
+});

@@ -167,3 +167,5 @@ WebKit의 Blob 저장에서 `Error preparing Blob/File data to be stored in obje
 - 이후 순서: W1 문서 상태 → W2 저장소 → W3 수명주기 → W4 화면 → W5 복구 보관 → W6 전체 검증·PR.
 - 전체 요청: #9 1단계 PR 후 #13은 병합 선행 조건. #9 2단계는 후속 계획, #6은 현재 코드 게이트 재점검, #8 계정/실측·#10 표 검토·#11 선택 시안 확보가 남음. 미커밋 공백 도구는 기존 보관 브랜치와 여섯 파일이 일치함을 확인.
 - 브랜치 정리: main에 포함된 로컬 `codex/desktop-local-storage`, `codex/korean-spelling-review`, `codex/web-editor-checkpoint`, `codex/writing-fonts-sites-update` 삭제. 원격 삭제는 자동 승인 검토가 구체적 승인을 요구해 보류.
+
+- W1 완료: 선택적 trashedAt 검증, 정확한 30일 만료와 올림 일수, 활성 글 선택·백업 새 글 복원 함수 추가. document/trash 단위 49개 통과. T2의 모호한 “29일 전=30일”은 삭제 시각=30일, 1일 경과=29일로 검증.
