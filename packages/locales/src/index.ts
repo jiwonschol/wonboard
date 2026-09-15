@@ -1,5 +1,15 @@
 import { createInstance } from "i18next";
 export const en = {
+  tidySpaces: "Tidy whitespace",
+  tidySpacesHint: "Whole document: remove trailing spaces and keep one consecutive empty paragraph. Wording, word spacing, links, code and formatting stay unchanged. Undo restores the changes.",
+  tidySpacesCount: "Changes:",
+  tidySpacesNone: "No whitespace to tidy.",
+  tidySpacesBlank: "Remove an extra empty paragraph (keep one).",
+  tidySpacesBefore: "Before",
+  tidySpacesAfter: "After",
+  tidySpacesEmpty: "(empty)",
+  tidySpacesPreview: "Preview shows up to 20 changes and the last 120 characters of each text segment. · represents a space. Apply processes all listed changes in the document.",
+  tidySpacesStale: "The document changed. Close and reopen this preview.",
   writingToolbar: "Writing tools",
   inspectorWritingTools: "Text formatting",
   selectionSettings: "Selection settings",
@@ -249,6 +259,16 @@ export const en = {
 };
 export type MessageKey = keyof typeof en;
 export const ko: Record<MessageKey, string> = {
+  tidySpaces: "공백 정리",
+  tidySpacesHint: "문서 전체의 문단 끝 공백을 지우고, 연속된 빈 문단은 하나만 남깁니다. 문장·단어 사이 띄어쓰기·링크·코드·서식은 바꾸지 않습니다. 실행 취소로 되돌릴 수 있습니다.",
+  tidySpacesCount: "변경 수:",
+  tidySpacesNone: "정리할 공백이 없습니다.",
+  tidySpacesBlank: "중복된 빈 문단 삭제 (하나는 유지)",
+  tidySpacesBefore: "변경 전",
+  tidySpacesAfter: "변경 후",
+  tidySpacesEmpty: "(비어 있음)",
+  tidySpacesPreview: "미리보기는 최대 20건, 각 텍스트 구간의 끝 120자를 보여줍니다. ·는 공백입니다. 적용하면 문서의 전체 변경 건을 처리합니다.",
+  tidySpacesStale: "문서가 변경됐습니다. 닫은 뒤 미리보기를 다시 열어주세요.",
   writingToolbar: "글쓰기 도구",
   inspectorWritingTools: "선택한 글자 서식",
   selectionSettings: "선택 영역 설정",

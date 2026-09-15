@@ -1,0 +1,31 @@
+import { test, expect } from "./fixtures";
+
+test("whitespace review preserves words, supports cancel, undo, and reload", async ({ page }) => {
+  await page.goto("/");
+  const body = page.getByRole("textbox", { name: "Document body", exact: true });
+  const tool = page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Tidy whitespace" });
+  await body.fill("아이템  이름   ");
+  await body.press("End");
+  await body.press("Enter"); await body.press("Enter"); await body.press("Enter");
+  await body.pressSequentially("마지막 문장");
+  await tool.click();
+  const review = page.getByRole("dialog", { name: "Tidy whitespace" });
+  await expect(review).toContainText("Changes: 2");
+  await review.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(body.locator("p")).toHaveCount(4);
+  await tool.click();
+  await review.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(body.locator("p")).toHaveCount(3);
+  expect(await body.locator("p").first().textContent()).toBe("아이템  이름");
+  await body.press("ControlOrMeta+z");
+  await expect(body.locator("p")).toHaveCount(4);
+  expect(await body.locator("p").first().textContent()).toBe("아이템  이름   ");
+  await tool.click();
+  await review.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(page.locator(".save-state")).toHaveText("Saved locally");
+  await page.reload();
+  await expect(body.locator("p")).toHaveCount(3);
+  await tool.click();
+  await expect(review).toContainText("No whitespace to tidy.");
+  await expect(review.getByRole("button", { name: "Apply", exact: true })).toBeDisabled();
+});
