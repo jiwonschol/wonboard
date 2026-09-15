@@ -34,12 +34,13 @@ if (ownsLock) void app.whenReady().then(() => {
   });
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   session.defaultSession.setPermissionCheckHandler(() => false);
-  for (const operation of ["list", "load", "save"] as const) {
+  for (const operation of ["list", "load", "save", "remove"] as const) {
     ipcMain.handle(`drafts:${operation}`, (event, ...args) => {
       if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame ||
           !event.senderFrame.url.startsWith("wonboard://app/")) throw new Error("unauthorized");
       if (operation === "list") return store.list();
       if (operation === "load") return store.load(args[0]);
+      if (operation === "remove") return store.remove(args[0], args[1]);
       return store.save(args[0], args[1]);
     });
   }

@@ -1,5 +1,5 @@
 import { withoutUnusedMedia, validateDocument, sha256, type Draft } from "@wonboard/document";
-import { loadDrafts, openStorage, saveDraft, StorageConflict } from "./storage";
+import { loadDrafts, openStorage, saveDraft, removeDraft, StorageConflict } from "./storage";
 import { openDesktopRepository } from "./desktopRepository";
 
 export type StorageMode = "local" | "sites" | "desktop";
@@ -7,6 +7,7 @@ export type DraftRepository = {
   list(): Promise<Draft[]>;
   load(draft: Draft): Promise<Draft>;
   save(draft: Draft, revision: number): Promise<Draft>;
+  remove(documentId: string, revision: number, options?: { withdrawPublications?: boolean }): Promise<void>;
   close(): void;
 };
 export async function sitesRequest(path: string, init: RequestInit = {}) {
@@ -24,7 +25,8 @@ export async function openDraftRepository(mode: StorageMode, onBlocked: () => vo
   if (mode === "local") {
     const db = await openStorage(undefined, onBlocked, onDisconnected);
     return { list: () => loadDrafts(db), load: async draft => draft,
-      save: (draft, revision) => saveDraft(db, draft, revision), close: () => db.close() };
+      save: (draft, revision) => saveDraft(db, draft, revision),
+      remove: (id, revision) => removeDraft(db, id, revision), close: () => db.close() };
   }
   const uploaded = new Map<string, string>();
   return {
@@ -78,6 +80,11 @@ export async function openDraftRepository(mode: StorageMode, onBlocked: () => vo
       })).json();
       validateDocument(document);
       return { document, blobs: snapshot.blobs };
+    },
+    async remove(id, revision, options) {
+      await sitesRequest(`/api/documents/${id}`, { method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ revision, withdrawPublications: options?.withdrawPublications ?? false }) });
     },
     close() { uploaded.clear(); },
   };

@@ -85,6 +85,17 @@ export function openDesktopStore(directory: string) {
       } catch (error) { db.exec("ROLLBACK"); throw error; }
       return { document, blobs: {} };
     },
+    remove(id: unknown, revision: unknown): void {
+      if (typeof id !== "string" || !Number.isSafeInteger(revision) || Number(revision) < 0)
+        throw new Error("invalidDocument");
+      db.exec("BEGIN IMMEDIATE");
+      try {
+        const previous = db.prepare("SELECT revision FROM documents WHERE id = ?").get(id);
+        if (previous && previous.revision !== revision) throw new Error("storageConflict");
+        db.prepare("DELETE FROM documents WHERE id = ?").run(id);
+        db.exec("COMMIT");
+      } catch (error) { db.exec("ROLLBACK"); throw error; }
+    },
     close() { db.close(); },
   };
 }

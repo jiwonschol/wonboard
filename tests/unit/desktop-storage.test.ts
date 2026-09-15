@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -79,4 +79,22 @@ describe("desktop storage", () => {
       expect(store.list()).toEqual([]);
     } finally { store.close(); }
   });
+});
+
+it("removes matching document revisions without deleting original photo files", () => {
+  const directory = mkdtempSync(join(tmpdir(), "wonboard-trash-")), store = openDesktopStore(directory);
+  try {
+    const draft = newDraft(), bytes = new Uint8Array([1, 2, 3]);
+    const hash = createHash("sha256").update(bytes).digest("hex");
+    draft.document.media.photo = { id: "photo", originalName: "p.png", mime: "image/png", width: 1, height: 1, size: 3, sha256: hash };
+    draft.document.content.content!.push({ type: "media", attrs: { mediaId: "photo" } });
+    const saved = store.save({ document: draft.document, blobs: { photo: bytes.buffer } }, 0);
+    expect(() => store.remove(saved.document.documentId, 0)).toThrow("storageConflict");
+    expect(store.list()).toHaveLength(1);
+    store.remove(saved.document.documentId, 1);
+    store.remove(saved.document.documentId, 1);
+    expect(store.list()).toHaveLength(0);
+    expect(existsSync(join(directory, "images", hash))).toBe(true);
+    expect(() => store.save(saved, 1)).toThrow("storageConflict");
+  } finally { store.close(); }
 });

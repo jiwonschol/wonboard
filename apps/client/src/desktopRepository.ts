@@ -39,6 +39,13 @@ export function openDesktopRepository(): DraftRepository {
         throw error;
       }
     },
+    async remove(id, revision) {
+      try { await storage.remove(id, revision); }
+      catch (error) {
+        if (error instanceof Error && error.message.endsWith("storageConflict")) throw new StorageConflict();
+        throw error;
+      }
+    },
     close() {},
   };
 }

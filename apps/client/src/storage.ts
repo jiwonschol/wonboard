@@ -160,3 +160,22 @@ export async function saveDraft(
       reject(writeError ?? transaction.error ?? new Error("storageFailed"));
   });
 }
+
+export function removeDraft(db: IDBDatabase, id: string, revision: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("drafts", "readwrite");
+    const store = transaction.objectStore("drafts");
+    let conflict = false;
+    const request = store.get(id);
+    request.onsuccess = () => {
+      if (!request.result) return;
+      if (request.result.document.revision !== revision) {
+        conflict = true; transaction.abort(); return;
+      }
+      store.delete(id);
+    };
+    transaction.oncomplete = () => resolve();
+    transaction.onabort = () => reject(conflict ? new StorageConflict() : transaction.error ?? new Error("storageFailed"));
+    transaction.onerror = () => reject(transaction.error ?? new Error("storageFailed"));
+  });
+}

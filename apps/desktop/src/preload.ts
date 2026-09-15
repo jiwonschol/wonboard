@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopStorage } from "./bridge";
 
 const storage: DesktopStorage = {
+  remove: (id, revision) => ipcRenderer.invoke("drafts:remove", id, revision),
   list: () => ipcRenderer.invoke("drafts:list"),
   load: id => ipcRenderer.invoke("drafts:load", id),
   save: (draft, revision) => ipcRenderer.invoke("drafts:save", draft, revision),
