@@ -6,6 +6,7 @@ const paths: Record<string, ReactNode> = {
   link: <path d="m10 14 4-4M9 16l-2 2a4 4 0 0 1-5-5l4-4a4 4 0 0 1 5 0m2-1 2-2a4 4 0 0 1 5 5l-4 4a4 4 0 0 1-5 0" />,
   "clear-format": <path d="m14 3 7 7-10 10H7l-5-5L14 3Zm-8 8 7 7M11 20h10" />,
   attachments: <path d="m8 13 7-7a3 3 0 0 1 4 4L9 20a5 5 0 0 1-7-7L13 2m-7 13 9-9" />,
+  trash: <path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7" />,
   plus: <path d="M12 5v14M5 12h14" />,
   back: <path d="m14 7-5 5 5 5" />,
   close: <path d="m7 7 10 10M17 7 7 17" />,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Icon } from "@wonboard/editor";
 import {
   matchesQuery,
@@ -7,6 +7,7 @@ import {
   type Locale,
 } from "@wonboard/document";
 import { translator } from "@wonboard/locales";
+import { trashDaysRemaining, trashExpired } from "./trash";
 import { newestDraftFirst } from "./storage";
 
 function excerpt(draft: Draft): string {
@@ -28,6 +29,7 @@ export function WritingLibrary({
   onCreate,
   onClose,
   onRestore,
+  onTrash, onUntrash, onRemove, onEmptyTrash, canTrash,
   storageMode = "local",
 }: {
   draft: Draft;
@@ -39,10 +41,22 @@ export function WritingLibrary({
   onCreate(): void;
   onClose(): void;
   onRestore(): void;
+  onTrash(draft: Draft): void;
+  onUntrash(draft: Draft): void;
+  onRemove(draft: Draft): void;
+  onEmptyTrash(): void;
+  canTrash: boolean;
 }) {
   const t = translator(locale);
   const [query, setQuery] = useState("");
   const [recent, setRecent] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const trashed = list.filter(d => d.document.trashedAt !== undefined && !trashExpired(d.document, now));
   const documents = [
     draft,
     ...list.filter((d) => d.document.documentId !== draft.document.documentId),
@@ -50,12 +64,28 @@ export function WritingLibrary({
     .sort(newestDraftFirst)
     .filter(
       (d) =>
-        matchesQuery(d.document.title, query, locale) &&
+        d.document.trashedAt === undefined && matchesQuery(d.document.title, query, locale) &&
         (!recent ||
           Date.now() - Date.parse(d.document.updatedAt) < 7 * 86400000),
     );
   return (
     <aside className="writing-library" aria-label={t("documents")}>
+      {showTrash ? <>
+        <header><button onClick={() => setShowTrash(false)}>{t("trashBack")}</button><h2>{t("trash")}</h2>
+          <button className="icon-button" aria-label={t("closeLibrary")} onClick={onClose}><Icon name="close" /></button></header>
+        <p className="trash-policy">{t("trashPolicy")}</p>
+        <nav className="document-list" aria-label={t("trash")}>
+          {trashed.map(d => <section className="trash-row" key={d.document.documentId}>
+            <strong>{d.document.title || t("untitled")}</strong>
+            <span className="document-excerpt">{excerpt(d)}</span>
+            <span>{trashDaysRemaining(d.document, now) <= 1 ? t("trashTomorrow") : t("trashDays", { count: trashDaysRemaining(d.document, now) })}</span>
+            <div><button disabled={busy} onClick={() => onUntrash(d)}>{t("restoreFromTrash")}</button>
+              <button disabled={busy} onClick={() => onRemove(d)}>{t("permanentlyDelete")}</button></div>
+          </section>)}
+          {!trashed.length && <p>{t("trashEmpty")}</p>}
+        </nav>
+        <footer><button disabled={busy || !trashed.length} onClick={onEmptyTrash}>{t("emptyTrash")}</button></footer>
+      </> : <>
       <header>
         <h2>{t("myWriting")}</h2>
         <button
@@ -92,8 +122,7 @@ export function WritingLibrary({
       />
       <nav className="document-list" aria-label={t("myWriting")}>
         {documents.map((d) => (
-          <button
-            key={d.document.documentId}
+          <Fragment key={d.document.documentId}><button
             aria-current={
               draft.document.documentId === d.document.documentId
                 ? "page"
@@ -115,15 +144,21 @@ export function WritingLibrary({
               {excerpt(d) || t("emptyExcerpt")}
             </span>
           </button>
+          {d.document.documentId === draft.document.documentId && <div className="document-row-actions">
+            <button className="icon-button" aria-label={t("moveToTrash")} disabled={busy || !canTrash} onClick={() => onTrash(d)}><Icon name="trash" /></button>
+          </div>}
+          </Fragment>
         ))}
         {!documents.length ? <p>{t("noDocuments")}</p> : null}
       </nav>
       <footer>
         <p>{t(storageMode === "desktop" ? "deviceStorage" : storageMode === "sites" ? "sitesStorage" : "thisBrowser")}</p>
+        <button onClick={() => setShowTrash(true)}>{t("trash")} {trashed.length}</button>
         <button disabled={busy} onClick={onRestore}>
           {t("restore")}
         </button>
       </footer>
+      </>}
     </aside>
   );
 }

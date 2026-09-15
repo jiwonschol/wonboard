@@ -155,3 +155,32 @@ WebKit의 Blob 저장에서 `Error preparing Blob/File data to be stored in obje
 이 환경에서는 설치 저장소를 `/private/tmp/wonboard-pnpm-store`, Playwright 바이너리를 `/private/tmp/wonboard-browsers`로 격리했다. 기존 설치 후 `npm run typecheck`, `npm test`, `npm run build`, `PLAYWRIGHT_BROWSERS_PATH=/private/tmp/wonboard-browsers npm run test:e2e`로 검증했다. 프로젝트 의존성 설치 정본은 pnpm lockfile이다.
 
 지원은 실행 중 실시간으로 보고 있지 않을 수 있다. 다음 구현 전에 이 기록, 계획의 확정 결정, 실제 git 상태를 확인한다. 기존 초안·사용자 수정은 보존하고, 자동화 시험은 격리된 브라우저 문맥에서 한다. 서버 단계의 승인 범위·저장소 선택·공개 행위를 확인한 뒤 진행한다. 현재 로컬 구현 권한을 main push·merge·배포 권한으로 확대하지 않는다.
+
+
+## #9 1단계 — 2026-09-15
+
+정본: https://github.com/jiwonschol/wonboard/issues/9#issuecomment-5674269504
+브랜치: `claude/trash-stage-1`; 기준 main: `aa85253ec5ce5ccf96508f9d386b73da6d591ebe`.
+
+- W0 완료: 별도 작업 공간 설치 완료, 잠금 파일 변경 없음. 메인 미커밋 공백 도구 원본은 보존.
+- G0: 타입 검사 오류 0, Vitest 152/152 + Node 341/341 = 단위 493/493, Chromium 일반 E2E 164/164(4.2분), Sites E2E 3/3(5.9초). 새 실패 없음. 로컬 시험용 합성 계정과 Sites 대역을 사용.
+- 이후 순서: W1 문서 상태 → W2 저장소 → W3 수명주기 → W4 화면 → W5 복구 보관 → W6 전체 검증·PR.
+- 전체 요청: #9 1단계 PR 후 #13은 병합 선행 조건. #9 2단계는 후속 계획, #6은 현재 코드 게이트 재점검, #8 계정/실측·#10 표 검토·#11 선택 시안 확보가 남음. 미커밋 공백 도구는 기존 보관 브랜치와 여섯 파일이 일치함을 확인.
+- 브랜치 정리: main에 포함된 로컬 `codex/desktop-local-storage`, `codex/korean-spelling-review`, `codex/web-editor-checkpoint`, `codex/writing-fonts-sites-update` 삭제. 원격 삭제는 자동 승인 검토가 구체적 승인을 요구해 보류.
+
+- W1 완료: 선택적 trashedAt 검증, 정확한 30일 만료와 올림 일수, 활성 글 선택·백업 새 글 복원 함수 추가. document/trash 단위 49개 통과. T2의 모호한 “29일 전=30일”은 삭제 시각=30일, 1일 경과=29일로 검증.
+
+- W2 완료: 세 저장소 remove, Sites 목록 trashedAt·조건부 삭제와 사진 철회, 데스크톱 IPC 연결. 타입 검사 오류 0, 저장소 단위 30/30 통과(T3–T7). 없는 문서 삭제는 성공으로 처리하며 원본 파일·게시 기록을 삭제하지 않음. 브라우저는 문서 레코드 안의 Blob도 함께 제거되는 기존 저장 구조임.
+
+- W3 완료: 휴지통 수명주기와 활성 문서 선택, 시작 시 만료 정리, 백업 복원 시 삭제 시각 제거 연결. 타입 오류 0, trash/review-p2 단위 44/44 통과(T8–T9 포함). 실제 화면 흐름 E1–E6은 W4에서 검증.
+
+- W4 완료: 글 목록 휴지통·두 진입점·복원/영구 삭제/비우기·기본 해제 사진 주소 체크박스·실패 재시도·되돌리기·ko/en 구현. E1–E6 Chromium 6/6, S1 사진 주소 시험 1/1, G6 ko/en × 1440/390 × 목록/이동/영구삭제 12개 캡처·좌표/scrollWidth 넘침 0. 테스트 로그인 만료는 30일 시험에서 별도 대역으로 격리.
+
+- W5 완료: Sites 별도 IndexedDB에 저장 전/숨김 시 보관, 같은 revision 복구·이전 revision/휴지통/없음은 새 글 복구, 성공 시 토큰이 같은 사본만 제거, 성공한 저장·로그아웃 뒤 캐시 정리. 복구 선택 전 편집 잠금으로 사본 덮어쓰기 방지. 같은 ID 복구 시 편집기 재선택으로 화면도 갱신. 타입 오류 0, 캐시/기한 단위 5/5, Sites Chromium 전체 7/7(S1–S3 및 12개 화면 측정) 통과. S3는 실제 두 번째 탭의 휴지통 클릭. 삭제 직후 31일 표시를 30일 상한으로 수정.
+
+- W6 로컬 게이트 완료: G1 타입 오류 0, G2 Vitest 163 + Node 341 = 504/504(기준선 +11), G3 Chromium 170/170(기준선 +6), G4 Sites Chromium 7/7(기준선 +4), G5 웹·Sites 빌드 성공(500kB 청크 경고 있음). 마지막 메뉴 간격 수정 후 영향받는 휴지통 6/6과 Sites 7/7·12개 화면 및 빌드를 재검증.
+- G7 자기 검토: 새 비공개 삭제 경로는 기존 소유자·Origin 검사 뒤에 있음. publications 행 삭제·Sites/데스크톱 사진 파일 삭제 없음. 새 화면 문구에 자동 삭제·사진 파일 삭제 약속 없음. 잠금 파일·의존성·D1 스키마 변경 없음. .gitignore 추적 확인, 환경 파일은 .env.example만 추적, 키/로그/node_modules/test-results 미추적.
+- 최종 보강: 손상된 trashedAt 레코드는 디스크에 보존하고 자동 정리에서 격리; 임시 보관 조회 후 편집기를 열어 선택 전 사본 덮어쓰기 방지; 확인창 안에도 저장 오류 표시; 사진 철회 실패 뒤 재시도 E2E 통과.
+- G6: ko/en × 1440/390 × 휴지통 행/사진 체크박스 이동 확인/영구 삭제 확인 = 12개 조합 모두 스크롤 넘침 및 뷰포트 이탈 0. 삭제 직후 30일 표시 확인. 캡처는 test-results/sites의 trash-recovery 시각 시험 산출물.
+- 남은 외부 단계 G8: claude/trash-stage-1 push → 열린 PR → CI 확인 → #9 결과 코멘트. PR은 Refs #9로 연결하며 2단계가 남아 이슈를 닫지 않음.
+- 검증 한계: 실제 Sites 배포·D1·ChatGPT 계정·캐시는 미검증, 데스크톱은 단위 시험만 수행, Firefox/WebKit은 이번 실행에서 제외. 사진 원본 바이트는 Sites/데스크톱에 남으며 브라우저는 문서 레코드 내 Blob도 함께 삭제되는 저장 구조다. 기한은 사용자 기기 시계 기준.

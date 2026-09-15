@@ -16,6 +16,34 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
       body: body === undefined ? undefined : binary ? new Blob([body as Uint8Array<ArrayBuffer>]) : JSON.stringify(body),
     }), runtime.env);
   }
+  it("lists the trash timestamp from document JSON", async () => {
+    await setup();
+    const document = { ...newDraft().document, trashedAt: "2026-09-15T00:00:00.000Z" };
+    expect((await call(`/api/documents/${document.documentId}`, "PUT", document)).status).toBe(200);
+    const listed = await (await call("/api/documents")).json();
+    expect(listed.documents[0].trashedAt).toBe(document.trashedAt);
+  });
+  it("does not withdraw photos when removal loses a revision race", async () => {
+    const document = await photoDocument(), urls = await publish(document);
+    expect((await call(`/api/documents/${document.documentId}`, "DELETE", { revision: 0, withdrawPublications: true })).status).toBe(409);
+    expect((await call(`/api/documents/${document.documentId}`)).status).toBe(200);
+    expect((await call(new URL(urls).pathname, "GET", undefined, null)).status).toBe(200);
+  });
+  it("removes documents with explicit photo withdrawal only and enforces owner and origin", async () => {
+    for (const withdrawPublications of [false, true]) {
+      const document = await photoDocument(), urls = await publish(document);
+      const path = `/api/documents/${document.documentId}`, body = { revision: document.revision, withdrawPublications };
+      expect((await call(path, "DELETE", body, null)).status).toBe(401);
+      expect((await call(path, "DELETE", body, "another-user")).status).toBe(403);
+      expect((await call(path, "DELETE", body, "owner-fixture", "https://other.test")).status).toBe(403);
+      expect((await call(path, "DELETE", body)).status).toBe(200);
+      expect((await call(path, "DELETE", body)).status).toBe(200);
+      expect((await call(path)).status).toBe(404);
+      expect((await call(new URL(urls).pathname, "GET", undefined, null)).status).toBe(withdrawPublications ? 404 : 200);
+      expect((await call("/api/media/photo")).status).toBe(200);
+      expect((await call(`${path}/publications`).then(r => r.json()))).toHaveLength(1);
+    }
+  });
   async function setup() { expect((await call("/api/sites/setup", "POST", { accepted: true, locale: "ko" })).status).toBe(200); }
   async function photoDocument() {
     await setup();

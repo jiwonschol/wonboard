@@ -5,6 +5,8 @@ import {
   openStorage,
   saveDraft,
   loadDrafts,
+  removeDraft,
+  StorageConflict,
 } from "../../apps/client/src/storage";
 
 describe("atomic browser draft storage", () => {
@@ -171,4 +173,17 @@ describe("atomic browser draft storage", () => {
     expect((await loadDrafts(db))[0].blobs.photo.size).toBe(bytes.length);
     db.close();
   });
+});
+
+it("removes only the expected revision and treats an absent draft as success", async () => {
+  const db = await openStorage(crypto.randomUUID());
+  try {
+    const saved = await saveDraft(db, newDraft(), 0);
+    await expect(removeDraft(db, saved.document.documentId, 0)).rejects.toBeInstanceOf(StorageConflict);
+    expect(await loadDrafts(db)).toHaveLength(1);
+    await removeDraft(db, saved.document.documentId, 1);
+    await removeDraft(db, saved.document.documentId, 1);
+    expect(await loadDrafts(db)).toHaveLength(0);
+    await expect(saveDraft(db, saved, 1)).rejects.toBeInstanceOf(StorageConflict);
+  } finally { db.close(); }
 });

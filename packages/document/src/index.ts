@@ -31,6 +31,7 @@ export type WriterDocument = {
   media: Record<string, Media>;
   autoRenameAttachments?: boolean;
   updatedAt: string;
+  trashedAt?: string;
 };
 export type Draft = { document: WriterDocument; blobs: Record<string, Blob> };
 export const limits = {
@@ -335,6 +336,8 @@ export function validateDocumentEnvelope(
     typeof value.updatedAt === "string" &&
       Number.isFinite(Date.parse(value.updatedAt)),
   );
+  requireThat(value.trashedAt === undefined ||
+    (typeof value.trashedAt === "string" && Number.isFinite(Date.parse(value.trashedAt))));
   requireThat(isObject(value.content));
   requireThat(
     isObject(value.media) && Object.keys(value.media).length <= limits.images,

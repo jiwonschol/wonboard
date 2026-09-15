@@ -95,10 +95,11 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
     if (path === "/api/documents" && request.method === "GET") {
       const offset = Number(url.searchParams.get("offset") ?? 0);
       if (!Number.isSafeInteger(offset) || offset < 0) throw new HttpError(400, "invalidDocument");
-      const { results } = await env.DB.prepare("SELECT id, revision, title, locale, excerpt, updated_at FROM documents ORDER BY updated_at DESC, id LIMIT 100 OFFSET ?")
-        .bind(offset).all<{ id: string; revision: number; title: string; locale: "ko" | "en"; excerpt: string; updated_at: string }>();
+      const { results } = await env.DB.prepare("SELECT id, revision, title, locale, excerpt, updated_at, json_extract(body, '$.trashedAt') AS trashed_at FROM documents ORDER BY updated_at DESC, id LIMIT 100 OFFSET ?")
+        .bind(offset).all<{ id: string; revision: number; title: string; locale: "ko" | "en"; excerpt: string; updated_at: string; trashed_at: string | null }>();
       return json({ documents: results.map(row => ({ schemaVersion: 1, documentId: row.id,
         revision: row.revision, title: row.title, locale: row.locale, updatedAt: row.updated_at,
+        ...(row.trashed_at === null ? {} : { trashedAt: row.trashed_at }),
         media: {}, content: { type: "doc", content: [{ type: "paragraph", content: row.excerpt ? [{ type: "text", text: row.excerpt }] : [] }] } })),
         nextOffset: results.length === 100 ? offset + 100 : null });
     }
@@ -130,6 +131,23 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
     if (!docMatch || !validId(docMatch[1])) throw new HttpError(404, "notFound");
     const [, id, action] = docMatch;
     if (!action && request.method === "GET") return json(await loadDocument(env, id));
+    if (!action && request.method === "DELETE") {
+      const body = await readJson(request);
+      if (!Number.isSafeInteger(body?.revision) || body.revision < 0 ||
+          (body.withdrawPublications !== undefined && typeof body.withdrawPublications !== "boolean"))
+        throw new HttpError(400, "invalidDocument");
+      const statements = [];
+      if (body.withdrawPublications) statements.push(env.DB.prepare(
+        "UPDATE publications SET published = 0 WHERE document_id = ? AND EXISTS (SELECT 1 FROM documents WHERE id = ? AND revision = ?)")
+        .bind(id, id, body.revision));
+      statements.push(env.DB.prepare("DELETE FROM documents WHERE id = ? AND revision = ?").bind(id, body.revision));
+      const result = await env.DB.batch(statements);
+      if (result[result.length - 1].meta.changes !== 1) {
+        const remaining = await env.DB.prepare("SELECT revision FROM documents WHERE id = ?").bind(id).first();
+        if (remaining) throw new HttpError(409, "storageConflict");
+      }
+      return json({ removed: true });
+    }
     if (!action && request.method === "PUT") {
       const document: unknown = await readJson(request);
       validateDocument(document);

@@ -32,7 +32,7 @@ export const newestDraftFirst = (a: Draft, b: Draft) =>
   Date.parse(b.document.updatedAt) - Date.parse(a.document.updatedAt);
 type StoredDraft = Draft & { blobs: Record<string, Blob | ArrayBuffer> };
 const storedBinary = new WeakMap<Blob, Promise<ArrayBuffer>>();
-function bytesForStorage(blob: Blob): Promise<ArrayBuffer> {
+export function bytesForStorage(blob: Blob): Promise<ArrayBuffer> {
   const cached = storedBinary.get(blob);
   if (cached) return cached;
   const pending = blob.arrayBuffer().catch((error) => {
@@ -42,7 +42,7 @@ function bytesForStorage(blob: Blob): Promise<ArrayBuffer> {
   storedBinary.set(blob, pending);
   return pending;
 }
-function toDraft(stored: StoredDraft): Draft {
+export function toDraft(stored: StoredDraft): Draft {
   // 변환이 던지는 것만 걸러서는 부족하다. `blobs` 가 멀쩡해도 `updatedAt` 이 없거나
   // 문자열이 아니면 목록을 정렬하는 쪽에서 던져, 결국 같은 자리로 돌아온다 —
   // 초기화가 빈 초안으로 물러나며 멀쩡한 문서까지 전부 가려진다.
@@ -53,6 +53,8 @@ function toDraft(stored: StoredDraft): Draft {
     typeof document.documentId !== "string" ||
     typeof document.updatedAt !== "string" ||
     !Number.isFinite(Date.parse(document.updatedAt)) ||
+    (document.trashedAt !== undefined && (typeof document.trashedAt !== "string" ||
+      !Number.isFinite(Date.parse(document.trashedAt)))) ||
     typeof document.title !== "string" ||
     typeof document.media !== "object" ||
     document.media === null
@@ -158,5 +160,24 @@ export async function saveDraft(
       );
     transaction.onerror = () =>
       reject(writeError ?? transaction.error ?? new Error("storageFailed"));
+  });
+}
+
+export function removeDraft(db: IDBDatabase, id: string, revision: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("drafts", "readwrite");
+    const store = transaction.objectStore("drafts");
+    let conflict = false;
+    const request = store.get(id);
+    request.onsuccess = () => {
+      if (!request.result) return;
+      if (request.result.document.revision !== revision) {
+        conflict = true; transaction.abort(); return;
+      }
+      store.delete(id);
+    };
+    transaction.oncomplete = () => resolve();
+    transaction.onabort = () => reject(conflict ? new StorageConflict() : transaction.error ?? new Error("storageFailed"));
+    transaction.onerror = () => reject(transaction.error ?? new Error("storageFailed"));
   });
 }
