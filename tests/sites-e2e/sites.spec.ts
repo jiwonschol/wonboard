@@ -148,3 +148,32 @@ test("owner setup, private save, photo export, anonymous embed, rename, withdraw
     if (community) await new Promise<void>((resolve, reject) => community!.close(error => error ? reject(error) : resolve()));
   }
 });
+
+
+test("setup guidance fits both languages and links to deletion before consent", async ({ page, context }, testInfo) => {
+  await context.setExtraHTTPHeaders({ "X-Wonboard-Test-User": "owner-fixture" });
+  await page.goto("/");
+  for (const locale of ["ko", "en"] as const) for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.locator(".sites-onboarding select").selectOption(locale);
+    const card = page.locator(".sites-onboarding");
+    const details = card.locator("details");
+    if (!await details.getAttribute("open")) {
+      if (!await details.evaluate(node => (node as HTMLDetailsElement).open)) await details.locator("summary").click();
+    }
+    await expect(card).toContainText(locale === "ko" ? "계정의 Sites 한도" : "account’s Sites limits");
+    await expect(details).toContainText(locale === "ko" ? "설치자는" : "The installer");
+    await expect(details).toContainText(locale === "ko" ? "복원할 수 없습니다" : "cannot be restored");
+    await expect(details.getByRole("link", { name: locale === "ko" ? "Site 삭제 안내" : "How to delete a Site" }))
+      .toHaveAttribute("href", "https://learn.chatgpt.com/docs/sites?surface=app#take-down-or-delete-a-site");
+    await expect(card.getByRole("checkbox")).not.toBeChecked();
+    await expect(card.getByRole("button", { name: locale === "ko" ? "내 글쓰기 공간 열기" : "Open my writing space" })).toBeDisabled();
+    for (const area of [card, details, card.locator(".sites-notices")]) {
+      const box = await area.evaluate(node => ({ client: node.clientWidth, scroll: node.scrollWidth,
+        left: node.getBoundingClientRect().left, right: node.getBoundingClientRect().right }));
+      expect(box.scroll).toBeLessThanOrEqual(box.client);
+      expect(box.left).toBeGreaterThanOrEqual(0); expect(box.right).toBeLessThanOrEqual(width);
+    }
+    await page.screenshot({ path: testInfo.outputPath(`guidance-${locale}-${width}.png`), fullPage: true });
+  }
+});
