@@ -103,6 +103,8 @@ export default function SitesGate() {
           <p>{t("sitesWelcome", { name: session.username })}</p>
           <ol className="sites-notices"><li>{t("sitesPrivateNotice")}</li><li>{t("sitesPublicNotice")}</li><li>{t("sitesRetentionNotice")}</li><li>{t("sitesRightsNotice")}</li></ol>
           <details><summary>{t("sitesDetails")}</summary><p>{t("sitesDataNotice")}</p>
+            <p>{t("sitesStopNotice")}</p>
+            <p><a href="https://learn.chatgpt.com/docs/sites?surface=app#take-down-or-delete-a-site" target="_blank" rel="noopener noreferrer">{t("sitesDeleteGuide")}</a></p>
             <p><a href="https://openai.com/policies/chatgpt-sites-terms/" target="_blank" rel="noopener noreferrer">{t("sitesPlatformTerms")}</a></p>
           </details>
           <label className="sites-consent"><input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} />{t("sitesAccept")}</label>
