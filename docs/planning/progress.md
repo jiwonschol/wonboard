@@ -155,3 +155,11 @@ WebKit의 Blob 저장에서 `Error preparing Blob/File data to be stored in obje
 이 환경에서는 설치 저장소를 `/private/tmp/wonboard-pnpm-store`, Playwright 바이너리를 `/private/tmp/wonboard-browsers`로 격리했다. 기존 설치 후 `npm run typecheck`, `npm test`, `npm run build`, `PLAYWRIGHT_BROWSERS_PATH=/private/tmp/wonboard-browsers npm run test:e2e`로 검증했다. 프로젝트 의존성 설치 정본은 pnpm lockfile이다.
 
 지원은 실행 중 실시간으로 보고 있지 않을 수 있다. 다음 구현 전에 이 기록, 계획의 확정 결정, 실제 git 상태를 확인한다. 기존 초안·사용자 수정은 보존하고, 자동화 시험은 격리된 브라우저 문맥에서 한다. 서버 단계의 승인 범위·저장소 선택·공개 행위를 확인한 뒤 진행한다. 현재 로컬 구현 권한을 main push·merge·배포 권한으로 확대하지 않는다.
+
+## 2026-09-15 미커밋 공백 도구 마무리
+
+기존 공백 도구 6개 파일을 `37e7807`에 보존하고, 공통 WritingToolbar에 연결했다. 문단 끝 공백과 연속 빈 문단만 미리보기 후 적용하며 취소·실행 취소·저장 후 재진입을 확인했다.
+
+검증: 타입 검사, 단위 495개, 관련 글쓰기 도구 Chromium 5개와 공백 도구 Chromium 1개, 웹 빌드 통과. 공백 도구 시험은 ko/en × 1440/390 네 화면의 가로 넘침과 경계를 측정했고 대표 두 화면을 직접 확인했다. 좁은 화면에서 열린 글 목록·설정 패널을 닫은 뒤 도구를 여는 실제 조작을 사용했다. 빌드의 기존 500kB 청크 경고는 남아 있다.
+
+브랜치 `codex/whitespace-tidy`에 로컬 커밋으로 보관하며 원격 push·PR·merge·배포는 하지 않았다. `docs/.DS_Store`는 기존 사용자 미추적 파일로 남겼다. 별도 #9 휴지통 1단계는 `claude/trash-stage-1` 작업 트리와 PR #14에서 관리한다. 다음 #13 구현은 해당 계획에 따라 #14 병합 뒤 시작한다.
