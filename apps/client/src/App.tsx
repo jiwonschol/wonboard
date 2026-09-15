@@ -27,6 +27,7 @@ import { PublicationPanel } from "./PublicationPanel";
 import { sitesRequest, type StorageMode } from "./draftRepository";
 import { publications } from "./publishing";
 import { TrashDialog } from "./TrashDialog";
+import { clearRecovery, recoveryMode } from "./recoveryCache";
 
 function download(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
@@ -242,6 +243,7 @@ export default function App({
     try {
       if (writer.readOnly || (await writer.save())) {
         if (!(await onLogout())) setNotice("logoutFailed");
+        else if (storageMode === "sites" && !writer.readOnly) await clearRecovery();
       } else setNotice("logoutSaveFailed");
     } finally {
       setBusy(false);
@@ -448,6 +450,14 @@ export default function App({
           ) : null}
         </div>
       ) : null}
+      {writer.recovery.map(copy => {
+        const mode = recoveryMode(copy, writer.list.find(d => d.document.documentId === copy.documentId));
+        return <div className="notice recovery-notice" role="status" key={copy.token}>
+          <span>{t(mode === "replace" ? "recoveryFound" : "recoveryOld")} {copy.draft.document.title || t("untitled")}</span>
+          <button disabled={busy} onClick={async () => { setBusy(true); try { await writer.recoverCopy(copy); } finally { setBusy(false); } }}>{t(mode === "replace" ? "recoverEdits" : "recoverAsNew")}</button>
+          <button disabled={busy} onClick={() => void writer.discardCopy(copy)}>{t("discardEdits")}</button>
+        </div>;
+      })}
       {trashUndo && <div className="notice" role="status">{t("trashMoved")}
         <button disabled={busy} onClick={async () => { if (await writer.restoreFromTrash(trashUndo)) setTrashUndo(null); }}>{t("trashUndo")}</button>
         <button aria-label={t("close")} onClick={() => setTrashUndo(null)}><Icon name="close" /></button></div>}
@@ -508,7 +518,7 @@ export default function App({
           </div>
         ) : (
           <WonboardEditor
-            key={draft.document.documentId}
+            key={`${draft.document.documentId}:${writer.selectionVersion}`}
             content={draft.document.content}
             defaultFont={draft.document.defaultFont}
             title={content}
@@ -516,7 +526,7 @@ export default function App({
             documentLocale={draft.document.locale}
             mediaUrls={urls}
             media={draft.document.media}
-            readOnly={busy}
+            readOnly={busy || writer.recovery.length > 0}
             inspectorOpen={inspector}
             insertOpen={insert}
             overviewOpen={overview}
@@ -585,6 +595,7 @@ export default function App({
             {t("documentLanguage")}
             <select
               value={draft.document.locale}
+              disabled={busy || writer.recovery.length > 0}
               onChange={(e) =>
                 writer.update({ locale: e.target.value as Locale })
               }

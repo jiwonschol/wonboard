@@ -10,6 +10,7 @@ it("expires exactly at thirty days and rounds remaining days upward", () => {
   expect(trashExpired(document, end)).toBe(true);
   expect(trashDaysRemaining(document, end)).toBe(0);
   expect(trashDaysRemaining(document, start)).toBe(30);
+  expect(trashDaysRemaining(document, start - 1)).toBe(30);
   expect(trashDaysRemaining(document, start + 86400000)).toBe(29);
 });
 it("selects the newest active draft and creates an empty draft when none remain", () => {

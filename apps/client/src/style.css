@@ -823,3 +823,8 @@ button:not(.icon-button):hover:enabled {
 .trash-dialog { overflow-wrap: anywhere; }
 .trash-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 .trash-dialog-actions button { max-width: 100%; white-space: normal; }
+
+.recovery-notice { flex-wrap: wrap; overflow-wrap: anywhere; }
+.recovery-notice > span { min-width: 0; }
+
+.trash-row button, .writing-library > header > button:not(.icon-button) { font: inherit; font-size: 12px; border: 1px solid #ccc; border-radius: 4px; background: #fff; color: inherit; padding: 6px 8px; cursor: pointer; }

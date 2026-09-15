@@ -6,8 +6,8 @@ export function trashExpired(document: WriterDocument, now = Date.now()): boolea
   return document.trashedAt !== undefined && now >= Date.parse(document.trashedAt) + TRASH_RETENTION_MS;
 }
 export function trashDaysRemaining(document: WriterDocument, now = Date.now()): number {
-  return document.trashedAt === undefined ? 0 : Math.max(0,
-    Math.ceil((Date.parse(document.trashedAt) + TRASH_RETENTION_MS - now) / 86400000));
+  return document.trashedAt === undefined ? 0 : Math.min(30, Math.max(0,
+    Math.ceil((Date.parse(document.trashedAt) + TRASH_RETENTION_MS - now) / 86400000)));
 }
 export function latestActiveDraft(drafts: Draft[], locale: Locale): Draft {
   return drafts.filter(d => d.document.trashedAt === undefined).sort(newestDraftFirst)[0] ?? newDraft(locale);

@@ -1,5 +1,12 @@
 import { createInstance } from "i18next";
 export const en = {
+  recoveryFound: "There are edits that were not saved.",
+  recoveryOld: "Previous edits remain in this browser. Recover them as a new document.",
+  recoverEdits: "Recover edits",
+  recoverAsNew: "Recover as new document",
+  discardEdits: "Discard copy",
+  recoverySaveFailed: "Could not save to your Site or keep a recovery copy in this browser. Export a ZIP backup before closing.",
+
   trashBack: "Back to my writing",
   trash: "Trash",
   moveToTrash: "Move to trash",
@@ -271,6 +278,13 @@ export const en = {
 };
 export type MessageKey = keyof typeof en;
 export const ko: Record<MessageKey, string> = {
+  recoveryFound: "저장하지 못한 편집이 있습니다.",
+  recoveryOld: "이 브라우저에 남은 이전 편집이 있습니다. 새 글로 복구할 수 있습니다.",
+  recoverEdits: "복구",
+  recoverAsNew: "새 글로 복구",
+  discardEdits: "버리기",
+  recoverySaveFailed: "Site에 저장하지 못했고 이 브라우저에도 보관하지 못했습니다. 닫기 전에 ZIP 백업을 받아 주세요.",
+
   trashBack: "내 글",
   trash: "휴지통",
   moveToTrash: "휴지통으로 이동",

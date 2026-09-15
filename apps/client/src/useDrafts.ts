@@ -6,6 +6,7 @@ import {
   type Locale,
   type ContentNode,
 } from "@wonboard/document";
+import { cacheRecovery, listRecovery, discardRecovery, recoveryMode, type RecoveryCopy } from "./recoveryCache";
 import { trashExpired, latestActiveDraft, recoveredDraft } from "./trash";
 import { StorageConflict, newestDraftFirst } from "./storage";
 import { openDraftRepository, type DraftRepository, type StorageMode } from "./draftRepository";
@@ -28,6 +29,7 @@ export const selectionAccess = (
 
 export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [selectionVersion, setSelectionVersion] = useState(0);
   const [list, setList] = useState<Draft[]>([]);
   const listRef = useRef<Draft[]>([]);
   function publishList(value: Draft[] | ((items: Draft[]) => Draft[])) {
@@ -36,6 +38,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   }
   const operating = useRef(false);
   const [mutating, setMutating] = useState(false);
+  const [recovery, setRecovery] = useState<RecoveryCopy[]>([]);
   const [status, setStatus] = useState<
     "loading" | "saved" | "saving" | "unsaved" | "error"
   >("loading");
@@ -53,6 +56,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   const conflicts = useRef(new Map<string, Draft>());
 
   function select(value: Draft, clean = false) {
+    setSelectionVersion(version => version + 1);
     if (timer.current) clearTimeout(timer.current);
     value = conflicts.current.get(value.document.documentId) ?? value;
     composing.current = false;
@@ -120,6 +124,10 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
         const first = candidate.document.revision > 0 ? await value.load(candidate) : candidate;
         if (!active) return;
         select(first, first.document.revision === 0);
+        if (storageMode === "sites") {
+          const copies = await listRecovery().catch(() => []);
+          if (active) setRecovery(copies);
+        }
       })
       .catch((e) => {
         console.warn(
@@ -154,7 +162,15 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
     const snapshot = current.current;
     const sequence = change.current;
     setStatus("saving");
-    const task = db.current.save(snapshot, snapshot.document.revision)
+    let cacheToken: string | undefined;
+    let cacheFailed = false;
+    const task = (async () => {
+      if (storageMode === "sites") {
+        try { cacheToken = await cacheRecovery(snapshot); }
+        catch { cacheFailed = true; }
+      }
+      return db.current!.save(snapshot, snapshot.document.revision);
+    })()
       .then((result) => {
         savedChange.current = sequence;
         current.current = {
@@ -171,6 +187,8 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
             (d) => d.document.documentId !== result.document.documentId,
           ),
         ]);
+        if (cacheToken && change.current === sequence)
+          void discardRecovery(snapshot.document.documentId, cacheToken).catch(() => {});
         setStatus(change.current === sequence ? "saved" : "unsaved");
         setError("");
         return true;
@@ -196,7 +214,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
           setError(
             e instanceof Error && e.message === "missingMedia"
               ? "missingMedia"
-              : "storageFailed",
+              : cacheFailed ? "recoverySaveFailed" : "storageFailed",
           );
         }
         setStatus("error");
@@ -215,7 +233,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
     }, 350);
   };
   function update(patch: Partial<Draft["document"]>, blobs?: Draft["blobs"]) {
-    if (!current.current || frozen.current || operating.current) return;
+    if (!current.current || frozen.current || operating.current || recovery.length > 0) return;
     current.current = {
       document: {
         ...current.current.document,
@@ -240,8 +258,19 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
         e.returnValue = "";
       }
     };
+    const persist = () => {
+      if (storageMode === "sites" && current.current && savedChange.current !== change.current)
+        void cacheRecovery(current.current).catch(() => {});
+    };
+    const hidden = () => { if (document.visibilityState === "hidden") persist(); };
     window.addEventListener("beforeunload", before);
-    return () => window.removeEventListener("beforeunload", before);
+    window.addEventListener("pagehide", persist);
+    document.addEventListener("visibilitychange", hidden);
+    return () => {
+      window.removeEventListener("beforeunload", before);
+      window.removeEventListener("pagehide", persist);
+      document.removeEventListener("visibilitychange", hidden);
+    };
   }, []);
   async function activate(value: Draft) {
     if (disconnected.current || operating.current || value.document.trashedAt !== undefined) return false;
@@ -268,6 +297,31 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
     // memory as read-only. Saving it would discard the unsupported information.
     if (frozen.current) return true;
     return save();
+  }
+  async function recoverCopy(copy: RecoveryCopy) {
+    if (operating.current || disconnected.current || !db.current) return false;
+    try {
+      const server = (await db.current.list()).find(d => d.document.documentId === copy.documentId);
+      if (recoveryMode(copy, server) === "new") {
+        if (!(await restore(copy.draft))) return false;
+      } else {
+        if (!(await activate(copy.draft))) return false;
+        // Activate normally loads the server. Only an explicit recovery choice installs the cached body.
+        select(copy.draft);
+        change.current = 1; savedChange.current = 0;
+        setStatus("unsaved");
+        if (!(await save())) return false;
+      }
+      await discardCopy(copy);
+      return true;
+    } catch (e) { setError(e instanceof Error ? e.message : "storageFailed"); return false; }
+  }
+  async function discardCopy(copy: RecoveryCopy) {
+    try {
+      await discardRecovery(copy.documentId, copy.token);
+      setRecovery(items => items.filter(item => item.token !== copy.token));
+      return true;
+    } catch { setError("storageFailed"); return false; }
   }
   function mutationError(e: unknown) {
     setError(e instanceof Error ? e.message : "storageFailed");
@@ -298,18 +352,16 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
     return withMutation(async () => {
       const loaded = await loadForMutation(value);
       if (loaded.document.trashedAt !== undefined) throw new StorageConflict();
+      const replacingCurrent = current.current?.document.documentId === loaded.document.documentId;
+      const candidate = latestActiveDraft(listRef.current.filter(d => d.document.documentId !== loaded.document.documentId), locale);
+      const successor = replacingCurrent && candidate.document.revision > 0 ? await db.current!.load(candidate) : candidate;
       const now = new Date().toISOString();
       const saved = await db.current!.save({ ...loaded,
         document: { ...loaded.document, trashedAt: now, updatedAt: now } }, loaded.document.revision);
       publishList(items => [saved, ...items.filter(d => d.document.documentId !== saved.document.documentId)]);
-      if (current.current?.document.documentId === saved.document.documentId) {
-        // Never leave the removed document editable if loading its successor fails.
-        select(newDraft(locale), true);
-        const next = latestActiveDraft(listRef.current, locale);
-        if (next.document.revision > 0) {
-          const loadedNext = await db.current!.load(next);
-          if (loadedNext.document.trashedAt === undefined) select(loadedNext);
-        }
+      if (replacingCurrent) {
+        const next = successor.document.trashedAt === undefined ? successor : newDraft(locale);
+        select(next, next.document.revision === 0);
       }
       return saved;
     });
@@ -349,6 +401,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
     draft,
     list,
     mutating,
+    recovery, recoverCopy, discardCopy, selectionVersion,
     moveToTrash,
     restoreFromTrash,
     permanentlyRemove,
