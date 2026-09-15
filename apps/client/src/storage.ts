@@ -53,6 +53,8 @@ export function toDraft(stored: StoredDraft): Draft {
     typeof document.documentId !== "string" ||
     typeof document.updatedAt !== "string" ||
     !Number.isFinite(Date.parse(document.updatedAt)) ||
+    (document.trashedAt !== undefined && (typeof document.trashedAt !== "string" ||
+      !Number.isFinite(Date.parse(document.trashedAt)))) ||
     typeof document.title !== "string" ||
     typeof document.media !== "object" ||
     document.media === null

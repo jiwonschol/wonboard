@@ -122,12 +122,10 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
         publishList(drafts);
         const candidate = latestActiveDraft(drafts, locale);
         const first = candidate.document.revision > 0 ? await value.load(candidate) : candidate;
+        const copies = storageMode === "sites" ? await listRecovery().catch(() => []) : [];
         if (!active) return;
+        setRecovery(copies);
         select(first, first.document.revision === 0);
-        if (storageMode === "sites") {
-          const copies = await listRecovery().catch(() => []);
-          if (active) setRecovery(copies);
-        }
       })
       .catch((e) => {
         console.warn(

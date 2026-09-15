@@ -146,6 +146,9 @@ button:not(.icon-button):hover:enabled {
   margin: 0 0 8px;
 }
 .writing-library > footer button {
+  display: block;
+  margin-top: 8px;
+  text-align: left;
   border: 0;
   background: transparent;
   padding: 0;

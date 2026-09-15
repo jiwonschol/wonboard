@@ -696,11 +696,19 @@ describe("깨진 레코드 하나가 서재 전체를 막지 않는다", () => {
       >;
       delete broken.updatedAt;
       store.put({ document: broken, blobs: {} });
+      for (const trashedAt of [123, "invalid"]) {
+        store.put({ document: { ...newDraft().document, trashedAt }, blobs: {} });
+      }
       transaction.oncomplete = resolve;
       transaction.onerror = () => reject(transaction.error);
     });
     const drafts = await loadDrafts(db);
     expect(drafts.map((d) => d.document.title)).toEqual(["정렬되는 초안"]);
+    const storedCount = await new Promise<number>((resolve, reject) => {
+      const request = db.transaction("drafts").objectStore("drafts").count();
+      request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
+    });
+    expect(storedCount).toBe(4); // Unreadable records stay on disk, outside automatic expiry cleanup.
     expect(() =>
       [...drafts].sort((a, b) =>
         b.document.updatedAt.localeCompare(a.document.updatedAt),

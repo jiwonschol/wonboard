@@ -36,12 +36,25 @@ async function openTrash(page: Page, locale = "en") {
 }
 test("public photos remain unless explicitly withdrawn when moving or removing a draft", async ({ page, request }) => {
   for (const action of ["keep", "move", "remove"] as const) {
+    let rejectWithdrawal = action === "move";
+    await page.route("**/api/documents/*/publications", route => {
+      if (route.request().method() === "DELETE" && rejectWithdrawal) {
+        rejectWithdrawal = false; return route.abort();
+      }
+      return route.continue();
+    });
     const { url } = await seed(request, true); await page.goto("/"); await move(page);
     let dialog = page.getByRole("dialog", { name: "Move to trash" });
     await expect(dialog.getByRole("checkbox")).not.toBeChecked();
     if (action === "move") await dialog.getByRole("checkbox").check();
     await dialog.getByRole("button", { name: "Move to trash" }).click();
     await expect(dialog).toHaveCount(0);
+    if (action === "move") {
+      await expect(page.getByText("The document is in trash, but its photo URLs could not be turned off.")).toBeVisible();
+      expect((await request.get(url)).status()).toBe(200);
+      await page.getByRole("button", { name: "Try again", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Try again", exact: true })).toHaveCount(0);
+    }
     expect((await request.get(url)).status()).toBe(action === "move" ? 404 : 200);
     await openTrash(page);
     await page.getByRole("button", { name: "Delete permanently now", exact: true }).click();

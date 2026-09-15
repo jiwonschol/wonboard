@@ -628,6 +628,7 @@ export default function App({
         </div>
       ) : null}
       {trashDialog && <TrashDialog locale={locale} action={trashDialog.action} count={trashDialog.count} working={busy}
+        message={writer.error ? t(Object.hasOwn(en, writer.error) ? writer.error as MessageKey : "storageFailed") : ""}
         onConfirm={withdraw => executeTrash(trashDialog.action, trashDialog.value, withdraw)} onClose={() => setTrashDialog(null)} />}
       {publication && <PublicationPanel locale={locale} documentId={draft.document.documentId}
         save={writer.save} snapshot={writer.snapshot} onBusy={setBusy} onClose={() => setPublication(false)} />}
