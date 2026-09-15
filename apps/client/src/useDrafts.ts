@@ -6,6 +6,7 @@ import {
   type Locale,
   type ContentNode,
 } from "@wonboard/document";
+import { trashExpired, latestActiveDraft, recoveredDraft } from "./trash";
 import { StorageConflict, newestDraftFirst } from "./storage";
 import { openDraftRepository, type DraftRepository, type StorageMode } from "./draftRepository";
 
@@ -28,6 +29,13 @@ export const selectionAccess = (
 export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [list, setList] = useState<Draft[]>([]);
+  const listRef = useRef<Draft[]>([]);
+  function publishList(value: Draft[] | ((items: Draft[]) => Draft[])) {
+    listRef.current = typeof value === "function" ? value(listRef.current) : value;
+    setList(listRef.current);
+  }
+  const operating = useRef(false);
+  const [mutating, setMutating] = useState(false);
   const [status, setStatus] = useState<
     "loading" | "saved" | "saving" | "unsaved" | "error"
   >("loading");
@@ -98,14 +106,20 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
           return;
         }
         db.current = value;
-        const drafts = await value.list();
+        const all = await value.list();
+        for (const expired of all.filter(d => trashExpired(d.document))) {
+          try { await value.remove(expired.document.documentId, expired.document.revision); }
+          catch { /* Preserve failed removals on disk and retry on the next open. */ }
+        }
+        const drafts = all.filter(d => !trashExpired(d.document));
         drafts.sort(newestDraftFirst);
         if (!active) return;
         // A broken newest draft must not hide the healthy library entries.
-        setList(drafts);
-        const first = drafts[0] ? await value.load(drafts[0]) : newDraft(locale);
+        publishList(drafts);
+        const candidate = latestActiveDraft(drafts, locale);
+        const first = candidate.document.revision > 0 ? await value.load(candidate) : candidate;
         if (!active) return;
-        select(first, drafts.length === 0);
+        select(first, first.document.revision === 0);
       })
       .catch((e) => {
         console.warn(
@@ -151,7 +165,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
           },
         };
         setDraft(current.current);
-        setList((items) => [
+        publishList((items) => [
           result,
           ...items.filter(
             (d) => d.document.documentId !== result.document.documentId,
@@ -165,7 +179,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
         if (e instanceof StorageConflict) {
           const unsaved = current.current!;
           conflicts.current.set(unsaved.document.documentId, unsaved);
-          setList((items) => [
+          publishList((items) => [
             unsaved,
             ...items.filter(
               (d) => d.document.documentId !== unsaved.document.documentId,
@@ -201,7 +215,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
     }, 350);
   };
   function update(patch: Partial<Draft["document"]>, blobs?: Draft["blobs"]) {
-    if (!current.current || frozen.current) return;
+    if (!current.current || frozen.current || operating.current) return;
     current.current = {
       document: {
         ...current.current.document,
@@ -230,12 +244,13 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
     return () => window.removeEventListener("beforeunload", before);
   }, []);
   async function activate(value: Draft) {
-    if (disconnected.current) return false;
+    if (disconnected.current || operating.current || value.document.trashedAt !== undefined) return false;
     if (!frozen.current && !(await saveUntilCurrent(save, () => savedChange.current === change.current))) return false;
     try {
       // A frozen local copy is retained for backup, never replaced by a remote load.
       const conflict = conflicts.current.get(value.document.documentId);
       const loaded = conflict ?? (db.current ? await db.current.load(value) : value);
+      if (loaded.document.trashedAt !== undefined) throw new StorageConflict();
       select(loaded);
       return true;
     } catch (e) {
@@ -247,24 +262,97 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
     if (await activate(newDraft(locale))) await save();
   }
   async function restore(value: Draft) {
-    value = {
-      ...value,
-      document: {
-        ...value.document,
-        documentId: crypto.randomUUID(),
-        revision: 0,
-        updatedAt: new Date().toISOString(),
-      },
-    };
+    value = recoveredDraft(value);
     if (!(await activate(value))) return false;
     // A newer but structurally recoverable backup is intentionally selected in
     // memory as read-only. Saving it would discard the unsupported information.
     if (frozen.current) return true;
     return save();
   }
+  function mutationError(e: unknown) {
+    setError(e instanceof Error ? e.message : "storageFailed");
+    if (e instanceof StorageConflict && current.current) {
+      conflicts.current.set(current.current.document.documentId, current.current);
+      frozen.current = true; setReadOnly(true); setStatus("error");
+    }
+  }
+  async function withMutation<T>(action: () => Promise<T>): Promise<T | null> {
+    if (operating.current || disconnected.current || !db.current || composing.current) return null;
+    operating.current = true; setMutating(true);
+    if (timer.current) clearTimeout(timer.current);
+    try {
+      if (!frozen.current && !(await saveUntilCurrent(save, () => savedChange.current === change.current))) return null;
+      const result = await action(); setError(""); return result;
+    } catch (e) { mutationError(e); return null; }
+    finally { operating.current = false; setMutating(false); }
+  }
+  async function loadForMutation(value: Draft) {
+    const selected = current.current?.document.documentId === value.document.documentId;
+    const expected = selected ? current.current! : value;
+    const loaded = await db.current!.load(expected);
+    if (loaded.document.revision !== expected.document.revision) throw new StorageConflict();
+    return loaded;
+  }
+  async function moveToTrash(value: Draft) {
+    if (frozen.current) return null;
+    return withMutation(async () => {
+      const loaded = await loadForMutation(value);
+      if (loaded.document.trashedAt !== undefined) throw new StorageConflict();
+      const now = new Date().toISOString();
+      const saved = await db.current!.save({ ...loaded,
+        document: { ...loaded.document, trashedAt: now, updatedAt: now } }, loaded.document.revision);
+      publishList(items => [saved, ...items.filter(d => d.document.documentId !== saved.document.documentId)]);
+      if (current.current?.document.documentId === saved.document.documentId) {
+        // Never leave the removed document editable if loading its successor fails.
+        select(newDraft(locale), true);
+        const next = latestActiveDraft(listRef.current, locale);
+        if (next.document.revision > 0) {
+          const loadedNext = await db.current!.load(next);
+          if (loadedNext.document.trashedAt === undefined) select(loadedNext);
+        }
+      }
+      return saved;
+    });
+  }
+  async function restoreFromTrash(value: Draft) {
+    return withMutation(async () => {
+      const loaded = await loadForMutation(value);
+      if (loaded.document.trashedAt === undefined || trashExpired(loaded.document)) throw new Error("trashExpired");
+      const { trashedAt: _trashedAt, ...document } = loaded.document;
+      const saved = await db.current!.save({ ...loaded, document: { ...document,
+        updatedAt: new Date().toISOString() } }, document.revision);
+      publishList(items => [saved, ...items.filter(d => d.document.documentId !== document.documentId)]);
+      return saved;
+    });
+  }
+  async function permanentlyRemove(value: Draft, withdrawPublications = false) {
+    return withMutation(async () => {
+      if (value.document.trashedAt === undefined) throw new Error("invalidDocument");
+      await db.current!.remove(value.document.documentId, value.document.revision, { withdrawPublications });
+      publishList(items => items.filter(d => d.document.documentId !== value.document.documentId));
+      return true;
+    });
+  }
+  async function emptyTrash() {
+    return withMutation(async () => {
+      let failures = 0;
+      for (const value of listRef.current.filter(d => d.document.trashedAt !== undefined)) {
+        try {
+          await db.current!.remove(value.document.documentId, value.document.revision);
+          publishList(items => items.filter(d => d.document.documentId !== value.document.documentId));
+        } catch { failures++; }
+      }
+      return failures;
+    });
+  }
   return {
     draft,
     list,
+    mutating,
+    moveToTrash,
+    restoreFromTrash,
+    permanentlyRemove,
+    emptyTrash,
     status,
     error,
     readOnly,
