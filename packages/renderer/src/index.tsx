@@ -45,6 +45,12 @@ function renderNode(
       return content;
     }, node.text);
   if (node.type === "hardBreak") return <br />;
+  if (node.type === "fileRef") {
+    const href = urls[String(attrs.fileId)];
+    return href && ((!portable && href.startsWith("blob:")) || safeLink(href))
+      ? <a href={href} download={String(attrs.label)} rel="noopener noreferrer">{String(attrs.label)}</a>
+      : <span data-private-file={String(attrs.fileId)}>{String(attrs.label)}</span>;
+  }
   if (node.type === "paragraph")
     return <p style={{ ...(portable ? { minHeight: "1.4em" } : {}), ...style }}>{children?.length ? children : <br />}</p>;
   if (node.type === "heading") {

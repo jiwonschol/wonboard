@@ -20,6 +20,13 @@ export type Media = {
   size: number;
   sha256: string;
 };
+export type AttachmentFile = {
+  id: string;
+  originalName: string;
+  mime: string;
+  size: number;
+  sha256: string;
+};
 export type WriterDocument = {
   schemaVersion: 1;
   documentId: string;
@@ -29,6 +36,7 @@ export type WriterDocument = {
   defaultFont?: FontId;
   content: ContentNode;
   media: Record<string, Media>;
+  files?: Record<string, AttachmentFile>;
   autoRenameAttachments?: boolean;
   updatedAt: string;
   trashedAt?: string;
@@ -40,6 +48,8 @@ export const limits = {
   // 같은 상수를 써야 화면에서 넘긴 값이 저장 단계에서만 거부되는 일이 없다.
   attributeText: 10000,
   imageBytes: 20 * 1024 * 1024,
+  fileBytes: 20 * 1024 * 1024,
+  files: 100,
   // 원본 합계가 ZIP 전체 상한을 다 써 버리면 정상 초안도 백업할 수 없다.
   // document.json과 ZIP 컨테이너를 위해 36 MiB를 남긴다.
   mediaBytes: 220 * 1024 * 1024,
@@ -218,7 +228,7 @@ const blockNodes = new Set([
   "media",
   "video",
 ]);
-const inlineNodes = new Set(["text", "hardBreak"]);
+const inlineNodes = new Set(["text", "hardBreak", "fileRef"]);
 const allowedAttrs: Record<string, string[]> = {
   paragraph: [
     "textAlign",
@@ -245,10 +255,11 @@ const allowedAttrs: Record<string, string[]> = {
   codeBlock: ["language"],
   media: ["mediaId", "width", "align", "alt", "caption"],
   video: ["provider", "videoId", "privacyHash", "startSeconds", "autoplay"],
+  fileRef: ["fileId", "label"],
 };
 export function nodeAttrsFitDocument(type: unknown, attrs: unknown): boolean {
   if (typeof type !== "string") return false;
-  if (attrs === undefined) return type !== "media" && type !== "video";
+  if (attrs === undefined) return type !== "media" && type !== "video" && type !== "fileRef";
   if (!isObject(attrs)) return false;
   for (const [key, v] of Object.entries(attrs)) {
     if (!(allowedAttrs[type] ?? []).includes(key)) return false;
@@ -295,6 +306,8 @@ export function nodeAttrsFitDocument(type: unknown, attrs: unknown): boolean {
     )
       return false;
     if (key === "mediaId" && !isMediaId(v)) return false;
+    if (key === "fileId" && !isMediaId(v)) return false;
+    if (key === "label" && !(typeof v === "string" && v.length <= 1024)) return false;
     if (
       ["alt", "caption", "language", "type"].includes(key) &&
       !(typeof v === "string" && v.length <= limits.attributeText)
@@ -307,6 +320,7 @@ export function nodeAttrsFitDocument(type: unknown, attrs: unknown): boolean {
       return false;
   }
   if (type === "media" && !isMediaId(attrs.mediaId)) return false;
+  if (type === "fileRef" && (!isMediaId(attrs.fileId) || typeof attrs.label !== "string" || !attrs.label.length)) return false;
   if (type === "video" && !isVideo(attrs)) return false;
   return true;
 }
@@ -338,6 +352,17 @@ export function validateDocumentEnvelope(
   );
   requireThat(value.trashedAt === undefined ||
     (typeof value.trashedAt === "string" && Number.isFinite(Date.parse(value.trashedAt))));
+  requireThat(value.files === undefined || isObject(value.files));
+  const files = Object.entries(value.files ?? {});
+  requireThat(files.length <= limits.files);
+  for (const [id, file] of files) {
+    requireThat(isObject(file) && file.id === id && isMediaId(id));
+    requireThat(typeof file.originalName === "string" && file.originalName.length > 0 && file.originalName.length <= 1024);
+    requireThat(typeof file.mime === "string" && /^[\w.+-]+\/[\w.+-]+$/.test(file.mime) && file.mime.length <= 128);
+    requireThat(Number.isSafeInteger(file.size) && Number(file.size) >= 0 && Number(file.size) <= limits.fileBytes);
+    requireThat(typeof file.sha256 === "string" && /^[a-f0-9]{64}$/.test(file.sha256));
+    requireThat(!Object.hasOwn(value.media ?? {}, id));
+  }
   requireThat(isObject(value.content));
   requireThat(
     isObject(value.media) && Object.keys(value.media).length <= limits.images,
@@ -414,6 +439,11 @@ export function validateDocument(
       if (!Object.hasOwn(value.media as object, n.attrs.mediaId))
         throw new DocumentError("missingMedia");
     }
+    if (type === "fileRef") {
+      requireThat(isObject(n.attrs) && typeof n.attrs.fileId === "string");
+      if (!Object.hasOwn(value.files ?? {}, n.attrs.fileId)) throw new DocumentError("missingMedia");
+      requireThat(n.content === undefined && n.marks === undefined);
+    }
     if (type === "video") requireThat(isVideo(n.attrs));
     if (n.marks !== undefined) {
       requireThat(
@@ -447,6 +477,7 @@ export function plainText(node: ContentNode): string {
   if (node.type === "text") return node.text ?? "";
   if (node.type === "hardBreak") return "\n";
   if (node.type === "media") return String(node.attrs?.caption ?? "");
+  if (node.type === "fileRef") return String(node.attrs?.label ?? "");
   return (node.content ?? [])
     .map(plainText)
     .join(
@@ -524,6 +555,15 @@ export function imageMime(bytes: Uint8Array): Media["mime"] {
   throw new DocumentError("invalidImage");
 }
 /** Snapshot without session-only undo media. Never mutate the live draft. */
+export function referencedFileIds(node: ContentNode): string[] {
+  const ids = new Set<string>();
+  function visit(value: ContentNode) {
+    if (value.type === "fileRef" && typeof value.attrs?.fileId === "string") ids.add(value.attrs.fileId);
+    value.content?.forEach(visit);
+  }
+  visit(node);
+  return [...ids];
+}
 export function withoutUnusedMedia(draft: Draft): Draft {
   validateDocument(draft.document);
   const used = new Set(
@@ -531,15 +571,19 @@ export function withoutUnusedMedia(draft: Draft): Draft {
       .filter((node) => node.type === "media")
       .map((node) => String(node.attrs?.mediaId)),
   );
+  const files = new Set(referencedFileIds(draft.document.content));
   return {
     document: {
       ...draft.document,
       media: Object.fromEntries(
         Object.entries(draft.document.media).filter(([id]) => used.has(id)),
       ),
+      ...(draft.document.files === undefined ? {} : { files: Object.fromEntries(
+        Object.entries(draft.document.files).filter(([id]) => files.has(id)),
+      ) }),
     },
     blobs: Object.fromEntries(
-      Object.entries(draft.blobs).filter(([id]) => used.has(id)),
+      Object.entries(draft.blobs).filter(([id]) => used.has(id) || files.has(id)),
     ),
   };
 }

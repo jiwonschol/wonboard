@@ -19,6 +19,8 @@ import {
 } from "@wonboard/document";
 import { translator, type MessageKey } from "@wonboard/locales";
 import { MediaContext, MediaNode } from "./MediaNode";
+import { FileNode } from "./FileNode";
+export { captureAttachmentSelection, insertAttachmentContent } from "./attachmentSelection";
 import { Inspector } from "./Inspector";
 import { Icon } from "./icons";
 import { VideoNode } from "./VideoNode";
@@ -48,6 +50,7 @@ export interface WonboardEditorProps {
   documentLocale: Locale;
   mediaUrls: Record<string, string>;
   media: Readonly<Record<string, Media>>;
+  files?: Readonly<Record<string, unknown>>;
   readOnly?: boolean;
   inspectorOpen?: boolean;
   insertOpen?: boolean;
@@ -275,6 +278,7 @@ export function WonboardEditor(props: WonboardEditorProps) {
           Object.hasOwn(latest.current.media, mediaId),
       }),
       VideoNode,
+      FileNode.configure({ ownsFile: (id: string) => Object.hasOwn(latest.current.files ?? {}, id) }),
       Formatting,
       TextStyle,
       DocumentLimits,

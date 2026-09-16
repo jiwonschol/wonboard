@@ -41,7 +41,7 @@ export function openDesktopStore(directory: string) {
       if (!row) throw new Error("missingDocument");
       const document = decode(row.body);
       const blobs: StoredDraft["blobs"] = {};
-      for (const media of Object.values(document.media)) {
+      for (const media of [...Object.values(document.media), ...Object.values(document.files ?? {})]) {
         const bytes = readFileSync(join(images, media.sha256));
         if (bytes.byteLength !== media.size || createHash("sha256").update(bytes).digest("hex") !== media.sha256)
           throw new Error("missingMedia");
@@ -57,7 +57,7 @@ export function openDesktopStore(directory: string) {
       const document = { ...input.document, revision: revision + 1 };
       // Immutable content-addressed photos are written before committing metadata.
       // A failed save may leave an orphan, but never a document pointing at a partial photo.
-      for (const media of Object.values(document.media)) {
+      for (const media of [...Object.values(document.media), ...Object.values(document.files ?? {})]) {
         const bytes = input.blobs?.[media.id];
         if (bytes === undefined) {
           try { verifyImage(media.sha256, media.size); } catch { throw new Error("missingMedia"); }

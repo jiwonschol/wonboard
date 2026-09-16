@@ -1,3 +1,21 @@
+.file-library-backdrop { position: fixed; inset: 0; z-index: 80; background: #0004; display: flex; justify-content: flex-end; }
+.file-library-panel { width: min(620px, 100%); background: #fff; color: #202020; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.file-library-panel header, .file-library-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.file-library-panel header { justify-content: space-between; }
+.file-library-panel h2 { margin: 0; }
+.file-library-panel p { line-height: 1.5; margin: 0; }
+.file-library-panel input[type="search"] { width: 100%; min-height: 40px; }
+.file-library-list { list-style: none; padding: 0; margin: 0; }
+.file-library-list li { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid #ddd; padding: 12px 0; }
+.file-library-name { min-width: 0; overflow-wrap: anywhere; flex: 1 1 60%; }
+.file-library-list form { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.file-library-list form input { min-width: 0; flex: 1; }
+.file-library-panel button { min-height: 36px; }
+.wb-file { display: inline; border-radius: 3px; padding: 1px 3px; background: #edf0f4; overflow-wrap: anywhere; }
+@media (max-width: 599px) {
+  .file-library-backdrop { align-items: flex-end; }
+  .file-library-panel { max-height: 90dvh; padding: 16px; border-radius: 16px 16px 0 0; }
+}
 * {
   box-sizing: border-box;
 }

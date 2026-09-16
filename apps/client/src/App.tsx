@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { WonboardEditor, Icon, type EditorHandle } from "@wonboard/editor";
+import { WonboardEditor, Icon, captureAttachmentSelection, insertAttachmentContent, type EditorHandle } from "@wonboard/editor";
 import { DocumentPreview } from "@wonboard/renderer";
 import {
   exportBackup,
@@ -7,6 +7,9 @@ import {
   importBackup,
   characterCount,
   attachmentNodes,
+  referencedFileIds,
+  validateDocument,
+  type ContentNode,
   plainText,
   limits,
   DocumentError,
@@ -28,6 +31,8 @@ import { sitesRequest, type StorageMode } from "./draftRepository";
 import { publications } from "./publishing";
 import { TrashDialog } from "./TrashDialog";
 import { clearRecovery, recoveryMode } from "./recoveryCache";
+import { openBrowserFileLibrary, type FileLibrary } from "./fileLibrary";
+import { FileLibraryPanel } from "./FileLibraryPanel";
 
 function download(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
@@ -49,6 +54,10 @@ export default function App({
   const writer = useDrafts(locale, storageMode);
   const [publication, setPublication] = useState(false);
   const [editor, setEditor] = useState<EditorHandle | null>(null);
+  const [fileLibrary, setFileLibrary] = useState<FileLibrary | null>(null);
+  const [filePanel, setFilePanel] = useState<"manage" | "pick" | null>(null);
+  const fileTarget = useRef<{ documentId: string; editor: EditorHandle; selection: ReturnType<typeof captureAttachmentSelection> } | null>(null);
+  const fileTrigger = useRef<HTMLElement | null>(null);
   const [inspector, setInspector] = useState(true);
   const [insert, setInsert] = useState(false);
   const [overview, setOverview] = useState(false);
@@ -71,6 +80,66 @@ export default function App({
   const urlCache = useRef(new Map<string, { blob: Blob; url: string }>());
   const restoreInput = useRef<HTMLInputElement>(null);
   const draft = writer.draft;
+  useEffect(() => {
+    if (storageMode !== "local") return;
+    let active = true, opened: FileLibrary | undefined;
+    void openBrowserFileLibrary().then(value => {
+      opened = value;
+      if (active) setFileLibrary(value); else value.close();
+    }, () => { if (active) setNotice("storageFailed"); });
+    return () => { active = false; opened?.close(); fileTarget.current?.selection.close(); };
+  }, [storageMode]);
+  function openFiles(picking: boolean) {
+    if (!fileLibrary || busy) return;
+    fileTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    fileTarget.current?.selection.close();
+    const snapshot = writer.snapshot();
+    fileTarget.current = picking && editor && snapshot
+      ? { documentId: snapshot.document.documentId, editor, selection: captureAttachmentSelection(editor) } : null;
+    setFilePanel(picking ? "pick" : "manage");
+  }
+  function closeFiles() {
+    const target = fileTarget.current;
+    if (target && writer.snapshot()?.document.documentId === target.documentId && !target.editor.isDestroyed) target.selection.restore();
+    else { target?.selection.close(); fileTrigger.current?.focus(); }
+    fileTarget.current = null;
+    setFilePanel(null);
+  }
+  async function insertLibraryFiles(ids: string[]) {
+    const target = fileTarget.current;
+    if (!target || !fileLibrary || writer.readOnly) throw new Error("fileInsertChanged");
+    const loaded = [];
+    for (const id of ids) {
+      const item = await fileLibrary.load(id);
+      if (item.file.trashedAt) throw new Error("missingFile");
+      loaded.push(item);
+    }
+    const snapshot = writer.snapshot();
+    if (!snapshot || snapshot.document.documentId !== target.documentId || target.editor.isDestroyed) throw new Error("fileInsertChanged");
+    const files = { ...snapshot.document.files }, media = { ...snapshot.document.media }, blobs = { ...snapshot.blobs };
+    const content: ContentNode[] = [];
+    for (const { file, blob } of loaded) {
+      if (["image/png", "image/jpeg"].includes(file.mime)) {
+        const [image] = await importImages([new File([blob], file.filename, { type: file.mime })], { count: Object.keys(media).length, bytes: Object.values(media).reduce((sum, value) => sum + value.size, 0) });
+        media[file.id] = { ...image.media, id: file.id };
+        content.push({ type: "media", attrs: { mediaId: file.id, width: Math.min(600, image.media.width), align: "left", alt: "", caption: "" } }, { type: "paragraph" });
+      } else {
+        files[file.id] = { id: file.id, originalName: file.originalName, mime: file.mime, size: file.size, sha256: file.sha256 };
+        content.push({ type: "fileRef", attrs: { fileId: file.id, label: file.filename } }, { type: "text", text: " " });
+      }
+      blobs[file.id] = blob;
+    }
+    if (writer.snapshot()?.document.documentId !== target.documentId || target.editor.isDestroyed) throw new Error("fileInsertChanged");
+    validateDocument({ ...snapshot.document, files, media });
+    if (!target.selection.restore()) throw new Error("fileInsertChanged");
+    const accepted = insertAttachmentContent(target.editor, content);
+    if (!accepted) throw new Error("imageInsertFailed");
+    const nextContent = target.editor.getJSON() as ContentNode;
+    const inserted = new Set([...referencedFileIds(nextContent), ...attachmentNodes(nextContent).filter(node => node.type === "media").map(node => String(node.attrs?.mediaId))]);
+    if (!ids.every(id => inserted.has(id))) throw new Error("imageInsertFailed");
+    writer.update({ files, media, content: nextContent }, blobs);
+    fileTarget.current = null; setFilePanel(null);
+  }
   useEffect(() => {
     document.documentElement.lang = locale;
     try {
@@ -309,7 +378,7 @@ export default function App({
   const attachmentCount =
     new Set(
       attached.filter((n) => n.type === "media").map((n) => n.attrs?.mediaId),
-    ).size + attached.filter((n) => n.type === "video").length;
+    ).size + attached.filter((n) => n.type === "video").length + referencedFileIds(draft.document.content).length;
   return (
     <div className="app-shell" data-storage-mode={storageMode}>
       <a className="skip-link" href="#document-canvas">
@@ -467,6 +536,7 @@ export default function App({
       <div className="writing-workspace">
         {library ? (
           <WritingLibrary
+            onFiles={fileLibrary ? () => openFiles(false) : undefined}
             storageMode={storageMode}
             draft={draft}
             list={writer.list}
@@ -526,6 +596,7 @@ export default function App({
             documentLocale={draft.document.locale}
             mediaUrls={urls}
             media={draft.document.media}
+            files={draft.document.files}
             readOnly={busy || writer.recovery.length > 0}
             inspectorOpen={inspector}
             insertOpen={insert}
@@ -540,6 +611,7 @@ export default function App({
             attachmentCount={attachmentCount}
             attachments={
               <AttachmentsPanel
+                onFiles={fileLibrary ? () => openFiles(true) : undefined}
                 document={draft.document}
                 locale={locale}
                 urls={urls}
@@ -630,6 +702,7 @@ export default function App({
       {trashDialog && <TrashDialog locale={locale} action={trashDialog.action} count={trashDialog.count} working={busy}
         message={writer.error ? t(Object.hasOwn(en, writer.error) ? writer.error as MessageKey : "storageFailed") : ""}
         onConfirm={withdraw => executeTrash(trashDialog.action, trashDialog.value, withdraw)} onClose={() => setTrashDialog(null)} />}
+      {filePanel && fileLibrary ? <FileLibraryPanel library={fileLibrary} locale={locale} picking={filePanel === "pick"} onInsert={insertLibraryFiles} onClose={closeFiles} /> : null}
       {publication && <PublicationPanel locale={locale} documentId={draft.document.documentId}
         save={writer.save} snapshot={writer.snapshot} onBusy={setBusy} onClose={() => setPublication(false)} />}
       {preview ? (

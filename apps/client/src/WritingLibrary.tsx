@@ -29,6 +29,7 @@ export function WritingLibrary({
   onCreate,
   onClose,
   onRestore,
+  onFiles,
   onTrash, onUntrash, onRemove, onEmptyTrash, canTrash,
   storageMode = "local",
 }: {
@@ -41,6 +42,7 @@ export function WritingLibrary({
   onCreate(): void;
   onClose(): void;
   onRestore(): void;
+  onFiles?(): void;
   onTrash(draft: Draft): void;
   onUntrash(draft: Draft): void;
   onRemove(draft: Draft): void;
@@ -152,6 +154,7 @@ export function WritingLibrary({
         {!documents.length ? <p>{t("noDocuments")}</p> : null}
       </nav>
       <footer>
+        {onFiles ? <button disabled={busy} onClick={onFiles}>{t("fileLibrary")}</button> : null}
         <p>{t(storageMode === "desktop" ? "deviceStorage" : storageMode === "sites" ? "sitesStorage" : "thisBrowser")}</p>
         <button onClick={() => setShowTrash(true)}>{t("trash")} {trashed.length}</button>
         <button disabled={busy} onClick={onRestore}>

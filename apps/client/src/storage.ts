@@ -67,7 +67,7 @@ export function toDraft(stored: StoredDraft): Draft {
         id,
         value instanceof Blob
           ? value
-          : new Blob([value], { type: stored.document.media[id]?.mime }),
+          : new Blob([value], { type: stored.document.media[id]?.mime ?? stored.document.files?.[id]?.mime }),
       ]),
     ),
   };
@@ -105,7 +105,7 @@ export async function saveDraft(
   // Undo history is session-only. Persist only images used by this snapshot,
   // leaving the live draft's originals intact for undo/redo.
   draft = withoutUnusedMedia(draft);
-  for (const media of Object.values(draft.document.media)) {
+  for (const media of [...Object.values(draft.document.media), ...Object.values(draft.document.files ?? {})]) {
     if (
       !(draft.blobs[media.id] instanceof Blob) ||
       draft.blobs[media.id].size !== media.size

@@ -29,6 +29,15 @@ export async function exportBackup(draft: Draft): Promise<Blob> {
       throw new DocumentError("corruptBackup");
     files[`media/${media.id}`] = new Uint8Array(buffer);
   }
+  for (const file of Object.values(draft.document.files ?? {})) {
+    const blob = draft.blobs[file.id];
+    if (!blob || blob.size !== file.size) throw new DocumentError("missingMedia");
+    total += blob.size;
+    if (total > limits.archiveBytes) throw new DocumentError("archiveLimit");
+    const bytes = await blob.arrayBuffer();
+    if (await sha256(bytes) !== file.sha256) throw new DocumentError("corruptBackup");
+    files[`files/${file.id}`] = new Uint8Array(bytes);
+  }
   const data = await new Promise<Uint8Array<ArrayBuffer>>((resolve, reject) =>
     zip(files, { level: 0 }, (error, result) =>
       error ? reject(error) : resolve(result as Uint8Array<ArrayBuffer>),
@@ -88,7 +97,7 @@ export async function importBackup(blob: Blob): Promise<Draft> {
             total += file.originalSize;
             if (
               names.has(file.name) ||
-              !/^(document\.json|media\/[a-zA-Z0-9_-]{1,80})$/.test(
+              !/^(document\.json|(?:media|files)\/[a-zA-Z0-9_-]{1,80})$/.test(
                 file.name,
               ) ||
               !Number.isSafeInteger(file.originalSize) ||
@@ -99,7 +108,7 @@ export async function importBackup(blob: Blob): Promise<Draft> {
               (file.name !== "document.json" &&
                 file.originalSize > limits.imageBytes) ||
               total > limits.archiveBytes ||
-              names.size >= limits.images + 1
+              names.size >= limits.images + limits.files + 1
             )
               invalid = true;
             names.add(file.name);
@@ -130,7 +139,7 @@ export async function importBackup(blob: Blob): Promise<Draft> {
     // and verify its binary originals.
     validateDocumentEnvelope(document);
   }
-  if (names.size !== Object.keys(document.media).length + 1)
+  if (names.size !== Object.keys(document.media).length + Object.keys(document.files ?? {}).length + 1)
     throw new DocumentError("corruptBackup");
   const blobs: Record<string, Blob> = {};
   for (const media of Object.values(document.media)) {
@@ -143,6 +152,12 @@ export async function importBackup(blob: Blob): Promise<Draft> {
     )
       throw new DocumentError("corruptBackup");
     blobs[media.id] = new Blob([data], { type: media.mime });
+  }
+  for (const file of Object.values(document.files ?? {})) {
+    const data = files[`files/${file.id}`];
+    if (!data || data.byteLength !== file.size || await sha256(data.buffer) !== file.sha256)
+      throw new DocumentError("corruptBackup");
+    blobs[file.id] = new Blob([data], { type: file.mime });
   }
   return { document, blobs };
 }

@@ -84,6 +84,7 @@ export function AttachmentsPanel({
   onImages,
   onRename,
   onStorage,
+  onFiles,
   storageMode = "local",
 }: {
   document: WriterDocument;
@@ -98,6 +99,7 @@ export function AttachmentsPanel({
   ): Promise<void>;
   onRename(value: boolean): void;
   onStorage(): void;
+  onFiles?(): void;
   storageMode?: "local" | "sites" | "desktop";
 }) {
   const t = translator(locale),
@@ -123,6 +125,7 @@ export function AttachmentsPanel({
   }
   return (
     <div className="attachments-panel">
+      {onFiles ? <button disabled={busy || !editor} onMouseDown={event => event.preventDefault()} onClick={onFiles}>{t("fileLibrary")}</button> : null}
       <fieldset disabled={busy || !editor}>
         <section>
           <h2>
