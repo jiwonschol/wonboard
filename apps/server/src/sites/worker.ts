@@ -5,12 +5,12 @@ import {
 import { HttpError, json, readImage, readJson, validId } from "./http";
 import type { SitesEnv } from "./types";
 import { ownerFiles, sharedFile } from "./files";
+import { photoVariantKey, storePhotoVariant } from "./photoObjects";
 
 type StoredMedia = { id: string; hash: string; mime: string; size: number; width: number; height: number };
 type Publication = { public_id: string; document_id: string; media_id: string;
   blob_key: string | null; mime: string | null; filename: string | null; published: number };
 const originalKey = (id: string, hash: string) => `originals/${id}/${hash}`;
-const variantKey = (doc: string, id: string, hash: string) => `publications/${doc}/${id}/${hash}`;
 const TRASH_RETENTION_MS = 30 * 86400000;
 // SQLite evaluates 'now' at statement execution, including the final conditional
 // write. Integer milliseconds preserve the exact boundary without Julian rounding.
@@ -236,7 +236,7 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
       const document = await loadDocument(env, id);
       if (!imageIds(document).includes(variant[1])) throw new HttpError(400, "missingMedia");
       const image = await readImage(request);
-      await env.MEDIA.put(variantKey(id, variant[1], image.hash), image.bytes, { httpMetadata: { contentType: image.mime } });
+      await storePhotoVariant(env, id, variant[1], image);
       return json({ hash: image.hash });
     }
     if (action === "publications" && request.method === "GET") {
@@ -260,7 +260,7 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
       for (const mediaId of ids) {
         const hash = body.variants[mediaId];
         if (typeof hash !== "string" || !/^[a-f0-9]{64}$/.test(hash)) throw new HttpError(400, "invalidImage");
-        const key = variantKey(id, mediaId, hash);
+        const key = await photoVariantKey(env, id, mediaId, hash);
         const object = await env.MEDIA.get(key);
         const mime = object?.httpMetadata?.contentType;
         if (object) await object.body.cancel();

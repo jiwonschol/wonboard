@@ -1,6 +1,7 @@
 import { limits, sha256, type AttachmentFile } from "@wonboard/document";
 import { HttpError, json, readBytes, readJson, validId } from "./http";
 import type { SitesEnv } from "./types";
+import { removeDistributedPhoto } from "./photoObjects";
 
 type FileRow = { id: string; object_id: string; revision: number; body: string; filename: string; created_at: string; trashed_at: string | null; pinned: number; object_key: string; state: string };
 type ShareRow = { id: string; file_id: string; token: string; revision: number; expires_at: number | null; revoked: number; operation_id: string; created_at: string; filename?: string; server_now: number };
@@ -10,7 +11,8 @@ const unreferenced = `NOT EXISTS (SELECT 1 FROM library_files f WHERE f.object_i
   AND (f.trashed_at IS NULL OR strftime('%s',f.trashed_at) IS NULL OR
     (CAST(strftime('%s',f.trashed_at) AS INTEGER)*1000 + CAST(substr(strftime('%f',f.trashed_at),4,3) AS INTEGER)) + ${retention} > ${nowSql}))
   AND NOT EXISTS (SELECT 1 FROM library_files f JOIN document_file_refs r ON r.file_id=f.id WHERE f.object_id=file_objects.id)
-  AND NOT EXISTS (SELECT 1 FROM library_files f JOIN file_shares s ON s.file_id=f.id WHERE f.object_id=file_objects.id)`;
+  AND NOT EXISTS (SELECT 1 FROM library_files f JOIN file_shares s ON s.file_id=f.id WHERE f.object_id=file_objects.id)
+  AND NOT EXISTS (SELECT 1 FROM publications p WHERE p.blob_key=file_objects.object_key)`;
 const nameOf = (value: unknown) => {
   if (typeof value !== "string" || !value.trim() || value.length > 1024 || /[\u0000-\u001f\u007f]/.test(value)) throw new HttpError(400, "invalidFileName");
   return value.trim();
@@ -76,7 +78,7 @@ export async function ownerFiles(request: Request, env: SitesEnv, path: string):
       return json({ revoked: true });
     }
     if (request.method === "DELETE") {
-      await env.DB.prepare("DELETE FROM publications WHERE public_id=?").bind(photo[1]).run();
+      await removeDistributedPhoto(env, photo[1]);
       return json({ removed: true });
     }
   }

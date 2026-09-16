@@ -35,8 +35,8 @@ CREATE TABLE publications (
 );
 -- Publications deliberately have no cascading document/media deletion.
 
--- Stage 2 objects are tracked before R2 writes. Existing media/publications are
--- deliberately excluded from this collector until their own inventory is proven.
+-- New bytes are tracked before R2 writes. Private legacy originals remain
+-- outside collection; legacy public keys are registered before row removal.
 CREATE TABLE file_objects (
   id TEXT PRIMARY KEY,
   object_key TEXT NOT NULL UNIQUE,
@@ -46,6 +46,27 @@ CREATE TABLE file_objects (
   attempts INTEGER NOT NULL DEFAULT 0,
   size INTEGER NOT NULL
 );
+CREATE TABLE photo_variants (
+  document_id TEXT NOT NULL,
+  media_id TEXT NOT NULL,
+  hash TEXT NOT NULL,
+  object_id TEXT NOT NULL REFERENCES file_objects(id),
+  PRIMARY KEY(document_id,media_id,hash)
+);
+CREATE TRIGGER publication_object_insert BEFORE INSERT ON publications WHEN NEW.blob_key IS NOT NULL BEGIN
+  INSERT INTO file_objects(id,object_key,state,lease_until,size)
+    VALUES ('legacy:' || NEW.blob_key,NEW.blob_key,'ready',0,0) ON CONFLICT DO NOTHING;
+  SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM file_objects WHERE object_key=NEW.blob_key AND state='ready')
+    THEN RAISE(ABORT,'missingMedia') END;
+END;
+CREATE TRIGGER publication_object_update BEFORE UPDATE OF blob_key ON publications WHEN NEW.blob_key IS NOT NULL BEGIN
+  INSERT INTO file_objects(id,object_key,state,lease_until,size)
+    SELECT 'legacy:' || OLD.blob_key,OLD.blob_key,'ready',0,0 WHERE OLD.blob_key IS NOT NULL ON CONFLICT DO NOTHING;
+  INSERT INTO file_objects(id,object_key,state,lease_until,size)
+    VALUES ('legacy:' || NEW.blob_key,NEW.blob_key,'ready',0,0) ON CONFLICT DO NOTHING;
+  SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM file_objects WHERE object_key=NEW.blob_key AND state='ready')
+    THEN RAISE(ABORT,'missingMedia') END;
+END;
 CREATE TABLE library_files (
   id TEXT PRIMARY KEY,
   object_id TEXT NOT NULL REFERENCES file_objects(id),

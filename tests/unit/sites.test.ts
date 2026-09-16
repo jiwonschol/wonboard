@@ -46,6 +46,76 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
     }
   });
   async function setup() { expect((await call("/api/sites/setup", "POST", { accepted: true, locale: "ko" })).status).toBe(200); }
+  it("retains a photo cleanup job after deletion failure and retries without deleting its original", async () => {
+    const document = await photoDocument(), url = await publish(document);
+    const photoId = new URL(url).pathname.split("/").at(-1)!;
+    const row = runtime.sqlite.prepare("SELECT blob_key FROM publications WHERE public_id=?").get(photoId)!;
+    const key = String(row.blob_key), remove = runtime.env.MEDIA.delete!;
+    runtime.env.MEDIA.delete = async () => { throw new Error("simulated R2 failure"); };
+    expect((await call(`/api/distributed-photos/${photoId}`, "DELETE")).status).toBe(200);
+    await call("/api/files/cleanup", "POST", {});
+    expect(runtime.files.has(key)).toBe(true);
+    runtime.env.MEDIA.delete = remove;
+    databaseClock(Date.now() + 120000);
+    await call("/api/files/cleanup", "POST", {});
+    expect(runtime.files.has(key)).toBe(false);
+    expect((await call("/api/media/photo")).status).toBe(200);
+  });
+  it("keeps a photo shared by another publication until the last explicit removal", async () => {
+    const document = await photoDocument(), url = await publish(document);
+    const photoId = new URL(url).pathname.split("/").at(-1)!;
+    runtime.sqlite.prepare("INSERT INTO publications SELECT 'other-photo','other-doc',media_id,blob_key,mime,filename,1 FROM publications WHERE public_id=?").run(photoId);
+    expect((await call(`/api/distributed-photos/${photoId}`, "DELETE")).status).toBe(200);
+    await call("/api/files/cleanup", "POST", {});
+    expect((await call("/media/other-photo", "GET", undefined, null)).status).toBe(200);
+    const key = String(runtime.sqlite.prepare("SELECT blob_key FROM publications WHERE public_id='other-photo'").get()!.blob_key);
+    expect((await call("/api/distributed-photos/other-photo", "DELETE")).status).toBe(200);
+    await call("/api/files/cleanup", "POST", {});
+    expect(runtime.files.has(key)).toBe(false);
+  });
+  it("fences a photo upload that completes after its reservation was collected", async () => {
+    const document = await photoDocument(), put = runtime.env.MEDIA.put.bind(runtime.env.MEDIA);
+    const start = Date.now(), clock = databaseClock(start);
+    let lateKey = "";
+    runtime.env.MEDIA.put = async (key, bytes, options) => {
+      lateKey = key;
+      clock(start + 3600001);
+      await call("/api/files/cleanup", "POST", {});
+      return put(key, bytes, options);
+    };
+    expect((await call(`/api/documents/${document.documentId}/media/photo/variant`, "PUT", syntheticPng)).status).toBe(409);
+    expect(runtime.files.has(lateKey)).toBe(true);
+    clock(start + 3660002);
+    await call("/api/files/cleanup", "POST", {});
+    expect(runtime.files.has(lateKey)).toBe(false);
+    expect(runtime.sqlite.prepare("SELECT count(*) AS count FROM photo_variants").get()!.count).toBe(0);
+  });
+  it("rejects a stale photo publication after cleanup claimed the validated bytes", async () => {
+    const document = await photoDocument();
+    const variant = await (await call(`/api/documents/${document.documentId}/media/photo/variant`, "PUT", syntheticPng)).json();
+    const batch = runtime.env.DB.batch.bind(runtime.env.DB);
+    runtime.env.DB.batch = async statements => {
+      runtime.sqlite.prepare("UPDATE file_objects SET state='deleting'").run();
+      return batch(statements);
+    };
+    expect((await call(`/api/documents/${document.documentId}/publish`, "POST", { revision: document.revision, variants: { photo: variant.hash } })).status).toBe(503);
+    expect(runtime.sqlite.prepare("SELECT count(*) AS count FROM publications").get()!.count).toBe(0);
+  });
+  it("records legacy photo keys and rolls back metadata removal if ledger storage fails", async () => {
+    await setup();
+    const key = "publications/legacy/photo/hash";
+    await runtime.env.MEDIA.put(key, new Uint8Array(syntheticPng).buffer, { httpMetadata: { contentType: "image/png" } });
+    // Simulate a row that predates the new reference trigger.
+    runtime.sqlite.exec("DROP TRIGGER publication_object_insert");
+    runtime.sqlite.prepare("INSERT INTO publications VALUES ('legacy-photo','legacy','photo',?,'image/png','p.png',1)").run(key);
+    runtime.sqlite.exec("CREATE TRIGGER fail_ledger BEFORE INSERT ON file_objects BEGIN SELECT RAISE(ABORT,'fixture failure'); END");
+    expect((await call("/api/distributed-photos/legacy-photo", "DELETE")).status).toBe(503);
+    expect((await call("/media/legacy-photo", "GET", undefined, null)).status).toBe(200);
+    runtime.sqlite.exec("DROP TRIGGER fail_ledger");
+    expect((await call("/api/distributed-photos/legacy-photo", "DELETE")).status).toBe(200);
+    await call("/api/files/cleanup", "POST", {});
+    expect(runtime.files.has(key)).toBe(false);
+  });
   it("anchors new and active trash timestamps to the database clock", async () => {
     await setup();
     const now = Date.parse("2026-09-16T12:00:00.123Z");
@@ -296,6 +366,7 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
 
   it("keeps a successful publication successful when a later save changes revision", async () => {
     const document = await photoDocument();
+    const variant = await (await call(`/api/documents/${document.documentId}/media/photo/variant`, "PUT", syntheticPng)).json();
     const batch = runtime.env.DB.batch.bind(runtime.env.DB);
     runtime.env.DB.batch = async statements => {
       const result = await batch(statements);
@@ -303,7 +374,9 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
       runtime.sqlite.prepare("UPDATE documents SET revision = ?, body = ? WHERE id = ?").run(changed.revision, JSON.stringify(changed), document.documentId);
       return result;
     };
-    const url = await publish(document);
+    const response = await call(`/api/documents/${document.documentId}/publish`, "POST", { revision: document.revision, variants: { photo: variant.hash } });
+    expect(response.status).toBe(200);
+    const url = (await response.json()).urls.photo;
     expect((await call(new URL(url).pathname, "GET", undefined, null)).status).toBe(200);
   });
   it("does not publish when the revision changes before the conditional transaction", async () => {
