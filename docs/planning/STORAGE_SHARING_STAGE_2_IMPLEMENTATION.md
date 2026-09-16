@@ -73,3 +73,11 @@ P1 cherry-pick 시 테스트 라우팅 충돌은 `/shared/`와 `/__sites-test/`�
 위 고정 SHA에서 같은 셸 HEAD 확인 후 타입·전체 단위 552개(Vitest 205+Node 347)·Sites Chromium 15/15 종료 0. 로그 `/tmp/wonboard-photo-cleanup-immutable-unit.log`, `/tmp/wonboard-photo-cleanup-immutable-sites.log`. #18의 기존 미래 행 보정·정본 시각·복귀 시계도 통합했다. 충돌한 DELETE의 구형 철회는 가져오지 않고 2단계 배포물 독립 보존을 유지했으며 관련 시험도 양쪽 기한에서 사진 보존으로 변경했다. `TRASH_EXPIRY_SERVER_VERIFICATION.md`의 철회 기록은 #18 당시 증거이지 현재 2단계 동작이 아니다.
 
 새 Codex 4027619911/4027619919(파일 만료 다운로드·UI 시각)는 다음 수정 대상이다. 스냅샷과 다른 남은 게이트도 아직 완료하지 않았다.
+
+## 파일 휴지통 서버 시계 보강
+
+4027619911/4027619919는 코드 `b73effa88df163591d1e69d30e11f34f26b6d8a2`에서 수정했다. 보관함의 GET/HEAD 다운로드는 DB 시각의 30일 정각부터 410이고 새 휴지통 시각도 DB에서 정한다. 독립 공유 경로는 이 기한에 묶지 않는다. 문서 참조는 `/api/documents/:id/files/:fileId`에서 소유자·유효 문서·실제 참조를 확인해 읽으므로 보관함 삭제/만료가 남은 글의 재열기를 깨지 않는다.
+
+파일 목록은 기존 배열 응답을 유지하면서 서버 시각 헤더를 제공한다. Sites 어댑터는 monotonic 시계에 고정하고 복귀 때 무효화·재동기화한다. 겹친 옛 요청은 최신 시각을 덮지 못한다. 보관함 복원/다운로드는 1초마다 기한을 갱신하고 실패한 동기화에는 비활성화한다. 로컬/데스크톱은 기존 로컬 시계를 유지한다.
+
+소유자 만료 반례는 수정 전 200(예상 410)으로 실패(`/tmp/wonboard-file-clock-red.log`). 위 고정 SHA에서 같은 셸 HEAD 확인 후 타입·전체 단위 553개(Vitest 206+Node 347)·Sites Chromium 17/17 종료 0. 로그 `/tmp/wonboard-file-clock-immutable-unit.log`, `/tmp/wonboard-file-clock-immutable-sites.log`. 브라우저 ±31일 오차·활성 화면의 만료 진행·복귀 실패 및 재시도 오류 해소, API 정각/직전·공개 공유·유효 문서 첨부 보존을 확인했다. 스냅샷/전체 작성기·운영 게이트는 여전히 남았다.
