@@ -92,6 +92,60 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
     expect((await call(path, "DELETE", { revision: saved.revision, deletionIntent: "expired" })).status).toBe(200);
     expect((await call(new URL(url).pathname, "GET", undefined, null)).status).toBe(200);
   });
+  it("bounds legacy future trash by server updated_at and freezes the canonical value on save", async () => {
+    const document = await photoDocument(), path = `/api/documents/${document.documentId}`;
+    const start = Date.parse("2026-09-16T12:00:00.123Z"), clock = databaseClock(start + 1000);
+    const legacy = { ...document, trashedAt: "2099-01-01T00:00:00.000Z" };
+    runtime.sqlite.prepare("UPDATE documents SET body=?,updated_at=? WHERE id=?")
+      .run(JSON.stringify(legacy), new Date(start).toISOString(), document.documentId);
+    const loaded = await (await call(path)).json();
+    expect(loaded.trashedAt).toBe(new Date(start).toISOString());
+    expect((await (await call("/api/documents")).json()).documents[0].trashedAt).toBe(loaded.trashedAt);
+    expect((await call(path, "PUT", legacy)).status).toBe(409);
+    const saved = await (await call(path, "PUT", { ...loaded, title: "safe legacy save" })).json();
+    expect(saved.trashedAt).toBe(loaded.trashedAt);
+    clock(start + 30 * 86400000);
+    expect((await call(path)).status).toBe(410);
+    expect((await call(`${path}/publish`, "POST", { revision: saved.revision, variants: {} })).status).toBe(410);
+    expect((await call(path, "DELETE", { revision: saved.revision })).status).toBe(200);
+  });
+  it("preserves distributed photos on both sides of legacy deletion expiry", async () => {
+    const document = await photoDocument(), url = await publish(document);
+    const start = Date.parse("2026-09-16T12:00:00.123Z"), clock = databaseClock(start);
+    const path = `/api/documents/${document.documentId}`;
+    const saved = await (await call(path, "PUT", { ...document, trashedAt: new Date(start).toISOString() })).json();
+    clock(start + 30 * 86400000 - 1);
+    expect((await call(path, "DELETE", { revision: saved.revision, withdrawPublications: true })).status).toBe(409);
+    expect(runtime.sqlite.prepare("SELECT id FROM documents WHERE id=?").get(document.documentId)).toBeDefined();
+    expect((await call(new URL(url).pathname, "GET", undefined, null)).status).toBe(200);
+    clock(start + 30 * 86400000);
+    expect((await call(path, "DELETE", { revision: saved.revision, withdrawPublications: true })).status).toBe(200);
+    expect((await call(new URL(url).pathname, "GET", undefined, null)).status).toBe(200);
+  });
+  it("does not execute photo withdrawal SQL during draft deletion", async () => {
+    const document = await photoDocument(), url = await publish(document);
+    runtime.sqlite.exec("CREATE TRIGGER fail_withdraw BEFORE UPDATE ON publications BEGIN SELECT RAISE(ABORT,'fixture failure'); END");
+    const path = `/api/documents/${document.documentId}`;
+    expect((await call(path, "DELETE", { revision: document.revision, deletionIntent: "manual", withdrawPublications: true })).status).toBe(200);
+    expect((await call(path)).status).toBe(404);
+    expect((await call(new URL(url).pathname, "GET", undefined, null)).status).toBe(200);
+  });
+  it("expires an untouched legacy future timestamp consistently across every owner path", async () => {
+    const document = await photoDocument(), url = await publish(document);
+    const path = `/api/documents/${document.documentId}`;
+    databaseClock(Date.parse("2026-09-16T12:00:00.123Z"));
+    const legacy = { ...document, trashedAt: "2099-01-01T00:00:00.000Z" };
+    runtime.sqlite.prepare("UPDATE documents SET body=?,updated_at=? WHERE id=?")
+      .run(JSON.stringify(legacy), "2026-08-01T12:00:00.123Z", document.documentId);
+    expect((await call(path)).status).toBe(410);
+    expect((await call(path, "PUT", legacy)).status).toBe(410);
+    expect((await call(`${path}/publish`, "POST", { revision: document.revision, variants: {} })).status).toBe(410);
+    expect((await call(`${path}/media/photo/variant`, "PUT", syntheticPng)).status).toBe(410);
+    const [listed] = (await (await call("/api/documents")).json()).documents;
+    expect(listed).toMatchObject({ title: "", trashedAt: "2026-08-01T12:00:00.123Z" });
+    expect((await call(path, "DELETE", { revision: document.revision })).status).toBe(200);
+    expect((await call(new URL(url).pathname, "GET", undefined, null)).status).toBe(200);
+  });
   function databaseClock(initial: number) {
     let now = initial;
     runtime.sqlite.function("strftime", (format, value) => {

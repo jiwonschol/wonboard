@@ -19,20 +19,30 @@ const unexpiredWrite = `(json_extract(body, '$.trashedAt') IS ? AND (? IS NULL O
 function trashDeadline(trashedAt: string | undefined): number | null {
   return trashedAt === undefined ? null : Date.parse(trashedAt) + TRASH_RETENTION_MS;
 }
-function expiryBindings(document: WriterDocument) {
-  const deadline = trashDeadline(document.trashedAt);
-  return [document.trashedAt ?? null, deadline, deadline];
+function canonicalTrashTimestamp(timestamp: string | undefined, serverUpdatedAt: string) {
+  if (timestamp === undefined) return undefined;
+  const updated = Date.parse(serverUpdatedAt);
+  if (!Number.isFinite(updated)) throw new HttpError(503, "storageFailed");
+  return Date.parse(timestamp) > updated ? new Date(updated).toISOString() : timestamp;
 }
-
-async function loadDocument(env: SitesEnv, id: string, missingStatus = 404) {
-  const row = await env.DB.prepare(`SELECT body, ${databaseNow} AS server_now FROM documents WHERE id = ?`)
-    .bind(id).first<{ body: string; server_now: number }>();
+type LoadedDocument = { document: WriterDocument; storedTimestamp: string | undefined; deadline: number | null };
+function expiryBindings(stored: LoadedDocument) {
+  return [stored.storedTimestamp ?? null, stored.deadline, stored.deadline];
+}
+async function loadStoredDocument(env: SitesEnv, id: string, missingStatus = 404): Promise<LoadedDocument> {
+  const row = await env.DB.prepare(`SELECT body, updated_at, ${databaseNow} AS server_now FROM documents WHERE id = ?`)
+    .bind(id).first<{ body: string; updated_at: string; server_now: number }>();
   if (!row) throw new HttpError(missingStatus, missingStatus === 409 ? "storageConflict" : "notFound");
   const document: unknown = JSON.parse(row.body);
   validateDocument(document);
+  const storedTimestamp = document.trashedAt;
+  document.trashedAt = canonicalTrashTimestamp(storedTimestamp, row.updated_at);
   const deadline = trashDeadline(document.trashedAt);
   if (deadline !== null && row.server_now >= deadline) throw new HttpError(410, "trashExpired");
-  return document;
+  return { document, storedTimestamp, deadline };
+}
+async function loadDocument(env: SitesEnv, id: string, missingStatus = 404) {
+  return (await loadStoredDocument(env, id, missingStatus)).document;
 }
 function imageIds(document: WriterDocument) {
   return [...new Set(attachmentNodes(document.content)
@@ -122,14 +132,15 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
         .bind(offset).all<{ id: string; revision: number; title: string; locale: "ko" | "en"; excerpt: string; updated_at: string; trashed_at: string | null; server_now: number }>();
       const clock = await env.DB.prepare(`SELECT ${databaseNow} AS server_now`).first<{ server_now: number }>();
       return json({ documents: results.map(row => {
-        const deadline = trashDeadline(row.trashed_at ?? undefined);
+        const timestamp = canonicalTrashTimestamp(row.trashed_at ?? undefined, row.updated_at);
+        const deadline = trashDeadline(timestamp);
         const expired = deadline !== null && row.server_now >= deadline;
         // Old clients discover cleanup candidates through this same list. Keep
         // their envelope and revision, but never return expired writing content.
         const excerpt = expired ? "" : row.excerpt;
         return { schemaVersion: 1, documentId: row.id,
         revision: row.revision, title: expired ? "" : row.title, locale: row.locale, updatedAt: row.updated_at,
-        ...(row.trashed_at === null ? {} : { trashedAt: row.trashed_at }),
+        ...(timestamp === undefined ? {} : { trashedAt: timestamp }),
         media: {}, content: { type: "doc", content: [{ type: "paragraph", content: excerpt ? [{ type: "text", text: excerpt }] : [] }] } };
       }),
         serverNow: clock?.server_now, nextOffset: results.length === 100 ? offset + 100 : null });
@@ -168,22 +179,22 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
           (body.deletionIntent !== undefined && !["manual", "expired"].includes(body.deletionIntent)) ||
           (body.withdrawPublications !== undefined && typeof body.withdrawPublications !== "boolean"))
         throw new HttpError(400, "invalidDocument");
-      const row = await env.DB.prepare("SELECT json_extract(body, '$.trashedAt') AS trashed_at FROM documents WHERE id = ?")
-        .bind(id).first<{ trashed_at: string | null }>();
+      const row = await env.DB.prepare("SELECT json_extract(body, '$.trashedAt') AS trashed_at, updated_at FROM documents WHERE id = ?")
+        .bind(id).first<{ trashed_at: string | null; updated_at: string }>();
       if (!row) return json({ removed: true });
       const timestamp = typeof row.trashed_at === "string" ? row.trashed_at : undefined;
-      const parsedDeadline = trashDeadline(timestamp);
+      const parsedDeadline = trashDeadline(canonicalTrashTimestamp(timestamp, row.updated_at));
       const deadline = parsedDeadline !== null && Number.isFinite(parsedDeadline) ? parsedDeadline : null;
       // No intent means an old client: its auto-cleanup and manual delete have
       // identical wire shapes. Preserve data unless the server deadline passed.
       const deletionGuard = `(? = 1 OR (json_extract(body, '$.trashedAt') IS ? AND ? IS NOT NULL AND ? <= ${databaseNow}))`;
       const guard = [body.deletionIntent === "manual" ? 1 : 0, timestamp ?? null, deadline, deadline];
-      const statements = [];
       // Draft lifetime never controls already distributed copies, including
       // requests from old clients that still send withdrawPublications=true.
-      statements.push(env.DB.prepare(`DELETE FROM documents WHERE id = ? AND revision = ? AND ${deletionGuard}`).bind(id, body.revision, ...guard));
+      const statements = [env.DB.prepare(`DELETE FROM documents WHERE id = ? AND revision = ? AND ${deletionGuard}`)
+        .bind(id, body.revision, ...guard)];
       const result = await env.DB.batch(statements);
-      if (result[result.length - 1].meta.changes !== 1) {
+      if (result[0].meta.changes !== 1) {
         const remaining = await env.DB.prepare("SELECT revision FROM documents WHERE id = ?").bind(id).first();
         if (remaining) throw new HttpError(409, "storageConflict");
       }
@@ -193,8 +204,8 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
       const document: unknown = await readJson(request);
       validateDocument(document);
       if (document.documentId !== id) throw new HttpError(400, "invalidDocument");
-      const stored = document.revision === 0 ? null : await loadDocument(env, id, 409);
-      if (stored?.trashedAt !== undefined && document.trashedAt !== undefined && document.trashedAt !== stored.trashedAt)
+      const stored = document.revision === 0 ? null : await loadStoredDocument(env, id, 409);
+      if (stored?.document.trashedAt !== undefined && document.trashedAt !== undefined && document.trashedAt !== stored.document.trashedAt)
         throw new HttpError(409, "storageConflict");
       for (const media of Object.values(document.media)) {
         const stored = await env.DB.prepare("SELECT * FROM media WHERE id = ?").bind(media.id).first<StoredMedia>();
@@ -203,7 +214,7 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
           throw new HttpError(400, "missingMedia");
       }
       const saved = { ...document, revision: document.revision + 1, updatedAt: new Date().toISOString() };
-      if (document.trashedAt !== undefined && stored?.trashedAt === undefined) {
+      if (document.trashedAt !== undefined && stored?.document.trashedAt === undefined) {
         // The client expresses intent to trash, never authority over retention.
         // Use the same database clock as the final expiry predicate, including
         // revision-zero imports. Return this canonical value to old clients too.
@@ -240,7 +251,7 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
     }
     if (action === "publish" && request.method === "POST") {
       const body = await readJson(request);
-      const document = await loadDocument(env, id);
+      const stored = await loadStoredDocument(env, id), document = stored.document;
       if (body?.revision !== document.revision) throw new HttpError(409, "storageConflict");
       const ids = imageIds(document);
       if (!body.variants || typeof body.variants !== "object" ||
@@ -268,7 +279,7 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
           WHERE EXISTS (SELECT 1 FROM documents WHERE id = ? AND revision = ? AND ${unexpiredWrite})
           ON CONFLICT(document_id, media_id) DO UPDATE SET blob_key = excluded.blob_key,
           mime = excluded.mime, filename = excluded.filename, published = 1`)
-          .bind(JSON.stringify(publications), id, document.revision, ...expiryBindings(document));
+          .bind(JSON.stringify(publications), id, document.revision, ...expiryBindings(stored));
         const committed = await env.DB.batch([statement]);
         if (committed[0].meta.changes !== publications.length) throw new HttpError(409, "storageConflict");
       } else if ((await loadDocument(env, id)).revision !== document.revision) throw new HttpError(409, "storageConflict");
