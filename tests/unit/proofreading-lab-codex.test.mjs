@@ -21,7 +21,9 @@ import {createCodex,lunaRequest,parseCodexOutput,codexUsage,resolveRunner} from 
 // the mode-bit rejection, the spaced-shebang demonstration and the PATH
 // sentinel — live in `proofreading-lab-codex.posix.test.mjs`, which skips them
 // on win32 with a reason that names what is not being exercised. The last test
-// in this file enforces that the split stayed real.
+// in this file checks one narrow, falsifiable part of that boundary: this file's
+// `node:fs` import surface. The rest of the split is held by review, not by a
+// test, and the README does not claim otherwise.
 //
 // Windows verification scope is documented in scripts/proofreading-lab/README.md.
 // ---------------------------------------------------------------------------
@@ -62,7 +64,7 @@ test('Codex rejects API login and strips provider keys before checking auth',asy
 // generation, no network. Windows cannot express the mode-bit case (chmod 0o600
 // does not remove executability there); that one is in the POSIX suite.
 // ---------------------------------------------------------------------------
-test('Injected runner must be an absolute, existing path',()=>{
+test('Injected runner must be an absolute, existing, regular file',()=>{
  const dir=mkdtempSync(join(tmpdir(),'wonboard-luna-resolve-'));
  assert.equal(resolveRunner(null),'codex');
  assert.equal(resolveRunner(undefined),'codex');
@@ -71,6 +73,11 @@ test('Injected runner must be an absolute, existing path',()=>{
  assert.throws(()=>resolveRunner(join('relative','codex')),/absolute path/);
  assert.throws(()=>resolveRunner(join(dir,'missing-codex')),/not executable/);
  assert.throws(()=>resolveRunner(42),/absolute path/);
+ // X_OK on a directory reports search permission, not runnability, so without a
+ // stat check an accessible directory was accepted and handed to execFile.
+ assert.throws(()=>resolveRunner(dir),/not executable/);
+ assert.throws(()=>resolveRunner(dir),/not a regular file/);
+ assert.throws(()=>resolveRunner(tmpdir()),/not a regular file/);
  // The running interpreter is an existing, executable absolute path on every
  // platform, so the accepting branch is covered without a POSIX mode bit.
  assert.equal(resolveRunner(process.execPath),process.execPath);
@@ -101,7 +108,7 @@ const PREPARATION_ONLY=['baseline.json','input.json','manifest.json','requests.j
 
 test('Dry run rejects an injected runner the matching live run would reject',()=>{
  const dir=mkdtempSync(join(tmpdir(),'wonboard-lab-dry-')),env=hermeticEnv(),input=writeInput(dir);
- for(const [label,bad] of [['bare-name','codex'],['relative','./codex'],['missing-absolute',join(dir,'does-not-exist')]]){
+ for(const [label,bad] of [['bare-name','codex'],['relative','./codex'],['missing-absolute',join(dir,'does-not-exist')],['directory',dir]]){
   const out=join(dir,`rejected-${label}`);
   const result=lab(input,out,['--max-calls','3','--codex-bin',bad],env);
   assert.equal(result.status,1,`${label}: a dry run must reject ${bad}`);
@@ -146,18 +153,38 @@ test('Dry run rejects --codex-bin for the gemini provider before validating it',
  assert.ok(!existsSync(out));
 });
 
-test('The Windows-runnable contract suite stays free of POSIX-only constructs',()=>{
- // The forbidden literals are assembled from parts, so this file never contains
- // the string it forbids and the guard cannot trip on itself.
- const source=readFileSync(fileURLToPath(import.meta.url),'utf8');
- for(const token of [['/','bin','sh'].join(''),['symlink','Sync'].join(''),['chmod','Sync'].join('')])
-  assert.ok(!source.includes(token),
-   `${token} is POSIX-only and belongs in proofreading-lab-codex.posix.test.mjs`);
- assert.match(source,/delimiter/,'PATH must be assembled with the node:path delimiter, never a hardcoded separator');
- // The companion suite must exist and must skip on win32 with a stated reason,
- // so the separation cannot decay into a silent whole-file skip.
- const posix=readFileSync(resolve('tests/unit/proofreading-lab-codex.posix.test.mjs'),'utf8');
- assert.match(posix,/process\.platform==='win32'/);
- assert.match(posix,/skip:[A-Za-z]+/,'win32 cases must be skipped with an explicit reason string');
- assert.match(posix,/not exercised/,'the skip reason must name what Windows does not verify');
+// ---------------------------------------------------------------------------
+// Narrow separation check.
+//
+// An earlier version of this test scanned its own source for POSIX-only string
+// literals assembled from parts. Two of its three tokens did not work: the
+// assembled shell path came out as `/binsh` and could never match, and the
+// PATH-separator check matched the `delimiter` in the import line, so it passed
+// however PATH was built. Both were confirmed to pass against deliberately
+// violating sources, which made the README claim they backed false.
+//
+// What is checkable here without writing a static analyzer is the import
+// surface: the POSIX-only helpers arrive as named imports, so an allowlist
+// catches them, and the allowlist itself contains none of the forbidden names.
+// The fixture below is the teeth — the same expression must reject a violating
+// import line, so this cannot decay into a vacuous pass.
+//
+// The rest of the split (keeping the shell wrapper and a hardcoded PATH
+// separator out of this file) is held by the file boundary and by review, not
+// by a test. scripts/proofreading-lab/README.md says so.
+// ---------------------------------------------------------------------------
+const FS_IMPORT_ALLOWLIST=new Set(['existsSync','mkdtempSync','readFileSync','readdirSync','writeFileSync']);
+const fsImportNames=source=>{
+  const line=source.match(/^import \{([^}]*)\} from 'node:fs';$/m);
+  assert.ok(line,'the node:fs import must stay a single named-import line so this check can read it');
+  return line[1].split(',').map(name=>name.trim()).filter(Boolean);
+};
+test('the contract suite imports no POSIX-only node:fs helper',()=>{
+ const imported=fsImportNames(readFileSync(fileURLToPath(import.meta.url),'utf8'));
+ assert.deepEqual(imported.filter(name=>!FS_IMPORT_ALLOWLIST.has(name)),[],
+  'a POSIX-only helper belongs in proofreading-lab-codex.posix.test.mjs');
+ // Fixture, not this file's own import: proves the matcher above rejects a violation.
+ const violating=["import {","chmod","Sync,existsSync} from 'node:fs';"].join('');
+ assert.deepEqual(fsImportNames(violating).filter(name=>!FS_IMPORT_ALLOWLIST.has(name)),
+  [['chmod','Sync'].join('')],'the allowlist must actually reject a POSIX-only import');
 });

@@ -113,12 +113,22 @@ const PREPARATION_ONLY=['baseline.json','input.json','manifest.json','requests.j
 test('Injected runner accepts an executable stub and rejects a mode-stripped one',{skip:posixSkip},()=>{
  // The mode-bit half of the resolveRunner contract. chmod does not remove
  // executability on Windows, so this case is POSIX-only by construction; the
- // absolute-path and missing-file halves run on every platform in the shared file.
+ // absolute-path, missing-file and directory halves run on every platform in
+ // the shared file.
  const dir=mkdtempSync(join(tmpdir(),'wonboard-luna-resolve-'));
  const notExecutable=writeStub(dir,{mode:0o600});
  assert.throws(()=>resolveRunner(notExecutable.bin),/not executable/);
  const stub=writeStub(mkdtempSync(join(tmpdir(),'wonboard-luna-resolve-')));
  assert.equal(resolveRunner(stub.bin),stub.bin);
+ // The stat check follows symlinks on purpose: a link resolving to a real
+ // executable is a valid runner and must not be rejected along with directories.
+ const linkDir=mkdtempSync(join(tmpdir(),'wonboard-luna-link-'));
+ const link=join(linkDir,'codex-link');
+ symlinkSync(stub.bin,link);
+ assert.equal(resolveRunner(link),link,'a symlink to an executable is accepted');
+ const dirLink=join(linkDir,'dir-link');
+ symlinkSync(dir,dirLink);
+ assert.throws(()=>resolveRunner(dirLink),/not a regular file/,'a symlink to a directory is not');
 });
 
 test('Luna CLI uses the injected stub for auth and generation, audited by the parent',{skip:posixSkip},()=>{
