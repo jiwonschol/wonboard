@@ -19,7 +19,7 @@ node scripts/proofreading-lab/run.mjs --input local-corpora/luna-persona-pilot/i
 
 기본값은 PATH에서 찾은 설치된 공식 CLI다. `--codex-bin /절대/경로/codex`를 주면 **인증(`codex login status`)과 생성 호출 양쪽 모두** 그 절대 경로만 사용한다. 경로에 슬래시가 있으면 execvp가 PATH를 탐색하지 않으므로, 주입한 실행기가 없거나 실행 불가면 **설치된 실제 CLI로 조용히 넘어가지 않고 실패한다.** 상대 경로나 실행 불가 파일은 시작 전에 거부된다. `--codex-bin`은 `luna` 공급자 전용이며 `gemini`와 함께 쓰면 거부된다. `manifest.json`의 `execution.runner`가 `injected-absolute-path`인지 `installed CLI on PATH`인지를 기록한다.
 
-이 인자는 회귀 시험이 구독을 쓰지 않게 하는 장치다. `tests/unit/proofreading-lab-codex.test.mjs`는 이 경로로 가짜 실행기를 주입하고, 가짜가 받은 argv·cwd·환경·stdin을 호출 기록으로 남겨 부모 시험이 감사한다. PATH 뒤쪽에 심어 둔 감시 실행기는 호출 0건이어야 한다. 주입 없는 `--live`는 실제 구독을 쓰므로 시험에서 사용하지 않는다.
+이 인자는 회귀 시험이 구독을 쓰지 않게 하는 장치다. `tests/unit/proofreading-lab-codex.test.mjs`는 이 경로로 가짜 실행기를 주입하고, 가짜가 받은 argv·cwd·환경·stdin을 호출 기록으로 남겨 부모 시험이 감사한다. PATH 뒤쪽에 심어 둔 감시 실행기는 호출 0건이어야 한다. **일반 회귀는 전부 절대 경로 주입으로 실행하고, 이름 조회 경로는 통제된 PATH에 감시 실행기만 남겨 둔 양성 대조 시험 하나로만 확인한다.** 그 양성 대조도 감시 실행기에서 99로 끝나므로 실제 구독에 닿지 않는다. 실제 실행은 주입 없이 PATH의 설치된 CLI를 쓰는 그대로다.
 
 호출 수는 기본48, 명시적으로 최대300까지 제한한다. 문장 하나는3호출이다. 호출당180초·프로세스 출력2MiB 제한이며 실행기 자체 재시도는 없다. 공식 CLI 내부의 네트워크 재연결 정책은 별개다. CLI에 출력 토큰 상한을 설정한 것은 아니며 호출 수·시간 제한을 구독 사용량의 정확한 상한이라고 주장하지 않는다. 실제 입력/캐시/출력 토큰을 기록하고 API 달러 비용은 `null`로 남긴다. 구독 한도에 도달하면 중단하며 유료 API로 자동 전환하지 않는다.
 
