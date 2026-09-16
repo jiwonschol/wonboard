@@ -85,3 +85,13 @@ Codex 4027134412의 과거 `trashedAt=2099` 행은 서버가 기록한 DB `updat
 구형 withdraw 요청은 DELETE를 배치 첫 SQL로 실행해 기한을 한 번만 판정한다. 후속 사진 UPDATE는 `changes() = 1`일 때만 수행한다. [SQLite changes()](https://www.sqlite.org/lang_corefunc.html#changes)와 [D1 sequential transaction batch](https://developers.cloudflare.com/d1/worker-api/d1-database/#batch) 계약을 확인했고, 두 SQL 사이 시계가 만료 정각을 넘어도 둘 다 거부되거나 둘 다 성공함을 시험했다. 철회 UPDATE에 강제 ABORT를 넣으면 문서 DELETE까지 롤백된다.
 
 수정 전 두 반례는 각각 실패했다: 미래 timestamp가 그대로 반환됨(`/tmp/wonboard-expiry-legacy-red.log`), 첫 SQL 직전/둘째 정각에서 삭제만 200(`/tmp/wonboard-expiry-delete-atomic-red.log`). 최종 코드 SHA `be867acc06cd1f0335a932a05c11dad18e01b0ed`에서 같은 셸 `git rev-parse HEAD` 뒤 타입·전체 단위 523개(Vitest 176+Node 347)·Sites Chromium 11/11 종료 0. 로그 `/tmp/wonboard-expiry-legacy-immutable-unit.log`, `/tmp/wonboard-expiry-legacy-immutable-sites.log`. 새 문서 커밋에서는 코드 동일성을 검사한다. 실제 D1 계정 실행·운영 적용·머지는 별도다.
+
+## P2 후속: 최초 정본 일치와 절전 복귀 재동기화
+
+앱 Date가 `.123`, DB 시각이 `.124`인 별도 대역에서 최초 저장 응답과 다음 GET의 trashedAt이 달라지는 반례를 먼저 고정했다. 수정 전 전체 Vitest 177개 중 해당 1개가 실패했다(`/tmp/wonboard-expiry-canonical-red.log`). PUT은 updatedAt과 새 trashedAt, 응답에 동일한 DB 시각을 사용한다. revision 0/활성 문서 모두 최초 PUT=GET=목록이고 응답으로 내용을 변경해 재저장하면 성공함을 검증한다.
+
+Codex 4027281619: Sites는 focus/pageshow/visibilitychange에서 기존 추정 시각을 무효화하고 서버 목록을 다시 읽는다. 모든 페이지를 정상 수신해야 새 시각을 채택한다. 실패하면 추정 시각을 확인한 것으로 취급하지 않고 복원을 잠그며 저장소 오류를 표시한다. 복귀 동기화는 진행 중 저장/사용자 작업과 충돌하면 재시도하고 미저장 편집본을 목록에서 덮어쓰지 않는다. 로컬/데스크톱은 이 경로를 사용하지 않는다.
+
+브라우저에서는 performance.now를 정지시키고 테스트 DB 시각만 31일 앞으로 이동했다. 목록 요청 실패 뒤 휴지통 항목 보존·복원 비활성화, focus 재시도 뒤 서버 만료 정리·공개 사진 보존을 확인했다. 테스트 시계 경로는 loopback 전용 Vite 대역에만 있다.
+
+코드 SHA `a16e7ed6675f2567deca51b2920ac991a966aa66`에서 같은 셸 `git rev-parse HEAD` 후 `pnpm typecheck && pnpm test && pnpm test:sites --project=chromium`: 종료 0. 전체 단위 524개(Vitest 177+Node 347), Sites Chromium 12/12. 로그 `/tmp/wonboard-expiry-resume-immutable-unit.log`, `/tmp/wonboard-expiry-resume-immutable-sites.log`. 후속 문서 커밋은 코드 동일성으로 연결한다. 일반 작성기 기존 세 실패·실제 운영 미검증과 #19 Windows/dry-run 후속 통합 대기는 별개다.
