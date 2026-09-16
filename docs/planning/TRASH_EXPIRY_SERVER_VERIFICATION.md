@@ -1,0 +1,56 @@
+# Sites 휴지통 30일 서버 제한 보강
+
+2026-09-16. 담당 현철. 동준이 확정된 #8/#9 계약 누락의 수정·시험을 승인했다. 파일 보관함 2단계의 미결정 제품 정책과 독립한다.
+
+## 재현과 수정
+
+기준 HEAD는 `e139408274d76a507eab397f1ebca7ac1d3fc395`, 브랜치는 `buzz/9-trash-expiry`, 전용 작업 위치는 `.claude/worktrees/buzz-9-trash-expiry`다. 아래 결과는 이 HEAD 위 미커밋 수정본에서 얻었다. HEAD 자체가 수정본이라는 뜻이 아니다.
+
+기존 `apps/server/src/sites/worker.ts`에서 세 반례를 먼저 추가하고 `pnpm test`를 실행했다. 30일 정각의 GET이 410 대신 200, 초기 읽기 후 정각에 실행된 복원 UPDATE가 409 대신 200, 정각의 게시 트랜잭션이 409 대신 200이었다. Vitest 결과 3 실패/163 통과. 그 실패 때문에 뒤의 Node 시험은 첫 실행에서 시작되지 않았다.
+
+저장된 trashedAt을 읽고 기존 Date.parse 계약으로 기한을 계산한다. GET은 DB의 읽기 시각으로 기한을 검사한다. UPDATE는 revision·DB의 trashedAt 원문 일치·기한을 같은 SQL 조건에서 검사한다. 요청의 timestamp 삭제/미래 변경이나 revision 0으로 기존 행을 덮어쓰는 우회를 막는다. 기한 전에 읽어도 쓰기 시각이 정각이면 변경하지 않는다. 처음부터 만료이면 410/trashExpired, 읽은 뒤 경계 또는 revision이 바뀌면 409/storageConflict다.
+
+DB 시각은 SQLite strftime의 정수 밀리초로 비교한다. Julian 실수 반올림으로 1ms 경계가 달라지는 것을 피한다. 기존 Date.parse가 받는 RFC 날짜도 계속 해석하며 incoming 값으로 기한을 계산하지 않는다. 저장된 timestamp와 revision이 달라졌으면 최종 SQL이 실패한다.
+
+다중 사진 게시를 json_each를 사용하는 단일 조건부 INSERT/UPSERT로 묶었다. 사진마다 별도 SQL을 실행하면 그 사이 기한이 지나 일부 주소만 변경될 수 있기 때문이다. 한 문장의 시각 판단으로 전부 갱신하거나 아무것도 바꾸지 않는다. 성공 뒤 다른 저장이 생기는 기존 경쟁 시험도 유지한다.
+
+## 목록과 구형 클라이언트
+
+기존 useDrafts는 목록에서 만료 문서를 찾아 DELETE한다. 따라서 만료 문서를 목록에서 제거하지 않는다. 기존 검증기가 읽을 수 있는 문서 봉투에 ID·revision·trashedAt·locale·updatedAt은 남기고 제목과 발췌는 비운다. 그 봉투는 정리용 메타데이터이며 본문 GET 허용이 아니다. 새 API나 클라이언트 배포를 먼저 요구하지 않는다.
+
+현재 client 코드는 수정하지 않았다. 브라우저 통합 시험에서 서버가 만료 봉투를 반환하고 첫 DELETE가 503이면 UI에 만료 글이 나타나지 않으며 서버에 정리 대상은 남는다. 다시 접속하면 기존 client가 다시 DELETE해 404가 된다. 체크하지 않은 기존 공개 사진 URL은 전후 모두 200이다. 사진 원본 삭제·공개 철회 계약·DB 스키마는 바꾸지 않았다.
+
+## 검증
+
+환경: Linux VPS, Node v22.23.2, pnpm 11.19.0, 잠금 파일 유지, Playwright Chromium 1243. 실제 Sites/ChatGPT 인증이 아니라 실제 SQLite와 R2·인증 대역이다.
+
+| 명령 | 결과 |
+| --- | --- |
+| `git rev-parse HEAD` | 위 40자 SHA. 각 시험 시작 시 같은 작업 위치에서 확인 |
+| `pnpm typecheck` | 통과. 초기 시험 시 clock callback 타입 오류 1개를 고친 뒤 재검증 |
+| `pnpm test` | Vitest 169/169 + Node 341/341 = 510 통과 |
+| `pnpm build:sites` | client/server 빌드 통과 |
+| `pnpm test:sites --project=chromium` | 전체 9/9 통과. 신규 정리 재시도 1개 포함 |
+| `WONBOARD_LOGIN_ID=expiry-fixture WONBOARD_LOGIN_PASSWORD=local-only-expiry-test pnpm test:e2e --project=chromium` | 종료 1, 167 통과/3 실패 (9.1분). 아래 실패 분리 |
+| `git diff --check` | 통과 |
+
+일반 작성기 첫 실행은 로컬 합성 로그인 환경값이 없어 fixture 로그인에서 예상 200/실제 503으로 반복 실패했다. 그 실행을 중단하고 위 합성값으로 전체를 재실행했다. 실제 계정 정보는 사용하지 않았다. 기본 설정 파일이나 운영 환경변수도 변경하지 않았다.
+
+전체 작성기 재실행 실패 3개: `spelling.spec.ts:506` conditional intention with lexical rieul preservation, `spelling.spec.ts:540` 유의미하다까진, `writing-tools.spec.ts:3` 글꼴 안내. 앞의 둘은 맞춤법 결과/대화상자 기대값 불일치이고 세 번째는 `/private/tmp/wonboard-nanum-default.png`의 ENOENT다. 해당 제품 코드와 시험은 이번 diff에 없다. 수정 전 전체 브라우저 기준선에서 같은 실패를 확인한 상태는 아니므로 '기존 실패로 입증됨'이라고 쓰지 않는다. 별도 기준선 대조가 필요하며 닝닝/동준에게 넘긴다. Sites Chromium 9/9 통과와 일반 작성기 실패를 합쳐 성공으로 표시하지 않는다.
+
+종료 코드: 최초 반례 `pnpm test` 1, 최종 `pnpm typecheck && pnpm test && pnpm build:sites` 0, Sites Chromium 0, 일반 Chromium 첫 실행 중단 130, 합성값을 지정한 일반 Chromium 1. 원본 로그: `/tmp/wonboard-expiry-red.log`, `/tmp/wonboard-expiry-final-unit.log`, `/tmp/wonboard-expiry-build.log`, `/tmp/wonboard-expiry-sites.log`, `/tmp/wonboard-expiry-e2e.log`, `/tmp/wonboard-expiry-e2e-configured.log`. Typecheck stdout은 도구 실행 기록에 있고 별도 로그 파일은 만들지 않았다. 검토 사본에는 이 로그들과 변경 파일을 함께 넣는다.
+
+추가 단위 반례는 만료 직전 복원 성공, stale revision 충돌, 정각/직후, timestamp 제거/미래 변경, revision 0 우회, Date.parse의 기존 날짜 형식, 다중 사진의 한 번짜리 기한 판단이다. SQL 시각 경계는 시험 DB의 strftime 함수를 제어해 재현하며, 기존 시험과 Chromium은 실제 SQLite 시계를 쓴다.
+
+실제 D1/Sites 배포, CDN, 두 번째 실제 계정, Firefox/WebKit, 패키징한 macOS/Windows는 이번 확인 범위가 아니다. 서버 수정으로 원격·기기 동기화나 물리 파일 정리를 추가하지 않았다.
+
+## 남은 인계
+
+전체 단위 실행 뒤 동준이 Luna 시험의 PATH 기반 격리 문제를 알렸다. 이후 `pnpm test` 및 lab 실행을 재실행하지 않았다. 이 계정에서 두 실행의 `/tmp/wonboard-luna-test-EUeK8G`와 `/tmp/wonboard-luna-test-CDEHi8`를 읽기만 했다. 각 성공 응답 3개가 가짜 실행기의 고정 `reason: fixture`, 토큰 100/30/20과 일치하고 실패 진단 stdout도 가짜의 `{"type":"turn.failed"}` 한 줄과 일치했다. 가짜 파일의 shebang은 `/usr/bin/node`다. 이는 이 두 실행이 fixture 출력을 사용했다는 근거이나, 부모 시험의 호출 감사 로그가 없어 모든 경로의 외부 호출 0회를 증명하지는 않는다. 격리 수정은 닝닝 담당이며 해당 수정을 받기 전 전체 Node 시험을 다시 돌리지 않는다. 원본 시험 자료는 비공개 디렉터리에 보존한다.
+
+읽기 검색 범위 `tests/e2e`, `tests/sites-e2e`, `tests/helpers`, `packages/editor/src/proofreading`, `apps/server/src/sites`에서 `codex|proofreading-lab|--live` 매치는 없었다. 해당 브라우저 시험은 이미 종료됐으며 이 검색 결과를 저장소 전체의 무외부호출 보증으로 확대하지 않는다.
+
+처음에는 로컬/global git user.name/email이 없어 커밋을 보류했다. 지원이 2026-09-16 채널 이벤트 `f44ed9d31694e26a509c57e6408baa3300c48c733cff9416405b568cfa43bc2a`에서 VPS 커밋 작성자를 기존 규칙대로 유지하라고 확정했다. 따라서 전역 설정은 바꾸지 않고 커밋 명령에 `Ji Won Chung <noname2k@naver.com>`을 적용하며, `Co-authored-by: Codex <noreply@openai.com>`과 기존 규칙의 Signed-off-by를 기록한다. merge·운영 배포는 하지 않는다.
+
+PR 제목안: `fix: enforce Sites trash expiry at server write boundaries`.
+PR은 `Refs #8, #9`로 연결한다. 파일 보관함 2단계가 남아 이슈를 닫지 않는다.
