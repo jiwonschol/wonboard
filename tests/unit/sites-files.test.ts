@@ -1,7 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { newDraft } from "@wonboard/document";
+import { describe, expect, it, vi } from "vitest";
+import { exportBackup, importBackup, newDraft } from "@wonboard/document";
 import { handleSitesRequest } from "../../apps/server/src/sites/worker";
 import { createSitesTestRuntime } from "../helpers/sites-runtime";
+import { openSitesFileLibrary } from "../../apps/client/src/sitesFileLibrary";
+import { openDraftRepository } from "../../apps/client/src/draftRepository";
+import { recoveredDraft } from "../../apps/client/src/trash";
 
 async function fixture() {
   const runtime = createSitesTestRuntime();
@@ -21,6 +24,66 @@ async function fixture() {
 }
 
 describe("Sites independent file distribution", () => {
+  it("restores an attached ZIP on the same Site after the former library object was deleted", async () => {
+    const f = await fixture();
+    vi.stubGlobal("fetch", async (path: string, init: RequestInit = {}) => {
+      const headers = new Headers(init.headers);
+      headers.set("origin", "https://site.test"); headers.set("oai-authenticated-user-id", "owner-fixture");
+      return handleSitesRequest(new Request(new URL(path, "https://site.test"), { ...init, headers }), f.env);
+    });
+    const repository = await openDraftRepository("sites", () => {});
+    try {
+      const file = await (await f.upload("report", "restore me")).json(), original = newDraft();
+      original.document.files = { report: file };
+      original.document.content = { type: "doc", content: [{ type: "paragraph", content: [{ type: "fileRef", attrs: { fileId: "report", label: "report.html" } }] }] };
+      original.blobs.report = new Blob(["restore me"], { type: file.mime });
+      const archive = await exportBackup(original);
+      await f.call("/api/files/report", "PATCH", { revision: 1, trashedAt: "requested" });
+      await f.call("/api/files/report", "DELETE", { revision: 2 });
+      await f.call("/api/files/cleanup", "POST", {});
+      expect((await f.call("/api/files/report/content")).status).toBe(404);
+      const restored = recoveredDraft(await importBackup(archive));
+      const [newId] = Object.keys(restored.document.files!);
+      expect(newId).not.toBe("report");
+      const saved = await repository.save(restored, 0), loaded = await repository.load(saved);
+      expect(await loaded.blobs[newId].text()).toBe("restore me");
+      expect(original.document.files.report.id).toBe("report");
+      expect(await (await f.call("/api/file-shares")).json()).toEqual([]);
+    } finally { repository.close(); vi.unstubAllGlobals(); f.close(); }
+  });
+  it("retries a committed upload with the same file ID after its response is lost", async () => {
+    const f = await fixture(), library = openSitesFileLibrary();
+    let loseResponse = true;
+    vi.stubGlobal("fetch", async (path: string, init: RequestInit = {}) => {
+      const headers = new Headers(init.headers);
+      headers.set("origin", "https://site.test"); headers.set("oai-authenticated-user-id", "owner-fixture");
+      const response = await handleSitesRequest(new Request(new URL(path, "https://site.test"), { ...init, headers }), f.env);
+      if (init.method === "PUT" && loseResponse) { loseResponse = false; throw new Error("lost response"); }
+      return response;
+    });
+    try {
+      const input = new File(["one upload"], "once.txt", { type: "text/plain" });
+      await expect(library.upload(input)).rejects.toThrow("lost response");
+      const [committed] = await library.list();
+      const repeated = await library.upload(input);
+      expect(repeated.id).toBe(committed.id);
+      expect(await library.list()).toHaveLength(1);
+      expect(f.sqlite.prepare("SELECT count(*) AS count FROM file_objects").get()!.count).toBe(1);
+    } finally { vi.unstubAllGlobals(); library.close(); f.close(); }
+  });
+  it("reports share activity from SQLite time and accepts repeated successful deletion", async () => {
+    const f = await fixture();
+    const expiry = new Date(Date.now() + 3600000).toISOString();
+    const skew = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 31 * 86400000);
+    try {
+      await f.upload();
+      const share = await (await f.call("/api/files/report/share", "POST", { revision: 1, operationId: "create", expiresAt: expiry })).json();
+      expect(share.active).toBe(true);
+      expect((await (await f.call("/api/file-shares")).json())[0].active).toBe(true);
+      for (let i = 0; i < 2; i++) expect((await f.call(`/api/file-shares/${share.id}`, "DELETE", { revision: share.revision, operationId: "delete" })).status).toBe(200);
+      expect(await (await f.call("/api/file-shares")).json()).toEqual([]);
+    } finally { skew.mockRestore(); f.close(); }
+  });
   it("preserves every document and distribution reference, then retries deletion after a lost response", async () => {
     const f = await fixture();
     try {

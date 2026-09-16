@@ -4,6 +4,7 @@ import { prepareFile, type FileLibrary, type LibraryFile } from "./fileLibrary";
 
 export function openSitesFileLibrary(): FileLibrary {
   const pending = new Map<string, string>();
+  let uploads = new WeakMap<File, Awaited<ReturnType<typeof prepareFile>>>();
   async function operation(path: string, method: string, body: Record<string, unknown>) {
     const key = JSON.stringify([path, method, body]), operationId = pending.get(key) ?? crypto.randomUUID();
     pending.set(key, operationId);
@@ -29,10 +30,14 @@ export function openSitesFileLibrary(): FileLibrary {
       return { file, blob: new Blob([bytes], { type: file.mime }) };
     },
     async upload(input) {
-      const { file, bytes } = await prepareFile(input);
-      return (await sitesRequest(`/api/files/${file.id}?name=${encodeURIComponent(file.originalName)}`, {
+      const prepared = uploads.get(input) ?? await prepareFile(input);
+      uploads.set(input, prepared);
+      const { file, bytes } = prepared;
+      const result = await (await sitesRequest(`/api/files/${file.id}?name=${encodeURIComponent(file.originalName)}`, {
         method: "PUT", headers: { "Content-Type": file.mime }, body: bytes,
       })).json();
+      uploads.delete(input);
+      return result;
     },
     async change(id, revision, change) {
       return (await sitesRequest(`/api/files/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision, ...change }) })).json();
@@ -40,6 +45,6 @@ export function openSitesFileLibrary(): FileLibrary {
     async remove(id, revision) {
       await sitesRequest(`/api/files/${id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision }) });
     },
-    close() { pending.clear(); },
+    close() { pending.clear(); uploads = new WeakMap(); },
   };
 }

@@ -3,7 +3,7 @@ import { HttpError, json, readBytes, readJson, validId } from "./http";
 import type { SitesEnv } from "./types";
 
 type FileRow = { id: string; object_id: string; revision: number; body: string; filename: string; created_at: string; trashed_at: string | null; pinned: number; object_key: string; state: string };
-type ShareRow = { id: string; file_id: string; token: string; revision: number; expires_at: number | null; revoked: number; operation_id: string; created_at: string; filename?: string };
+type ShareRow = { id: string; file_id: string; token: string; revision: number; expires_at: number | null; revoked: number; operation_id: string; created_at: string; filename?: string; server_now: number };
 const retention = 30 * 86400000;
 const nowSql = "(CAST(strftime('%s','now') AS INTEGER)*1000 + CAST(substr(strftime('%f','now'),4,3) AS INTEGER))";
 const unreferenced = `NOT EXISTS (SELECT 1 FROM library_files f WHERE f.object_id=file_objects.id AND f.pinned=1
@@ -34,6 +34,7 @@ function expires(value: unknown) {
 }
 const shareView = (row: ShareRow) => ({ id: row.id, fileId: row.file_id, filename: row.filename, token: row.token, revision: row.revision,
   expiresAt: row.expires_at === null ? null : new Date(row.expires_at).toISOString(), revoked: Boolean(row.revoked),
+  active: !row.revoked && (row.expires_at === null || row.expires_at > row.server_now),
   createdAt: row.created_at, url: `/shared/files/${row.token}` });
 function filenameHeader(name: string) {
   let encoded = "file";
@@ -107,7 +108,7 @@ export async function ownerFiles(request: Request, env: SitesEnv, path: string):
     return json(results.map(publicFile));
   }
   if (path === "/api/file-shares" && request.method === "GET") {
-    const { results } = await env.DB.prepare("SELECT s.*, f.filename FROM file_shares s JOIN library_files f ON f.id=s.file_id ORDER BY s.created_at DESC, s.id").all<ShareRow>();
+    const { results } = await env.DB.prepare(`SELECT s.*, f.filename, ${nowSql} AS server_now FROM file_shares s JOIN library_files f ON f.id=s.file_id ORDER BY s.created_at DESC, s.id`).all<ShareRow>();
     return json(results.map(shareView));
   }
   const match = /^\/api\/files\/([^/]+)(\/content|\/share)?$/.exec(path);
@@ -161,24 +162,29 @@ export async function ownerFiles(request: Request, env: SitesEnv, path: string):
       const token = crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "");
       const shareId = crypto.randomUUID(), operation = body.operationId;
       if (typeof operation !== "string" || !validId(operation)) throw new HttpError(400, "invalidDocument");
-      const previous = await env.DB.prepare("SELECT * FROM file_shares WHERE file_id=? AND create_operation_id=?").bind(id, operation).first<ShareRow>();
+      const previous = await env.DB.prepare(`SELECT *, ${nowSql} AS server_now FROM file_shares WHERE file_id=? AND create_operation_id=?`).bind(id, operation).first<ShareRow>();
       if (previous) return json(shareView(previous));
       const expiry = expires(body.expiresAt), created = new Date().toISOString();
       const result = await env.DB.prepare("INSERT OR IGNORE INTO file_shares(id,file_id,token,revision,expires_at,operation_id,create_operation_id,created_at) SELECT ?,f.id,?,1,?,?,?,? FROM library_files f JOIN file_objects o ON o.id=f.object_id WHERE f.id=? AND f.revision=? AND f.pinned=1 AND f.trashed_at IS NULL AND o.state='ready'")
         .bind(shareId, token, expiry, operation, operation, created, id, revision).run();
       if (!result.meta.changes) {
-        const repeated = await env.DB.prepare("SELECT * FROM file_shares WHERE file_id=? AND create_operation_id=?").bind(id, operation).first<ShareRow>();
+        const repeated = await env.DB.prepare(`SELECT *, ${nowSql} AS server_now FROM file_shares WHERE file_id=? AND create_operation_id=?`).bind(id, operation).first<ShareRow>();
         if (repeated) return json(shareView(repeated));
         throw new HttpError(409, "storageConflict");
       }
-      return json(shareView({ id: shareId, file_id: id, token, revision: 1, expires_at: expiry, revoked: 0, operation_id: operation, created_at: created }), 201);
+      const createdShare = await env.DB.prepare(`SELECT *, ${nowSql} AS server_now FROM file_shares WHERE id=?`).bind(shareId).first<ShareRow>();
+      if (!createdShare) throw new HttpError(409, "storageConflict");
+      return json(shareView(createdShare), 201);
     }
   }
   const shareMatch = /^\/api\/file-shares\/([^/]+)$/.exec(path);
   if (shareMatch && validId(shareMatch[1]) && ["PATCH", "DELETE"].includes(request.method)) {
     const id = shareMatch[1], body = await readJson(request), revision = revisionOf(body?.revision);
-    const previous = await env.DB.prepare("SELECT * FROM file_shares WHERE id=?").bind(id).first<ShareRow>();
-    if (!previous) throw new HttpError(404, "notFound");
+    const previous = await env.DB.prepare(`SELECT *, ${nowSql} AS server_now FROM file_shares WHERE id=?`).bind(id).first<ShareRow>();
+    if (!previous) {
+      if (request.method === "DELETE") return json({ removed: true });
+      throw new HttpError(404, "notFound");
+    }
     if (request.method === "DELETE") {
       const result = await env.DB.prepare("DELETE FROM file_shares WHERE id=? AND revision=?").bind(id, revision).run();
       if (!result.meta.changes) throw new HttpError(409, "storageConflict");

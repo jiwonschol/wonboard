@@ -2,7 +2,7 @@ import { limits, sha256, type LibraryFile, type FileChange } from "@wonboard/doc
 export type { LibraryFile, FileChange } from "@wonboard/document";
 import { StorageConflict } from "./storage";
 
-export type FileShare = { id: string; fileId: string; token: string; revision: number; expiresAt: string | null; revoked: boolean; url: string; filename?: string };
+export type FileShare = { id: string; fileId: string; token: string; revision: number; expiresAt: string | null; revoked: boolean; active: boolean; url: string; filename?: string };
 export type DistributedPhoto = { id: string; documentId: string; filename: string; published: boolean; url: string };
 export type FileLibrary = {
   list(): Promise<LibraryFile[]>;

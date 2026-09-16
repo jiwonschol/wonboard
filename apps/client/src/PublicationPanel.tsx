@@ -34,6 +34,7 @@ export function PublicationPanel({ locale, documentId, save, snapshot, onBusy, o
     finally { setWorking(false); onBusy(false); }
   }
   async function publish() {
+    setHtml(""); draftText.current = "";
     if (!accepted || !(await save())) throw new Error("storageFailed");
     const draft = snapshot();
     if (!draft || draft.document.documentId !== documentId) throw new Error("storageFailed");
@@ -42,7 +43,7 @@ export function PublicationPanel({ locale, documentId, save, snapshot, onBusy, o
     if (fileIds.length) {
       const shares: FileShare[] = await (await sitesRequest("/api/file-shares")).json();
       for (const id of fileIds) {
-        const share = shares.find(value => value.fileId === id && !value.revoked && (value.expiresAt === null || Date.parse(value.expiresAt) > Date.now()));
+        const share = shares.find(value => value.fileId === id && value.active);
         if (!share) { setMessage(t("privateFile")); return; }
         fileUrls[id] = new URL(share.url, location.origin).href;
       }

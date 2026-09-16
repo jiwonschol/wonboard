@@ -68,7 +68,7 @@ export function FileLibraryPanel({ library, locale, picking, onInsert, onClose }
       {failed.length ? <div role="status">{failed.map(file => file.name).join(", ")} <button disabled={busy} onClick={() => void upload(failed)}>{t("fileRetry")}</button></div> : null}
       {loading ? <p role="status">{t("loading")}</p> : distributed ? <ul className="file-library-list">{shares.filter(share => (share.filename ?? share.fileId).toLocaleLowerCase(locale).includes(query.toLocaleLowerCase(locale))).map(share => <li key={share.id}>
         <strong className="file-library-name">{share.filename ?? share.fileId}</strong>
-        <span>{t(share.revoked || (share.expiresAt !== null && Date.parse(share.expiresAt) <= Date.now()) ? "shareInactive" : "shareActive")}</span>
+        <span>{t(share.active ? "shareActive" : "shareInactive")}</span>
         <input aria-label={share.filename ?? share.fileId} readOnly value={new URL(share.url, location.origin).href} onFocus={event => event.target.select()} />
         <button disabled={busy || share.revoked} onClick={() => void run(async () => { await library.sharing!.change(share, "extend", expiry ? new Date(expiry).toISOString() : null); })}>{t("shareExtend")}</button>
         <button disabled={busy || share.revoked} onClick={() => void run(async () => { await library.sharing!.change(share, "revoke", null); })}>{t("shareRevoke")}</button>

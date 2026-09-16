@@ -1,6 +1,28 @@
 import { test, expect } from "@playwright/test";
+import { newDraft } from "@wonboard/document";
 
 const owner = { "X-Wonboard-Test-User": "owner-fixture", Origin: "http://127.0.0.1:5174" };
+test("a rejected private-file export clears old HTML and uses server share activity", async ({ page, request }) => {
+  const file = await (await request.put("/api/files/export-file?name=file.txt", { headers: { ...owner, "Content-Type": "text/plain" }, data: "private bytes" })).json();
+  const draft = newDraft("en");
+  draft.document.files = { "export-file": file };
+  draft.document.content = { type: "doc", content: [{ type: "paragraph", content: [{ type: "fileRef", attrs: { fileId: "export-file", label: "file.txt" } }] }] };
+  expect((await request.put(`/api/documents/${draft.document.documentId}`, { headers: owner, data: draft.document })).status()).toBe(200);
+  const share = await (await request.post("/api/files/export-file/share", { headers: owner, data: { revision: 1, operationId: "create", expiresAt: new Date(Date.now() + 3600000).toISOString() } })).json();
+  await page.clock.setFixedTime(new Date(Date.now() + 31 * 86400000));
+  await page.goto("/");
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  const panel = page.getByRole("dialog", { name: "Export", exact: true });
+  await panel.getByRole("checkbox").check();
+  await panel.getByRole("button", { name: "Publish photos and prepare HTML" }).click();
+  await expect(panel.locator("textarea")).toBeVisible();
+  expect(await panel.locator("textarea").inputValue()).toContain(share.token);
+  expect((await request.patch(`/api/file-shares/${share.id}`, { headers: owner, data: { revision: 1, action: "revoke", operationId: "revoke" } })).status()).toBe(200);
+  await panel.getByRole("button", { name: "Publish photos and prepare HTML" }).click();
+  await expect(panel.locator("textarea")).toHaveCount(0);
+  await expect(panel.getByText("A referenced file is private. Share it explicitly before exporting HTML.", { exact: true })).toBeVisible();
+  await expect(panel.getByRole("button", { name: "Copy HTML", exact: true })).toHaveCount(0);
+});
 test.beforeEach(async ({ request, context }) => {
   expect((await request.post("/__sites-test/reset")).status()).toBe(204);
   await context.setExtraHTTPHeaders(owner);
