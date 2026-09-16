@@ -112,6 +112,7 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
       if (!Number.isSafeInteger(offset) || offset < 0) throw new HttpError(400, "invalidDocument");
       const { results } = await env.DB.prepare(`SELECT id, revision, title, locale, excerpt, updated_at, json_extract(body, '$.trashedAt') AS trashed_at, ${databaseNow} AS server_now FROM documents ORDER BY updated_at DESC, id LIMIT 100 OFFSET ?`)
         .bind(offset).all<{ id: string; revision: number; title: string; locale: "ko" | "en"; excerpt: string; updated_at: string; trashed_at: string | null; server_now: number }>();
+      const clock = await env.DB.prepare(`SELECT ${databaseNow} AS server_now`).first<{ server_now: number }>();
       return json({ documents: results.map(row => {
         const deadline = trashDeadline(row.trashed_at ?? undefined);
         const expired = deadline !== null && row.server_now >= deadline;
@@ -123,7 +124,7 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
         ...(row.trashed_at === null ? {} : { trashedAt: row.trashed_at }),
         media: {}, content: { type: "doc", content: [{ type: "paragraph", content: excerpt ? [{ type: "text", text: excerpt }] : [] }] } };
       }),
-        nextOffset: results.length === 100 ? offset + 100 : null });
+        serverNow: clock?.server_now, nextOffset: results.length === 100 ? offset + 100 : null });
     }
     const mediaMatch = /^\/api\/media\/([^/]+)$/.exec(path);
     if (mediaMatch && validId(mediaMatch[1])) {
@@ -156,13 +157,24 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
     if (!action && request.method === "DELETE") {
       const body = await readJson(request);
       if (!Number.isSafeInteger(body?.revision) || body.revision < 0 ||
+          (body.deletionIntent !== undefined && !["manual", "expired"].includes(body.deletionIntent)) ||
           (body.withdrawPublications !== undefined && typeof body.withdrawPublications !== "boolean"))
         throw new HttpError(400, "invalidDocument");
+      const row = await env.DB.prepare("SELECT json_extract(body, '$.trashedAt') AS trashed_at FROM documents WHERE id = ?")
+        .bind(id).first<{ trashed_at: string | null }>();
+      if (!row) return json({ removed: true });
+      const timestamp = typeof row.trashed_at === "string" ? row.trashed_at : undefined;
+      const parsedDeadline = trashDeadline(timestamp);
+      const deadline = parsedDeadline !== null && Number.isFinite(parsedDeadline) ? parsedDeadline : null;
+      // No intent means an old client: its auto-cleanup and manual delete have
+      // identical wire shapes. Preserve data unless the server deadline passed.
+      const deletionGuard = `(? = 1 OR (json_extract(body, '$.trashedAt') IS ? AND ? IS NOT NULL AND ? <= ${databaseNow}))`;
+      const guard = [body.deletionIntent === "manual" ? 1 : 0, timestamp ?? null, deadline, deadline];
       const statements = [];
       if (body.withdrawPublications) statements.push(env.DB.prepare(
-        "UPDATE publications SET published = 0 WHERE document_id = ? AND EXISTS (SELECT 1 FROM documents WHERE id = ? AND revision = ?)")
-        .bind(id, id, body.revision));
-      statements.push(env.DB.prepare("DELETE FROM documents WHERE id = ? AND revision = ?").bind(id, body.revision));
+        `UPDATE publications SET published = 0 WHERE document_id = ? AND EXISTS (SELECT 1 FROM documents WHERE id = ? AND revision = ? AND ${deletionGuard})`)
+        .bind(id, id, body.revision, ...guard));
+      statements.push(env.DB.prepare(`DELETE FROM documents WHERE id = ? AND revision = ? AND ${deletionGuard}`).bind(id, body.revision, ...guard));
       const result = await env.DB.batch(statements);
       if (result[result.length - 1].meta.changes !== 1) {
         const remaining = await env.DB.prepare("SELECT revision FROM documents WHERE id = ?").bind(id).first();

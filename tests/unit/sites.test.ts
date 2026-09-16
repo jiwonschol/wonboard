@@ -33,7 +33,7 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
   it("removes documents with explicit photo withdrawal only and enforces owner and origin", async () => {
     for (const withdrawPublications of [false, true]) {
       const document = await photoDocument(), urls = await publish(document);
-      const path = `/api/documents/${document.documentId}`, body = { revision: document.revision, withdrawPublications };
+      const path = `/api/documents/${document.documentId}`, body = { revision: document.revision, withdrawPublications, deletionIntent: "manual" };
       expect((await call(path, "DELETE", body, null)).status).toBe(401);
       expect((await call(path, "DELETE", body, "another-user")).status).toBe(403);
       expect((await call(path, "DELETE", body, "owner-fixture", "https://other.test")).status).toBe(403);
@@ -74,6 +74,23 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
     const restored = await (await call(path, "PUT", { ...saved, trashedAt: undefined })).json();
     expect(restored.trashedAt).toBeUndefined();
     expect(restored.revision).toBe(saved.revision + 1);
+  });
+  it("preserves unexpired trash for legacy and automatic deletion regardless of device clock", async () => {
+    const document = await photoDocument(), url = await publish(document);
+    const now = Date.parse("2026-09-16T12:00:00.123Z"), clock = databaseClock(now);
+    const path = `/api/documents/${document.documentId}`;
+    const saved = await (await call(path, "PUT", { ...document, trashedAt: "2099-01-01T00:00:00.000Z" })).json();
+    for (const deletionIntent of [undefined, "expired"]) {
+      expect((await call(path, "DELETE", { revision: saved.revision, deletionIntent, withdrawPublications: true })).status).toBe(409);
+      expect((await call(path)).status).toBe(200);
+      expect((await call(new URL(url).pathname, "GET", undefined, null)).status).toBe(200);
+    }
+    clock(now + 30 * 86400000 - 1);
+    expect((await call(path, "DELETE", { revision: saved.revision, deletionIntent: "expired" })).status).toBe(409);
+    clock(now + 30 * 86400000);
+    expect((await call(path, "DELETE", { revision: saved.revision })).status).toBe(200);
+    expect((await call(path, "DELETE", { revision: saved.revision, deletionIntent: "expired" })).status).toBe(200);
+    expect((await call(new URL(url).pathname, "GET", undefined, null)).status).toBe(200);
   });
   function databaseClock(initial: number) {
     let now = initial;
