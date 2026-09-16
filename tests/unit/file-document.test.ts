@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { exportBackup, importBackup, newDraft, plainText, referencedFileIds, sha256, validateDocument, withoutUnusedMedia } from "@wonboard/document";
+import { exportBackup, importBackup, limits, newDraft, plainText, referencedFileIds, sha256, validateDocument, withoutUnusedMedia } from "@wonboard/document";
 import "fake-indexeddb/auto";
 import { openStorage, saveDraft, loadDrafts, removeDraft } from "../../apps/client/src/storage";
 import { exportHtml } from "../../apps/client/src/htmlExport";
@@ -14,6 +14,33 @@ async function fixture() {
   return draft;
 }
 describe("private file references and portable backup", () => {
+  it("checks serialized document bytes at the exact metadata budget", () => {
+    const draft = newDraft(), original = limits.documentBytes;
+    const size = new TextEncoder().encode(JSON.stringify(draft.document)).byteLength;
+    try {
+      limits.documentBytes = size;
+      expect(() => validateDocument(draft.document)).not.toThrow();
+      limits.documentBytes = size - 1;
+      expect(() => validateDocument(draft.document)).toThrow("archiveLimit");
+    } finally { limits.documentBytes = original; }
+  });
+  it("shares a 220MiB document budget between photos and files, leaving ZIP headroom", () => {
+    const draft = newDraft();
+    draft.document.files = {};
+    for (let i = 0; i < 10; i++) {
+      const id = `file${i}`;
+      draft.document.files[id] = { id, originalName: id, mime: "text/plain", size: limits.fileBytes, sha256: "a".repeat(64) };
+    }
+    draft.document.media.photo = { id: "photo", originalName: "p.png", mime: "image/png", size: limits.imageBytes, width: 1, height: 1, sha256: "b".repeat(64) };
+    expect(() => validateDocument(draft.document)).not.toThrow();
+    draft.document.files.extra = { ...draft.document.files.file0, id: "extra", size: 1 };
+    expect(() => validateDocument(draft.document)).toThrow("archiveLimit");
+    delete draft.document.media.photo;
+    draft.document.files.extra.size = limits.fileBytes;
+    for (const id of ["twelfth", "thirteenth"]) draft.document.files[id] = { ...draft.document.files.file0, id };
+    expect(() => validateDocument(draft.document)).toThrow("archiveLimit");
+    expect(limits.archiveBytes - limits.mediaBytes).toBe(36 * 1024 * 1024);
+  });
   it("round trips a referenced file without publishing a URL", async () => {
     const draft = await fixture();
     validateDocument(draft.document);

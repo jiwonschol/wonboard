@@ -52,9 +52,10 @@ export const limits = {
   imageBytes: 20 * 1024 * 1024,
   fileBytes: 20 * 1024 * 1024,
   files: 100,
-  // 원본 합계가 ZIP 전체 상한을 다 써 버리면 정상 초안도 백업할 수 없다.
+  // 사진과 일반 첨부 원본 합계. 보관함 전체 총량 제한은 아니다.
   // document.json과 ZIP 컨테이너를 위해 36 MiB를 남긴다.
   mediaBytes: 220 * 1024 * 1024,
+  documentBytes: 32 * 1024 * 1024,
   pixels: 40_000_000,
   images: 100,
   archiveBytes: 256 * 1024 * 1024,
@@ -356,12 +357,14 @@ export function validateDocumentEnvelope(
     (typeof value.trashedAt === "string" && Number.isFinite(Date.parse(value.trashedAt))));
   requireThat(value.files === undefined || isObject(value.files));
   const files = Object.entries(value.files ?? {});
+  let attachmentBytes = 0;
   requireThat(files.length <= limits.files);
   for (const [id, file] of files) {
     requireThat(isObject(file) && file.id === id && isMediaId(id));
     requireThat(typeof file.originalName === "string" && file.originalName.length > 0 && file.originalName.length <= 1024);
     requireThat(typeof file.mime === "string" && /^[\w.+-]+\/[\w.+-]+$/.test(file.mime) && file.mime.length <= 128);
     requireThat(Number.isSafeInteger(file.size) && Number(file.size) >= 0 && Number(file.size) <= limits.fileBytes);
+    attachmentBytes += Number(file.size);
     requireThat(typeof file.sha256 === "string" && /^[a-f0-9]{64}$/.test(file.sha256));
     requireThat(!Object.hasOwn(value.media ?? {}, id));
   }
@@ -385,12 +388,15 @@ export function validateDocumentEnvelope(
     requireThat(
       Number.isSafeInteger(m.size) &&
         Number(m.size) > 0 &&
-        Number(m.size) <= limits.imageBytes,
+      Number(m.size) <= limits.imageBytes,
     );
+    attachmentBytes += Number(m.size);
     requireThat(
       typeof m.sha256 === "string" && /^[a-f0-9]{64}$/.test(m.sha256),
     );
   }
+  if (attachmentBytes > limits.mediaBytes)
+    throw new DocumentError("archiveLimit");
 }
 export function validateDocument(
   value: unknown,
@@ -474,6 +480,8 @@ export function validateDocument(
       requireThat((n.content as ContentNode[])[0].type === "paragraph");
   };
   walk(value.content, "", 0);
+  if (new TextEncoder().encode(JSON.stringify(value)).byteLength > limits.documentBytes)
+    throw new DocumentError("archiveLimit");
 }
 export function plainText(node: ContentNode): string {
   if (node.type === "text") return node.text ?? "";

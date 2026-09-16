@@ -120,7 +120,10 @@ export default function App({
     const content: ContentNode[] = [];
     for (const { file, blob } of loaded) {
       if (["image/png", "image/jpeg"].includes(file.mime)) {
-        const [image] = await importImages([new File([blob], file.filename, { type: file.mime })], { count: Object.keys(media).length, bytes: Object.values(media).reduce((sum, value) => sum + value.size, 0) });
+        const [image] = await importImages([new File([blob], file.filename, { type: file.mime })], {
+          count: Object.keys(media).filter(id => id !== file.id).length,
+          bytes: [...Object.values(media), ...Object.values(files)].filter(value => value.id !== file.id).reduce((sum, value) => sum + value.size, 0),
+        });
         media[file.id] = { ...image.media, id: file.id };
         content.push({ type: "media", attrs: { mediaId: file.id, width: Math.min(600, image.media.width), align: "left", alt: "", caption: "" } }, { type: "paragraph" });
       } else {
@@ -261,14 +264,8 @@ export default function App({
         files,
         {
           count: retained,
-          bytes: [...new Set(
-            attachmentNodes(snapshot.document.content)
-              .filter((node) => node.type === "media")
-              .map((node) => String(node.attrs?.mediaId)),
-          )].reduce(
-            (sum, id) => sum + (snapshot.document.media[id]?.size ?? 0),
-            0,
-          ),
+          bytes: [...Object.values(snapshot.document.media), ...Object.values(snapshot.document.files ?? {})]
+            .reduce((sum, file) => sum + file.size, 0),
         },
       );
       const media = { ...snapshot.document.media };

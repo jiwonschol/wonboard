@@ -17,7 +17,7 @@ export async function exportBackup(draft: Draft): Promise<Blob> {
     "document.json": strToU8(JSON.stringify(draft.document)),
   };
   let total = files["document.json"].byteLength;
-  if (total > limits.archiveBytes) throw new DocumentError("archiveLimit");
+  if (total > Math.min(limits.documentBytes, limits.archiveBytes)) throw new DocumentError("archiveLimit");
   for (const media of Object.values(draft.document.media)) {
     const blob = draft.blobs[media.id];
     if (!blob || blob.size !== media.size)
