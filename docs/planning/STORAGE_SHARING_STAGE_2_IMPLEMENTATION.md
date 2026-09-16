@@ -53,3 +53,11 @@ Sites 보관함의 예약 업로드, 문서 저장과 같은 SQL 트랜잭션의
 220MiB 혼합 정각/1바이트 초과, 20MiB 파일 13개, JSON 정각/초과 및 기존 ZIP 컨테이너 경계 시험을 확인했다. `33a63c6`(#18 P1 반영) 위 미커밋 예산 변경에서 `pnpm typecheck && pnpm test` 종료 0, Vitest 191 + Node 347 = 538개. 로그 `/tmp/wonboard-sharing-budget-final-unit.log`. 바로 앞 예산 변경에서 전체 Sites Chromium 11/11 종료 0(`/tmp/wonboard-sharing-budget-sites.log`); 이후 변경은 공통 JSON 크기 검사와 그 단위 시험이며 브라우저 전체 재실행은 다음 최종 게이트에 포함한다.
 
 P1 cherry-pick 시 테스트 라우팅 충돌은 `/shared/`와 `/__sites-test/`를 모두 보존했고 검증 문서도 양쪽 기록을 유지했다. proofreading 파일은 별도로 수정하지 않았다.
+
+## PR #23 리뷰 반례 수정 — 2026-09-17
+
+코드 SHA `3bb4df0fcccb5eb6c1db80deb00dec317633e6bd`에서 같은 셸 HEAD 확인 뒤 타입·전체 단위 542개(Vitest 195+Node 347), 전체 Sites Chromium 14/14 종료 0. 로그 `/tmp/wonboard-sharing-review-immutable-unit.log`, `/tmp/wonboard-sharing-review-immutable-sites.log`.
+
+업로드 응답 유실 후 동일 File 재시도는 준비한 파일 ID를 재사용한다(4027022213). 동일 Site의 삭제·정리된 파일이 들어 있는 ZIP 복원은 새 파일 ID와 내부 참조를 함께 배정해 tombstone이나 옛 공유를 되살리지 않는다(4027022222). 공유 활성 상태는 서버 응답에서 계산해 기기 시계 +31일에도 유효 링크가 사라지지 않는다(4027190011). 공유 삭제 응답 유실 뒤 반복 DELETE는 성공한다(4027190024). HTML 재준비 시작 때 이전 HTML과 복사 상태를 지워 실패 뒤 철회된 주소를 복사하지 못하게 한다(4027190033). 실제 Chromium에서 기기 시계 오차→공유 HTML 준비→서버 철회→재준비 실패 및 이전 HTML 제거까지 확인했다.
+
+4027022202의 첨부 총량은 앞선 220MiB 합계 예산으로 처리했다. 공개 사진 삭제 시 R2 바이트/재시도 장부 보존(4027022193)은 아직 미해결이며 다음 수정 대상이다. 스냅샷·통합 휴지통·최종 회귀도 완료하지 않았다. #18의 최신 정본/절전 시각 보강은 이 SHA 뒤 통합한다.
