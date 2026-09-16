@@ -113,3 +113,6 @@ Codex 4027281619: Sites는 focus/pageshow/visibilitychange에서 기존 추정 �
 닝닝의 원본 코드 `ce1d57db732362dfb4021bab96d3ecf534ad967f`와 문서 `054a119a6ec98697d04fe86f759ba4c5ba81c5b8`를 중복 수정 없이 cherry-pick했다. 통합 SHA `177f56f465cb7ded425a0410c4a817cb784ea423`에서 같은 셸 HEAD 확인 후 `pnpm typecheck && pnpm test` 종료 0, Vitest 177 + Node 354 = 531개. 로그 `/tmp/wonboard-expiry-runner-integration.log`.
 
 dry-run도 주입 경로를 검증하며 인증/생성을 호출하지 않는다. 플랫폼 무관 계약 9개와 POSIX 8개를 분리한 원본 변경을 포함한다. 이번 실행은 Linux이며 macOS 담당자의 결과·파괴 시험이나 실제 Windows 실행을 대신 주장하지 않는다. 실제 Windows는 미검증이다. 앱/편집기/브라우저 시험 소스는 e00dfab과 동일하며 브라우저 재실행은 하지 않았다. 기존 12개 Chromium 증거는 a16e7ed에 그대로 묶인다. 머지·운영·일반 작성기 미해결 범위는 별개다.
+## 실행기 후속 통합 및 남은 리뷰 (2026-09-17)
+
+실행기 원본 c2acc52896b7180f487e6ff23dbb4f19f71311ca를 3e17163a9b6013db404c8befeb8150e5a3009485로 통합. 같은 셸 HEAD 확인 후 타입·전체 단위 종료 0. 로그 /tmp/buzz-9-trash-expiry-runner-final.log. 실제 Windows 미검증. 최신 미해결 Codex: 4031758737(과거 느린 시계 정규화), 4031758741(목록 최종 시각), 4031758750(복귀 후 깨끗한 현재 글 갱신). 머지하지 않음.
