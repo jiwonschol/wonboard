@@ -4,7 +4,7 @@ import {
 } from "@wonboard/document";
 import { HttpError, json, readImage, readJson, validId } from "./http";
 import type { SitesEnv } from "./types";
-import { ownerFiles, sharedFile } from "./files";
+import { ownerFiles, sharedFile, documentFile } from "./files";
 import { photoVariantKey, storePhotoVariant } from "./photoObjects";
 
 type StoredMedia = { id: string; hash: string; mime: string; size: number; width: number; height: number };
@@ -172,6 +172,11 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
     const docMatch = /^\/api\/documents\/([^/]+)(?:\/(.*))?$/.exec(path);
     if (!docMatch || !validId(docMatch[1])) throw new HttpError(404, "notFound");
     const [, id, action] = docMatch;
+    const documentFileId = /^files\/([^/]+)$/.exec(action ?? "");
+    if (documentFileId && validId(documentFileId[1]) && ["GET", "HEAD"].includes(request.method)) {
+      await loadDocument(env, id);
+      return documentFile(request, env, id, documentFileId[1]);
+    }
     if (!action && request.method === "GET") return json(await loadDocument(env, id));
     if (!action && request.method === "DELETE") {
       const body = await readJson(request);

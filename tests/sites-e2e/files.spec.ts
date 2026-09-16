@@ -2,6 +2,33 @@ import { test, expect } from "@playwright/test";
 import { newDraft } from "@wonboard/document";
 
 const owner = { "X-Wonboard-Test-User": "owner-fixture", Origin: "http://127.0.0.1:5174" };
+for (const offsetDays of [-31, 31]) test(`file trash follows server time and ticks across expiry with device skew ${offsetDays}`, async ({ page, request }) => {
+  expect((await request.put("/api/files/clock-file?name=clock.txt", { headers: { ...owner, "Content-Type": "text/plain" }, data: "retained" })).status()).toBe(201);
+  expect((await request.patch("/api/files/clock-file", { headers: owner, data: { revision: 1, trashedAt: "requested" } })).status()).toBe(200);
+  await page.clock.install({ time: new Date(Date.now() + offsetDays * 86400000) });
+  await page.goto("/");
+  await page.locator(".writing-library").getByRole("button", { name: "File library", exact: true }).click();
+  const panel = page.getByRole("dialog", { name: "File library", exact: true });
+  await panel.getByRole("button", { name: "Trash", exact: true }).click();
+  const restore = panel.getByRole("button", { name: "Restore file", exact: true });
+  const download = panel.getByRole("button", { name: "Download file", exact: true });
+  await expect(restore).toBeEnabled(); await expect(download).toBeEnabled();
+  expect((await request.post(`/__sites-test/advance-clock/${30 * 86400000 - 10000}`)).status()).toBe(204);
+  const response = page.waitForResponse(response => new URL(response.url()).pathname === "/api/files");
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await response;
+  await expect(restore).toBeEnabled();
+  await page.clock.fastForward(20000);
+  await expect(restore).toBeDisabled(); await expect(download).toBeDisabled();
+  // A failed resume sync must not fall back to the skewed device clock.
+  await page.route("**/api/files", route => route.abort());
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(panel.getByRole("alert")).toBeVisible();
+  await expect(restore).toBeDisabled();
+  await page.unroute("**/api/files");
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(panel.getByRole("alert")).toHaveCount(0);
+});
 test("a rejected private-file export clears old HTML and uses server share activity", async ({ page, request }) => {
   const file = await (await request.put("/api/files/export-file?name=file.txt", { headers: { ...owner, "Content-Type": "text/plain" }, data: "private bytes" })).json();
   const draft = newDraft("en");

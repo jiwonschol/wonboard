@@ -3,7 +3,7 @@ import { HttpError, json, readBytes, readJson, validId } from "./http";
 import type { SitesEnv } from "./types";
 import { removeDistributedPhoto } from "./photoObjects";
 
-type FileRow = { id: string; object_id: string; revision: number; body: string; filename: string; created_at: string; trashed_at: string | null; pinned: number; object_key: string; state: string };
+type FileRow = { id: string; object_id: string; revision: number; body: string; filename: string; created_at: string; trashed_at: string | null; pinned: number; object_key: string; state: string; server_now: number };
 type ShareRow = { id: string; file_id: string; token: string; revision: number; expires_at: number | null; revoked: number; operation_id: string; created_at: string; filename?: string; server_now: number };
 const retention = 30 * 86400000;
 const nowSql = "(CAST(strftime('%s','now') AS INTEGER)*1000 + CAST(substr(strftime('%f','now'),4,3) AS INTEGER))";
@@ -26,7 +26,7 @@ function publicFile(row: FileRow) {
     ...(row.trashed_at ? { trashedAt: row.trashed_at } : {}) };
 }
 async function fileRow(env: SitesEnv, id: string) {
-  return env.DB.prepare("SELECT f.*, o.object_key, o.state FROM library_files f JOIN file_objects o ON o.id=f.object_id WHERE f.id=?")
+  return env.DB.prepare(`SELECT f.*, o.object_key, o.state, ${nowSql} AS server_now FROM library_files f JOIN file_objects o ON o.id=f.object_id WHERE f.id=?`)
     .bind(id).first<FileRow>();
 }
 function expires(value: unknown) {
@@ -61,6 +61,15 @@ export async function sharedFile(request: Request, env: SitesEnv, token: string)
   if (!share) throw new HttpError(404, "notFound");
   const file = await fileRow(env, share.file_id);
   if (!file) throw new HttpError(404, "notFound");
+  return download(request, env, file);
+}
+
+/** Caller has checked the owning document and its canonical retention deadline. */
+export async function documentFile(request: Request, env: SitesEnv, documentId: string, fileId: string) {
+  const ref = await env.DB.prepare("SELECT file_id FROM document_file_refs WHERE document_id=? AND file_id=?")
+    .bind(documentId, fileId).first();
+  const file = ref ? await fileRow(env, fileId) : null;
+  if (!file) throw new HttpError(404, "missingFile");
   return download(request, env, file);
 }
 
@@ -107,7 +116,11 @@ export async function ownerFiles(request: Request, env: SitesEnv, path: string):
   }
   if (path === "/api/files" && request.method === "GET") {
     const { results } = await env.DB.prepare("SELECT f.*, o.object_key, o.state FROM library_files f JOIN file_objects o ON o.id=f.object_id WHERE f.pinned=1 ORDER BY f.created_at DESC, f.id").all<FileRow>();
-    return json(results.map(publicFile));
+    const clock = await env.DB.prepare(`SELECT ${nowSql} AS now`).first<{ now: number }>();
+    if (!clock) throw new HttpError(503, "storageFailed");
+    const response = json(results.map(publicFile));
+    response.headers.set("X-Wonboard-Server-Now", String(clock.now));
+    return response;
   }
   if (path === "/api/file-shares" && request.method === "GET") {
     const { results } = await env.DB.prepare(`SELECT s.*, f.filename, ${nowSql} AS server_now FROM file_shares s JOIN library_files f ON f.id=s.file_id ORDER BY s.created_at DESC, s.id`).all<ShareRow>();
@@ -147,12 +160,16 @@ export async function ownerFiles(request: Request, env: SitesEnv, path: string):
       return json({ removed: true });
     }
     if (file.state !== "ready") throw new HttpError(404, "missingFile");
-    if (match[2] === "/content" && ["GET", "HEAD"].includes(request.method)) return download(request, env, file);
+    if (match[2] === "/content" && ["GET", "HEAD"].includes(request.method)) {
+      if (!file.pinned || (file.trashed_at !== null && Date.parse(file.trashed_at) + retention <= file.server_now))
+        throw new HttpError(410, "trashExpired");
+      return download(request, env, file);
+    }
     if (!match[2] && request.method === "GET") return json(publicFile(file));
     if (!match[2] && request.method === "PATCH") {
       const body = await readJson(request), revision = revisionOf(body?.revision);
       const name = body.filename === undefined ? file.filename : nameOf(body.filename);
-      const trashedAt = body.trashedAt === null ? null : body.trashedAt === undefined ? file.trashed_at : file.trashed_at ?? new Date().toISOString();
+      const trashedAt = body.trashedAt === null ? null : body.trashedAt === undefined ? file.trashed_at : file.trashed_at ?? new Date(file.server_now).toISOString();
       const deadline = file.trashed_at === null ? null : Date.parse(file.trashed_at) + retention;
       const result = await env.DB.prepare(`UPDATE library_files SET filename=?,trashed_at=?,revision=revision+1 WHERE id=? AND revision=? AND pinned=1 AND trashed_at IS ? AND (? IS NULL OR ? > ${nowSql})`)
         .bind(name, trashedAt, id, revision, file.trashed_at, deadline, deadline).run();

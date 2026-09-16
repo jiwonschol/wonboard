@@ -14,23 +14,49 @@ export function FileLibraryPanel({ library, locale, picking, onInsert, onClose }
   const [cleanup, setCleanup] = useState("");
   const [photos, setPhotos] = useState<DistributedPhoto[]>([]);
   const [error, setError] = useState(""), [selected, setSelected] = useState<string[]>([]);
+  const [clockError, setClockError] = useState("");
   const [failed, setFailed] = useState<File[]>([]), [renaming, setRenaming] = useState<string | null>(null), [name, setName] = useState("");
+  const [now, setNow] = useState(() => library.now?.() ?? Date.now());
+  const refreshVersion = useRef(0), operationActive = useRef(false);
   const refresh = async () => {
-    const [files, shared, pictures] = await Promise.all([library.list(), library.sharing?.list() ?? Promise.resolve([]), library.sharing?.photos() ?? Promise.resolve([])]);
-    setFiles(files); setShares(shared); setPhotos(pictures);
+    const version = ++refreshVersion.current;
+    try {
+      const [files, shared, pictures] = await Promise.all([library.list(), library.sharing?.list() ?? Promise.resolve([]), library.sharing?.photos() ?? Promise.resolve([])]);
+      if (version !== refreshVersion.current) return;
+      setFiles(files); setShares(shared); setPhotos(pictures); setNow(library.now?.() ?? Date.now()); setClockError("");
+    } catch (error) { if (version === refreshVersion.current) throw error; }
   };
   const report = (error: unknown) => setError(error instanceof Error && Object.hasOwn(en, error.message) ? error.message : "storageFailed");
   useEffect(() => {
     let active = true;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const resync = () => {
+      if (!active || !library.now) return;
+      library.invalidateClock?.(); setNow(Number.NaN);
+      if (document.visibilityState === "hidden") return;
+      if (operationActive.current) { clearTimeout(retry); retry = setTimeout(resync, 100); return; }
+      void refresh().catch(() => { if (active) { library.invalidateClock?.(); setNow(Number.NaN); setClockError("storageFailed"); } });
+    };
     panel.current?.focus();
-    Promise.all([library.list(), library.sharing?.list() ?? Promise.resolve([]), library.sharing?.photos() ?? Promise.resolve([])]).then(([value, shared, pictures]) => { if (active) { setFiles(value); setShares(shared); setPhotos(pictures); } }, error => { if (active) report(error); })
+    refresh().catch(error => { if (active) report(error); })
       .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+    const timer = setInterval(() => setNow(library.now?.() ?? Date.now()), 1000);
+    if (library.now) {
+      window.addEventListener("focus", resync); window.addEventListener("pageshow", resync);
+      document.addEventListener("visibilitychange", resync);
+    }
+    return () => {
+      active = false; refreshVersion.current++;
+      clearInterval(timer); clearTimeout(retry);
+      window.removeEventListener("focus", resync); window.removeEventListener("pageshow", resync);
+      document.removeEventListener("visibilitychange", resync);
+    };
   }, [library]);
   async function run(action: () => Promise<void>) {
-    if (busy) return;
+    if (operationActive.current) return;
+    operationActive.current = true; refreshVersion.current++;
     setBusy(true); setError("");
-    try { await action(); await refresh(); } catch (error) { report(error); } finally { setBusy(false); }
+    try { await action(); await refresh(); } catch (error) { report(error); } finally { operationActive.current = false; setBusy(false); }
   }
   async function upload(incoming: File[]) {
     await run(async () => {
@@ -64,7 +90,7 @@ export function FileLibraryPanel({ library, locale, picking, onInsert, onClose }
       </div>
       <input type="search" aria-label={t("search")} placeholder={t("search")} value={query} onChange={event => setQuery(event.target.value)} />
       {library.sharing ? <><p>{t("shareFileNotice")}</p><label>{t("shareExpiry")}<input type="datetime-local" value={expiry} onChange={event => setExpiry(event.target.value)} /></label></> : null}
-      {error ? <p role="alert">{t(error as MessageKey)} <button disabled={busy} onClick={() => void run(refresh)}>{t("trashRetry")}</button></p> : null}
+      {error || clockError ? <p role="alert">{t((error || clockError) as MessageKey)} <button disabled={busy} onClick={() => void run(refresh)}>{t("trashRetry")}</button></p> : null}
       {failed.length ? <div role="status">{failed.map(file => file.name).join(", ")} <button disabled={busy} onClick={() => void upload(failed)}>{t("fileRetry")}</button></div> : null}
       {loading ? <p role="status">{t("loading")}</p> : distributed ? <ul className="file-library-list">{shares.filter(share => (share.filename ?? share.fileId).toLocaleLowerCase(locale).includes(query.toLocaleLowerCase(locale))).map(share => <li key={share.id}>
         <strong className="file-library-name">{share.filename ?? share.fileId}</strong>
@@ -88,10 +114,10 @@ export function FileLibraryPanel({ library, locale, picking, onInsert, onClose }
           })}>{t("shareFile")}</button> : null}
           <button disabled={busy} onClick={() => void run(async () => { await library.change(file.id, file.revision, { trashedAt: new Date().toISOString() }); setSelected(value => value.filter(id => id !== file.id)); })}>{t("moveToTrash")}</button>
         </> : <>
-          <button disabled={busy || fileExpired(file)} onClick={() => void run(async () => { await library.change(file.id, file.revision, { trashedAt: null }); })}>{t("fileRestore")}</button>
+          <button disabled={busy || !Number.isFinite(now) || fileExpired(file, now)} onClick={() => void run(async () => { await library.change(file.id, file.revision, { trashedAt: null }); })}>{t("fileRestore")}</button>
           <button disabled={busy} onClick={() => { if (window.confirm(t("trashDeleteNotice"))) void run(() => library.remove(file.id, file.revision)); }}>{t("permanentlyDelete")}</button>
         </>}
-        <button disabled={busy || fileExpired(file)} onClick={() => void run(async () => {
+        <button disabled={busy || !Number.isFinite(now) || fileExpired(file, now)} onClick={() => void run(async () => {
           const { blob } = await library.load(file.id), url = URL.createObjectURL(blob);
           const link = document.createElement("a"); link.href = url; link.download = file.filename; link.click();
           setTimeout(() => URL.revokeObjectURL(url), 60000);

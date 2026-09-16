@@ -5,6 +5,8 @@ import { prepareFile, type FileLibrary, type LibraryFile } from "./fileLibrary";
 export function openSitesFileLibrary(): FileLibrary {
   const pending = new Map<string, string>();
   let uploads = new WeakMap<File, Awaited<ReturnType<typeof prepareFile>>>();
+  let serverNow = Number.NaN, receivedAt = performance.now();
+  let clockVersion = 0;
   async function operation(path: string, method: string, body: Record<string, unknown>) {
     const key = JSON.stringify([path, method, body]), operationId = pending.get(key) ?? crypto.randomUUID();
     pending.set(key, operationId);
@@ -13,6 +15,8 @@ export function openSitesFileLibrary(): FileLibrary {
     return result;
   }
   return {
+    now: () => serverNow + Math.max(0, performance.now() - receivedAt),
+    invalidateClock() { clockVersion++; serverNow = Number.NaN; },
     sharing: {
       async list() { return (await sitesRequest("/api/file-shares")).json(); },
       async photos() { return (await sitesRequest("/api/distributed-photos")).json(); },
@@ -22,7 +26,16 @@ export function openSitesFileLibrary(): FileLibrary {
       async remove(share) { await operation(`/api/file-shares/${share.id}`, "DELETE", { revision: share.revision }); },
       async cleanup() { return operation("/api/files/cleanup", "POST", {}); },
     },
-    async list() { return (await sitesRequest("/api/files")).json(); },
+    async list() {
+      const version = ++clockVersion;
+      serverNow = Number.NaN;
+      const response = await sitesRequest("/api/files");
+      const header = response.headers.get("X-Wonboard-Server-Now"), clock = Number(header);
+      const value = await response.json();
+      if (header === null || !Number.isFinite(clock) || !Array.isArray(value)) throw new Error("invalidDocument");
+      if (version === clockVersion) { serverNow = clock; receivedAt = performance.now(); }
+      return value;
+    },
     async load(id) {
       const file: LibraryFile = await (await sitesRequest(`/api/files/${id}`)).json();
       const bytes = await (await sitesRequest(`/api/files/${id}/content`)).arrayBuffer();

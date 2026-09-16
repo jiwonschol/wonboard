@@ -5,6 +5,8 @@ import { StorageConflict } from "./storage";
 export type FileShare = { id: string; fileId: string; token: string; revision: number; expiresAt: string | null; revoked: boolean; active: boolean; url: string; filename?: string };
 export type DistributedPhoto = { id: string; documentId: string; filename: string; published: boolean; url: string };
 export type FileLibrary = {
+  now?(): number;
+  invalidateClock?(): void;
   list(): Promise<LibraryFile[]>;
   load(id: string): Promise<{ file: LibraryFile; blob: Blob }>;
   upload(file: File): Promise<LibraryFile>;

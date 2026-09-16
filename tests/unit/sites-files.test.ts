@@ -24,6 +24,29 @@ async function fixture() {
 }
 
 describe("Sites independent file distribution", () => {
+  it("expires owner library downloads by database time without breaking documents or public shares", async () => {
+    const f = await fixture();
+    try {
+      const file = await (await f.upload()).json(), draft = newDraft();
+      draft.document.files = { report: file };
+      expect((await f.call(`/api/documents/${draft.document.documentId}`, "PUT", draft.document)).status).toBe(200);
+      const share = await (await f.call("/api/files/report/share", "POST", { revision: 1, operationId: "share" })).json();
+      const trashed = await (await f.call("/api/files/report", "PATCH", { revision: 1, trashedAt: "2099-01-01T00:00:00Z" })).json();
+      let now = Date.parse(trashed.trashedAt) + 30 * 86400000 - 1;
+      f.sqlite.function("strftime", (format, value) => {
+        if (value !== "now") throw new Error("unexpected date input");
+        return format === "%s" ? String(Math.floor(now / 1000)) : new Date(now).toISOString().slice(17, 23);
+      });
+      expect((await f.call("/api/files/report/content")).status).toBe(200);
+      now++;
+      expect((await f.call("/api/files/report/content")).status).toBe(410);
+      expect((await f.call("/api/files/report/content", "HEAD")).status).toBe(410);
+      expect((await f.call("/api/files/report", "PATCH", { revision: 2, trashedAt: null })).status).toBe(409);
+      expect((await f.call(share.url, "GET", undefined, null)).status).toBe(200);
+      expect((await f.call(`/api/documents/${draft.document.documentId}/files/report`)).status).toBe(200);
+      expect((await f.call("/api/documents/unknown/files/report")).status).toBe(404);
+    } finally { f.close(); }
+  });
   it("restores an attached ZIP on the same Site after the former library object was deleted", async () => {
     const f = await fixture();
     vi.stubGlobal("fetch", async (path: string, init: RequestInit = {}) => {
@@ -100,11 +123,14 @@ describe("Sites independent file distribution", () => {
       await f.call("/api/files/retained", "DELETE", { revision: 2 });
       expect((await f.call(`/api/documents/${ids[0]}`, "DELETE", { revision: 1, deletionIntent: "manual" })).status).toBe(200);
       expect((await f.call("/api/files/cleanup", "POST", {})).status).toBe(200);
-      expect((await f.call("/api/files/retained/content")).status).toBe(200);
+      expect((await f.call("/api/files/retained/content")).status).toBe(410);
+      expect((await f.call(`/api/documents/${ids[1]}/files/retained`)).status).toBe(200);
       expect((await f.call(`/api/documents/${ids[1]}`, "DELETE", { revision: 1, deletionIntent: "manual" })).status).toBe(200);
       await f.call(`/api/file-shares/${share.id}`, "PATCH", { revision: 1, action: "revoke", operationId: "revoke" });
       expect((await (await f.call("/api/files/cleanup", "POST", {})).json()).deleted).toBe(0);
-      expect((await f.call("/api/files/retained/content")).status).toBe(200);
+      expect((await f.call("/api/files/retained/content")).status).toBe(410);
+      const retained = await f.env.MEDIA.get(String(f.sqlite.prepare("SELECT object_key FROM file_objects").get()!.object_key));
+      expect(retained).not.toBeNull(); await retained!.body.cancel();
       await f.call(`/api/file-shares/${share.id}`, "DELETE", { revision: 2 });
       const remove = f.env.MEDIA.delete!;
       f.env.MEDIA.delete = async key => { await remove(key); throw new Error("lost response"); };

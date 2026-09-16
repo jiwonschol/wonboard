@@ -71,7 +71,7 @@ export async function openDraftRepository(mode: StorageMode, onBlocked: () => vo
         uploaded.set(media.id, media.sha256);
       }
       for (const file of Object.values(document.files ?? {})) {
-        const bytes = await (await sitesRequest(`/api/files/${file.id}/content`)).arrayBuffer();
+        const bytes = await (await sitesRequest(`/api/documents/${document.documentId}/files/${file.id}`)).arrayBuffer();
         if (bytes.byteLength !== file.size || await sha256(bytes) !== file.sha256) throw new Error("missingMedia");
         blobs[file.id] = new Blob([bytes], { type: file.mime });
         uploaded.set(file.id, file.sha256);
