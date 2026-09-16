@@ -17,7 +17,7 @@ node scripts/proofreading-lab/run.mjs --input local-corpora/luna-persona-pilot/i
 
 ### 실행기 경로 주입 (`--codex-bin`)
 
-기본값은 PATH에서 찾은 설치된 공식 CLI다. `--codex-bin /절대/경로/codex`를 주면 **인증(`codex login status`)과 생성 호출 양쪽 모두** 그 절대 경로만 사용한다. 경로에 슬래시가 있으면 execvp가 PATH를 탐색하지 않으므로, 주입한 실행기가 없거나 실행 불가면 **설치된 실제 CLI로 조용히 넘어가지 않고 실패한다.** 상대 경로나 실행 불가 파일은 시작 전에 거부된다. `--codex-bin`은 `luna` 공급자 전용이며 `gemini`와 함께 쓰면 거부된다. `manifest.json`의 `execution.runner`가 `injected-absolute-path`인지 `installed CLI on PATH`인지를 기록한다.
+기본값은 PATH에서 찾은 설치된 공식 CLI다. `--codex-bin /절대/경로/codex`를 주면 **인증(`codex login status`)과 생성 호출 양쪽 모두** 그 절대 경로만 사용한다. 경로에 슬래시가 있으면 execvp가 PATH를 탐색하지 않으므로, 주입한 실행기가 없거나 실행 불가면 **설치된 실제 CLI로 조용히 넘어가지 않고 실패한다.** 상대 경로·실행 불가 파일·**디렉터리**는 시작 전에 거부된다. 디렉터리에 대한 `X_OK`는 「탐색 가능」이지 「프로그램으로 실행 가능」이 아니므로, `statSync`로 일반 파일 여부까지 확인한다. `statSync`는 심링크를 따라가므로 **정상 실행 파일로 가는 심링크는 거부하지 않는다.** `--codex-bin`은 `luna` 공급자 전용이며 `gemini`와 함께 쓰면 거부된다. `manifest.json`의 `execution.runner`가 `injected-absolute-path`인지 `installed CLI on PATH`인지를 기록한다.
 
 **이 검증은 `--live`와 무관하게 돈다.** 준비 실행(dry-run)도 같은 경로를 resolve·검증하므로, 실제 실행이라면 거부됐을 구성으로 준비가 성공하는 일이 없고 `execution.runner`에 검증되지 않은 `injected-absolute-path`가 기록되는 일도 없다. 준비 실행은 경로 존재·실행 가능성만 확인하고 프로세스를 띄우지 않으므로 인증·생성 호출은 0건이며, 준비 출력에 `networkCalls:0`·`authCalls:0`·`generationCalls:0`과 채택한 `runner`를 함께 기록한다. 주입이 없으면 준비 실행은 CLI를 찾지도 요구하지도 않는다 — Codex CLI가 없는 깨끗한 Windows·CI 기계에서도 준비는 성공한다.
 
@@ -33,15 +33,17 @@ Codex 이벤트가 실제 모델 버전을 제공하지 않아 manifest의 모�
 
 `scripts/test-node-units.mjs`는 셸 glob 없이 `tests/unit/`의 모든 `.test.mjs`를 나열하므로 Windows에서도 같은 목록이 그대로 돈다. 실행기 시험은 그 사실에 맞게 두 파일로 갈랐다.
 
-- `proofreading-lab-codex.test.mjs` — **플랫폼 무관 계약 9건. Windows에서도 전부 실행된다.** 프롬프트 격리와 strict 스키마 변환, 이벤트 스트림 해석과 사용량 회계, 공급자 키 제거, 절대경로 해석, 그리고 준비 실행의 주입 검증 전부(거부 3종·채택·주입 없음·`gemini` 결합 거부)가 여기 있다. 가짜 실행기를 띄우지 않고 순수와 `node run.mjs` 호출만으로 판정한다.
+- `proofreading-lab-codex.test.mjs` — **플랫폼 무관 계약 9건. Windows에서도 전부 실행된다.** 프롬프트 격리와 strict 스키마 변환, 이벤트 스트림 해석과 사용량 회계, 공급자 키 제거, 절대경로 해석, 그리고 준비 실행의 주입 검증 전부(거부 4종 — bare name·상대·없는 절대경로·디렉터리 — 와 채택·주입 없음·`gemini` 결합 거부)가 여기 있다. 가짜 실행기를 띄우지 않고 순수와 `node run.mjs` 호출만으로 판정한다.
 - `proofreading-lab-codex.posix.test.mjs` — **POSIX 커널이 필요한 8건.** `#!/bin/sh` stub 실행, chmod로 모드 비트를 벗긴 실행기, symlink, 감시 실행기 PATH 조회, spaced shebang 재현이 여기 있다. `process.platform==='win32'`에서 **건마다 이유가 적힌 SKIP**으로 남는다(TAP에 `# SKIP ...` 8줄). 파일 전체를 조용히 건너뛰지 않고, 모듈 최상위는 파일시스템을 건드리지 않아 win32에서도 로드 자체는 안전하다.
 
-분리는 계약 파일의 마지막 시험이 강제한다. 계약 파일에 `/bin/sh`·`symlinkSync`·`chmodSync`가 다시 나타나거나 PATH를 `delimiter` 없이 조립하면 **Windows를 포함한 모든 플랫폼에서** 그 시험이 실패한다.
+**분리 중 시험이 강제하는 부분은 좁다.** 계약 파일이 POSIX 전용 `node:fs` 헬퍼를 import 하면 허용 목록(`existsSync`·`mkdtempSync`·`readFileSync`·`readdirSync`·`writeFileSync`) 밖이라 모든 플랫폼에서 실패한다. 이 검사는 위반 fixture를 같은 표현식으로 거부하는 것까지 assert하므로 빈 통과로 굳지 않는다. 그 밖의 분리 — 셸 래퍼 문자열이나 하드코딩 PATH 구분자를 계약 파일에 넣지 않는 것 — 는 파일 경계와 리뷰로 유지되며 **시험이 잡지 않는다.**
+
+이전에 이 문서는 계약 파일에 셸 래퍼·`symlinkSync`·`chmodSync`가 다시 나타나거나 PATH를 `delimiter` 없이 조립하면 실패한다고 더 넓게 주장했다. 그 가드는 실제로 두 경우를 놓쳤다. 부분 문자열을 이어 붙인 값이 `/binsh`여서 `/bin/sh`를 못 잡았고, `delimiter` 검사는 import 줄의 `delimiter`에 이미 걸려 PATH를 하드코딩 구분자로 조립해도 통과했다. 위반 원본을 메모리에 넣어 같은 assertion이 전부 통과하는 것을 확인한 뒤, 검사할 수 있는 좁은 계약으로 교체하고 나머지 보장은 문구에서 걷었다.
 
 아래는 Windows에서 실제로 검증되는 범위의 선언이며, **작성자의 Windows 실행 증거가 아니다 — 작성자에게 Windows 기계가 없다.**
 
 - 도는 것: 계약 9건. SKIP: POSIX 8건(이유 문자열 포함). 이 skip 보고 방식은 macOS에서 `process.platform`을 `win32`로 고정한 모의 실행으로 확인했다. 그 모의는 `node:path`가 win32 구현을 고르므로 POSIX 파일시스템 위에서는 계약 시험이 실패로 나오는데, **그 실패는 모의의 부산물이지 Windows 동작의 증거가 아니다.**
-- `--codex-bin`은 Windows에서 `C:\...` 또는 UNC 형태의 절대 경로여야 한다. POSIX 형태 `/abs/path`는 win32 `isAbsolute`가 절대 경로로 보지 않아 거부된다.
+- `--codex-bin`의 절대경로 여부는 `node:path`의 플랫폼별 `isAbsolute`가 정한다. win32에서는 드라이브 한정(`C:\...`)과 UNC(`\\server\share`)뿐 아니라 드라이브 상대 루트 `/abs/path`도 `true`다 — `path.win32.isAbsolute('/abs/path') === true`를 직접 실행해 확인했다. 모든 플랫폼에서 거부되는 것은 bare name과 상대 경로뿐이다. **이 문서는 앞서 「`/abs/path`는 win32 `isAbsolute`가 거부한다」고 적었고 그건 틀렸다.** 정정한다.
 - Windows에는 POSIX 실행 비트가 없으므로 "실행 불가 파일 거부"의 모드 비트 절반은 같은 강도로 보장되지 않는다. 그래서 그 절반만 POSIX 전용으로 분리했고, 없는 경로 거부는 플랫폼 무관 계약으로 남겼다.
 - Windows에서의 실제 실행, Codex CLI의 Windows 동작, Playwright Windows 실행은 **미검증**으로 남는다.
 - macOS(작성 환경) 증거: `tsc --noEmit` 통과, Vitest 163개, Node 단위 354개(계약 9 + POSIX 8 + 기존 337) 전부 통과·종료 0.

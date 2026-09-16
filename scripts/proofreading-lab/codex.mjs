@@ -1,6 +1,6 @@
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
-import {accessSync,constants} from 'node:fs';
+import {accessSync,constants,statSync} from 'node:fs';
 import {mkdtemp,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {isAbsolute,join} from 'node:path';
@@ -43,6 +43,13 @@ export function parseCodexOutput(stdout){
 export function resolveRunner(binary){
   if(binary===null||binary===undefined)return 'codex';
   if(typeof binary!=='string'||!isAbsolute(binary))throw Error('Injected runner must be an absolute path');
+  // X_OK on a directory means "searchable", not "runnable as a program", so an accessible
+  // directory such as /tmp would otherwise pass and be handed to execFile. statSync follows
+  // symlinks on purpose: a link that resolves to a real executable is still a valid runner.
+  let stats;
+  try{stats=statSync(binary);}
+  catch(error){throw Error(`Injected runner is not executable: ${binary} (${error.code})`);}
+  if(!stats.isFile())throw Error(`Injected runner is not executable: ${binary} (not a regular file)`);
   try{accessSync(binary,constants.X_OK);}
   catch(error){throw Error(`Injected runner is not executable: ${binary} (${error.code})`);}
   return binary;
