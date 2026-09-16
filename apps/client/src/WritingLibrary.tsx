@@ -81,8 +81,8 @@ export function WritingLibrary({
           {trashed.map(d => <section className="trash-row" key={d.document.documentId}>
             <strong>{d.document.title || t("untitled")}</strong>
             <span className="document-excerpt">{excerpt(d)}</span>
-            <span>{trashDaysRemaining(d.document, now) <= 1 ? t("trashTomorrow") : t("trashDays", { count: trashDaysRemaining(d.document, now) })}</span>
-            <div><button disabled={busy} onClick={() => onUntrash(d)}>{t("restoreFromTrash")}</button>
+            <span>{!Number.isFinite(now) ? t("loading") : trashDaysRemaining(d.document, now) <= 1 ? t("trashTomorrow") : t("trashDays", { count: trashDaysRemaining(d.document, now) })}</span>
+            <div><button disabled={busy || !Number.isFinite(now)} onClick={() => onUntrash(d)}>{t("restoreFromTrash")}</button>
               <button disabled={busy} onClick={() => onRemove(d)}>{t("permanentlyDelete")}</button></div>
           </section>)}
           {!trashed.length && <p>{t("trashEmpty")}</p>}

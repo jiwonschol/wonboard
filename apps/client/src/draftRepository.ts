@@ -9,6 +9,7 @@ export type DraftRepository = {
   save(draft: Draft, revision: number): Promise<Draft>;
   remove(documentId: string, revision: number, options?: { withdrawPublications?: boolean; deletionIntent?: "manual" | "expired" }): Promise<void>;
   now?(): number;
+  invalidateClock?(): void;
   close(): void;
 };
 export async function sitesRequest(path: string, init: RequestInit = {}) {
@@ -30,16 +31,19 @@ export async function openDraftRepository(mode: StorageMode, onBlocked: () => vo
       remove: (id, revision) => removeDraft(db, id, revision), close: () => db.close() };
   }
   const uploaded = new Map<string, string>();
-  let serverNow = Number.NEGATIVE_INFINITY, receivedAt = performance.now();
+  let serverNow = Number.NaN, receivedAt = performance.now();
   return {
     now: () => serverNow + Math.max(0, performance.now() - receivedAt),
+    invalidateClock() { serverNow = Number.NaN; },
     async list() {
+      serverNow = Number.NaN;
+      let nextServerNow = Number.NaN, nextReceivedAt = performance.now();
       const drafts = new Map<string, Draft>();
       let offset: number | null = 0;
       do {
         const page = await (await sitesRequest(`/api/documents?offset=${offset}`)).json();
         if (!Number.isFinite(page.serverNow)) throw new Error("invalidDocument");
-        serverNow = page.serverNow; receivedAt = performance.now();
+        nextServerNow = page.serverNow; nextReceivedAt = performance.now();
         if (!Array.isArray(page.documents) || !(page.nextOffset === null ||
             (Number.isSafeInteger(page.nextOffset) && page.nextOffset > offset)))
           throw new Error("invalidDocument");
@@ -49,6 +53,7 @@ export async function openDraftRepository(mode: StorageMode, onBlocked: () => vo
         }
         offset = page.nextOffset;
       } while (offset !== null);
+      serverNow = nextServerNow; receivedAt = nextReceivedAt;
       return [...drafts.values()];
     },
     async load(draft) {

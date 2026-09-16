@@ -208,14 +208,14 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
             stored.mime !== media.mime || stored.width !== media.width || stored.height !== media.height)
           throw new HttpError(400, "missingMedia");
       }
-      const saved = { ...document, revision: document.revision + 1, updatedAt: new Date().toISOString() };
+      const clock = await env.DB.prepare(`SELECT ${databaseNow} AS server_now`).first<{ server_now: number }>();
+      if (!clock) throw new HttpError(503, "storageFailed");
+      const saved = { ...document, revision: document.revision + 1, updatedAt: new Date(clock.server_now).toISOString() };
       if (document.trashedAt !== undefined && stored?.document.trashedAt === undefined) {
         // The client expresses intent to trash, never authority over retention.
         // Use the same database clock as the final expiry predicate, including
         // revision-zero imports. Return this canonical value to old clients too.
-        const clock = await env.DB.prepare(`SELECT ${databaseNow} AS server_now`).first<{ server_now: number }>();
-        if (!clock) throw new HttpError(503, "storageFailed");
-        saved.trashedAt = new Date(clock.server_now).toISOString();
+        saved.trashedAt = saved.updatedAt;
       }
       const values = [saved.revision, saved.title, saved.locale, plainText(saved.content).slice(0, 300), JSON.stringify(saved), saved.updatedAt];
       const result = document.revision === 0

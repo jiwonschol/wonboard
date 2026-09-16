@@ -34,6 +34,31 @@ async function move(page: Page) {
 async function openTrash(page: Page, locale = "en") {
   await page.locator(".writing-library > footer").getByRole("button", { name: locale === "en" ? /^Trash/ : /^휴지통/ }).click();
 }
+test("resume refreshes a suspended monotonic clock, fails closed and retries without revoking photos", async ({ page, request }) => {
+  const { id, url } = await seed(request, true);
+  await page.addInitScript(() => Object.defineProperty(performance, "now", { value: () => 1000 }));
+  await page.goto("/");
+  await move(page);
+  await page.getByRole("dialog", { name: "Move to trash" }).getByRole("button", { name: "Move to trash" }).click();
+  await openTrash(page);
+  await expect(page.locator(".trash-row")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Restore document", exact: true })).toBeEnabled();
+  expect((await request.post(`/__sites-test/advance-clock/${31 * 86400000}`)).status()).toBe(204);
+  let syncAttempts = 0;
+  const listPath = /\/api\/documents(?:\?.*)?$/;
+  await page.route(listPath, route => { syncAttempts++; return route.abort(); });
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect.poll(() => syncAttempts).toBeGreaterThan(0);
+  await expect(page.getByRole("button", { name: "Restore document", exact: true })).toBeDisabled();
+  await expect(page.locator(".trash-row")).toHaveCount(1);
+  expect((await request.get(`/api/documents/${id}`, { headers })).status()).toBe(410);
+  expect((await request.get(url)).status()).toBe(200);
+  await page.unroute(listPath);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.locator(".trash-row")).toHaveCount(0);
+  await expect.poll(async () => (await request.get(`/api/documents/${id}`, { headers })).status()).toBe(404);
+  expect((await request.get(url)).status()).toBe(200);
+});
 for (const offsetDays of [-31, 31]) test(`Sites trash uses server time with device skew ${offsetDays} days`, async ({ page, request }) => {
   const { id, url } = await seed(request, true);
   await page.clock.setFixedTime(new Date(Date.now() + offsetDays * 86400000));
