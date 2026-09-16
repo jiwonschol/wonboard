@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleSitesRequest } from "../../apps/server/src/sites/worker";
 import { createSitesTestRuntime, createSyntheticPng, syntheticPng } from "../helpers/sites-runtime";
 import { newDraft, sha256, type WriterDocument } from "@wonboard/document";
@@ -145,6 +145,25 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
     expect(listed).toMatchObject({ title: "", trashedAt: "2026-08-01T12:00:00.123Z" });
     expect((await call(path, "DELETE", { revision: document.revision })).status).toBe(200);
     expect((await call(new URL(url).pathname, "GET", undefined, null)).status).toBe(200);
+  });
+  it("returns one canonical clock value when app and database clocks differ by a millisecond", async () => {
+    await setup();
+    const appNow = Date.parse("2026-09-16T12:00:00.123Z"), dbNow = appNow + 1;
+    vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(appNow); databaseClock(dbNow);
+    try {
+      for (const initiallySaved of [false, true]) {
+        let document = newDraft().document;
+        const path = `/api/documents/${document.documentId}`;
+        if (initiallySaved) document = await (await call(path, "PUT", document)).json();
+        const saved = await (await call(path, "PUT", { ...document, trashedAt: new Date().toISOString() })).json();
+        expect(saved.updatedAt).toBe(new Date(dbNow).toISOString());
+        expect(saved.trashedAt).toBe(saved.updatedAt);
+        expect((await (await call(path)).json()).trashedAt).toBe(saved.trashedAt);
+        const listed = (await (await call("/api/documents")).json()).documents.find((row: WriterDocument) => row.documentId === document.documentId);
+        expect(listed.trashedAt).toBe(saved.trashedAt);
+        expect((await call(path, "PUT", { ...saved, title: "only content changed" })).status).toBe(200);
+      }
+    } finally { vi.useRealTimers(); }
   });
   function databaseClock(initial: number) {
     let now = initial;

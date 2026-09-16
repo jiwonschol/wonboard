@@ -32,7 +32,9 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   const [selectionVersion, setSelectionVersion] = useState(0);
   const [list, setList] = useState<Draft[]>([]);
   const listRef = useRef<Draft[]>([]);
+  const listVersion = useRef(0);
   function publishList(value: Draft[] | ((items: Draft[]) => Draft[])) {
+    listVersion.current++;
     listRef.current = typeof value === "function" ? value(listRef.current) : value;
     setList(listRef.current);
   }
@@ -43,6 +45,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
     "loading" | "saved" | "saving" | "unsaved" | "error"
   >("loading");
   const [error, setError] = useState("");
+  const [clockError, setClockError] = useState("");
   const [readOnly, setReadOnly] = useState(false);
   const db = useRef<DraftRepository | null>(null);
   const clockNow = useCallback(() => db.current?.now?.() ?? Date.now(), []);
@@ -89,6 +92,46 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   useEffect(() => {
     let active = true;
     let connection: DraftRepository | null = null;
+    let initialized = false, refreshing = false, refreshNeeded = false;
+    let resumeTimer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleRefresh = () => { clearTimeout(resumeTimer); resumeTimer = setTimeout(() => void refreshAfterResume(), 100); };
+    async function refreshAfterResume() {
+      if (!active || !initialized || !connection || refreshing) return;
+      if (operating.current || running.current) { scheduleRefresh(); return; }
+      refreshing = true; refreshNeeded = false;
+      const version = listVersion.current;
+      try {
+        const all = await connection.list();
+        for (const expired of all.filter(value => trashExpired(value.document, clockNow()))) {
+          try { await connection.remove(expired.document.documentId, expired.document.revision, { deletionIntent: "expired" }); }
+          catch { /* Retry at the next resume/open; never use a device deadline. */ }
+        }
+        if (!active) return;
+        if (version !== listVersion.current || operating.current || running.current) { refreshNeeded = true; return; }
+        let refreshed = all.filter(value => !trashExpired(value.document, clockNow()));
+        const editing = current.current;
+        if (editing && (change.current !== savedChange.current || conflicts.current.has(editing.document.documentId)))
+          refreshed = [editing, ...refreshed.filter(value => value.document.documentId !== editing.document.documentId)];
+        publishList(refreshed.sort(newestDraftFirst));
+        setClockError("");
+      } catch {
+        connection.invalidateClock?.();
+        if (active) setClockError("storageFailed");
+      } finally {
+        refreshing = false;
+        if (active && refreshNeeded) scheduleRefresh();
+      }
+    }
+    const onResume = () => {
+      if (storageMode !== "sites") return;
+      connection?.invalidateClock?.();
+      if (document.visibilityState === "hidden") return;
+      refreshNeeded = true; scheduleRefresh();
+    };
+    if (storageMode === "sites") {
+      window.addEventListener("focus", onResume); window.addEventListener("pageshow", onResume);
+      document.addEventListener("visibilitychange", onResume);
+    }
     openDraftRepository(
       storageMode,
       () => {
@@ -127,6 +170,8 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
         if (!active) return;
         setRecovery(copies);
         select(first, first.document.revision === 0);
+        initialized = true;
+        if (refreshNeeded) scheduleRefresh();
       })
       .catch((e) => {
         console.warn(
@@ -144,6 +189,9 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
       });
     return () => {
       active = false;
+      clearTimeout(resumeTimer);
+      window.removeEventListener("focus", onResume); window.removeEventListener("pageshow", onResume);
+      document.removeEventListener("visibilitychange", onResume);
       connection?.close();
       if (timer.current) clearTimeout(timer.current);
     };
@@ -368,6 +416,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   async function restoreFromTrash(value: Draft) {
     return withMutation(async () => {
       const loaded = await loadForMutation(value);
+      if (!Number.isFinite(clockNow())) throw new Error("storageFailed");
       if (loaded.document.trashedAt === undefined || trashExpired(loaded.document, clockNow())) throw new Error("trashExpired");
       const { trashedAt: _trashedAt, ...document } = loaded.document;
       const saved = await db.current!.save({ ...loaded, document: { ...document,
@@ -407,7 +456,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
     permanentlyRemove,
     emptyTrash,
     status,
-    error,
+    error: error || clockError,
     readOnly,
     save,
     update,

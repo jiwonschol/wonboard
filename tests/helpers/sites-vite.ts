@@ -17,6 +17,19 @@ export function sitesTestPlugin(): Plugin {
       if (path === "/__sites-test/reset" && req.method === "POST") {
         runtime.close(); runtime = createSitesTestRuntime(); res.writeHead(204); res.end(); return;
       }
+      const advanceClock = /^\/__sites-test\/advance-clock\/(\d+)$/.exec(path);
+      if (advanceClock && req.method === "POST") {
+        const offset = Number(advanceClock[1]);
+        if (offset > 60 * 86400000) { res.writeHead(400); res.end(); return; }
+        const now = Date.now() + offset;
+        runtime.sqlite.function("strftime", (format, value) => {
+          if (value !== "now") throw new Error("Clock fixture supports now only");
+          if (format === "%s") return String(Math.floor(now / 1000));
+          if (format === "%f") return new Date(now).toISOString().slice(17, 23);
+          throw new Error("Unsupported clock fixture format");
+        });
+        res.writeHead(204); res.end(); return;
+      }
       const expiredFixture = /^\/__sites-test\/expired-document\/([a-zA-Z0-9_-]+)$/.exec(path);
       if (expiredFixture && req.method === "POST") {
         // Seed pre-existing expired data, not a client timestamp override. This
