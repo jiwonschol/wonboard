@@ -161,3 +161,59 @@ test('the repository payloads stage with no second copy of the reviewed hashes',
   for(const notice of morphology.notices)assert.equal(sha(out['MECAB-COPYING']),notice.sha256);
   assert.ok(manifest.combinedGzipBytes<=2_000_000,`under the hard cap: ${manifest.combinedGzipBytes}`);
 });
+
+// ---------------------------------------------------------------------------
+// The own-license notice is a reviewed asset too.
+//
+// stage-wordnik-candidate.mjs used to read ../LICENSE itself, after the bundle had
+// already verified and cached the reviewed bytes. Every other reviewed notice
+// (Korean payload, OKT, MeCab) travelled as the verified buffer, so this one
+// sub-consumer was the only place where "bytes verified" and "bytes shipped" could
+// come apart: a root LICENSE changed between verification and that second read
+// would reach WONBOARD-LICENSE while the policy report still said the review passed.
+// ---------------------------------------------------------------------------
+import {resolveOwnLicense} from '../../scripts/stage-wordnik-candidate.mjs';
+
+test('staging hands the candidate generator the verified own-license buffer',async()=>{
+  const tampered=Buffer.from('MIT fixture license CHANGED AFTER REVIEW\n');
+  let served=false;
+  const h=harness();
+  // readReviewedAssets caches, so the policy reads LICENSE exactly once. Every later read
+  // returns different bytes, which is what a file changed after verification looks like.
+  const read=async file=>{
+    if(file==='LICENSE'){if(served)return tampered;served=true;}
+    return h.read(file);
+  };
+  let received='not-called';
+  const result=await stageProofreadingBundle({read,records,
+    stageCandidate:async options=>{received=options?.ownLicense;return h.stageCandidate();}});
+  assert.equal(received,tree.LICENSE,'the generator gets the very buffer the policy hashed');
+  assert.notDeepEqual(received,tampered,'a post-verification change cannot be substituted');
+  assert.equal(result.status,'isolated qualification bundle; not release approval');
+});
+
+test('an own-license notice reviewed twice or not at all is refused before acquisition',async()=>{
+  for(const [name,useRecords] of [
+    ['duplicated',[{...records[0],notices:[...records[0].notices,{file:'LICENSE',sha256:sha(tree.LICENSE)}]},records[1]]],
+    ['absent',[{...records[0],notices:records[0].notices.filter(notice=>notice.file!=='LICENSE')},records[1]]],
+  ]){
+    const h=harness();
+    await assert.rejects(stageProofreadingBundle({read:h.read,records:useRecords,stageCandidate:h.stageCandidate}),
+      name==='duplicated'?/Expected exactly one reviewed notice LICENSE, found 2/
+        :/Expected exactly one reviewed notice LICENSE, found 0/,name);
+    assert.equal(h.calls(),0,`${name}: the English candidate must not be acquired`);
+  }
+});
+
+test('the candidate generator prefers verified own-license bytes over its own read',async()=>{
+  let reads=0;
+  const verified=Buffer.from('verified own-license notice\n');
+  const local=Buffer.from('read from disk after verification\n');
+  const localRead=async()=>{reads++;return local;};
+  assert.equal(await resolveOwnLicense({ownLicense:verified,read:localRead}),verified);
+  assert.equal(reads,0,'injected bytes must not be replaced by a local read');
+  assert.deepEqual(await resolveOwnLicense({read:localRead}),local);
+  assert.equal(reads,1,'a standalone run still reads the repository file');
+  // The default with no arguments is the standalone CLI contract.
+  assert.deepEqual(await resolveOwnLicense(),await readFile(new URL('../../LICENSE',import.meta.url)));
+});

@@ -31,7 +31,16 @@ export async function stageProofreadingBundle({read,records=reviewedAssets,stage
   const lexiconRecord=onlyRecord('generated/lexicon.json');
   const morphologyRecord=onlyRecord('generated/morphology.json');
   const source=assets.get(lexiconRecord.file),morphology=assets.get(morphologyRecord.file);
-  const candidate=await stageCandidate();
+  // The Wonboard own-license notice is reviewed as a root LICENSE entry. Looked up by exact path
+  // across every record, so moving it between records cannot silently drop the link, and handed
+  // to the sub-generator so it ships the verified buffer instead of re-reading the file after
+  // verification. Standalone `stage-wordnik-candidate.mjs` runs pass nothing and read it locally.
+  const ownNotice='LICENSE';
+  const owners=records.flatMap(record=>record.notices.filter(notice=>notice.file===ownNotice).map(()=>record.file));
+  if(owners.length!==1)throw Error(`Expected exactly one reviewed notice ${ownNotice}, found ${owners.length}`);
+  const ownLicense=assets.get(ownNotice);
+  if(!ownLicense)throw Error(`Reviewed file was not verified: ${ownNotice}`);
+  const candidate=await stageCandidate({ownLicense});
   const english=JSON.parse(await readFile(path.join(candidate.directory,'english-with-basics.json')));
   const combined=Buffer.from(JSON.stringify({notice:'Candidate only: selected Open Korean Text (Apache-2.0), Wordnik wordlist (MIT), and Wonboard original basic forms (MIT).',ko:JSON.parse(source).ko,en:english.en})+'\n');
   const gzipBytes=gzipSync(combined).length+gzipSync(morphology).length;
