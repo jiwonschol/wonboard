@@ -107,3 +107,9 @@ Codex 4027281619: Sites는 focus/pageshow/visibilitychange에서 기존 추정 �
 브라우저에서는 performance.now를 정지시키고 테스트 DB 시각만 31일 앞으로 이동했다. 목록 요청 실패 뒤 휴지통 항목 보존·복원 비활성화, focus 재시도 뒤 서버 만료 정리·공개 사진 보존을 확인했다. 테스트 시계 경로는 loopback 전용 Vite 대역에만 있다.
 
 코드 SHA `a16e7ed6675f2567deca51b2920ac991a966aa66`에서 같은 셸 `git rev-parse HEAD` 후 `pnpm typecheck && pnpm test && pnpm test:sites --project=chromium`: 종료 0. 전체 단위 524개(Vitest 177+Node 347), Sites Chromium 12/12. 로그 `/tmp/wonboard-expiry-resume-immutable-unit.log`, `/tmp/wonboard-expiry-resume-immutable-sites.log`. 후속 문서 커밋은 코드 동일성으로 연결한다. 일반 작성기 기존 세 실패·실제 운영 미검증과 #19 Windows/dry-run 후속 통합 대기는 별개다.
+
+## #19 실행기 후속 통합 — 2026-09-17
+
+닝닝의 원본 코드 `ce1d57db732362dfb4021bab96d3ecf534ad967f`와 문서 `054a119a6ec98697d04fe86f759ba4c5ba81c5b8`를 중복 수정 없이 cherry-pick했다. 통합 SHA `177f56f465cb7ded425a0410c4a817cb784ea423`에서 같은 셸 HEAD 확인 후 `pnpm typecheck && pnpm test` 종료 0, Vitest 177 + Node 354 = 531개. 로그 `/tmp/wonboard-expiry-runner-integration.log`.
+
+dry-run도 주입 경로를 검증하며 인증/생성을 호출하지 않는다. 플랫폼 무관 계약 9개와 POSIX 8개를 분리한 원본 변경을 포함한다. 이번 실행은 Linux이며 macOS 담당자의 결과·파괴 시험이나 실제 Windows 실행을 대신 주장하지 않는다. 실제 Windows는 미검증이다. 앱/편집기/브라우저 시험 소스는 e00dfab과 동일하며 브라우저 재실행은 하지 않았다. 기존 12개 Chromium 증거는 a16e7ed에 그대로 묶인다. 머지·운영·일반 작성기 미해결 범위는 별개다.
