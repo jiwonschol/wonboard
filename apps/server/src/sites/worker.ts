@@ -182,6 +182,8 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
       validateDocument(document);
       if (document.documentId !== id) throw new HttpError(400, "invalidDocument");
       const stored = document.revision === 0 ? null : await loadDocument(env, id, 409);
+      if (stored?.trashedAt !== undefined && document.trashedAt !== undefined && document.trashedAt !== stored.trashedAt)
+        throw new HttpError(409, "storageConflict");
       for (const media of Object.values(document.media)) {
         const stored = await env.DB.prepare("SELECT * FROM media WHERE id = ?").bind(media.id).first<StoredMedia>();
         if (!stored || stored.hash !== media.sha256 || stored.size !== media.size ||
@@ -189,6 +191,14 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
           throw new HttpError(400, "missingMedia");
       }
       const saved = { ...document, revision: document.revision + 1, updatedAt: new Date().toISOString() };
+      if (document.trashedAt !== undefined && stored?.trashedAt === undefined) {
+        // The client expresses intent to trash, never authority over retention.
+        // Use the same database clock as the final expiry predicate, including
+        // revision-zero imports. Return this canonical value to old clients too.
+        const clock = await env.DB.prepare(`SELECT ${databaseNow} AS server_now`).first<{ server_now: number }>();
+        if (!clock) throw new HttpError(503, "storageFailed");
+        saved.trashedAt = new Date(clock.server_now).toISOString();
+      }
       const values = [saved.revision, saved.title, saved.locale, plainText(saved.content).slice(0, 300), JSON.stringify(saved), saved.updatedAt];
       const result = document.revision === 0
         ? await env.DB.prepare("INSERT INTO documents (revision, title, locale, excerpt, body, updated_at, id) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING")

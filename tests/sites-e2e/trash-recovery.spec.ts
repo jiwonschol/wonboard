@@ -36,9 +36,7 @@ async function openTrash(page: Page, locale = "en") {
 }
 test("expired drafts remain discoverable for cleanup retry without returning content or withdrawing photos", async ({ page, request }) => {
   const { id, url } = await seed(request, true), path = `/api/documents/${id}`;
-  const document = await (await request.get(path, { headers })).json();
-  expect((await request.put(path, { headers, data: { ...document,
-    trashedAt: new Date(Date.now() - 31 * 86400000).toISOString() } })).status()).toBe(200);
+  expect((await request.post(`/__sites-test/expired-document/${id}`)).status()).toBe(204);
   expect((await request.get(path, { headers })).status()).toBe(410);
   let failedDeletes = 0;
   await page.route(`**${path}`, route => {
