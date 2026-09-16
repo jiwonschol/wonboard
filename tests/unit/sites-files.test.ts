@@ -35,10 +35,10 @@ describe("Sites independent file distribution", () => {
       const share = await (await f.call("/api/files/retained/share", "POST", { revision: 1, operationId: "shared" })).json();
       await f.call("/api/files/retained", "PATCH", { revision: 1, trashedAt: "requested" });
       await f.call("/api/files/retained", "DELETE", { revision: 2 });
-      await f.call(`/api/documents/${ids[0]}`, "DELETE", { revision: 1 });
+      expect((await f.call(`/api/documents/${ids[0]}`, "DELETE", { revision: 1, deletionIntent: "manual" })).status).toBe(200);
       expect((await f.call("/api/files/cleanup", "POST", {})).status).toBe(200);
       expect((await f.call("/api/files/retained/content")).status).toBe(200);
-      await f.call(`/api/documents/${ids[1]}`, "DELETE", { revision: 1 });
+      expect((await f.call(`/api/documents/${ids[1]}`, "DELETE", { revision: 1, deletionIntent: "manual" })).status).toBe(200);
       await f.call(`/api/file-shares/${share.id}`, "PATCH", { revision: 1, action: "revoke", operationId: "revoke" });
       expect((await (await f.call("/api/files/cleanup", "POST", {})).json()).deleted).toBe(0);
       expect((await f.call("/api/files/retained/content")).status).toBe(200);

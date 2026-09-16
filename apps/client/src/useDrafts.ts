@@ -45,6 +45,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   const [error, setError] = useState("");
   const [readOnly, setReadOnly] = useState(false);
   const db = useRef<DraftRepository | null>(null);
+  const clockNow = useCallback(() => db.current?.now?.() ?? Date.now(), []);
   const current = useRef<Draft | null>(null);
   const change = useRef(0);
   const savedChange = useRef(-1);
@@ -111,11 +112,11 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
         }
         db.current = value;
         const all = await value.list();
-        for (const expired of all.filter(d => trashExpired(d.document))) {
-          try { await value.remove(expired.document.documentId, expired.document.revision); }
+        for (const expired of all.filter(d => trashExpired(d.document, clockNow()))) {
+          try { await value.remove(expired.document.documentId, expired.document.revision, { deletionIntent: "expired" }); }
           catch { /* Preserve failed removals on disk and retry on the next open. */ }
         }
-        const drafts = all.filter(d => !trashExpired(d.document));
+        const drafts = all.filter(d => !trashExpired(d.document, clockNow()));
         drafts.sort(newestDraftFirst);
         if (!active) return;
         // A broken newest draft must not hide the healthy library entries.
@@ -367,7 +368,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   async function restoreFromTrash(value: Draft) {
     return withMutation(async () => {
       const loaded = await loadForMutation(value);
-      if (loaded.document.trashedAt === undefined || trashExpired(loaded.document)) throw new Error("trashExpired");
+      if (loaded.document.trashedAt === undefined || trashExpired(loaded.document, clockNow())) throw new Error("trashExpired");
       const { trashedAt: _trashedAt, ...document } = loaded.document;
       const saved = await db.current!.save({ ...loaded, document: { ...document,
         updatedAt: new Date().toISOString() } }, document.revision);
@@ -378,7 +379,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   async function permanentlyRemove(value: Draft, withdrawPublications = false) {
     return withMutation(async () => {
       if (value.document.trashedAt === undefined) throw new Error("invalidDocument");
-      await db.current!.remove(value.document.documentId, value.document.revision, { withdrawPublications });
+      await db.current!.remove(value.document.documentId, value.document.revision, { withdrawPublications, deletionIntent: "manual" });
       publishList(items => items.filter(d => d.document.documentId !== value.document.documentId));
       return true;
     });
@@ -388,7 +389,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
       let failures = 0;
       for (const value of listRef.current.filter(d => d.document.trashedAt !== undefined)) {
         try {
-          await db.current!.remove(value.document.documentId, value.document.revision);
+          await db.current!.remove(value.document.documentId, value.document.revision, { deletionIntent: "manual" });
           publishList(items => items.filter(d => d.document.documentId !== value.document.documentId));
         } catch { failures++; }
       }
@@ -396,6 +397,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
     });
   }
   return {
+    clockNow,
     draft,
     list,
     mutating,

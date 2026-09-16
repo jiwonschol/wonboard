@@ -32,12 +32,14 @@ export function WritingLibrary({
   onFiles,
   onTrash, onUntrash, onRemove, onEmptyTrash, canTrash,
   storageMode = "local",
+  clockNow = Date.now,
 }: {
   draft: Draft;
   list: Draft[];
   locale: Locale;
   busy: boolean;
   storageMode?: "local" | "sites" | "desktop";
+  clockNow?(): number;
   onSelect(draft: Draft): Promise<void>;
   onCreate(): void;
   onClose(): void;
@@ -53,11 +55,12 @@ export function WritingLibrary({
   const [query, setQuery] = useState("");
   const [recent, setRecent] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
-  const [now, setNow] = useState(Date.now);
+  const [now, setNow] = useState(clockNow);
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    setNow(clockNow());
+    const timer = setInterval(() => setNow(clockNow()), 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [clockNow]);
   const trashed = list.filter(d => d.document.trashedAt !== undefined && !trashExpired(d.document, now));
   const documents = [
     draft,

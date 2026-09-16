@@ -525,6 +525,7 @@ export default function App({
         {library ? (
           <WritingLibrary
             onFiles={fileLibrary ? () => openFiles(false) : undefined}
+            clockNow={writer.clockNow}
             storageMode={storageMode}
             draft={draft}
             list={writer.list}

@@ -34,6 +34,30 @@ async function move(page: Page) {
 async function openTrash(page: Page, locale = "en") {
   await page.locator(".writing-library > footer").getByRole("button", { name: locale === "en" ? /^Trash/ : /^휴지통/ }).click();
 }
+for (const offsetDays of [-31, 31]) test(`Sites trash uses server time with device skew ${offsetDays} days`, async ({ page, request }) => {
+  const { id, url } = await seed(request, true);
+  await page.clock.setFixedTime(new Date(Date.now() + offsetDays * 86400000));
+  await page.goto("/");
+  await move(page);
+  await page.getByRole("dialog", { name: "Move to trash" }).getByRole("button", { name: "Move to trash" }).click();
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Document body" })).toBeVisible();
+  expect((await request.get(`/api/documents/${id}`, { headers })).status()).toBe(200);
+  await openTrash(page);
+  await expect(page.locator(".trash-row")).toHaveCount(1);
+  await page.getByRole("button", { name: "Restore document", exact: true }).click();
+  await expect(page.locator(".trash-row")).toHaveCount(0);
+  expect((await (await request.get(`/api/documents/${id}`, { headers })).json()).trashedAt).toBeUndefined();
+  await page.reload();
+  await move(page);
+  await page.getByRole("dialog", { name: "Move to trash" }).getByRole("button", { name: "Move to trash" }).click();
+  await openTrash(page);
+  await page.getByRole("button", { name: "Delete permanently now", exact: true }).click();
+  await page.getByRole("dialog", { name: "Delete permanently now" }).getByRole("button", { name: "Delete permanently now" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect((await request.get(`/api/documents/${id}`, { headers })).status()).toBe(404);
+  expect((await request.get(url)).status()).toBe(200);
+});
 test("expired drafts remain discoverable for cleanup retry without returning content or withdrawing photos", async ({ page, request }) => {
   const { id, url } = await seed(request, true), path = `/api/documents/${id}`;
   expect((await request.post(`/__sites-test/expired-document/${id}`)).status()).toBe(204);
