@@ -95,3 +95,9 @@ P1 cherry-pick 시 테스트 라우팅 충돌은 `/shared/`와 `/__sites-test/`�
 같은 셸 HEAD 확인 후 타입·전체 단위 558개(Vitest 211+Node 347), 전체 Sites Chromium 18/18, Sites 빌드와 데스크톱 빌드 종료 0. 로그 `/tmp/wonboard-snapshots-immutable-unit.log`, `/tmp/wonboard-snapshots-immutable-sites.log`, `/tmp/wonboard-snapshots-immutable-build.log`, `/tmp/wonboard-snapshots-immutable-desktop-build.log`. Chromium은 실제 생성→초안 편집 뒤 불변→보관함 갱신→옛 자산 유지→철회→재발급 후 사진 표시를 확인했다. 한영 390px 및 영어 1440px, Escape 닫기, 페이지 오류 0과 모바일 가로 넘침 없음도 확인했다. 한영 모바일 스크린샷을 직접 읽었다. 실제 계정/CDN·macOS/Windows 실행이나 전체 일반 작성기 통과로 확장하지 않는다.
 
 통합 휴지통 필터, 정리 용량/상태 표시와 로컬 마이그레이션·호환 시험, 일반 작성기 전체 회귀는 남은 게이트다. #19 후속 통합도 담당자의 SHA를 기다린다.
+
+## 실행기 후속 통합 및 일반 작성기 결과
+
+#19 원본 `ce1d57db732362dfb4021bab96d3ecf534ad967f`·`054a119a6ec98697d04fe86f759ba4c5ba81c5b8`를 통합했다. `fd6bdde127be878c6f3c4e6d220f933b42a556c6`에서 같은 셸 HEAD 후 타입·전체 단위 565개(Vitest 211+Node 354) 종료 0. 로그 `/tmp/wonboard-sharing-runner-integration.log`. Linux 실행이며 Windows 실제 실행은 미검증이다. 앱 코드는 ab1afd2와 같고 브라우저 재실행은 하지 않았다.
+
+앞서 clean `ab1afd2e2377f04c5e098aa26edb2a9b339dfbc2`에서 실행한 전체 일반 작성기 Chromium은 170 통과/3 실패·종료 1이었다(`/tmp/wonboard-stage2-full-writer.log`). 실패는 resilience의 unsupported newest draft 복원, spelling 저렴이 개인 표현, writing-tools의 `/private/tmp/wonboard-nanum-default.png` ENOENT다. 이번 결과를 과거 세 실패와 동일한 assertion이라고 보지 않는다. 특히 복원 실패는 현재 트랙에서 원인을 확인해야 한다. 맞춤법/스크린샷 경로는 닝닝의 후속 소유와 조율한다. 통합 휴지통·정리 상태/마이그레이션·전체 회귀 완료를 아직 주장하지 않는다.
