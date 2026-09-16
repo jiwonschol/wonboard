@@ -21,9 +21,10 @@ function renderNode(
   urls: Record<string, string>,
   portable = false,
   parent = "",
+  videoLinksOnly = false,
 ): ReactNode {
   const children = node.content?.map((child, i) => (
-    <Fragment key={i}>{renderNode(child, urls, portable, node.type)}</Fragment>
+    <Fragment key={i}>{renderNode(child, urls, portable, node.type, videoLinksOnly)}</Fragment>
   ));
   const attrs = node.attrs ?? {};
   const margin = portable ? { margin: parent === "listItem" ? "0" : "0 0 1.35em" } : {};
@@ -82,7 +83,7 @@ function renderNode(
   if (node.type === "video" && isVideo(attrs))
     return (
       <figure className="wb-video-player">
-        <iframe
+        {!videoLinksOnly && <iframe
           style={portable ? { width: "100%", aspectRatio: "16 / 9", border: 0 } : undefined}
           src={videoEmbedUrl(attrs)}
           title={`${attrs.provider === "youtube" ? "YouTube" : "Vimeo"} ${attrs.videoId}`}
@@ -91,7 +92,7 @@ function renderNode(
           allowFullScreen
           referrerPolicy="strict-origin-when-cross-origin"
           sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
-        />
+        />}
         <figcaption>
           <a
             href={videoSourceUrl(attrs)}
@@ -123,12 +124,12 @@ function renderNode(
     );
   return children;
 }
-export function PortableDocumentBody({ document, mediaUrls }: {
-  document: WriterDocument; mediaUrls: Record<string, string>;
+export function PortableDocumentBody({ document, mediaUrls, videoLinksOnly = false }: {
+  document: WriterDocument; mediaUrls: Record<string, string>; videoLinksOnly?: boolean;
 }) {
   return <div lang={document.locale} style={{ color: "#111", fontFamily: fontFamily(document.defaultFont),
     fontSize: "19.3642px", lineHeight: 1.4, fontWeight: 400, letterSpacing: "-0.1px",
-    whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{renderNode(document.content, mediaUrls, true)}</div>;
+    whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{renderNode(document.content, mediaUrls, true, "", videoLinksOnly)}</div>;
 }
 export function DocumentPreview({
   document,

@@ -1,5 +1,6 @@
 import { sha256 } from "@wonboard/document";
-import { sitesRequest } from "./draftRepository";
+import { sitesRequest, openDraftRepository } from "./draftRepository";
+import { prepareImageVariants } from "./publishing";
 import { prepareFile, type FileLibrary, type LibraryFile } from "./fileLibrary";
 
 export function openSitesFileLibrary(): FileLibrary {
@@ -18,6 +19,22 @@ export function openSitesFileLibrary(): FileLibrary {
     now: () => serverNow + Math.max(0, performance.now() - receivedAt),
     invalidateClock() { clockVersion++; serverNow = Number.NaN; },
     sharing: {
+      async writings() { return (await sitesRequest("/api/snapshots")).json(); },
+      async updateWriting(writing) {
+        const repository = await openDraftRepository("sites", () => {});
+        try {
+          const document = await (await sitesRequest(`/api/documents/${writing.documentId}`)).json();
+          const draft = await repository.load({ document, blobs: {} });
+          const variants = await prepareImageVariants(draft);
+          return operation(`/api/snapshots/${writing.id}/update`, "POST", { revision: writing.revision,
+            documentId: document.documentId, documentRevision: document.revision, variants });
+        } catch (error) {
+          if (error instanceof Error && ["notFound", "trashExpired"].includes(error.message)) throw new Error("snapshotSourceUnavailable");
+          throw error;
+        } finally { repository.close(); }
+      },
+      changeWriting(writing, action, expiresAt) { return operation(`/api/snapshots/${writing.id}`, "PATCH", { revision: writing.revision, action, expiresAt }); },
+      async removeWriting(writing) { await operation(`/api/snapshots/${writing.id}`, "DELETE", { revision: writing.revision }); },
       async list() { return (await sitesRequest("/api/file-shares")).json(); },
       async photos() { return (await sitesRequest("/api/distributed-photos")).json(); },
       async changePhoto(photo, action) { await sitesRequest(`/api/distributed-photos/${photo.id}`, { method: action === "delete" ? "DELETE" : "PATCH" }); },

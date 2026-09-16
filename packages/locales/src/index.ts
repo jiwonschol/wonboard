@@ -1,5 +1,15 @@
 import { createInstance } from "i18next";
 export const en = {
+  sharedWriting: "Shared writing",
+  snapshotSourceUnavailable: "The source draft is no longer available. The existing shared copy is unchanged.",
+  deleteDistributedNotice: "Delete this distributed copy? Its URL stops working. Drafts and other distributed copies are kept; unreferenced bytes are reclaimed by cleanup.",
+  deleteLibraryFileNotice: "Permanently remove this file from the library? Other document attachments and distributed copies are kept.",
+  sharedWritingUrl: "Shared writing URL",
+  createSnapshot: "Create shared writing snapshot",
+  updateSnapshot: "Update from saved draft",
+  previewSnapshot: "View private saved copy",
+  snapshotNotice: "This saves an independent public copy. Draft edits or deletion do not change it. Manage it in the library. Videos are links; attached files need their own active share.",
+  snapshotUpdateNotice: "Replace this shared copy with the saved draft? Old image URLs stay available to anyone who knows them for up to 5 minutes. Revocation, expiry and reissue override that grace period.",
   distributionManagedSeparately: "Manage distributed copies separately in the file library.",
   distributedFiles: "Distributed copies",
   shareFile: "Create public file link",
@@ -310,6 +320,16 @@ export const en = {
 };
 export type MessageKey = keyof typeof en;
 export const ko: Record<MessageKey, string> = {
+  sharedWriting: "공유 글",
+  snapshotSourceUnavailable: "원본 초안을 더 이상 사용할 수 없어. 기존 공유 글은 그대로 유지돼.",
+  deleteDistributedNotice: "이 배포 사본을 삭제할까? 이 주소는 끊기지만 초안과 다른 배포 사본은 유지돼. 참조가 없는 바이트는 정리 작업에서 회수해.",
+  deleteLibraryFileNotice: "보관함에서 이 파일을 영구 삭제할까? 다른 글의 첨부와 배포 사본은 유지돼.",
+  sharedWritingUrl: "공유 글 주소",
+  createSnapshot: "공유 글 사본 만들기",
+  updateSnapshot: "저장한 초안으로 갱신",
+  previewSnapshot: "비공개 보관본 보기",
+  snapshotNotice: "초안과 독립된 공개 사본을 만들어. 초안을 고치거나 지워도 유지되고 보관함에서 따로 관리해. 영상은 링크로 표시하고, 첨부 파일은 별도의 유효한 공유가 필요해.",
+  snapshotUpdateNotice: "저장된 초안으로 공유 글을 갱신할까? 옛 사진 주소를 아는 사람은 최대 5분 동안 볼 수 있어. 철회·만료·재발급은 유예보다 먼저 적용돼.",
   distributionManagedSeparately: "배포한 사본은 파일 보관함에서 따로 관리해.",
   distributedFiles: "배포한 항목",
   shareFile: "공개 파일 링크 만들기",

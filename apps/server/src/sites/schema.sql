@@ -53,6 +53,38 @@ CREATE TABLE photo_variants (
   object_id TEXT NOT NULL REFERENCES file_objects(id),
   PRIMARY KEY(document_id,media_id,hash)
 );
+CREATE TABLE snapshots (
+  id TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  token TEXT NOT NULL UNIQUE,
+  current_version TEXT NOT NULL,
+  revision INTEGER NOT NULL,
+  expires_at INTEGER,
+  revoked INTEGER NOT NULL DEFAULT 0 CHECK(revoked IN (0,1)),
+  operation_id TEXT NOT NULL,
+  create_operation_id TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE(document_id,create_operation_id)
+);
+CREATE TABLE snapshot_versions (
+  id TEXT PRIMARY KEY,
+  snapshot_id TEXT NOT NULL,
+  source_revision INTEGER NOT NULL,
+  html TEXT NOT NULL,
+  retired_at INTEGER
+);
+CREATE TABLE snapshot_assets (
+  version_id TEXT NOT NULL,
+  media_id TEXT NOT NULL,
+  object_id TEXT NOT NULL REFERENCES file_objects(id),
+  mime TEXT NOT NULL,
+  PRIMARY KEY(version_id,media_id)
+);
+CREATE TRIGGER snapshot_asset_ready BEFORE INSERT ON snapshot_assets BEGIN
+  SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM file_objects WHERE id=NEW.object_id AND state='ready')
+    THEN RAISE(ABORT,'missingMedia') END;
+END;
 CREATE TRIGGER publication_object_insert BEFORE INSERT ON publications WHEN NEW.blob_key IS NOT NULL BEGIN
   INSERT INTO file_objects(id,object_key,state,lease_until,size)
     VALUES ('legacy:' || NEW.blob_key,NEW.blob_key,'ready',0,0) ON CONFLICT DO NOTHING;

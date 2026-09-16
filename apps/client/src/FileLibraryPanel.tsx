@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { translator, en, type MessageKey } from "@wonboard/locales";
 import type { Locale } from "@wonboard/document";
-import { fileExpired, type FileLibrary, type LibraryFile, type FileShare, type DistributedPhoto } from "./fileLibrary";
+import { fileExpired, type FileLibrary, type LibraryFile, type FileShare, type DistributedPhoto, type SharedWriting } from "./fileLibrary";
 
-export function FileLibraryPanel({ library, locale, picking, onInsert, onClose }: {
+export function FileLibraryPanel({ library, locale, picking, onInsert, onClose, beforeWritingUpdate }: {
   library: FileLibrary; locale: Locale; picking: boolean;
   onInsert(ids: string[]): Promise<void>; onClose(): void;
+  beforeWritingUpdate?(documentId: string): Promise<boolean>;
 }) {
   const t = translator(locale), input = useRef<HTMLInputElement>(null), panel = useRef<HTMLElement>(null);
   const [files, setFiles] = useState<LibraryFile[]>([]), [query, setQuery] = useState("");
@@ -13,6 +14,7 @@ export function FileLibraryPanel({ library, locale, picking, onInsert, onClose }
   const [distributed, setDistributed] = useState(false), [shares, setShares] = useState<FileShare[]>([]), [expiry, setExpiry] = useState("");
   const [cleanup, setCleanup] = useState("");
   const [photos, setPhotos] = useState<DistributedPhoto[]>([]);
+  const [writings, setWritings] = useState<SharedWriting[]>([]);
   const [error, setError] = useState(""), [selected, setSelected] = useState<string[]>([]);
   const [clockError, setClockError] = useState("");
   const [failed, setFailed] = useState<File[]>([]), [renaming, setRenaming] = useState<string | null>(null), [name, setName] = useState("");
@@ -21,9 +23,9 @@ export function FileLibraryPanel({ library, locale, picking, onInsert, onClose }
   const refresh = async () => {
     const version = ++refreshVersion.current;
     try {
-      const [files, shared, pictures] = await Promise.all([library.list(), library.sharing?.list() ?? Promise.resolve([]), library.sharing?.photos() ?? Promise.resolve([])]);
+      const [files, shared, pictures, writings] = await Promise.all([library.list(), library.sharing?.list() ?? Promise.resolve([]), library.sharing?.photos() ?? Promise.resolve([]), library.sharing?.writings() ?? Promise.resolve([])]);
       if (version !== refreshVersion.current) return;
-      setFiles(files); setShares(shared); setPhotos(pictures); setNow(library.now?.() ?? Date.now()); setClockError("");
+      setFiles(files); setShares(shared); setPhotos(pictures); setWritings(writings); setNow(library.now?.() ?? Date.now()); setClockError("");
     } catch (error) { if (version === refreshVersion.current) throw error; }
   };
   const report = (error: unknown) => setError(error instanceof Error && Object.hasOwn(en, error.message) ? error.message : "storageFailed");
@@ -99,7 +101,7 @@ export function FileLibraryPanel({ library, locale, picking, onInsert, onClose }
         <button disabled={busy || share.revoked} onClick={() => void run(async () => { await library.sharing!.change(share, "extend", expiry ? new Date(expiry).toISOString() : null); })}>{t("shareExtend")}</button>
         <button disabled={busy || share.revoked} onClick={() => void run(async () => { await library.sharing!.change(share, "revoke", null); })}>{t("shareRevoke")}</button>
         <button disabled={busy} onClick={() => void run(async () => { await library.sharing!.change(share, "reissue", expiry ? new Date(expiry).toISOString() : null); })}>{t("shareReissue")}</button>
-        <button disabled={busy} onClick={() => { if (window.confirm(t("trashDeleteNotice"))) void run(() => library.sharing!.remove(share)); }}>{t("shareDelete")}</button>
+        <button disabled={busy} onClick={() => { if (window.confirm(t("deleteDistributedNotice"))) void run(() => library.sharing!.remove(share)); }}>{t("shareDelete")}</button>
       </li>)}</ul> : <ul className="file-library-list">{visible.map(file => <li key={file.id}>
         {picking && !trash ? <input type="checkbox" aria-label={file.filename} checked={selected.includes(file.id)} disabled={busy}
           onChange={event => setSelected(value => event.target.checked ? [...value, file.id] : value.filter(id => id !== file.id))} /> : null}
@@ -115,7 +117,7 @@ export function FileLibraryPanel({ library, locale, picking, onInsert, onClose }
           <button disabled={busy} onClick={() => void run(async () => { await library.change(file.id, file.revision, { trashedAt: new Date().toISOString() }); setSelected(value => value.filter(id => id !== file.id)); })}>{t("moveToTrash")}</button>
         </> : <>
           <button disabled={busy || !Number.isFinite(now) || fileExpired(file, now)} onClick={() => void run(async () => { await library.change(file.id, file.revision, { trashedAt: null }); })}>{t("fileRestore")}</button>
-          <button disabled={busy} onClick={() => { if (window.confirm(t("trashDeleteNotice"))) void run(() => library.remove(file.id, file.revision)); }}>{t("permanentlyDelete")}</button>
+          <button disabled={busy} onClick={() => { if (window.confirm(t("deleteLibraryFileNotice"))) void run(() => library.remove(file.id, file.revision)); }}>{t("permanentlyDelete")}</button>
         </>}
         <button disabled={busy || !Number.isFinite(now) || fileExpired(file, now)} onClick={() => void run(async () => {
           const { blob } = await library.load(file.id), url = URL.createObjectURL(blob);
@@ -127,9 +129,24 @@ export function FileLibraryPanel({ library, locale, picking, onInsert, onClose }
         <strong className="file-library-name">{photo.filename || photo.id}</strong><span>{t(photo.published ? "shareActive" : "shareInactive")}</span>
         <input aria-label={photo.filename || photo.id} readOnly value={new URL(photo.url, location.origin).href} onFocus={event => event.target.select()} />
         <button disabled={busy || !photo.published} onClick={() => void run(() => library.sharing!.changePhoto(photo, "revoke"))}>{t("shareRevoke")}</button>
-        <button disabled={busy} onClick={() => { if (window.confirm(t("trashDeleteNotice"))) void run(() => library.sharing!.changePhoto(photo, "delete")); }}>{t("shareDelete")}</button>
+        <button disabled={busy} onClick={() => { if (window.confirm(t("deleteDistributedNotice"))) void run(() => library.sharing!.changePhoto(photo, "delete")); }}>{t("shareDelete")}</button>
       </li>)}</ul> : null}
-      {!loading && !(distributed ? shares.length + photos.length : visible.length) ? <p>{t(query ? "fileSearchEmpty" : "fileLibraryEmpty")}</p> : null}
+      {distributed ? <section aria-label={t("sharedWriting")}><h3>{t("sharedWriting")}</h3><ul className="file-library-list">
+        {writings.filter(writing => writing.title.toLocaleLowerCase(locale).includes(query.toLocaleLowerCase(locale))).map(writing => <li key={writing.id}>
+          <strong className="file-library-name">{writing.title || t("untitled")}</strong><span>{t(writing.active ? "shareActive" : "shareInactive")}</span>
+          <input aria-label={t("sharedWritingUrl")} readOnly value={new URL(writing.url, location.origin).href} onFocus={event => event.target.select()} />
+          <a href={`/api/snapshots/${writing.id}/preview/`} target="_blank" rel="noopener noreferrer">{t("previewSnapshot")}</a>
+          <button disabled={busy} onClick={() => { if (window.confirm(t("snapshotUpdateNotice"))) void run(async () => {
+            if (beforeWritingUpdate && !(await beforeWritingUpdate(writing.documentId))) throw new Error("storageFailed");
+            await library.sharing!.updateWriting(writing);
+          }); }}>{t("updateSnapshot")}</button>
+          <button disabled={busy || writing.revoked} onClick={() => void run(async () => { await library.sharing!.changeWriting(writing, "extend", expiry ? new Date(expiry).toISOString() : null); })}>{t("shareExtend")}</button>
+          <button disabled={busy || writing.revoked} onClick={() => void run(async () => { await library.sharing!.changeWriting(writing, "revoke", null); })}>{t("shareRevoke")}</button>
+          <button disabled={busy} onClick={() => void run(async () => { await library.sharing!.changeWriting(writing, "reissue", expiry ? new Date(expiry).toISOString() : null); })}>{t("shareReissue")}</button>
+          <button disabled={busy} onClick={() => { if (window.confirm(t("deleteDistributedNotice"))) void run(() => library.sharing!.removeWriting(writing)); }}>{t("shareDelete")}</button>
+        </li>)}
+      </ul></section> : null}
+      {!loading && !(distributed ? shares.length + photos.length + writings.length : visible.length) ? <p>{t(query ? "fileSearchEmpty" : "fileLibraryEmpty")}</p> : null}
       {library.sharing ? <><button disabled={busy} onClick={() => void run(async () => { const result = await library.sharing!.cleanup(); setCleanup(t("cleanupResult", result)); })}>{t("cleanupFiles")}</button><p role="status">{cleanup}</p></> : null}
       {picking && !distributed ? <footer><button disabled={busy || !selected.length || trash} onClick={() => void run(() => onInsert(selected))}>{t("fileInsert")}</button></footer> : null}
     </section>

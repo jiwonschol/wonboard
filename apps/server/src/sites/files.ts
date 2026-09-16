@@ -12,7 +12,9 @@ const unreferenced = `NOT EXISTS (SELECT 1 FROM library_files f WHERE f.object_i
     (CAST(strftime('%s',f.trashed_at) AS INTEGER)*1000 + CAST(substr(strftime('%f',f.trashed_at),4,3) AS INTEGER)) + ${retention} > ${nowSql}))
   AND NOT EXISTS (SELECT 1 FROM library_files f JOIN document_file_refs r ON r.file_id=f.id WHERE f.object_id=file_objects.id)
   AND NOT EXISTS (SELECT 1 FROM library_files f JOIN file_shares s ON s.file_id=f.id WHERE f.object_id=file_objects.id)
-  AND NOT EXISTS (SELECT 1 FROM publications p WHERE p.blob_key=file_objects.object_key)`;
+  AND NOT EXISTS (SELECT 1 FROM publications p WHERE p.blob_key=file_objects.object_key)
+  AND NOT EXISTS (SELECT 1 FROM snapshot_assets a JOIN snapshot_versions v ON v.id=a.version_id
+    WHERE a.object_id=file_objects.id AND (v.retired_at IS NULL OR v.retired_at+300000>${nowSql}))`;
 const nameOf = (value: unknown) => {
   if (typeof value !== "string" || !value.trim() || value.length > 1024 || /[\u0000-\u001f\u007f]/.test(value)) throw new HttpError(400, "invalidFileName");
   return value.trim();

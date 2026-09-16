@@ -6,6 +6,7 @@ import { HttpError, json, readImage, readJson, validId } from "./http";
 import type { SitesEnv } from "./types";
 import { ownerFiles, sharedFile, documentFile } from "./files";
 import { photoVariantKey, storePhotoVariant } from "./photoObjects";
+import { ownerSnapshots, publicSnapshot } from "./snapshots";
 
 type StoredMedia = { id: string; hash: string; mime: string; size: number; width: number; height: number };
 type Publication = { public_id: string; document_id: string; media_id: string;
@@ -82,6 +83,11 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
   try {
     const url = new URL(request.url);
     const path = url.pathname;
+    if (path.startsWith("/shared/posts/")) {
+      const response = await publicSnapshot(request, env, path);
+      if (response) return response;
+      throw new HttpError(404, "notFound");
+    }
     const sharedMatch = /^\/shared\/files\/([a-zA-Z0-9_-]{1,80})$/.exec(path);
     if (sharedMatch) {
       if (!["GET", "HEAD"].includes(request.method)) throw new HttpError(405, "notFound");
@@ -123,6 +129,11 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
       return json({ accepted: true });
     }
     if (!installed) throw new HttpError(403, "setupRequired");
+    if (path === "/api/snapshots" || path.startsWith("/api/snapshots/")) {
+      const response = await ownerSnapshots(request, env, path, id => loadStoredDocument(env, id));
+      if (response) return response;
+      throw new HttpError(404, "notFound");
+    }
     const fileResponse = await ownerFiles(request, env, path);
     if (fileResponse) return fileResponse;
     if (path === "/api/documents" && request.method === "GET") {

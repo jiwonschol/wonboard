@@ -691,7 +691,8 @@ export default function App({
       {trashDialog && <TrashDialog locale={locale} action={trashDialog.action} count={trashDialog.count} working={busy}
         message={writer.error ? t(Object.hasOwn(en, writer.error) ? writer.error as MessageKey : "storageFailed") : ""}
         onConfirm={() => executeTrash(trashDialog.action, trashDialog.value)} onClose={() => setTrashDialog(null)} />}
-      {filePanel && fileLibrary ? <FileLibraryPanel library={fileLibrary} locale={locale} picking={filePanel === "pick"} onInsert={insertLibraryFiles} onClose={closeFiles} /> : null}
+      {filePanel && fileLibrary ? <FileLibraryPanel library={fileLibrary} locale={locale} picking={filePanel === "pick"} onInsert={insertLibraryFiles} onClose={closeFiles}
+        beforeWritingUpdate={id => id === writer.snapshot()?.document.documentId ? writer.save() : Promise.resolve(true)} /> : null}
       {publication && <PublicationPanel locale={locale} documentId={draft.document.documentId}
         save={writer.save} snapshot={writer.snapshot} onBusy={setBusy} onClose={() => setPublication(false)} />}
       {preview ? (

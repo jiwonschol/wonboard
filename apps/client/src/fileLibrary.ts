@@ -4,6 +4,8 @@ import { StorageConflict } from "./storage";
 
 export type FileShare = { id: string; fileId: string; token: string; revision: number; expiresAt: string | null; revoked: boolean; active: boolean; url: string; filename?: string };
 export type DistributedPhoto = { id: string; documentId: string; filename: string; published: boolean; url: string };
+export type SharedWriting = { id: string; documentId: string; title: string; revision: number; token: string; version: string;
+  url: string; active: boolean; revoked: boolean; expiresAt: string | null };
 export type FileLibrary = {
   now?(): number;
   invalidateClock?(): void;
@@ -14,6 +16,10 @@ export type FileLibrary = {
   remove(id: string, revision: number): Promise<void>;
   close(): void;
   sharing?: {
+    writings(): Promise<SharedWriting[]>;
+    updateWriting(writing: SharedWriting): Promise<SharedWriting>;
+    changeWriting(writing: SharedWriting, action: "extend" | "revoke" | "reissue", expiresAt: string | null): Promise<SharedWriting>;
+    removeWriting(writing: SharedWriting): Promise<void>;
     list(): Promise<FileShare[]>;
     create(file: LibraryFile, expiresAt: string | null): Promise<FileShare>;
     change(share: FileShare, action: "extend" | "revoke" | "reissue", expiresAt: string | null): Promise<FileShare>;
