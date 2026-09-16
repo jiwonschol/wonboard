@@ -101,3 +101,16 @@ P1 cherry-pick 시 테스트 라우팅 충돌은 `/shared/`와 `/__sites-test/`�
 #19 원본 `ce1d57db732362dfb4021bab96d3ecf534ad967f`·`054a119a6ec98697d04fe86f759ba4c5ba81c5b8`를 통합했다. `fd6bdde127be878c6f3c4e6d220f933b42a556c6`에서 같은 셸 HEAD 후 타입·전체 단위 565개(Vitest 211+Node 354) 종료 0. 로그 `/tmp/wonboard-sharing-runner-integration.log`. Linux 실행이며 Windows 실제 실행은 미검증이다. 앱 코드는 ab1afd2와 같고 브라우저 재실행은 하지 않았다.
 
 앞서 clean `ab1afd2e2377f04c5e098aa26edb2a9b339dfbc2`에서 실행한 전체 일반 작성기 Chromium은 170 통과/3 실패·종료 1이었다(`/tmp/wonboard-stage2-full-writer.log`). 실패는 resilience의 unsupported newest draft 복원, spelling 저렴이 개인 표현, writing-tools의 `/private/tmp/wonboard-nanum-default.png` ENOENT다. 이번 결과를 과거 세 실패와 동일한 assertion이라고 보지 않는다. 특히 복원 실패는 현재 트랙에서 원인을 확인해야 한다. 맞춤법/스크린샷 경로는 닝닝의 후속 소유와 조율한다. 통합 휴지통·정리 상태/마이그레이션·전체 회귀 완료를 아직 주장하지 않는다.
+# 읽기 전용 화면 회귀 보강 (2026-09-17)
+
+기준 HEAD `b47bd75bba38b301e99fac63b49a1de99a1f7d6d`의 일반 작성기 실패를 좁혀 재현했다.
+`pnpm test:e2e --project=chromium tests/e2e/resilience.spec.ts --grep 'unsupported newest'`
+는 종료 1이었다. App의 첨부 수 계산이 미지원 문서의 `content: null`에
+`referencedFileIds`를 호출해 `Cannot read properties of null (reading 'type')`로
+화면을 중단했다. ZIP 복원 자체가 아니라 최초 읽기 전용 화면의 회귀다.
+
+파일 수 계산에도 기존 `writer.readOnly` 보호를 적용했다. 본문을 임의로 정규화하거나
+미지원 데이터를 수정하지 않는다. 기존 실패 시험이 회귀 시험이며, 수정한 작업 트리에서
+`pnpm test:e2e --project=chromium tests/e2e/resilience.spec.ts`는 Chromium 9/9,
+종료 0이었다. 이 결과는 전체 작성기 통과가 아니다. 맞춤법 및 스크린샷 경로 실패와
+기존 stage 2 미완료 항목은 별도다. Browser plugin not available: 저장소 Playwright를 사용했다.

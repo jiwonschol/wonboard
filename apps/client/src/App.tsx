@@ -368,7 +368,8 @@ export default function App({
   const attachmentCount =
     new Set(
       attached.filter((n) => n.type === "media").map((n) => n.attrs?.mediaId),
-    ).size + attached.filter((n) => n.type === "video").length + referencedFileIds(draft.document.content).length;
+    ).size + attached.filter((n) => n.type === "video").length +
+    (writer.readOnly ? 0 : referencedFileIds(draft.document.content).length);
   return (
     <div className="app-shell" data-storage-mode={storageMode}>
       <a className="skip-link" href="#document-canvas">
