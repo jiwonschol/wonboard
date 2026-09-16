@@ -8,8 +8,8 @@ import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
 const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function main(){
-  const {values}=parseArgs({options:{input:{type:'string'},out:{type:'string'},live:{type:'boolean',default:false},'budget-usd':{type:'string'},provider:{type:'string',default:'luna'},'max-calls':{type:'string',default:'48'},'start-request':{type:'string',default:'0'}}});
-  if(!values.input||!values.out)throw Error('Usage: node scripts/proofreading-lab/run.mjs --input private-input.json --out NEW-PRIVATE-DIRECTORY [--provider luna|gemini --live --max-calls 48] (Gemini requires --budget-usd)');
+  const {values}=parseArgs({options:{input:{type:'string'},out:{type:'string'},live:{type:'boolean',default:false},'budget-usd':{type:'string'},provider:{type:'string',default:'luna'},'max-calls':{type:'string',default:'48'},'start-request':{type:'string',default:'0'},'codex-bin':{type:'string'}}});
+  if(!values.input||!values.out)throw Error('Usage: node scripts/proofreading-lab/run.mjs --input private-input.json --out NEW-PRIVATE-DIRECTORY [--provider luna|gemini --live --max-calls 48 --codex-bin /abs/path/to/codex] (Gemini requires --budget-usd)');
   const inputBytes=readFileSync(values.input),work=plan(JSON.parse(inputBytes));
   const startRequest=Number(values['start-request']);
   if(!Number.isInteger(startRequest)||startRequest<0||startRequest>=work.requests.length)throw Error('Invalid request start');
@@ -20,7 +20,8 @@ async function main(){
   if(luna)for(const request of work.requests)request.body=lunaRequest(request.body);
   const out=resolve(values.out),budget=Number(values['budget-usd']??0);
   if(values.live&&!luna&&(!Number.isFinite(budget)||budget<=0||budget>5||work.reservedUsd>budget))throw Error('Live run requires a sufficient positive budget, at most USD 5');
-  const generate=values.live?(luna?await createCodex():createVertex(process.env)):null;
+  if(values['codex-bin']&&!luna)throw Error('--codex-bin applies to the luna provider only');
+  const generate=values.live?(luna?await createCodex({binary:values['codex-bin']??null}):createVertex(process.env)):null;
   mkdirSync(out,{mode:0o700}); // Exclusive new run; never overwrite or silently replay a pending call.
   const save=(name,data)=>writeFileSync(join(out,name),JSON.stringify(data,null,2)+'\n',{flag:'wx',mode:0o600});
   const data=JSON.parse(readFileSync(new URL('../../third_party/spelling/generated/lexicon.json',import.meta.url)));
@@ -28,7 +29,7 @@ async function main(){
   const check=createChecker(data);
   const baseline=work.rows.map(row=>({id:row.id,findings:check(row.text,[])}));
   save('input.json',work.rows);save('baseline.json',baseline);
-  save('manifest.json',{created:new Date().toISOString(),live:values.live,provider:values.provider,model:selectedModel,pricing:luna?null:pricing,billing:luna?'chatgpt-subscription':'vertex-api',startRequest,maxCalls,budgetUsd:luna?null:budget,reservedUsd:luna?null:work.reservedUsd,execution:luna?{reasoningEffort:'medium',timeoutMs:180000,tools:'disabled',auth:'existing ChatGPT login',outputTokenCap:null}:null,inputSha256:hash(inputBytes),personas,
+  save('manifest.json',{created:new Date().toISOString(),live:values.live,provider:values.provider,model:selectedModel,pricing:luna?null:pricing,billing:luna?'chatgpt-subscription':'vertex-api',startRequest,maxCalls,budgetUsd:luna?null:budget,reservedUsd:luna?null:work.reservedUsd,execution:luna?{reasoningEffort:'medium',timeoutMs:180000,tools:'disabled',auth:'existing ChatGPT login',outputTokenCap:null,runner:values['codex-bin']?'injected-absolute-path':'installed CLI on PATH'}:null,inputSha256:hash(inputBytes),personas,
     checkerHashes:Object.fromEntries(['engine.mjs','korean-morphology.mjs','korean-context.mjs','korean-orthography.mjs','community-vocabulary.mjs'].map(f=>[f,hash(readFileSync(new URL(`../../packages/editor/src/proofreading/${f}`,import.meta.url)))])),
     dataHashes:{lexicon:hash(JSON.stringify(data.ko)),morphology:hash(JSON.stringify(data.morphology))},
     runnerHashes:Object.fromEntries(['core.mjs','run.mjs',luna?'codex.mjs':'vertex.mjs'].map(f=>[f,hash(readFileSync(new URL(f,import.meta.url)))])),
