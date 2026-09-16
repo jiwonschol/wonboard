@@ -45,6 +45,107 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
     }
   });
   async function setup() { expect((await call("/api/sites/setup", "POST", { accepted: true, locale: "ko" })).status).toBe(200); }
+  function databaseClock(initial: number) {
+    let now = initial;
+    runtime.sqlite.function("strftime", (format, value) => {
+      if (value !== "now") throw new Error("Unexpected clock input");
+      if (format === "%s") return String(Math.floor(now / 1000));
+      if (format === "%f") return new Date(now).toISOString().slice(17, 23);
+      throw new Error("Unexpected clock format");
+    });
+    return (value: number) => { now = value; };
+  }
+  it("expires private content while preserving legacy cleanup metadata and public photos", async () => {
+    const document = await photoDocument(), url = await publish(document);
+    const path = `/api/documents/${document.documentId}`;
+    const expiry = Date.parse("2026-10-16T12:00:00.123Z"), clock = databaseClock(expiry - 1);
+    const trashedAt = new Date(expiry - 30 * 86400000).toISOString();
+    const trashed = await (await call(path, "PUT", { ...document, trashedAt })).json();
+    expect((await call(path)).status).toBe(200);
+    clock(expiry);
+    expect((await call(path)).status).toBe(410);
+    for (const timestamp of [undefined, new Date(expiry + 86400000).toISOString(), trashedAt]) {
+      expect((await call(path, "PUT", { ...trashed, trashedAt: timestamp })).status).toBe(410);
+    }
+    expect((await call(`${path}/publish`, "POST", { revision: trashed.revision, variants: {} })).status).toBe(410);
+    expect((await call(`${path}/media/photo/variant`, "PUT", syntheticPng)).status).toBe(410);
+    const metadata = (await (await call("/api/documents")).json()).documents[0];
+    expect(metadata).toMatchObject({ documentId: document.documentId, revision: trashed.revision, trashedAt, title: "" });
+    expect(metadata.content.content[0].content).toEqual([]);
+    expect((await call(new URL(url).pathname, "GET", undefined, null)).status).toBe(200);
+    expect((await call(path, "DELETE", { revision: metadata.revision })).status).toBe(200);
+    expect((await call(path, "DELETE", { revision: metadata.revision })).status).toBe(200);
+    expect((await call(new URL(url).pathname, "GET", undefined, null)).status).toBe(200);
+  });
+  it("rejects restoration when the SQL write reaches the deadline after the read", async () => {
+    const document = await photoDocument(), path = `/api/documents/${document.documentId}`;
+    const expiry = Date.parse("2026-10-16T12:00:00.123Z"), clock = databaseClock(expiry - 1);
+    const trashedAt = new Date(expiry - 30 * 86400000).toISOString();
+    const trashed = await (await call(path, "PUT", { ...document, trashedAt })).json();
+    const prepare = runtime.env.DB.prepare.bind(runtime.env.DB);
+    runtime.env.DB.prepare = sql => {
+      const statement = prepare(sql);
+      if (sql.startsWith("UPDATE documents SET revision")) {
+        const run = statement.run.bind(statement);
+        statement.run = async () => { clock(expiry); return run(); };
+      }
+      return statement;
+    };
+    expect((await call(path, "PUT", { ...trashed, trashedAt: undefined })).status).toBe(409);
+    expect(JSON.parse(String(runtime.sqlite.prepare("SELECT body FROM documents WHERE id = ?").get(document.documentId)!.body)).trashedAt).toBe(trashedAt);
+  });
+  it("checks expiry inside publication writes without withdrawing existing public photos", async () => {
+    const document = await photoDocument(), url = await publish(document);
+    const path = `/api/documents/${document.documentId}`;
+    const expiry = Date.parse("2026-10-16T12:00:00.123Z"), clock = databaseClock(expiry - 1);
+    const trashed = await (await call(path, "PUT", { ...document, trashedAt: new Date(expiry - 30 * 86400000).toISOString() })).json();
+    const variant = await (await call(`${path}/media/photo/variant`, "PUT", syntheticPng)).json();
+    const batch = runtime.env.DB.batch.bind(runtime.env.DB);
+    runtime.env.DB.batch = statements => { clock(expiry); return batch(statements); };
+    expect((await call(`${path}/publish`, "POST", { revision: trashed.revision, variants: { photo: variant.hash } })).status).toBe(409);
+    expect((await call(new URL(url).pathname, "GET", undefined, null)).status).toBe(200);
+  });
+  it("allows restoration just before expiry and retains optimistic revision conflicts", async () => {
+    const document = await photoDocument(), path = `/api/documents/${document.documentId}`;
+    const expiry = Date.parse("2026-10-16T12:00:00.123Z");
+    databaseClock(expiry - 1);
+    const trashed = await (await call(path, "PUT", { ...document, trashedAt: new Date(expiry - 30 * 86400000).toISOString() })).json();
+    expect((await call(path, "PUT", { ...document, trashedAt: undefined })).status).toBe(409);
+    expect((await call(path, "PUT", { ...trashed, trashedAt: undefined })).status).toBe(200);
+    expect((await (await call(path)).json()).trashedAt).toBeUndefined();
+  });
+  it("publishes all photos using one deadline decision even if time advances after the write", async () => {
+    let document = await photoDocument();
+    const path = `/api/documents/${document.documentId}`;
+    expect((await call("/api/media/second", "PUT", syntheticPng)).status).toBe(200);
+    document.media.second = { ...document.media.photo, id: "second" };
+    document.content.content!.push({ type: "media", attrs: { mediaId: "second" } });
+    const expiry = Date.parse("2026-10-16T12:00:00.123Z"), clock = databaseClock(expiry - 1);
+    document = await (await call(path, "PUT", { ...document, trashedAt: new Date(expiry - 30 * 86400000).toISOString() })).json();
+    const variants: Record<string, string> = {};
+    for (const id of ["photo", "second"]) {
+      variants[id] = (await (await call(`${path}/media/${id}/variant`, "PUT", syntheticPng)).json()).hash;
+    }
+    const batch = runtime.env.DB.batch.bind(runtime.env.DB);
+    runtime.env.DB.batch = statements => batch(statements.map(statement => {
+      const run = statement.run.bind(statement);
+      statement.run = async () => { const result = await run(); clock(expiry); return result; };
+      return statement;
+    }));
+    const response = await call(`${path}/publish`, "POST", { revision: document.revision, variants });
+    expect(response.status).toBe(200);
+    expect(Object.keys((await response.json()).urls)).toHaveLength(2);
+    expect(runtime.sqlite.prepare("SELECT count(*) AS count FROM publications WHERE published = 1").get()!.count).toBe(2);
+  });
+  it("uses the stored timestamp including legacy Date.parse formats and does not trust revision zero", async () => {
+    const document = await photoDocument(), path = `/api/documents/${document.documentId}`;
+    const expiry = Date.parse("2026-10-16T12:00:00.000Z"), clock = databaseClock(expiry - 1);
+    const trashed = await (await call(path, "PUT", { ...document, trashedAt: new Date(expiry - 30 * 86400000).toUTCString() })).json();
+    clock(expiry + 1);
+    expect((await call(path, "PUT", { ...trashed, trashedAt: undefined, revision: 0 })).status).toBe(409);
+    expect((await call(path, "PUT", { ...trashed, trashedAt: undefined })).status).toBe(410);
+    expect((await call(path)).status).toBe(410);
+  });
   async function photoDocument() {
     await setup();
     expect((await call("/api/media/photo", "PUT", syntheticPng)).status).toBe(200);

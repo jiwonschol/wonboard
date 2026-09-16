@@ -34,6 +34,36 @@ async function move(page: Page) {
 async function openTrash(page: Page, locale = "en") {
   await page.locator(".writing-library > footer").getByRole("button", { name: locale === "en" ? /^Trash/ : /^휴지통/ }).click();
 }
+test("expired drafts remain discoverable for cleanup retry without returning content or withdrawing photos", async ({ page, request }) => {
+  const { id, url } = await seed(request, true), path = `/api/documents/${id}`;
+  const document = await (await request.get(path, { headers })).json();
+  expect((await request.put(path, { headers, data: { ...document,
+    trashedAt: new Date(Date.now() - 31 * 86400000).toISOString() } })).status()).toBe(200);
+  expect((await request.get(path, { headers })).status()).toBe(410);
+  let failedDeletes = 0;
+  await page.route(`**${path}`, route => {
+    if (route.request().method() === "DELETE") {
+      failedDeletes++;
+      return route.fulfill({ status: 503, json: { error: "storageFailed" } });
+    }
+    return route.continue();
+  });
+  await page.goto("/");
+  await expect(page.getByRole("textbox", { name: "Document body" })).toBeVisible();
+  expect(failedDeletes).toBe(1);
+  await openTrash(page);
+  await expect(page.locator(".trash-row")).toHaveCount(0);
+  const retained = (await (await request.get("/api/documents", { headers })).json()).documents;
+  expect(retained).toHaveLength(1);
+  expect(retained[0].title).toBe("");
+  expect(JSON.stringify(retained)).not.toContain("Saved original");
+  expect((await request.get(url)).status()).toBe(200);
+  await page.unroute(`**${path}`);
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Document body" })).toBeVisible();
+  expect((await request.get(path, { headers })).status()).toBe(404);
+  expect((await request.get(url)).status()).toBe(200);
+});
 test("public photos remain unless explicitly withdrawn when moving or removing a draft", async ({ page, request }) => {
   for (const action of ["keep", "move", "remove"] as const) {
     let rejectWithdrawal = action === "move";
