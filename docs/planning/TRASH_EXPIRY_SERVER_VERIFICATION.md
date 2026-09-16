@@ -81,3 +81,12 @@ PR은 `Refs #8, #9`로 연결한다. 파일 보관함 2단계가 남아 이슈�
 최초 휴지통 진입( revision 0 포함)은 DB 시각으로 정규화하고 그 값을 응답한다. 이미 휴지통인 문서의 다른 시각 입력은 409이며, 동일 시각 저장과 속성 생략 복원은 기존 revision·만료 검사를 유지한다. 기존 만료 fixture는 테스트 전용 loopback 모듈에서 DB에 넣으며 운영 API로 기한을 조작하지 않는다. 구형 비 ISO DB 값 fixture도 직접 유지해 검사했다.
 
 수정본은 `63c2a673f7437f1f85b900c0cd44d137d3b12319` 위 미커밋 변경으로 `pnpm typecheck && pnpm test` 종료 0 (Vitest 171 + Node 347 = 518), `pnpm test:sites --project=chromium` 종료 0 (9/9). 로그 `/tmp/wonboard-expiry-p1-green.log`, `/tmp/wonboard-expiry-p1-sites.log`. 전체 일반 작성기·운영 시험 통과로 확장하지 않는다. 2단계 배포물 관리 정책은 별도 #23에 남긴다.
+# P1 후속: 기기 시계와 자동 영구 삭제 분리
+
+동준이 기기 시계 +31일에서 정규화된 새 휴지통이 즉시 자동 삭제되는 회귀를 재현했다. 새 API 반례는 수정 전 200(예상 409)으로 실패했다. 로그 `/tmp/wonboard-expiry-clock-red.log`.
+
+DELETE는 `deletionIntent: "manual" | "expired"`를 구분한다. 의도가 없는 구형 요청은 자동 정리와 구별할 수 없으므로 서버상 만료 전 409로 보존한다. 그 결과 구형 클라이언트의 기한 전 수동 영구 삭제도 충돌로 남는다. 새 클라이언트의 수동 삭제/휴지통 비우기는 manual을 보내 정상 동작한다. 자동 정리는 stored timestamp·revision·DB 현재 시각을 최종 DELETE 조건에서 함께 검사한다. 사진 철회 SQL에도 동일 조건을 적용해 실패한 삭제가 사진부터 철회하지 않게 한다. 만료 후 재시도는 멱등이며, 철회하지 않은 공개 사진은 유지한다.
+
+목록에 `serverNow`를 추가했다. Sites 저장소는 이 값을 응답 수신 시각의 monotonic performance clock에 고정하고, 목록/자동 정리·복원·휴지통 남은 일수는 그 시계를 사용한다. 기기 Date.now 변경에 따라 기준을 이동하지 않는다. 목록 서버 시각이 없는 응답은 실패로 처리하며 기기 시계로 정리를 강행하지 않는다. 로컬/데스크톱 모드는 기존 로컬 시계를 유지한다.
+
+검증 SHA `5092ee450bf71ba1bc07079c0632fa538027ce9e`에서 같은 셸의 `git rev-parse HEAD` 후 `pnpm typecheck && pnpm test && pnpm test:sites --project=chromium`: 종료 0. Vitest 172 + Node 347 = 519개, Sites Chromium 11/11. 로그 `/tmp/wonboard-expiry-clock-immutable-unit.log`, `/tmp/wonboard-expiry-clock-immutable-sites.log`. 브라우저는 기기 ±31일, 휴지통 진입→재열기→복원→재진입→명시적 영구 삭제와 사진 보존을 검증했다. 서버 시험은 구형/자동 요청, 기한 직전/정각, 실패 후 재시도와 사진 보존을 포함한다. 첫 브라우저 시행의 버튼 이름 오기와 비동기 복원 대기 누락은 시험에서 수정했고 최종 전체 실행으로 확인했다.
