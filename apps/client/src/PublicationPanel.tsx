@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Draft, Locale } from "@wonboard/document";
-import { plainText } from "@wonboard/document";
+import { plainText, referencedFileIds } from "@wonboard/document";
+import type { FileShare } from "./fileLibrary";
 import { translator } from "@wonboard/locales";
 import { publishImages, publications, type Publication } from "./publishing";
 import { sitesRequest } from "./draftRepository";
@@ -36,7 +37,17 @@ export function PublicationPanel({ locale, documentId, save, snapshot, onBusy, o
     if (!accepted || !(await save())) throw new Error("storageFailed");
     const draft = snapshot();
     if (!draft || draft.document.documentId !== documentId) throw new Error("storageFailed");
-    const urls = await publishImages(draft);
+    const fileUrls: Record<string, string> = {};
+    const fileIds = referencedFileIds(draft.document.content);
+    if (fileIds.length) {
+      const shares: FileShare[] = await (await sitesRequest("/api/file-shares")).json();
+      for (const id of fileIds) {
+        const share = shares.find(value => value.fileId === id && !value.revoked && (value.expiresAt === null || Date.parse(value.expiresAt) > Date.now()));
+        if (!share) { setMessage(t("privateFile")); return; }
+        fileUrls[id] = new URL(share.url, location.origin).href;
+      }
+    }
+    const urls = { ...await publishImages(draft), ...fileUrls };
     // The HTML serializer is needed only after an explicit export action.
     const { exportHtml } = await import("./htmlExport");
     setHtml(exportHtml(draft.document, urls));
@@ -67,10 +78,6 @@ export function PublicationPanel({ locale, documentId, save, snapshot, onBusy, o
     {html && <><p>{t("exportCompatibility")}</p><div className="export-actions">
       <button onClick={() => void copy(true)}>{t("copyFormatted")}</button><button onClick={() => void copy(false)}>{t("copyHtml")}</button>
     </div><textarea aria-label={t("exportHtml")} value={html} readOnly onFocus={e => e.target.select()} /></>}
-    {active.length > 0 && <details className="withdraw-section"><summary>{t("withdrawImages")}</summary><p>{t("withdrawNotice")}</p>
-      <button disabled={working} onClick={() => void run(async () => {
-        await sitesRequest(`/api/documents/${documentId}/publications`, { method: "DELETE" });
-        setItems(await publications(documentId)); setHtml(""); setMessage(t("withdrawn"));
-      })}>{t("confirmWithdraw")}</button></details>}
+    {active.length > 0 && <p>{t("distributionManagedSeparately")}</p>}
   </dialog>;
 }

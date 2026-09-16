@@ -27,6 +27,8 @@ export type AttachmentFile = {
   size: number;
   sha256: string;
 };
+export type LibraryFile = AttachmentFile & { filename: string; revision: number; createdAt: string; trashedAt?: string };
+export type FileChange = { filename?: string; trashedAt?: string | null };
 export type WriterDocument = {
   schemaVersion: 1;
   documentId: string;

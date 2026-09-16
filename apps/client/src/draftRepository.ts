@@ -60,10 +60,26 @@ export async function openDraftRepository(mode: StorageMode, onBlocked: () => vo
         blobs[media.id] = blob;
         uploaded.set(media.id, media.sha256);
       }
+      for (const file of Object.values(document.files ?? {})) {
+        const bytes = await (await sitesRequest(`/api/files/${file.id}/content`)).arrayBuffer();
+        if (bytes.byteLength !== file.size || await sha256(bytes) !== file.sha256) throw new Error("missingMedia");
+        blobs[file.id] = new Blob([bytes], { type: file.mime });
+        uploaded.set(file.id, file.sha256);
+      }
       return { document, blobs };
     },
     async save(draft, revision) {
       const snapshot = withoutUnusedMedia(draft);
+      for (const file of Object.values(snapshot.document.files ?? {})) {
+        const blob = snapshot.blobs[file.id];
+        if (!blob || blob.size !== file.size) throw new Error("missingMedia");
+        if (uploaded.get(file.id) === file.sha256) continue;
+        const saved = await (await sitesRequest(`/api/files/${file.id}?name=${encodeURIComponent(file.originalName)}`, {
+          method: "PUT", headers: { "Content-Type": file.mime }, body: blob,
+        })).json();
+        if (saved.sha256 !== file.sha256) throw new Error("missingMedia");
+        uploaded.set(file.id, file.sha256);
+      }
       for (const media of Object.values(snapshot.document.media)) {
         const blob = snapshot.blobs[media.id];
         if (!blob || blob.size !== media.size) throw new Error("missingMedia");

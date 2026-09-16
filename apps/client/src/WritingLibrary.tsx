@@ -86,7 +86,8 @@ export function WritingLibrary({
           </section>)}
           {!trashed.length && <p>{t("trashEmpty")}</p>}
         </nav>
-        <footer><button disabled={busy || !trashed.length} onClick={onEmptyTrash}>{t("emptyTrash")}</button></footer>
+        <footer>{onFiles ? <button disabled={busy} onClick={onFiles}>{t("fileLibrary")}</button> : null}
+          <button disabled={busy || !trashed.length} onClick={onEmptyTrash}>{t("emptyTrash")}</button></footer>
       </> : <>
       <header>
         <h2>{t("myWriting")}</h2>

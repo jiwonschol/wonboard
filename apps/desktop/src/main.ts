@@ -34,11 +34,16 @@ if (ownsLock) void app.whenReady().then(() => {
   });
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   session.defaultSession.setPermissionCheckHandler(() => false);
-  for (const operation of ["list", "load", "save", "remove"] as const) {
+  for (const operation of ["list", "load", "save", "remove", "filesList", "filesLoad", "filesUpload", "filesChange", "filesRemove"] as const) {
     ipcMain.handle(`drafts:${operation}`, (event, ...args) => {
       if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame ||
           !event.senderFrame.url.startsWith("wonboard://app/")) throw new Error("unauthorized");
       if (operation === "list") return store.list();
+      if (operation === "filesList") return store.filesList();
+      if (operation === "filesLoad") return store.filesLoad(args[0]);
+      if (operation === "filesUpload") return store.filesUpload(args[0], args[1]);
+      if (operation === "filesChange") return store.filesChange(args[0], args[1], args[2]);
+      if (operation === "filesRemove") return store.filesRemove(args[0], args[1]);
       if (operation === "load") return store.load(args[0]);
       if (operation === "remove") return store.remove(args[0], args[1]);
       return store.save(args[0], args[1]);

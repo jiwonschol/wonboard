@@ -1,5 +1,18 @@
 import { createInstance } from "i18next";
 export const en = {
+  distributionManagedSeparately: "Manage distributed copies separately in the file library.",
+  distributedFiles: "Distributed copies",
+  shareFile: "Create public file link",
+  shareFileNotice: "Anyone with a link can download the file. Choosing a file does not share it. Delete distributed copies separately here.",
+  shareExpiry: "Link expiry (empty means no expiry)",
+  shareExtend: "Change expiry",
+  shareRevoke: "Revoke link",
+  shareReissue: "Issue new link",
+  shareDelete: "Delete shared copy",
+  shareInactive: "Revoked or expired",
+  shareActive: "Link active",
+  cleanupFiles: "Retry file cleanup",
+  cleanupResult: "Cleanup: {{deleted}} processed, {{failed}} failed. Referenced files are kept.",
   fileLibrary: "File library",
   fileLibraryEmpty: "No files yet.",
   fileSearchEmpty: "No matching files.",
@@ -297,6 +310,19 @@ export const en = {
 };
 export type MessageKey = keyof typeof en;
 export const ko: Record<MessageKey, string> = {
+  distributionManagedSeparately: "배포한 사본은 파일 보관함에서 따로 관리해.",
+  distributedFiles: "배포한 항목",
+  shareFile: "공개 파일 링크 만들기",
+  shareFileNotice: "링크가 있으면 누구나 내려받을 수 있어. 파일 선택만으로 공유되지는 않아. 배포한 사본은 여기서 따로 지워줘.",
+  shareExpiry: "링크 만료 시각 (비우면 만료 없음)",
+  shareExtend: "만료 시각 바꾸기",
+  shareRevoke: "링크 철회",
+  shareReissue: "새 링크 발급",
+  shareDelete: "공유 사본 삭제",
+  shareInactive: "철회됨 또는 만료됨",
+  shareActive: "공유 중",
+  cleanupFiles: "파일 정리 다시 시도",
+  cleanupResult: "정리 {{deleted}}건 처리, {{failed}}건 실패. 참조 중인 파일은 보존해.",
   fileLibrary: "파일 보관함",
   fileLibraryEmpty: "보관한 파일이 없어.",
   fileSearchEmpty: "검색한 파일이 없어.",

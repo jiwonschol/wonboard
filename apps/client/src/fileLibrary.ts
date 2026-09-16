@@ -1,13 +1,9 @@
-import { limits, sha256, type AttachmentFile } from "@wonboard/document";
+import { limits, sha256, type LibraryFile, type FileChange } from "@wonboard/document";
+export type { LibraryFile, FileChange } from "@wonboard/document";
 import { StorageConflict } from "./storage";
 
-export type LibraryFile = AttachmentFile & {
-  filename: string;
-  revision: number;
-  createdAt: string;
-  trashedAt?: string;
-};
-export type FileChange = { filename?: string; trashedAt?: string | null };
+export type FileShare = { id: string; fileId: string; token: string; revision: number; expiresAt: string | null; revoked: boolean; url: string; filename?: string };
+export type DistributedPhoto = { id: string; documentId: string; filename: string; published: boolean; url: string };
 export type FileLibrary = {
   list(): Promise<LibraryFile[]>;
   load(id: string): Promise<{ file: LibraryFile; blob: Blob }>;
@@ -15,6 +11,15 @@ export type FileLibrary = {
   change(id: string, revision: number, change: FileChange): Promise<LibraryFile>;
   remove(id: string, revision: number): Promise<void>;
   close(): void;
+  sharing?: {
+    list(): Promise<FileShare[]>;
+    create(file: LibraryFile, expiresAt: string | null): Promise<FileShare>;
+    change(share: FileShare, action: "extend" | "revoke" | "reissue", expiresAt: string | null): Promise<FileShare>;
+    remove(share: FileShare): Promise<void>;
+    cleanup(): Promise<{ deleted: number; failed: number }>;
+    photos(): Promise<DistributedPhoto[]>;
+    changePhoto(photo: DistributedPhoto, action: "revoke" | "delete"): Promise<void>;
+  };
 };
 type StoredFile = { file: LibraryFile; bytes: ArrayBuffer };
 const retention = 30 * 86400000;

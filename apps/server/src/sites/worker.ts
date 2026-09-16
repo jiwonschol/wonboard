@@ -4,6 +4,7 @@ import {
 } from "@wonboard/document";
 import { HttpError, json, readImage, readJson, validId } from "./http";
 import type { SitesEnv } from "./types";
+import { ownerFiles, sharedFile } from "./files";
 
 type StoredMedia = { id: string; hash: string; mime: string; size: number; width: number; height: number };
 type Publication = { public_id: string; document_id: string; media_id: string;
@@ -71,6 +72,11 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
   try {
     const url = new URL(request.url);
     const path = url.pathname;
+    const sharedMatch = /^\/shared\/files\/([a-zA-Z0-9_-]{1,80})$/.exec(path);
+    if (sharedMatch) {
+      if (!["GET", "HEAD"].includes(request.method)) throw new HttpError(405, "notFound");
+      return await sharedFile(request, env, sharedMatch[1]);
+    }
     const publicMatch = /^\/media\/([a-zA-Z0-9_-]{1,80})$/.exec(path);
     if (publicMatch && ["GET", "HEAD"].includes(request.method))
       return await publicImage(request, env, publicMatch[1]);
@@ -107,6 +113,8 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
       return json({ accepted: true });
     }
     if (!installed) throw new HttpError(403, "setupRequired");
+    const fileResponse = await ownerFiles(request, env, path);
+    if (fileResponse) return fileResponse;
     if (path === "/api/documents" && request.method === "GET") {
       const offset = Number(url.searchParams.get("offset") ?? 0);
       if (!Number.isSafeInteger(offset) || offset < 0) throw new HttpError(400, "invalidDocument");
@@ -159,9 +167,8 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
           (body.withdrawPublications !== undefined && typeof body.withdrawPublications !== "boolean"))
         throw new HttpError(400, "invalidDocument");
       const statements = [];
-      if (body.withdrawPublications) statements.push(env.DB.prepare(
-        "UPDATE publications SET published = 0 WHERE document_id = ? AND EXISTS (SELECT 1 FROM documents WHERE id = ? AND revision = ?)")
-        .bind(id, id, body.revision));
+      // Draft lifetime never controls already distributed copies, including
+      // requests from old clients that still send withdrawPublications=true.
       statements.push(env.DB.prepare("DELETE FROM documents WHERE id = ? AND revision = ?").bind(id, body.revision));
       const result = await env.DB.batch(statements);
       if (result[result.length - 1].meta.changes !== 1) {

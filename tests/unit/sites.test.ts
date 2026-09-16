@@ -29,7 +29,7 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
     expect((await call(`/api/documents/${document.documentId}`)).status).toBe(200);
     expect((await call(new URL(urls).pathname, "GET", undefined, null)).status).toBe(200);
   });
-  it("removes documents with explicit photo withdrawal only and enforces owner and origin", async () => {
+  it("preserves distributed photos even for legacy withdrawal flags and enforces owner and origin", async () => {
     for (const withdrawPublications of [false, true]) {
       const document = await photoDocument(), urls = await publish(document);
       const path = `/api/documents/${document.documentId}`, body = { revision: document.revision, withdrawPublications };
@@ -39,7 +39,7 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
       expect((await call(path, "DELETE", body)).status).toBe(200);
       expect((await call(path, "DELETE", body)).status).toBe(200);
       expect((await call(path)).status).toBe(404);
-      expect((await call(new URL(urls).pathname, "GET", undefined, null)).status).toBe(withdrawPublications ? 404 : 200);
+      expect((await call(new URL(urls).pathname, "GET", undefined, null)).status).toBe(200);
       expect((await call("/api/media/photo")).status).toBe(200);
       expect((await call(`${path}/publications`).then(r => r.json()))).toHaveLength(1);
     }

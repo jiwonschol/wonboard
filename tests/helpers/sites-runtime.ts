@@ -24,6 +24,7 @@ export function createSitesTestRuntime() {
   } };
   const files = new Map<string, { bytes: ArrayBuffer; mime: string }>();
   const MEDIA: ObjectStore = {
+    async delete(key) { files.delete(key); },
     async get(key) { const file = files.get(key); return file ? {
       body: new Blob([file.bytes]).stream(), size: file.bytes.byteLength,
       httpMetadata: { contentType: file.mime },

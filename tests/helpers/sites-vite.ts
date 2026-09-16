@@ -9,7 +9,7 @@ export function sitesTestPlugin(): Plugin {
     server.httpServer?.once("close", () => runtime.close());
     server.middlewares.use((req, res, next) => {
       const path = req.url?.split("?")[0] ?? "";
-      if (!path.startsWith("/api/") && !path.startsWith("/media/") && path !== "/__sites-test/reset") return next();
+      if (!path.startsWith("/api/") && !path.startsWith("/media/") && !path.startsWith("/shared/") && path !== "/__sites-test/reset") return next();
       if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(req.headers.host ?? "") ||
           !["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress ?? "")) {
         res.writeHead(403); res.end(); return;

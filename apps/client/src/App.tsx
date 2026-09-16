@@ -27,12 +27,14 @@ import { AttachmentsPanel } from "./AttachmentsPanel";
 import { WritingLibrary } from "./WritingLibrary";
 import { initialLocale } from "./locale";
 import { PublicationPanel } from "./PublicationPanel";
-import { sitesRequest, type StorageMode } from "./draftRepository";
+import { type StorageMode } from "./draftRepository";
 import { publications } from "./publishing";
 import { TrashDialog } from "./TrashDialog";
 import { clearRecovery, recoveryMode } from "./recoveryCache";
 import { openBrowserFileLibrary, type FileLibrary } from "./fileLibrary";
 import { FileLibraryPanel } from "./FileLibraryPanel";
+import { openSitesFileLibrary } from "./sitesFileLibrary";
+import { openDesktopFileLibrary } from "./desktopFileLibrary";
 
 function download(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
@@ -70,7 +72,6 @@ export default function App({
   const busy = localBusy || writer.mutating;
   const [trashDialog, setTrashDialog] = useState<{ action: "move" | "remove" | "empty"; value?: Draft; count: number } | null>(null);
   const [trashUndo, setTrashUndo] = useState<Draft | null>(null);
-  const [withdrawRetry, setWithdrawRetry] = useState<string | null>(null);
   const [trashFailures, setTrashFailures] = useState<number | null>(null);
   const importing = useRef(false);
   const [notice, setNotice] = useState("");
@@ -81,9 +82,8 @@ export default function App({
   const restoreInput = useRef<HTMLInputElement>(null);
   const draft = writer.draft;
   useEffect(() => {
-    if (storageMode !== "local") return;
     let active = true, opened: FileLibrary | undefined;
-    void openBrowserFileLibrary().then(value => {
+    void (storageMode === "sites" ? Promise.resolve(openSitesFileLibrary()) : storageMode === "desktop" ? Promise.resolve(openDesktopFileLibrary()) : openBrowserFileLibrary()).then(value => {
       opened = value;
       if (active) setFileLibrary(value); else value.close();
     }, () => { if (active) setNotice("storageFailed"); });
@@ -320,22 +320,15 @@ export default function App({
   }
   const canTrash = Boolean(draft && !writer.readOnly && (draft.document.revision > 0 ||
     draft.document.title || plainText(draft.document.content) || Object.keys(draft.document.media).length));
-  async function withdrawPhotos(id: string) {
-    try {
-      await sitesRequest(`/api/documents/${id}/publications`, { method: "DELETE" });
-      setWithdrawRetry(null);
-    } catch { setWithdrawRetry(id); }
-  }
-  async function executeTrash(action: "move" | "remove" | "empty", value?: Draft, withdraw = false) {
+  async function executeTrash(action: "move" | "remove" | "empty", value?: Draft) {
     setBusy(true); setTrashFailures(null);
     try {
       if (action === "move" && value) {
         const moved = await writer.moveToTrash(value);
         if (!moved) return;
         setTrashUndo(moved);
-        if (withdraw) await withdrawPhotos(moved.document.documentId);
       } else if (action === "remove" && value) {
-        if (!(await writer.permanentlyRemove(value, withdraw))) return;
+        if (!(await writer.permanentlyRemove(value))) return;
         if (trashUndo?.document.documentId === value.document.documentId) setTrashUndo(null);
       } else if (action === "empty") {
         const failures = await writer.emptyTrash();
@@ -530,8 +523,6 @@ export default function App({
       {trashUndo && <div className="notice" role="status">{t("trashMoved")}
         <button disabled={busy} onClick={async () => { if (await writer.restoreFromTrash(trashUndo)) setTrashUndo(null); }}>{t("trashUndo")}</button>
         <button aria-label={t("close")} onClick={() => setTrashUndo(null)}><Icon name="close" /></button></div>}
-      {withdrawRetry && <div className="notice error" role="alert">{t("trashWithdrawFailed")}
-        <button disabled={busy} onClick={async () => { setBusy(true); try { await withdrawPhotos(withdrawRetry); } finally { setBusy(false); } }}>{t("trashRetry")}</button></div>}
       {trashFailures !== null && <div className="notice error" role="alert">{t("trashPartialFailure", { count: trashFailures })}</div>}
       <div className="writing-workspace">
         {library ? (
@@ -701,7 +692,7 @@ export default function App({
       ) : null}
       {trashDialog && <TrashDialog locale={locale} action={trashDialog.action} count={trashDialog.count} working={busy}
         message={writer.error ? t(Object.hasOwn(en, writer.error) ? writer.error as MessageKey : "storageFailed") : ""}
-        onConfirm={withdraw => executeTrash(trashDialog.action, trashDialog.value, withdraw)} onClose={() => setTrashDialog(null)} />}
+        onConfirm={() => executeTrash(trashDialog.action, trashDialog.value)} onClose={() => setTrashDialog(null)} />}
       {filePanel && fileLibrary ? <FileLibraryPanel library={fileLibrary} locale={locale} picking={filePanel === "pick"} onInsert={insertLibraryFiles} onClose={closeFiles} /> : null}
       {publication && <PublicationPanel locale={locale} documentId={draft.document.documentId}
         save={writer.save} snapshot={writer.snapshot} onBusy={setBusy} onClose={() => setPublication(false)} />}

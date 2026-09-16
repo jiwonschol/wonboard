@@ -10,6 +10,7 @@ export interface Database {
   batch(statements: Statement[]): Promise<{ meta: { changes: number } }[]>;
 }
 export interface ObjectStore {
+  delete?(key: string): Promise<void>;
   get(key: string): Promise<{ body: ReadableStream; size: number;
     httpMetadata?: { contentType?: string } } | null>;
   put(key: string, value: ArrayBuffer, options?: {
