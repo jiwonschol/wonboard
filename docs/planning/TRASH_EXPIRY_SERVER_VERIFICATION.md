@@ -78,3 +78,10 @@ DELETE는 `deletionIntent: "manual" | "expired"`를 구분한다. 의도가 없�
 목록에 `serverNow`를 추가했다. Sites 저장소는 이 값을 응답 수신 시각의 monotonic performance clock에 고정하고, 목록/자동 정리·복원·휴지통 남은 일수는 그 시계를 사용한다. 기기 Date.now 변경에 따라 기준을 이동하지 않는다. 목록 서버 시각이 없는 응답은 실패로 처리하며 기기 시계로 정리를 강행하지 않는다. 로컬/데스크톱 모드는 기존 로컬 시계를 유지한다.
 
 검증 SHA `5092ee450bf71ba1bc07079c0632fa538027ce9e`에서 같은 셸의 `git rev-parse HEAD` 후 `pnpm typecheck && pnpm test && pnpm test:sites --project=chromium`: 종료 0. Vitest 172 + Node 347 = 519개, Sites Chromium 11/11. 로그 `/tmp/wonboard-expiry-clock-immutable-unit.log`, `/tmp/wonboard-expiry-clock-immutable-sites.log`. 브라우저는 기기 ±31일, 휴지통 진입→재열기→복원→재진입→명시적 영구 삭제와 사진 보존을 검증했다. 서버 시험은 구형/자동 요청, 기한 직전/정각, 실패 후 재시도와 사진 보존을 포함한다. 첫 브라우저 시행의 버튼 이름 오기와 비동기 복원 대기 누락은 시험에서 수정했고 최종 전체 실행으로 확인했다.
+# P1/P2 후속: 기존 미래 시각과 구형 철회의 원자성
+
+Codex 4027134412의 과거 `trashedAt=2099` 행은 서버가 기록한 DB `updated_at`보다 늦은 휴지통 시각을 그 기록으로 제한한다. GET·목록의 정본, PUT 최종 기한, variant/publish, 자동 DELETE가 같은 기한을 사용한다. 내부 읽기 결과는 원본 DB timestamp와 정규화 문서를 구분하므로 CAS는 저장된 원본을 검사하고 성공 저장은 정규화 값을 고정한다. 따라서 후속 저장의 updated_at이 바뀌어도 기한이 다시 늘어나지 않는다. 아직 한 번도 저장하지 않은 기존 행도 만료 판단과 자동 정리가 된다. 운영 마이그레이션은 실행하지 않았다.
+
+구형 withdraw 요청은 DELETE를 배치 첫 SQL로 실행해 기한을 한 번만 판정한다. 후속 사진 UPDATE는 `changes() = 1`일 때만 수행한다. [SQLite changes()](https://www.sqlite.org/lang_corefunc.html#changes)와 [D1 sequential transaction batch](https://developers.cloudflare.com/d1/worker-api/d1-database/#batch) 계약을 확인했고, 두 SQL 사이 시계가 만료 정각을 넘어도 둘 다 거부되거나 둘 다 성공함을 시험했다. 철회 UPDATE에 강제 ABORT를 넣으면 문서 DELETE까지 롤백된다.
+
+수정 전 두 반례는 각각 실패했다: 미래 timestamp가 그대로 반환됨(`/tmp/wonboard-expiry-legacy-red.log`), 첫 SQL 직전/둘째 정각에서 삭제만 200(`/tmp/wonboard-expiry-delete-atomic-red.log`). 최종 코드 SHA `be867acc06cd1f0335a932a05c11dad18e01b0ed`에서 같은 셸 `git rev-parse HEAD` 뒤 타입·전체 단위 523개(Vitest 176+Node 347)·Sites Chromium 11/11 종료 0. 로그 `/tmp/wonboard-expiry-legacy-immutable-unit.log`, `/tmp/wonboard-expiry-legacy-immutable-sites.log`. 새 문서 커밋에서는 코드 동일성을 검사한다. 실제 D1 계정 실행·운영 적용·머지는 별도다.
