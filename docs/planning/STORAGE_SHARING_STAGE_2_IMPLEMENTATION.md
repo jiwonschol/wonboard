@@ -81,3 +81,17 @@ P1 cherry-pick 시 테스트 라우팅 충돌은 `/shared/`와 `/__sites-test/`�
 파일 목록은 기존 배열 응답을 유지하면서 서버 시각 헤더를 제공한다. Sites 어댑터는 monotonic 시계에 고정하고 복귀 때 무효화·재동기화한다. 겹친 옛 요청은 최신 시각을 덮지 못한다. 보관함 복원/다운로드는 1초마다 기한을 갱신하고 실패한 동기화에는 비활성화한다. 로컬/데스크톱은 기존 로컬 시계를 유지한다.
 
 소유자 만료 반례는 수정 전 200(예상 410)으로 실패(`/tmp/wonboard-file-clock-red.log`). 위 고정 SHA에서 같은 셸 HEAD 확인 후 타입·전체 단위 553개(Vitest 206+Node 347)·Sites Chromium 17/17 종료 0. 로그 `/tmp/wonboard-file-clock-immutable-unit.log`, `/tmp/wonboard-file-clock-immutable-sites.log`. 브라우저 ±31일 오차·활성 화면의 만료 진행·복귀 실패 및 재시도 오류 해소, API 정각/직전·공개 공유·유효 문서 첨부 보존을 확인했다. 스냅샷/전체 작성기·운영 게이트는 여전히 남았다.
+
+## 독립 공유 글 스냅샷
+
+코드 `f35ac1ba40d0447415edb6e4b763c601ccd1f48d`에 스냅샷 생성과 보관함의 명시적 갱신·만료 변경·철회·재발급·삭제·비공개 보관본 보기를 연결했다. 초안과 현재 HTML 버전은 독립이며 초안 삭제도 공유를 지우지 않는다. HTML은 공통 렌더러로 한 번 생성해 저장한다. 공유 글만 영상을 원래 링크로 표시하고 기존 편집기/HTML 내보내기의 iframe 동작은 바꾸지 않았다.
+
+자산은 불변 사진 객체를 참조하고 가변 `/media/:id`를 넣지 않는다. HTML의 상대 자산 URL은 재발급된 토큰에서도 현재 버전을 읽게 한다. 갱신은 문서 revision/기한·공유 revision·첨부 공유 활성 상태를 최종 SQL에서 확인하고 새 버전/자산 참조와 포인터 교체를 한 트랜잭션에 넣는다. 자산 쓰기 실패 시 이전 HTML/버전으로 롤백한다. 다른 글·공개 사진·현재/유예 중 스냅샷의 객체는 정리가 보존한다.
+
+이전 버전 자산은 갱신 성공 시각부터 5분 미만일 때 옛 URL을 아는 누구나 읽는다. 5분 정각에는 404이며 부모 철회/만료/재발급의 옛 토큰은 유예보다 우선한다. 현재 고정본은 만료/철회 뒤에도 소유자 경로에서 유지한다. 공개/오류 응답 no-store, noindex, 스크립트/프레임/폼 금지 CSP를 사용한다. 이미 받은 바이트를 회수한다는 보장은 하지 않는다.
+
+기본 두 API 반례는 구현 전 실패(`/tmp/wonboard-snapshots-red.log`). 추가 시험은 자산 실패 롤백·최종 문서 revision 경쟁·파일 공개 거절/독립 철회·영상 링크·기한 정각/HEAD·익명 소유자 접근 거절을 포함한다. 영상 fixture의 privacyHash 누락과 한국어 버튼 fixture 오기를 고친 뒤 고정 SHA에서 재실행했다.
+
+같은 셸 HEAD 확인 후 타입·전체 단위 558개(Vitest 211+Node 347), 전체 Sites Chromium 18/18, Sites 빌드와 데스크톱 빌드 종료 0. 로그 `/tmp/wonboard-snapshots-immutable-unit.log`, `/tmp/wonboard-snapshots-immutable-sites.log`, `/tmp/wonboard-snapshots-immutable-build.log`, `/tmp/wonboard-snapshots-immutable-desktop-build.log`. Chromium은 실제 생성→초안 편집 뒤 불변→보관함 갱신→옛 자산 유지→철회→재발급 후 사진 표시를 확인했다. 한영 390px 및 영어 1440px, Escape 닫기, 페이지 오류 0과 모바일 가로 넘침 없음도 확인했다. 한영 모바일 스크린샷을 직접 읽었다. 실제 계정/CDN·macOS/Windows 실행이나 전체 일반 작성기 통과로 확장하지 않는다.
+
+통합 휴지통 필터, 정리 용량/상태 표시와 로컬 마이그레이션·호환 시험, 일반 작성기 전체 회귀는 남은 게이트다. #19 후속 통합도 담당자의 SHA를 기다린다.
