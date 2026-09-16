@@ -9,13 +9,21 @@ export function sitesTestPlugin(): Plugin {
     server.httpServer?.once("close", () => runtime.close());
     server.middlewares.use((req, res, next) => {
       const path = req.url?.split("?")[0] ?? "";
-      if (!path.startsWith("/api/") && !path.startsWith("/media/") && path !== "/__sites-test/reset") return next();
+      if (!path.startsWith("/api/") && !path.startsWith("/media/") && !path.startsWith("/__sites-test/")) return next();
       if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(req.headers.host ?? "") ||
           !["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress ?? "")) {
         res.writeHead(403); res.end(); return;
       }
       if (path === "/__sites-test/reset" && req.method === "POST") {
         runtime.close(); runtime = createSitesTestRuntime(); res.writeHead(204); res.end(); return;
+      }
+      const expiredFixture = /^\/__sites-test\/expired-document\/([a-zA-Z0-9_-]+)$/.exec(path);
+      if (expiredFixture && req.method === "POST") {
+        // Seed pre-existing expired data, not a client timestamp override. This
+        // loopback fixture module is never imported by the production worker.
+        runtime.sqlite.prepare("UPDATE documents SET body=json_set(body,'$.trashedAt',?) WHERE id=?")
+          .run(new Date(Date.now() - 31 * 86400000).toISOString(), expiredFixture[1]);
+        res.writeHead(204); res.end(); return;
       }
       void (async () => {
         const chunks: Buffer[] = [];

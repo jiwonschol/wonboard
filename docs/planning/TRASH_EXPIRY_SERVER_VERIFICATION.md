@@ -74,3 +74,10 @@ PR은 `Refs #8, #9`로 연결한다. 파일 보관함 2단계가 남아 이슈�
 같은 셸의 `git rev-parse HEAD`는 `662bc7af0aa7130967c85dc7948d95e8f5ef4d40`이었다. 이 HEAD에서 `pnpm typecheck && pnpm test`를 실행해 종료 0, Vitest 169/169 + Node 347/347 = 516개 통과를 확인했다. 로그는 `/tmp/wonboard-expiry-safe-final-unit.log`다. 이는 이 VPS에서 직접 실행한 결과이며 닝닝의 전체 시험이나 동준의 격리 10개 결과를 대신 인용한 것이 아니다. 앞의 격리 수정 전 510개와 구분한다.
 
 최종 검증 기록 커밋은 문서만 바꾸며 `[skip ci]`를 붙이지 않는다. 일반 Chromium의 세 실패와 실제 플랫폼 미검증은 여전히 남는다. 자동 체크가 없다는 사실을 CI 성공이나 머지 승인으로 바꾸지 않는다. #19 README의 양성 대조 문구 보완은 원 담당자가 별도로 진행 중이다.
+# P1 후속: 휴지통 시각의 서버 정본
+
+리뷰 코멘트 4026253742의 반례를 실제 PUT API와 메모리 SQLite로 재현했다. `pnpm exec vitest run`은 새 반례 2개가 실패했다(171개 중 169 통과): 최초/활성 문서의 미래 시각이 그대로 저장되고, 기존 시각 교체가 409 대신 200이었다. 로그 `/tmp/wonboard-expiry-p1-red.log`.
+
+최초 휴지통 진입( revision 0 포함)은 DB 시각으로 정규화하고 그 값을 응답한다. 이미 휴지통인 문서의 다른 시각 입력은 409이며, 동일 시각 저장과 속성 생략 복원은 기존 revision·만료 검사를 유지한다. 기존 만료 fixture는 테스트 전용 loopback 모듈에서 DB에 넣으며 운영 API로 기한을 조작하지 않는다. 구형 비 ISO DB 값 fixture도 직접 유지해 검사했다.
+
+수정본은 `63c2a673f7437f1f85b900c0cd44d137d3b12319` 위 미커밋 변경으로 `pnpm typecheck && pnpm test` 종료 0 (Vitest 171 + Node 347 = 518), `pnpm test:sites --project=chromium` 종료 0 (9/9). 로그 `/tmp/wonboard-expiry-p1-green.log`, `/tmp/wonboard-expiry-p1-sites.log`. 전체 일반 작성기·운영 시험 통과로 확장하지 않는다. 2단계 배포물 관리 정책은 별도 #23에 남긴다.

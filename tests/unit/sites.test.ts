@@ -19,6 +19,7 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
   it("lists the trash timestamp from document JSON", async () => {
     await setup();
     const document = { ...newDraft().document, trashedAt: "2026-09-15T00:00:00.000Z" };
+    databaseClock(Date.parse(document.trashedAt));
     expect((await call(`/api/documents/${document.documentId}`, "PUT", document)).status).toBe(200);
     const listed = await (await call("/api/documents")).json();
     expect(listed.documents[0].trashedAt).toBe(document.trashedAt);
@@ -45,6 +46,35 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
     }
   });
   async function setup() { expect((await call("/api/sites/setup", "POST", { accepted: true, locale: "ko" })).status).toBe(200); }
+  it("anchors new and active trash timestamps to the database clock", async () => {
+    await setup();
+    const now = Date.parse("2026-09-16T12:00:00.123Z");
+    databaseClock(now);
+    for (const initiallySaved of [false, true]) {
+      let document = newDraft().document;
+      const path = `/api/documents/${document.documentId}`;
+      if (initiallySaved) document = await (await call(path, "PUT", document)).json();
+      const saved = await (await call(path, "PUT", { ...document, trashedAt: "2099-01-01T00:00:00.000Z" })).json();
+      expect(saved.trashedAt).toBe(new Date(now).toISOString());
+      expect((await (await call(path)).json()).trashedAt).toBe(saved.trashedAt);
+    }
+  });
+  it("rejects trash timestamp replacement but accepts unchanged legacy saves and restoration", async () => {
+    await setup();
+    const now = Date.parse("2026-09-16T12:00:00.123Z");
+    const clock = databaseClock(now), document = newDraft().document;
+    const path = `/api/documents/${document.documentId}`;
+    let saved = await (await call(path, "PUT", { ...document, trashedAt: new Date(now).toISOString() })).json();
+    clock(now + 1000);
+    for (const replacement of ["2099-01-01T00:00:00.000Z", "2026-09-15T00:00:00.000Z"]) {
+      expect((await call(path, "PUT", { ...saved, trashedAt: replacement })).status).toBe(409);
+    }
+    saved = await (await call(path, "PUT", { ...saved, title: "legacy save" })).json();
+    expect(saved.trashedAt).toBe(new Date(now).toISOString());
+    const restored = await (await call(path, "PUT", { ...saved, trashedAt: undefined })).json();
+    expect(restored.trashedAt).toBeUndefined();
+    expect(restored.revision).toBe(saved.revision + 1);
+  });
   function databaseClock(initial: number) {
     let now = initial;
     runtime.sqlite.function("strftime", (format, value) => {
@@ -58,9 +88,10 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
   it("expires private content while preserving legacy cleanup metadata and public photos", async () => {
     const document = await photoDocument(), url = await publish(document);
     const path = `/api/documents/${document.documentId}`;
-    const expiry = Date.parse("2026-10-16T12:00:00.123Z"), clock = databaseClock(expiry - 1);
+    const expiry = Date.parse("2026-10-16T12:00:00.123Z"), clock = databaseClock(expiry - 30 * 86400000);
     const trashedAt = new Date(expiry - 30 * 86400000).toISOString();
     const trashed = await (await call(path, "PUT", { ...document, trashedAt })).json();
+    clock(expiry - 1);
     expect((await call(path)).status).toBe(200);
     clock(expiry);
     expect((await call(path)).status).toBe(410);
@@ -79,9 +110,10 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
   });
   it("rejects restoration when the SQL write reaches the deadline after the read", async () => {
     const document = await photoDocument(), path = `/api/documents/${document.documentId}`;
-    const expiry = Date.parse("2026-10-16T12:00:00.123Z"), clock = databaseClock(expiry - 1);
+    const expiry = Date.parse("2026-10-16T12:00:00.123Z"), clock = databaseClock(expiry - 30 * 86400000);
     const trashedAt = new Date(expiry - 30 * 86400000).toISOString();
     const trashed = await (await call(path, "PUT", { ...document, trashedAt })).json();
+    clock(expiry - 1);
     const prepare = runtime.env.DB.prepare.bind(runtime.env.DB);
     runtime.env.DB.prepare = sql => {
       const statement = prepare(sql);
@@ -97,8 +129,9 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
   it("checks expiry inside publication writes without withdrawing existing public photos", async () => {
     const document = await photoDocument(), url = await publish(document);
     const path = `/api/documents/${document.documentId}`;
-    const expiry = Date.parse("2026-10-16T12:00:00.123Z"), clock = databaseClock(expiry - 1);
+    const expiry = Date.parse("2026-10-16T12:00:00.123Z"), clock = databaseClock(expiry - 30 * 86400000);
     const trashed = await (await call(path, "PUT", { ...document, trashedAt: new Date(expiry - 30 * 86400000).toISOString() })).json();
+    clock(expiry - 1);
     const variant = await (await call(`${path}/media/photo/variant`, "PUT", syntheticPng)).json();
     const batch = runtime.env.DB.batch.bind(runtime.env.DB);
     runtime.env.DB.batch = statements => { clock(expiry); return batch(statements); };
@@ -108,8 +141,9 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
   it("allows restoration just before expiry and retains optimistic revision conflicts", async () => {
     const document = await photoDocument(), path = `/api/documents/${document.documentId}`;
     const expiry = Date.parse("2026-10-16T12:00:00.123Z");
-    databaseClock(expiry - 1);
+    const clock = databaseClock(expiry - 30 * 86400000);
     const trashed = await (await call(path, "PUT", { ...document, trashedAt: new Date(expiry - 30 * 86400000).toISOString() })).json();
+    clock(expiry - 1);
     expect((await call(path, "PUT", { ...document, trashedAt: undefined })).status).toBe(409);
     expect((await call(path, "PUT", { ...trashed, trashedAt: undefined })).status).toBe(200);
     expect((await (await call(path)).json()).trashedAt).toBeUndefined();
@@ -120,8 +154,9 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
     expect((await call("/api/media/second", "PUT", syntheticPng)).status).toBe(200);
     document.media.second = { ...document.media.photo, id: "second" };
     document.content.content!.push({ type: "media", attrs: { mediaId: "second" } });
-    const expiry = Date.parse("2026-10-16T12:00:00.123Z"), clock = databaseClock(expiry - 1);
+    const expiry = Date.parse("2026-10-16T12:00:00.123Z"), clock = databaseClock(expiry - 30 * 86400000);
     document = await (await call(path, "PUT", { ...document, trashedAt: new Date(expiry - 30 * 86400000).toISOString() })).json();
+    clock(expiry - 1);
     const variants: Record<string, string> = {};
     for (const id of ["photo", "second"]) {
       variants[id] = (await (await call(`${path}/media/${id}/variant`, "PUT", syntheticPng)).json()).hash;
@@ -139,8 +174,10 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
   });
   it("uses the stored timestamp including legacy Date.parse formats and does not trust revision zero", async () => {
     const document = await photoDocument(), path = `/api/documents/${document.documentId}`;
-    const expiry = Date.parse("2026-10-16T12:00:00.000Z"), clock = databaseClock(expiry - 1);
+    const expiry = Date.parse("2026-10-16T12:00:00.000Z"), clock = databaseClock(expiry - 30 * 86400000);
     const trashed = await (await call(path, "PUT", { ...document, trashedAt: new Date(expiry - 30 * 86400000).toUTCString() })).json();
+    trashed.trashedAt = new Date(expiry - 30 * 86400000).toUTCString();
+    runtime.sqlite.prepare("UPDATE documents SET body=? WHERE id=?").run(JSON.stringify(trashed), document.documentId);
     clock(expiry + 1);
     expect((await call(path, "PUT", { ...trashed, trashedAt: undefined, revision: 0 })).status).toBe(409);
     expect((await call(path, "PUT", { ...trashed, trashedAt: undefined })).status).toBe(410);
