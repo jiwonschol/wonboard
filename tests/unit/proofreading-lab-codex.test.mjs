@@ -99,8 +99,13 @@ function writeSentinel(dir){
  return {bin,logPath};
 }
 const readCalls=logPath=>existsSync(logPath)?readFileSync(logPath,'utf8').split('\n').filter(Boolean).map(line=>JSON.parse(line)):[];
+const readLines=logPath=>existsSync(logPath)?readFileSync(logPath,'utf8').split('\n').filter(Boolean):[];
 // Deliberately excludes every directory that could contain a real logged-in `codex`.
 const hermeticPath=(...dirs)=>[...dirs,'/usr/bin','/bin'].join(':');
+// The injected stub's own directory is NOT on PATH. Only the sentinel is reachable by name, so
+// reverting either call site from `command` back to the literal 'codex' resolves to the sentinel
+// and fails the test instead of quietly running the same stub. A pre-flight `X_OK` check already
+// covers the missing/non-executable paths, so those cases cannot catch that mutation.
 const labEnv=(...dirs)=>({...process.env,PATH:hermeticPath(...dirs),OPENAI_API_KEY:'SECRET',CODEX_API_KEY:'SECRET',GOOGLE_SERVICE_ACCOUNT_KEY_B64:'SECRET'});
 const SOURCE='<script> 됬어요.';
 const FINDINGS=[{original:'됬어요',occurrence:0,action:'correct',replacement:'됐어요',reason:'fixture'}];
@@ -127,13 +132,13 @@ test('Luna CLI uses the injected stub for auth and generation, audited by the pa
  symlinkSync(process.execPath,spacedNode);
  const dir=mkdtempSync(join(tmpdir(),'wonboard-luna-')),sentinelDir=mkdtempSync(join(tmpdir(),'wonboard-sentinel-'));
  const stub=writeStub(dir,{nodePath:spacedNode,findings:FINDINGS}),sentinel=writeSentinel(sentinelDir);
- const input=writeInput(dir),env=labEnv(dir,sentinelDir);
+ const input=writeInput(dir),env=labEnv(sentinelDir);
  assert.match(spacedNode,/ /,'this case must exercise an interpreter path containing a space');
 
  // Call limit is enforced before any runner is created: zero invocations.
  const denied=lab(input,join(dir,'denied'),['--live','--max-calls','2','--codex-bin',stub.bin],env);
  assert.equal(denied.status,1);assert(!existsSync(join(dir,'denied')));
- assert.deepEqual(readCalls(stub.logPath),[]);assert.deepEqual(readCalls(sentinel.logPath),[]);
+ assert.deepEqual(readCalls(stub.logPath),[]);assert.deepEqual(readLines(sentinel.logPath),[]);
 
  const out=join(dir,'out');
  const result=lab(input,out,['--live','--max-calls','3','--codex-bin',stub.bin],env);
@@ -158,7 +163,7 @@ test('Luna CLI uses the injected stub for auth and generation, audited by the pa
  // Parent-side audit of everything the stub actually received.
  const calls=readCalls(stub.logPath);
  assert.equal(calls.length,4,'1 login check + 3 generation calls');
- assert.deepEqual(readCalls(sentinel.logPath),[],'PATH must never be consulted');
+ assert.deepEqual(readLines(sentinel.logPath),[],'PATH must never be consulted');
  const [login,...execs]=calls;
  assert.equal(login.kind,'login');assert.deepEqual(login.argv,['login','status']);
  assert.equal(execs.length,3);
@@ -188,7 +193,7 @@ test('Luna CLI uses the injected stub for auth and generation, audited by the pa
   assert.equal(call.schema.additionalProperties,false);
   assert.equal(call.schema.properties.findings.items.additionalProperties,false);
   assert.match(call.cwd,/wonboard-luna-/,'each call gets its own isolated directory');
-  assert.equal(call.path,hermeticPath(dir,sentinelDir));
+  assert.equal(call.path,hermeticPath(sentinelDir));
  }
  assert.equal(new Set(execs.map(call=>call.cwd)).size,3,'no directory is reused across calls');
 
@@ -199,36 +204,36 @@ test('Luna CLI uses the injected stub for auth and generation, audited by the pa
  const afterRerun=readCalls(stub.logPath);
  assert.equal(afterRerun.filter(call=>call.kind==='exec').length,3,'a refused rerun makes no generation call');
  assert.equal(afterRerun.length,5,'only the local login check runs before the guard refuses');
- assert.deepEqual(readCalls(sentinel.logPath),[]);
+ assert.deepEqual(readLines(sentinel.logPath),[]);
 });
 
 test('A non-executable injected stub fails instead of falling through to PATH',()=>{
  const dir=mkdtempSync(join(tmpdir(),'wonboard-luna-')),sentinelDir=mkdtempSync(join(tmpdir(),'wonboard-sentinel-'));
  const stub=writeStub(dir,{findings:FINDINGS,mode:0o600}),sentinel=writeSentinel(sentinelDir);
  const out=join(dir,'out');
- const result=lab(writeInput(dir),out,['--live','--max-calls','3','--codex-bin',stub.bin],labEnv(dir,sentinelDir));
+ const result=lab(writeInput(dir),out,['--live','--max-calls','3','--codex-bin',stub.bin],labEnv(sentinelDir));
  assert.equal(result.status,1);
  assert.match(result.stderr,/Lab stopped/);
  assert.ok(!existsSync(out),'no output directory is created when the runner cannot execute');
  assert.deepEqual(readCalls(stub.logPath),[]);
- assert.deepEqual(readCalls(sentinel.logPath),[],'the later PATH entry must not be used');
+ assert.deepEqual(readLines(sentinel.logPath),[],'the later PATH entry must not be used');
 });
 
 test('A missing injected runner path fails instead of falling through to PATH',()=>{
  const dir=mkdtempSync(join(tmpdir(),'wonboard-luna-')),sentinelDir=mkdtempSync(join(tmpdir(),'wonboard-sentinel-'));
  const sentinel=writeSentinel(sentinelDir),out=join(dir,'out');
- const result=lab(writeInput(dir),out,['--live','--max-calls','3','--codex-bin',join(dir,'does-not-exist')],labEnv(dir,sentinelDir));
+ const result=lab(writeInput(dir),out,['--live','--max-calls','3','--codex-bin',join(dir,'does-not-exist')],labEnv(sentinelDir));
  assert.equal(result.status,1);
  assert.match(result.stderr,/Lab stopped/);
  assert.ok(!existsSync(out));
- assert.deepEqual(readCalls(sentinel.logPath),[]);
+ assert.deepEqual(readLines(sentinel.logPath),[]);
 });
 
 test('A failed turn stops the run with a diagnostic and no further calls',()=>{
  const dir=mkdtempSync(join(tmpdir(),'wonboard-luna-')),sentinelDir=mkdtempSync(join(tmpdir(),'wonboard-sentinel-'));
  const stub=writeStub(dir,{behavior:'turn-failed'}),sentinel=writeSentinel(sentinelDir);
  const failedOut=join(dir,'failed');
- const failed=lab(writeInput(dir),failedOut,['--live','--codex-bin',stub.bin],labEnv(dir,sentinelDir));
+ const failed=lab(writeInput(dir),failedOut,['--live','--codex-bin',stub.bin],labEnv(sentinelDir));
  assert.equal(failed.status,1,failed.stderr);
  assert.ok(existsSync(join(failedOut,'0000-diagnostic.json')));
  assert.ok(!existsSync(join(failedOut,'0001-started.json')),'a transport failure stops the run');
@@ -238,7 +243,7 @@ test('A failed turn stops the run with a diagnostic and no further calls',()=>{
  assert.match(diagnostic.stdout,/"type":"turn\.failed"/);
  const calls=readCalls(stub.logPath);
  assert.equal(calls.filter(call=>call.kind==='exec').length,1,'exactly one generation call was attempted');
- assert.deepEqual(readCalls(sentinel.logPath),[]);
+ assert.deepEqual(readLines(sentinel.logPath),[]);
 });
 
 test('A bare process.execPath shebang is not runnable when the path contains a space',()=>{
@@ -256,4 +261,22 @@ test('A bare process.execPath shebang is not runnable when the path contains a s
  const wrapped=spawnSync('/bin/sh',['-c',`exec ${shellQuote(spacedNode)} -e 'console.log("ran")'`],{encoding:'utf8'});
  assert.equal(wrapped.status,0,wrapped.stderr);
  assert.equal(wrapped.stdout.trim(),'ran');
+});
+
+test('Positive control: a bare-name lookup reaches the sentinel and fails loudly',()=>{
+ // Proves the harness above has teeth. Without `--codex-bin` the runner is resolved by name,
+ // so PATH decides. Only the sentinel is on PATH here; it records the call and exits 99.
+ // Reverting either call site in codex.mjs from `command` to the literal 'codex' makes the
+ // success and turn-failed tests take this path and fail, instead of re-running the same stub.
+ const dir=mkdtempSync(join(tmpdir(),'wonboard-luna-')),sentinelDir=mkdtempSync(join(tmpdir(),'wonboard-sentinel-'));
+ const stub=writeStub(dir,{findings:FINDINGS}),sentinel=writeSentinel(sentinelDir);
+ const out=join(dir,'out');
+ const result=lab(writeInput(dir),out,['--live','--max-calls','3'],labEnv(sentinelDir));
+ assert.equal(result.status,1);
+ assert.match(result.stderr,/Lab stopped/);
+ const sentinelCalls=readLines(sentinel.logPath);
+ assert.ok(sentinelCalls.length>0,'the sentinel must observe a bare-name lookup');
+ assert.match(sentinelCalls[0],/^login status$/);
+ assert.deepEqual(readCalls(stub.logPath),[],'the injected stub is never reached without --codex-bin');
+ assert.ok(!existsSync(out));
 });
