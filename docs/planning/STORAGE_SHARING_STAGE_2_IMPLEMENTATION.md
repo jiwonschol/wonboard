@@ -114,3 +114,6 @@ P1 cherry-pick 시 테스트 라우팅 충돌은 `/shared/`와 `/__sites-test/`�
 `pnpm test:e2e --project=chromium tests/e2e/resilience.spec.ts`는 Chromium 9/9,
 종료 0이었다. 이 결과는 전체 작성기 통과가 아니다. 맞춤법 및 스크린샷 경로 실패와
 기존 stage 2 미완료 항목은 별도다. Browser plugin not available: 저장소 Playwright를 사용했다.
+## 실행기 후속 통합 및 남은 리뷰 (2026-09-17)
+
+실행기 원본 c2acc52896b7180f487e6ff23dbb4f19f71311ca를 90d099afb1cf935ab096986b8124dbdc7ea63943로 통합. 같은 셸 HEAD 확인 후 타입·전체 단위 종료 0. 로그 /tmp/buzz-9-storage-sharing-runner-final.log. 실제 Windows 미검증. 최신 미해결 Codex: 4031781685(유예가 끝난 옛 스냅샷 HTML/자산 메타데이터 정리). 기존 stage 2 미완료 항목과 별개이며 머지하지 않음.
