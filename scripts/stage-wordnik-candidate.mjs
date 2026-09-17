@@ -20,7 +20,19 @@ export function parseWordnikWords(text) {
   return words;
 }
 
-export async function stageWordnikCandidate(fetchSource=fetch) {
+// Resolve the Wonboard own-license notice bytes.
+//
+// Staging passes down the buffer the shared policy check already verified, so the notice this
+// generator ships is byte-identical to the reviewed one. Reading ../LICENSE here instead meant a
+// bundle verified one copy and shipped a second read taken after that verification: a file changed
+// in between would reach the artifact while the policy report still said the reviewed bytes
+// passed. Standalone runs have no caller, so the default reads the repository file and
+// `node scripts/stage-wordnik-candidate.mjs` keeps its existing contract.
+export async function resolveOwnLicense({ownLicense=null,read=null}={}) {
+  return ownLicense??await (read??(()=>readFile(new URL('../LICENSE',import.meta.url))))();
+}
+
+export async function stageWordnikCandidate(fetchSource=fetch,options={}) {
   const acquired=[];
   for(const source of sources){
     const url=`https://raw.githubusercontent.com/wordnik/wordlist/${revision}/${source.file}`;
@@ -35,7 +47,7 @@ export async function stageWordnikCandidate(fetchSource=fetch) {
   const basics=englishBasicForms();
   const supplemented=[...new Set([...words,...basics])];
   const supplementedPayload=Buffer.from(JSON.stringify({en:supplemented})+'\n');
-  const ownLicense=await readFile(new URL('../LICENSE',import.meta.url));
+  const ownLicense=await resolveOwnLicense(options);
   const manifest={status:'candidate only; not approved for production',revision,license:'MIT',count:words.length,
     sources:acquired.map(({bytes,...source})=>({...source,size:bytes.length})),
     output:{file:'english.json',sha256:hash(payload),size:payload.length},
