@@ -1,6 +1,6 @@
 # 저장·공유 2단계 구현 기록
 
-담당 현철. 기준 main `e139408274d76a507eab397f1ebca7ac1d3fc395`. 전용 브랜치 `buzz/9-storage-sharing`. 2단계 전체 완료 문서가 아니라 진행 중인 구현·검증 기록이다.
+담당 현철. 기준 main `e139408274d76a507eab397f1ebca7ac1d3fc395`. 전용 브랜치 `buzz/9-storage-sharing`. 초기 구현부터 후속 보강까지의 기록이다. 최신 상태는 마지막 macOS 후속 절을 따른다. 실제 Site 운영 적용과 원격 최신 리뷰는 별도다.
 
 정본은 #9와 [작성/배포 분리 계약 PR #17](https://github.com/jiwonschol/wonboard/pull/17), [실행 계획 PR #16](https://github.com/jiwonschol/wonboard/pull/16)이다. 초안 삭제와 배포물 철회를 분리한다. 기존 철회 UI는 보관함의 대체 관리 경로를 제공할 때 함께 변경한다. 실제 운영 DB·업로드·삭제·배포는 하지 않는다.
 
@@ -117,3 +117,35 @@ P1 cherry-pick 시 테스트 라우팅 충돌은 `/shared/`와 `/__sites-test/`�
 ## 실행기 후속 통합 및 남은 리뷰 (2026-09-17)
 
 실행기 원본 c2acc52896b7180f487e6ff23dbb4f19f71311ca를 90d099afb1cf935ab096986b8124dbdc7ea63943로 통합. 같은 셸 HEAD 확인 후 타입·전체 단위 종료 0. 로그 /tmp/buzz-9-storage-sharing-runner-final.log. 실제 Windows 미검증. 최신 미해결 Codex: 4031781685(유예가 끝난 옛 스냅샷 HTML/자산 메타데이터 정리). 기존 stage 2 미완료 항목과 별개이며 머지하지 않음.
+
+## 남은 구현·리뷰 보강 — macOS, 2026-09-17
+
+지원의 작업 진행 요청에 따라 별도 worktree의 `codex/pr23-completion`에서 구현했다. original checkout의 미추적 `docs/.DS_Store`와 브랜치를 보존했다. main의 #19 실행기 격리와 #22 맞춤법 자료 정리를 통합하고 #18 휴지통 보강을 포함했다. 기존 글 삭제와 배포물의 독립 수명 계약은 유지한다. 과거 절의 미구현 상태는 당시 기록이다.
+
+현재 제품 코드: `af6df3246b5db1af8aea6cc7fbb86c49f9b1d97a`. 작성기/데스크톱/문서 패키지는 `932038cadd31a6dd8bd106b4ecdd177c841df24f`와 동일하다. 후속은 Sites 서버의 제한된 정리/참조 등록과 관련 시험만 변경했다.
+
+- 4031781685: 유예가 끝난 옛 스냅샷 HTML·자산 장부를 요청당 20개 버전씩 정리한다. 현재본은 철회·만료 뒤에도 소유자용으로 보존한다. 정각 직전/정각, 이후 바이트 정리 및 private current preview를 시험했다.
+- 4031859963, 4027902346: 복구 사본 결정 전에는 글 공유 생성/갱신과 파일 삽입을 막는다. 삽입 파일을 비동기로 읽은 뒤 편집기·문서·현재 읽기 전용 상태를 재확인한다. 복구가 끝난 뒤 정상 편집한다.
+- 4031859969: 이미 보관 해제한 파일 DELETE 재시도는 성공으로 취급한다. 아직 보관 중인 파일의 낡은 revision은 409를 유지한다.
+- 4031859973: 실제 객체 삭제 뒤 photo_variants 매핑 제거와 장부 완료를 같은 트랜잭션에서 처리한다. 지연 업로드를 막는 삭제 표식은 남긴다.
+- 4028085428: 스냅샷 생성/갱신의 마지막 트랜잭션은 사용한 파일 공유의 token과 revision도 검사한다. 렌더링 중 재발급한 옛 주소를 성공 스냅샷에 넣지 않는다.
+- 4027902320: ZIP의 document.json은 압축 해제 전에 32MiB 상한을 검사하고 해제 후에도 확인한다. 미지원 형식 읽기 전용 경로가 상한을 우회하지 못한다.
+
+통합 휴지통은 왼쪽 한 진입점에서 글/파일 필터를 제공한다. 보관함의 휴지통 버튼도 이 경로로 이동한다. 파일은 서버 기한과 복원 불가 상태를 표시한다. 한·영 × 390/1440px에서 복원 버튼·필터·넘침을 확인했다.
+
+Sites 보관함은 추적 바이트·정리/재시도 대기·업로드 예약·남아 있는 이유를 표시한다. 계정 총량/잔여량을 추정하지 않으며 미등록 private 원본과 기존 크기 미확인 객체는 구분한다. 실제 확보한 용량은 R2 존재/크기를 읽고 삭제 성공을 확인한 바이트다. 이미 없는 삭제 표식 재처리는 0바이트이고, 물리 삭제 성공 후 DB 완료 실패는 실제 확보 바이트와 재시도 필요 상태를 함께 표시한다. 브라우저/데스크톱의 독립 보관 원본과 문서 안 휴대 가능한 사본은 별개이며, 전역 중복 제거/계정 총량 계산을 주장하지 않는다.
+
+추가 마이그레이션 `apps/server/src/sites/migrations/0002-storage-sharing.sql`은 기존 스키마의 문서·게시 주소를 변경하지 않는 추가 방식이고 재적용해도 체크포인트를 초기화하지 않는다. owner 요청마다 최대 20개 문서/게시 주소를 등록하고 큰 본문은 하나씩 읽는다. 완료 표식과 해석 실패 기록을 남긴다. 완료 전과 미지원/깨진 문서가 있을 때 기존 public key 정리는 보류한다. 명시적 재등록 버튼으로 처음부터 다시 읽을 수 있다. 기존 private 사진 원본은 수집 대상에 넣지 않는다. 로컬 inventory fixture는 미등록 key를 보존으로 분류할 뿐 운영 삭제를 수행하지 않는다.
+
+### 이번 실행 증거
+
+- `pnpm typecheck`: 종료 0 (`/private/tmp/wonboard-pr23-types-retry.log`).
+- `pnpm test`: Vitest 222 + Node 363 = 585개, 종료 0 (`/private/tmp/wonboard-pr23-units-retry.log`).
+- `pnpm test:sites`: Chromium·Firefox·WebKit 각 26개, 전체 78/78, 종료 0 (`/private/tmp/wonboard-pr23-sites-78.log`). 초기 실행은 대역 수정 중 서버 재시작으로 중단했고 다음 실행의 6개 시계 사례는 저장 전 reload로 실패했다. 이동 완료와 서버 저장 확인 대기를 적용한 최종 실행에서 모두 통과했다.
+- `pnpm test:e2e --project=chromium`: 전체 작성기 173/173, 종료 0 (`/private/tmp/wonboard-pr23-writer-final.log`). 합성 로그인으로 실행했으며 원본 사용자 계정·문서를 사용하지 않았다.
+- `pnpm build:sites`: 최신 서버 코드에서 종료 0 (`/private/tmp/wonboard-pr23-sites-build-retry.log`).
+- 한·영 390px 공통 휴지통 화면과 macOS Electron 글/파일 화면을 직접 확인했다. 한·영 × 390/1440px bbox 검사는 브라우저 시험에 포함된다.
+- 브라우저·Sites·Electron 빌드: `932038c`에서 모두 종료 0. 이후 client/desktop/package 코드 동일성을 `git diff 932038c HEAD -- apps/client apps/desktop packages`로 확인했다.
+- macOS Electron 44.3.0 개발 런타임: `/private/tmp/wonboard-pr23-electron-proof`의 독립 userData에서 한·영 글 작성→저장, 파일 IPC 업로드→커서 삽입, 종료→재실행 후 글/첨부/보관함 복원, page error 0. 종료 0 (`/private/tmp/wonboard-pr23-desktop-runtime-second.log`). `test-results/desktop-proof.png` 직접 확인. 임시 하네스 첫 실행은 잘못된 Electron 모듈 경로로 실패했고 수정 후 재실행했다. 패키징/서명된 설치 앱·Windows/IME 증거로 확장하지 않는다.
+
+운영 DB 적용·실제 Site 계정/다른 계정·CDN·재배포·Windows/IME는 미검증이며 승인 없이 실행하지 않았다. 실제 Site 검증은 계획대로 별도 환경 게이트다. 자동 승인 검토가 기존 PR 브랜치 push의 명시 권한 부족으로 업로드를 거부했다. 따라서 로컬 커밋과 PR 본문 초안만 준비하고, 원격 최신 리뷰/머지는 업로드 승인 이후로 남겼다. #8/#9 운영 검증과 연계 이슈를 닫지 않는다.
