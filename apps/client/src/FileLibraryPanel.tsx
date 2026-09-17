@@ -5,7 +5,7 @@ import { fileExpired, type FileLibrary, type LibraryFile, type FileShare, type D
 
 export function FileLibraryPanel({ library, locale, picking, onInsert, onClose, beforeWritingUpdate, embeddedTrash = false, onTrash, canUpdateWriting = true }: {
   library: FileLibrary; locale: Locale; picking: boolean;
-  onInsert(ids: string[]): Promise<void>; onClose(): void;
+  onInsert(ids: string[], files: LibraryFile[]): Promise<void>; onClose(): void;
   canUpdateWriting?: boolean; embeddedTrash?: boolean; onTrash?(): void;
   beforeWritingUpdate?(documentId: string): Promise<boolean>;
 }) {
@@ -17,6 +17,7 @@ export function FileLibraryPanel({ library, locale, picking, onInsert, onClose, 
   const [cleanup, setCleanup] = useState("");
   const [photos, setPhotos] = useState<DistributedPhoto[]>([]);
   const [writings, setWritings] = useState<SharedWriting[]>([]);
+  const errorNotice = useRef<HTMLParagraphElement>(null);
   const [error, setError] = useState(""), [selected, setSelected] = useState<string[]>([]);
   const [clockError, setClockError] = useState("");
   const [failed, setFailed] = useState<File[]>([]), [renaming, setRenaming] = useState<string | null>(null), [name, setName] = useState("");
@@ -30,6 +31,9 @@ export function FileLibraryPanel({ library, locale, picking, onInsert, onClose, 
       setUsage(usage); setFiles(files); setShares(shared); setPhotos(pictures); setWritings(writings); setNow(library.now?.() ?? Date.now()); setClockError("");
     } catch (error) { if (version === refreshVersion.current) throw error; }
   };
+  useEffect(() => {
+    if (error || clockError) errorNotice.current?.scrollIntoView({ block: "center" });
+  }, [error, clockError]);
   const report = (error: unknown) => setError(error instanceof Error && Object.hasOwn(en, error.message) ? error.message : "storageFailed");
   useEffect(() => {
     let active = true;
@@ -96,7 +100,7 @@ export function FileLibraryPanel({ library, locale, picking, onInsert, onClose, 
       </> : null}
       <input type="search" aria-label={t("search")} placeholder={t("search")} value={query} onChange={event => setQuery(event.target.value)} />
       {library.sharing && !embeddedTrash ? <><p>{t("shareFileNotice")}</p><label>{t("shareExpiry")}<input type="datetime-local" value={expiry} onChange={event => setExpiry(event.target.value)} /></label></> : null}
-      {error || clockError ? <p role="alert">{t((error || clockError) as MessageKey)} <button disabled={busy} onClick={() => void run(refresh)}>{t("trashRetry")}</button></p> : null}
+      {error || clockError ? <p ref={errorNotice} role="alert">{t((error || clockError) as MessageKey)} <button disabled={busy} onClick={() => void run(refresh)}>{t("trashRetry")}</button></p> : null}
       {failed.length ? <div role="status">{failed.map(file => file.name).join(", ")} <button disabled={busy} onClick={() => void upload(failed)}>{t("fileRetry")}</button></div> : null}
       {loading ? <p role="status">{t("loading")}</p> : distributed ? <ul className="file-library-list">{shares.filter(share => (share.filename ?? share.fileId).toLocaleLowerCase(locale).includes(query.toLocaleLowerCase(locale))).map(share => <li key={share.id}>
         <strong className="file-library-name">{share.filename ?? share.fileId}</strong>
@@ -160,7 +164,7 @@ export function FileLibraryPanel({ library, locale, picking, onInsert, onClose, 
           {(object.bytes / 1048576).toFixed(2)} MiB — {object.reasons.map(reason => t(("storageReason" + reason[0].toUpperCase() + reason.slice(1)) as MessageKey)).join(", ") || t("storageReasonPending")}</li>)}</ul>
       </details> : null}
       {library.sharing ? <><button disabled={busy} onClick={() => void run(async () => { const result = await library.sharing!.cleanup(); setCleanup(t("cleanupResult", { ...result, bytes: (result.reclaimedBytes / 1048576).toFixed(2) })); })}>{t("cleanupFiles")}</button><p role="status">{cleanup}</p></> : null}
-      {picking && !distributed ? <footer><button disabled={busy || !selected.length || trash} onClick={() => void run(() => onInsert(selected))}>{t("fileInsert")}</button></footer> : null}
+      {picking && !distributed ? <footer><button disabled={busy || !selected.length || trash} onClick={() => void run(() => onInsert(selected, files.filter(file => selected.includes(file.id))))}>{t("fileInsert")}</button></footer> : null}
     </section>
   </div>;
 }

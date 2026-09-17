@@ -120,6 +120,27 @@ describe("Sites independent file distribution", () => {
       expect(f.sqlite.prepare("SELECT count(*) AS count FROM file_objects").get()!.count).toBe(1);
     } finally { vi.unstubAllGlobals(); library.close(); f.close(); }
   });
+  it("uses a fresh upload ID after a lost-response upload is deleted and definitively rejected", async () => {
+    const f = await fixture(), library = openSitesFileLibrary(); let loseResponse = true;
+    vi.stubGlobal("fetch", async (path: string, init: RequestInit = {}) => {
+      const headers = new Headers(init.headers); headers.set("origin", "https://site.test"); headers.set("oai-authenticated-user-id", "owner-fixture");
+      const response = await handleSitesRequest(new Request(new URL(path, "https://site.test"), { ...init, headers }), f.env);
+      if (init.method === "PUT" && loseResponse) { loseResponse = false; throw new Error("lost response"); }
+      return response;
+    });
+    try {
+      const input = new File(["retry upload"], "retry.txt", { type: "text/plain" });
+      await expect(library.upload(input)).rejects.toThrow("lost response");
+      const [committed] = await library.list();
+      expect((await f.call(`/api/files/${committed.id}`, "PATCH", { revision: committed.revision, trashedAt: "requested" })).status).toBe(200);
+      expect((await f.call(`/api/files/${committed.id}`, "DELETE", { revision: committed.revision + 1 })).status).toBe(200);
+      await expect(library.upload(input)).rejects.toThrow("storageConflict");
+      const saved = await library.upload(input);
+      expect(saved.id).not.toBe(committed.id);
+      expect(await library.list()).toHaveLength(1);
+      expect(f.sqlite.prepare("SELECT count(*) AS count FROM file_objects").get()!.count).toBe(2);
+    } finally { vi.unstubAllGlobals(); library.close(); f.close(); }
+  });
   it("reports share activity from SQLite time and accepts repeated successful deletion", async () => {
     const f = await fixture();
     const expiry = new Date(Date.now() + 3600000).toISOString();

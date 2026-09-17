@@ -31,7 +31,7 @@ import { type StorageMode } from "./draftRepository";
 import { publications } from "./publishing";
 import { TrashDialog } from "./TrashDialog";
 import { clearRecovery, recoveryMode } from "./recoveryCache";
-import { openBrowserFileLibrary, type FileLibrary } from "./fileLibrary";
+import { openBrowserFileLibrary, validateLibraryInsertion, type LibraryFile, type FileLibrary } from "./fileLibrary";
 import { FileLibraryPanel } from "./FileLibraryPanel";
 import { openSitesFileLibrary } from "./sitesFileLibrary";
 import { openDesktopFileLibrary } from "./desktopFileLibrary";
@@ -107,13 +107,23 @@ export default function App({
     fileTarget.current = null;
     setFilePanel(null);
   }
-  async function insertLibraryFiles(ids: string[]) {
+  async function insertLibraryFiles(ids: string[], filesToInsert: LibraryFile[]) {
     const target = fileTarget.current;
     if (!target || !fileLibrary || writerState.current.readOnly || writerState.current.recovery.length || !target.editor.isEditable) throw new Error("fileInsertChanged");
+    const metadata = new Map(filesToInsert.map(file => [file.id, file]));
+    const selected = ids.map(id => {
+      const file = metadata.get(id);
+      if (!file) throw new Error("missingFile");
+      return file;
+    });
+    const before = writer.snapshot();
+    if (!before || before.document.documentId !== target.documentId) throw new Error("fileInsertChanged");
+    validateLibraryInsertion(before.document, selected);
     const loaded = [];
-    for (const id of ids) {
+    for (const [index, id] of ids.entries()) {
       const item = await fileLibrary.load(id);
-      if (item.file.trashedAt) throw new Error("missingFile");
+      selected[index] = item.file;
+      validateLibraryInsertion(before.document, selected);
       loaded.push(item);
     }
     const snapshot = writer.snapshot();

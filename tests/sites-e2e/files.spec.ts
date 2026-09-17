@@ -112,6 +112,32 @@ test("Sites persists file references through insertion and reload without publis
   expect(await (await request.get("/api/file-shares", { headers: owner })).json()).toEqual([]);
 });
 
+for (const locale of ["en", "ko"] as const) for (const width of [1440, 390]) test(`oversized file selections fail before downloading originals in ${locale} at ${width}px`, async ({ page }, info) => {
+  const files = Array.from({ length: 12 }, (_, i) => ({ id: `large-${i}`, originalName: `large-${i}.txt`, filename: `large-${i}.txt`, mime: "text/plain", size: 20 * 1024 * 1024, sha256: "a".repeat(64), revision: 1, createdAt: new Date().toISOString() }));
+  await page.route(/\/api\/files$/, route => route.fulfill({ json: files, headers: { "X-Wonboard-Server-Now": String(Date.now()) } }));
+  let downloads = 0;
+  await page.route(/\/api\/files\/large-\d+(?:\/content)?$/, route => { downloads++; return route.abort(); });
+  await page.goto("/");
+  await expect(page.getByRole("textbox", { name: "Document body" })).toBeVisible();
+  await page.getByRole("tab", { name: "Attachments 0", exact: true }).click();
+  await page.locator(".attachments-panel").getByRole("button", { name: "File library", exact: true }).click();
+  const panel = page.getByRole("dialog", { name: "File library", exact: true });
+  await page.locator(".admin-bar select").selectOption(locale);
+  await page.setViewportSize({ width, height: 900 });
+  const localizedPanel = page.getByRole("dialog", { name: locale === "en" ? "File library" : "파일 보관함", exact: true });
+  for (const file of files) await localizedPanel.getByRole("checkbox", { name: file.filename, exact: true }).check();
+  await localizedPanel.getByRole("button", { name: locale === "en" ? "Insert selected files" : "선택한 파일 넣기" }).click();
+  const alert = localizedPanel.getByRole("alert");
+  await expect(alert).toContainText("220 MiB");
+  await expect.poll(async () => { const box = await alert.boundingBox(); return box !== null && box.y >= 0 && box.y + box.height <= 900; }).toBe(true);
+  const box = await alert.boundingBox();
+  expect(box!.x).toBeGreaterThanOrEqual(0); expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+  expect(await alert.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath(`insertion-limit-${locale}-${width}.png`) });
+  expect(downloads).toBe(0);
+  await expect(page.locator(".tiptap .wb-file")).toHaveCount(0);
+});
+
 for (const locale of ["en","ko"] as const) for (const width of [1440,390]) test(`one trash entry filters writing and files in ${locale} at ${width}px`, async ({page,request},info)=>{
   const file=await (await request.put("/api/files/unified-file?name=long-file-name-for-retention.txt",{headers:{...owner,"Content-Type":"text/plain"},data:"retained"})).json();
   await request.patch("/api/files/unified-file",{headers:owner,data:{revision:file.revision,trashedAt:"requested"}});

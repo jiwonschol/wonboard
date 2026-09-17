@@ -1,10 +1,20 @@
 import "fake-indexeddb/auto";
 import { describe, expect, it, vi } from "vitest";
-import { openBrowserFileLibrary } from "../../apps/client/src/fileLibrary";
-import { newDraft } from "@wonboard/document";
+import { openBrowserFileLibrary, validateLibraryInsertion } from "../../apps/client/src/fileLibrary";
+import { newDraft, limits, type LibraryFile } from "@wonboard/document";
 import { openStorage, saveDraft, loadDrafts, removeDraft } from "../../apps/client/src/storage";
 
 describe("independent browser file library", () => {
+  it("rejects oversized selections from metadata and counts existing attachment IDs once", () => {
+    const document = newDraft().document;
+    const file = (id: string, size: number): LibraryFile => ({ id, size, mime: "text/plain", originalName: `${id}.txt`, filename: `${id}.txt`, sha256: "a".repeat(64), revision: 1, createdAt: document.updatedAt });
+    const large = Array.from({ length: 12 }, (_, i) => file(`large-${i}`, limits.fileBytes));
+    expect(() => validateLibraryInsertion(document, large)).toThrow("attachmentLimit");
+    expect(() => validateLibraryInsertion(document, Array.from({ length: 101 }, (_, i) => file(`file-${i}`, 1)))).toThrow("attachmentLimit");
+    document.files = Object.fromEntries(large.slice(0, 11).map(file => [file.id, file]));
+    expect(() => validateLibraryInsertion(document, [large[0]])).not.toThrow();
+    expect(() => validateLibraryInsertion(document, [large[11]])).toThrow("attachmentLimit");
+  });
   it("retains duplicate names as different objects and renames without changing identity or bytes", async () => {
     const library = await openBrowserFileLibrary(crypto.randomUUID());
     try {

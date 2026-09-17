@@ -17,13 +17,19 @@ function legacy() {
   f.sqlite.exec(readFileSync(new URL("../../apps/server/src/sites/migrations/0001-trash-provenance.sql", import.meta.url), "utf8"));
   f.sqlite.exec(migration); return f;
 }
+async function finishBackfill(f: ReturnType<typeof legacy>) {
+  for (let i = 0; i < 12; i++) {
+    const status = await backfillStoragePage(f.env);
+    if (status.phase === "complete") return status;
+  }
+  throw new Error("backfill did not finish");
+}
 describe("additive Sites storage migration and bounded indexing", () => {
   it("preserves IDs, URLs and restart checkpoints when the migration is reapplied", async () => {
     const f=legacy(); try {
-      const first=await backfillStoragePage(f.env); expect(first).toMatchObject({phase:"documents",cursor:"legacy-19",complete:false});
+      const first=await backfillStoragePage(f.env); expect(first).toMatchObject({phase:"documents",cursor:"legacy-03",complete:false});
       f.sqlite.exec(migration); expect(await backfillStatus(f.env)).toEqual(first);
-      expect(await backfillStoragePage(f.env)).toMatchObject({phase:"publications",complete:false});
-      expect(await backfillStoragePage(f.env)).toMatchObject({phase:"complete",complete:true});
+      expect(await finishBackfill(f)).toMatchObject({phase:"complete",complete:true});
       expect(f.sqlite.prepare("SELECT public_id,blob_key FROM publications").get()).toMatchObject({public_id:"old-url",blob_key:"publications/old/photo/hash"});
       expect(f.sqlite.prepare("SELECT count(*) AS count FROM documents").get()!.count).toBe(25);
       expect(f.sqlite.prepare("SELECT object_key,size FROM file_objects").get()).toMatchObject({object_key:"publications/old/photo/hash",size:0});
@@ -35,7 +41,7 @@ describe("additive Sites storage migration and bounded indexing", () => {
       await expect(backfillStoragePage(f.env)).rejects.toThrow("fixture interruption");
       expect(await backfillStatus(f.env)).toMatchObject({cursor:"",revision:1});
       f.sqlite.exec("DROP TRIGGER interrupt_page");
-      expect(await backfillStoragePage(f.env)).toMatchObject({cursor:"legacy-19",revision:2});
+      expect(await backfillStoragePage(f.env)).toMatchObject({cursor:"legacy-03",revision:2});
     } finally {f.close();}
   });
   it("retains unindexed legacy bytes when a document is unreadable and allows an explicit reindex", async () => {
@@ -43,7 +49,7 @@ describe("additive Sites storage migration and bounded indexing", () => {
       // Bypass the new write validator only in this old-data fixture.
       f.sqlite.exec("DROP TRIGGER document_files_update");
       f.sqlite.prepare("UPDATE documents SET body='null' WHERE id='legacy-00'").run();
-      await backfillStoragePage(f.env); await backfillStoragePage(f.env); await backfillStoragePage(f.env);
+      await finishBackfill(f);
       expect(await backfillStatus(f.env)).toMatchObject({phase:"complete",complete:false,failures:1});
       f.sqlite.prepare("DELETE FROM publications").run();
       await f.env.MEDIA.put("publications/old/photo/hash",new Uint8Array([1,2,3]).buffer);
@@ -52,10 +58,38 @@ describe("additive Sites storage migration and bounded indexing", () => {
       const repaired=newDraft("en").document; repaired.documentId="legacy-00";repaired.revision=1;
       f.sqlite.prepare("UPDATE documents SET body=? WHERE id='legacy-00'").run(JSON.stringify(repaired));
       expect((await call("/api/files/backfill",{restart:true})).status).toBe(200);
-      await backfillStoragePage(f.env); await backfillStoragePage(f.env);
+      await finishBackfill(f);
       expect(await backfillStatus(f.env)).toMatchObject({complete:true,failures:0});
       expect((await call("/api/files/cleanup")).status).toBe(200); expect(f.files.size).toBe(0);
     } finally {f.close();}
+  });
+  it("indexes 100-file documents within a bounded SQL batch and resumes every page", async () => {
+    const f = legacy(); try {
+      f.sqlite.exec("DROP TRIGGER document_files_update");
+      const files = Object.fromEntries(Array.from({ length: 100 }, (_, i) => {
+        const id = `file-${i}`, file = { id, originalName: `${id}.txt`, filename: `${id}.txt`, mime: "text/plain", size: 1, sha256: "a".repeat(64), revision: 1, createdAt: "2026-09-01T00:00:00.000Z" };
+        f.sqlite.prepare("INSERT INTO file_objects(id,object_key,state,lease_until,size) VALUES(?,?,'ready',0,1)").run(id, `files/${id}`);
+        f.sqlite.prepare("INSERT INTO library_files(id,object_id,body,filename,revision,created_at,pinned) VALUES(?,?,?,?,1,0,1)").run(id, id, JSON.stringify(file), file.filename);
+        return [id, file];
+      }));
+      for (const row of f.sqlite.prepare("SELECT id,body FROM documents").all()) {
+        const document = JSON.parse(String(row.body)); document.files = files;
+        f.sqlite.prepare("UPDATE documents SET body=? WHERE id=?").run(JSON.stringify(document), row.id);
+      }
+      for (let i = 0; i < 25; i++) f.sqlite.prepare("INSERT INTO publications(public_id,document_id,media_id,blob_key,published) VALUES(?,'legacy-00',?,?,1)")
+        .run(`public-copy-${i}`, `photo-${i}`, `publications/legacy-00/photo-${i}/hash`);
+      const batch = f.env.DB.batch.bind(f.env.DB), prepare = f.env.DB.prepare.bind(f.env.DB); let calls = 0;
+      f.env.DB.prepare = sql => { calls++; return prepare(sql); };
+      f.env.DB.batch = async statements => { expect(statements.length).toBeLessThanOrEqual(13); return batch(statements); };
+      for (let i = 0; i < 12; i++) {
+        calls = 0; const status = await backfillStoragePage(f.env);
+        expect(calls).toBeLessThanOrEqual(50);
+        if (status.phase === "complete") break;
+      }
+      expect(await backfillStatus(f.env)).toMatchObject({ complete: true, failures: 0 });
+      expect(f.sqlite.prepare("SELECT count(*) AS count FROM document_file_refs").get()!.count).toBe(2500);
+      expect(f.sqlite.prepare("SELECT count(*) AS count FROM file_objects WHERE object_key LIKE 'publications/%'").get()!.count).toBe(26);
+    } finally { f.close(); }
   });
   it("plans an inventory without declaring unknown originals or abandoned keys safe to delete",()=>{
     const result=classifyStorageInventory([{key:"media/old-private-photo",size:3},{key:"abandoned-upload",size:4},{key:"files/known",size:5}],new Set(["files/known"]));

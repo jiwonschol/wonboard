@@ -1,4 +1,4 @@
-import { limits, sha256, type LibraryFile, type FileChange } from "@wonboard/document";
+import { limits, sha256, DocumentError, type WriterDocument, type LibraryFile, type FileChange } from "@wonboard/document";
 export type { LibraryFile, FileChange } from "@wonboard/document";
 import { StorageConflict } from "./storage";
 
@@ -34,6 +34,22 @@ export type FileLibrary = {
     changePhoto(photo: DistributedPhoto, action: "revoke" | "delete"): Promise<void>;
   };
 };
+/** Check library metadata before downloading the selected originals. */
+export function validateLibraryInsertion(document: WriterDocument, selected: LibraryFile[]) {
+  const attachments = new Map<string, { size: number; image: boolean }>([
+    ...Object.values(document.media).map(file => [file.id, { size: file.size, image: true }] as const),
+    ...Object.values(document.files ?? {}).map(file => [file.id, { size: file.size, image: false }] as const),
+  ]);
+  for (const file of selected) {
+    if (file.trashedAt) throw new Error("missingFile");
+    if (!Number.isSafeInteger(file.size) || file.size < 0 || file.size > limits.fileBytes) throw new Error("fileLimit");
+    attachments.set(file.id, { size: file.size, image: ["image/png", "image/jpeg"].includes(file.mime) });
+  }
+  const values = [...attachments.values()], images = values.filter(file => file.image).length;
+  if (images > limits.images) throw new DocumentError("imageLimit");
+  if (values.length - images > limits.files) throw new Error("attachmentLimit");
+  if (values.reduce((sum, file) => sum + file.size, 0) > limits.mediaBytes) throw new Error("attachmentLimit");
+}
 type StoredFile = { file: LibraryFile; bytes: ArrayBuffer };
 const retention = 30 * 86400000;
 export const fileExpired = (file: LibraryFile, now = Date.now()) =>

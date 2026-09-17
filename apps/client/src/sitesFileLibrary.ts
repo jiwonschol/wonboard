@@ -1,3 +1,4 @@
+import { StorageConflict } from "./storage";
 import { sha256 } from "@wonboard/document";
 import { sitesRequest, openDraftRepository } from "./draftRepository";
 import { prepareImageVariants } from "./publishing";
@@ -65,11 +66,17 @@ export function openSitesFileLibrary(): FileLibrary {
       const prepared = uploads.get(input) ?? await prepareFile(input);
       uploads.set(input, prepared);
       const { file, bytes } = prepared;
-      const result = await (await sitesRequest(`/api/files/${file.id}?name=${encodeURIComponent(file.originalName)}`, {
-        method: "PUT", headers: { "Content-Type": file.mime }, body: bytes,
-      })).json();
-      uploads.delete(input);
-      return result;
+      try {
+        const result = await (await sitesRequest(`/api/files/${file.id}?name=${encodeURIComponent(file.originalName)}`, {
+          method: "PUT", headers: { "Content-Type": file.mime }, body: bytes,
+        })).json();
+        uploads.delete(input);
+        return result;
+      } catch (error) {
+        // A lost response may have committed this ID; a definitive conflict cannot.
+        if (error instanceof StorageConflict) uploads.delete(input);
+        throw error;
+      }
     },
     async change(id, revision, change) {
       return (await sitesRequest(`/api/files/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision, ...change }) })).json();
