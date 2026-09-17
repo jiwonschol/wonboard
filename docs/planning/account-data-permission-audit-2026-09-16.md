@@ -69,7 +69,11 @@ recoveryCache.ts:5  IndexedDB name = "wonboard-sites-recovery-v1"
 
 `SitesGate.tsx:71-73` 은 `window.location.assign(...)` 을 부르고 **곧바로 `true` 를 반환한다.** 이후 플랫폼 사인아웃 요청이나 탐색이 성공했는지를 전혀 관측하지 않는다. `App.tsx:245-246` 은 `if (!(await onLogout())) setNotice("logoutFailed"); else if (...) await clearRecovery();` 이므로, `clearRecovery()` 의 실제 발동 조건은 「로그아웃 성공」이 아니라 **「사인아웃 리다이렉트를 시작했다」** 이다. 사인아웃 요청이나 탐색이 실패해도 `clearRecovery()` 는 이미 돌 수 있다.
 
-데이터 보유 감사에서 이 차이는 실질적이다. 이 문서와 3차 코멘트가 말한 「로컬 회수 자료 삭제 ↔ 로그아웃 완료」의 결합을 **현재 코드는 보장하지 못한다.** 따라서 표의 이 행은 「로그아웃 성공 시 전부 삭제」가 아니라 「Sites 사인아웃 리다이렉트 시작 시 전부 삭제(성공 여부 미관측)」로 적어야 한다. 코드 수정은 이 문서의 범위가 아니고 `SitesGate.tsx`·`App.tsx` 는 별도 담당 소유이므로, 여기에는 관측된 계약만 기록한다.
+데이터 보유 감사에서 이 차이는 실질적이다. 이 문서와 3차 코멘트가 말한 「로컬 회수 자료 삭제 ↔ 로그아웃 완료」의 결합을 **현재 코드는 보장하지 못한다.** 따라서 표의 이 행은 「로그아웃 성공 시 전부 삭제」가 아니라 「Sites 사인아웃 리다이렉트 시작 후 삭제 시도(성공 여부 미관측)」로 적어야 한다.
+
+**삭제 자체도 보장이 아니라 시도다.** `recoveryCache.ts:54-57` 은 `await pending.catch(() => {})` 뒤에 `transaction<void>("readwrite", store => { store.clear(); })` 를 반환한다. IndexedDB 를 열지 못하거나 clear 트랜잭션이 abort 하면 이 Promise 는 거부되고 **사본은 그대로 남는다.** `App.tsx:241-249` 의 `logout()` 은 `try { … await clearRecovery(); } finally { setBusy(false); }` 로 **거부를 잡지 않고 삭제 완료를 확인하지 않는다.** 게다가 그 시점에는 `SitesGate.tsx:71-73` 이 이미 `window.location.assign(...)` 을 불렀으므로 **탐색이 비동기 트랜잭션과 레이스한다.**
+
+결국 관측되지 않는 것이 둘이다 — 사인아웃 성공, 그리고 삭제 완료. 둘 중 하나라도 실패하면 로컬 회수 자료가 남는데 사용자에게는 로그아웃이 된 것처럼 보인다. 데이터 보유 감사에서는 이 행을 「삭제」가 아니라 「삭제 시도(best-effort, 실패 무알림)」로 기록해야 한다. 코드 수정은 이 문서의 범위가 아니고 `SitesGate.tsx`·`App.tsx` 는 별도 담당 소유이므로, 여기에는 관측된 계약만 기록한다.
 
 그리고 **읽기 전용 상태에서는 로그아웃(정확히는 리다이렉트 시작)을 해도 임시 보관본을 지우지 않는다.** 표에 이 예외가 없다.
 
@@ -102,7 +106,9 @@ apps/client/src/trash.ts:4-10   TRASH_RETENTION_MS = 30 * 86400000
 
 이 차이는 [PR #18](https://github.com/jiwonschol/wonboard/pull/18)(head `63c2a673f7437f1f85b900c0cd44d137d3b12319`)이 서버 강제로 보강했으며 **아직 머지되지 않았다.** #18 은 `worker.ts` 에 서버 측 `TRASH_RETENTION_MS` 와 SQLite `databaseNow`(서버 시계, 정수 밀리초로 경계 보존)를 넣고, `loadDocument()` 가 기한 경과 시 `410 trashExpired` 를 던지며, `/api/documents` GET 은 만료 항목을 목록에 남기되(구형 클라이언트가 정리 대상을 발견할 수 있도록 envelope·revision 유지) **title·excerpt·본문을 비워 만료된 글의 내용을 반환하지 않는다.** 조건부 쓰기에도 `unexpiredWrite` 가드를 둔다.
 
-따라서 이 문서의 "만료 판정 주체 = 클라이언트"는 **기준 SHA `e139408` 에 한정된 사실**이고, #18 머지 후에는 서버가 1차 판정 주체가 된다. 표의 서술은 그 순서로 갱신해야 한다.
+따라서 이 문서의 "만료 판정 주체 = 클라이언트"는 **기준 SHA `e139408` 에 한정된 사실**이다. 다만 **#18 머지 후에도 서버가 1차 판정 주체가 되는 것은 Sites 저장 모드뿐이다.**
+
+`draftRepository.ts:23-30` 에서 `mode === "desktop"` 은 `openDesktopRepository()`, `mode === "local"` 은 IndexedDB(`openStorage`)로 가고 **둘 다 `worker.ts` 를 지나지 않는다.** 공통 `useDrafts` 경로는 계속 `trashExpired(document, Date.now())` 로 판정한다(`useDrafts.ts:114-118·370`). 즉 #18 이후에도 local·desktop 의 보유 기한은 **전적으로 사용자 기기 시계에 남는다.** 표의 서술은 「Sites = 서버(#18 이후) / local·desktop = 기기 시계」로 갈라 갱신해야 한다.
 
 `e139408` 기준으로 파생되는 사실 둘:
 
@@ -260,10 +266,33 @@ App.tsx:660       accept=".zip,application/zip"
              publications.published = 1 필수
              Cache-Control: no-store + "Never cache a visibility decision"
              Cross-Origin-Resource-Policy: cross-origin    ← 커뮤니티에서 embed 가능
-             Content-Disposition: inline; filename*=UTF-8''…
+             Content-Disposition: inline; filename*=UTF-8''…   ← row.filename
+               출처 worker.ts:210  attachmentFilename(document, mediaId)
+               attachments.ts:142-152  autoRenameAttachments === false → media.originalName
+                                       그 외 → document.title 로 만든 이름
 ```
 
+**이 헤더는 일반적인 메타데이터가 아니라 공개되는 구체적 데이터 필드다.** `/media/<public_id>` 분기는 `worker.ts:58-60` 에서 `oai-authenticated-user-id` 를 읽는 `worker.ts:68` **보다 앞**에 있으므로 인증 없이 도달하고, `publicImage()` 는 `row.filename` 을 `Content-Disposition` 에 실어 보낸다. 그 값은 출판 시 `attachmentFilename(document, mediaId)` 로 정해지며(`worker.ts:210`), `attachments.ts:148` 은 `document.autoRenameAttachments === false` 면 **업로드한 원본 파일명(`media.originalName`)을 그대로** 쓰고, 그렇지 않으면 **문서 제목**으로 만든 이름을 쓴다.
+
+즉 **URL 을 가진 누구나 인증 없이 이미지 바이트와 함께 문서 제목(또는 자동 이름 바꾸기를 끈 경우 업로드 원본 파일명)을 받는다.** 공개 범위를 다룬 이 절의 표에 헤더 이름만 적고 출처를 적지 않으면, 권한 감사에서 실제로 새어나가는 필드 하나가 빠진다. 공개 가능한 것이 사진 바이트만이 아니라는 점에서 데이터·권한 항목으로 기록한다.
+
 `published=0` 이 되면 `publicImage()` 가 404 를 던지므로 철회가 매 요청 검사된다. `publish` 는 `body.revision !== document.revision` 이면 409(`worker.ts:189-192`), variants 가 문서의 모든 이미지 id를 커버하지 않으면 400 `missingMedia` 다. 재발급 시 같은 `public_id` 의 `blob_key` 가 새 variant 를 가리키게 되어 "같은 주소의 사진이 바뀐다"는 3차 코멘트 서술과 일치한다.
+
+### 보존 데이터 분류 하나를 더 기록한다 — 주소 불가능한 고아 공개 variant
+
+**`publications/<doc>/<id>/<hash>` 객체를 지우는 코드가 없다.** `apps/server/src/sites/worker.ts` 전체에서 `env.MEDIA` 호출은 `get` 세 곳(`:41·111·201`)과 `put` 두 곳(`:121·176`)뿐이고 **`delete` 는 한 곳도 없다.**
+
+그래서 세 경로 모두 R2 에 물체를 남긴다.
+
+| 경로 | 코드 | R2 결과 |
+| --- | --- | --- |
+| 새 hash 로 재출판 | `variantKey` put(`:176`) 뒤 upsert 가 `blob_key` 만 새 열쇠로 갱신(`:205-210`) | 이전 variant 객체는 그대로 남고 아무 행도 가리키지 않음 |
+| 출판 철회 | `UPDATE publications SET published = 0`(`:186`) | 행만 숨김, 객체 보존 |
+| 초안 삭제 | 문서·출판 행 정리 경로에 `MEDIA.delete` 없음 | 원본(`originalKey`)·variant 모두 보존 |
+
+**대체된 공개 렌디션은 더 이상 주소로 도달할 수 없는데도 무기한 보존된다.** `published=0` 이 되면 `publicImage()` 가 404 를 던지므로 사용자와 수신자 입장에서는 사라진 것이 맞지만, 저장소 관점에서는 남는다. 이는 원본(`-original` 키)과 현재 variant 와는 **별도의 보존 데이터 분류**이므로 이 감사에 행을 추가해야 한다 — 사용자가 "철회했다"·"삭제했다"고 이해한 뒤에도 남는 것이 무엇인지 세는 것이 이 문서의 목적이다.
+
+이 문서의 범위 한계는 그대로다. `worker.ts` 는 별도 담당 소유이므로 여기서 삭제 경로를 만들지 않고, **관측된 보존 사실만 기록한다.** 운영 R2 의 실제 잔존 객체 수·용량은 측정하지 않았다(코드 정적 대조만).
 
 ## 6. 하지 않은 것
 
