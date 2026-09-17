@@ -46,6 +46,33 @@ export async function checkSpellingDataPolicy(read, records=reviewedAssets) {
   };
 }
 
+// Verify the reviewed payloads and notices, then hand back the exact bytes that passed.
+// A consumer must not be able to ship different bytes than the ones it verified, so the
+// returned buffers come from the cache this check already filled and every reviewed file
+// is read exactly once. Callers that only need the verdict keep using
+// checkSpellingDataPolicy; this helper is for consumers that also use the bytes.
+export async function readReviewedAssets(read, records=reviewedAssets) {
+  const cache=new Map();
+  const cached=async file=>{
+    if(!cache.has(file)) cache.set(file,await read(file));
+    return cache.get(file);
+  };
+  const report=await checkSpellingDataPolicy(cached,records);
+  if(!report.passed) {
+    const error=Error(`Spelling data policy check failed: ${JSON.stringify(report.problems)}`);
+    error.report=report;
+    throw error;
+  }
+  const assets=new Map();
+  for(const record of records) {
+    for(const file of [record.file,...record.notices.map(notice=>notice.file)]) {
+      if(!cache.has(file)) throw Error(`Reviewed file was not verified: ${file}`);
+      assets.set(file,cache.get(file));
+    }
+  }
+  return {report,assets};
+}
+
 if(process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   const root=fileURLToPath(new URL('../',import.meta.url));
   const report=await checkSpellingDataPolicy(file=>readFile(path.join(root,file)));
