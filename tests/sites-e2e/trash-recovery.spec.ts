@@ -1,6 +1,7 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 import { newDraft } from "@wonboard/document";
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { syntheticPng } from "../helpers/sites-runtime";
 
 const headers = { "X-Wonboard-Test-User": "owner-fixture", Origin: "http://127.0.0.1:5174" };
@@ -34,6 +35,53 @@ async function move(page: Page) {
 async function openTrash(page: Page, locale = "en") {
   await page.locator(".writing-library > footer").getByRole("button", { name: locale === "en" ? /^Trash/ : /^휴지통/ }).click();
 }
+for (const action of ["update", "trash", "delete"] as const) test(`resume reconciles a clean current draft after remote ${action}`, async ({ page, request }) => {
+  const { id } = await seed(request), path = `/api/documents/${id}`;
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Document body" });
+  await expect(editor).toContainText("Saved original");
+  const stored = await (await request.get(path, { headers })).json();
+  if (action === "delete") expect((await request.delete(path, { headers, data: { revision: stored.revision, deletionIntent: "manual" } })).status()).toBe(200);
+  else expect((await request.put(path, { headers, data: { ...stored,
+    ...(action === "trash" ? { trashedAt: new Date().toISOString() } : {
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Remote saved version" }] }] },
+    }),
+  } })).status()).toBe(200);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  if (action === "update") await expect(editor).toContainText("Remote saved version");
+  else {
+    await expect(editor).not.toContainText("Saved original");
+    await expect(page.locator('.document-list[aria-label="My writing"] > button')).toHaveCount(1);
+    if (action === "trash") { await openTrash(page); await expect(page.locator(".trash-row")).toHaveCount(1); }
+  }
+});
+test("resume preserves edits made while the clean current document is reloading", async ({ page, request }) => {
+  const { id } = await seed(request), path = `/api/documents/${id}`;
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Document body" });
+  await expect(editor).toContainText("Saved original");
+  const stored = await (await request.get(path, { headers })).json();
+  expect((await request.put(path, { headers, data: { ...stored, title: "Remote update" } })).status()).toBe(200);
+  let loading = false;
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route(`**${path}`, async route => {
+    if (route.request().method() !== "GET") return route.continue();
+    const response = await route.fetch(); loading = true; await pending;
+    await route.fulfill({ response });
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect.poll(() => loading).toBe(true);
+  await editor.fill("My new edits");
+  release();
+  await expect(editor).toContainText("My new edits");
+  await expect(page.getByRole("alert")).toContainText("Another tab changed this document");
+  const downloading = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download original document JSON" }).click();
+  const download = await downloading;
+  expect(await readFile((await download.path())!, "utf8")).toContain("My new edits");
+  expect(JSON.stringify(await (await request.get(path, { headers })).json())).toContain("Saved original");
+});
 test("resume refreshes a suspended monotonic clock, fails closed and retries without revoking photos", async ({ page, request }) => {
   const { id, url } = await seed(request, true);
   await page.addInitScript(() => Object.defineProperty(performance, "now", { value: () => 1000 }));
@@ -65,6 +113,8 @@ for (const offsetDays of [-31, 31]) test(`Sites trash uses server time with devi
   await page.goto("/");
   await move(page);
   await page.getByRole("dialog", { name: "Move to trash" }).getByRole("button", { name: "Move to trash" }).click();
+  await expect(page.getByRole("dialog", { name: "Move to trash" })).toHaveCount(0);
+  await expect.poll(async () => (await (await request.get(`/api/documents/${id}`, { headers })).json()).trashedAt).toBeDefined();
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Document body" })).toBeVisible();
   expect((await request.get(`/api/documents/${id}`, { headers })).status()).toBe(200);

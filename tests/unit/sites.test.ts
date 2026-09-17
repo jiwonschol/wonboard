@@ -109,6 +109,45 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
     expect((await call(`${path}/publish`, "POST", { revision: saved.revision, variants: {} })).status).toBe(410);
     expect((await call(path, "DELETE", { revision: saved.revision })).status).toBe(200);
   });
+  it("preserves slow-clock legacy trash and fixes its deadline after saving", async () => {
+    const document = await photoDocument(), path = `/api/documents/${document.documentId}`;
+    const start = Date.parse("2026-09-16T12:00:00.123Z"), clock = databaseClock(start + 1000);
+    const legacy = { ...document, trashedAt: new Date(start - 31 * 86400000).toISOString() };
+    runtime.sqlite.prepare("UPDATE documents SET body=?,updated_at=? WHERE id=?")
+      .run(JSON.stringify(legacy), new Date(start).toISOString(), document.documentId);
+    const loaded = await (await call(path)).json();
+    expect(loaded.trashedAt).toBe(new Date(start).toISOString());
+    expect((await (await call("/api/documents")).json()).documents[0].trashedAt).toBe(loaded.trashedAt);
+    expect((await call(path, "DELETE", { revision: document.revision, deletionIntent: "expired" })).status).toBe(409);
+    const saved = await (await call(path, "PUT", { ...loaded, title: "preserved" })).json();
+    expect(saved.trashedAt).toBe(loaded.trashedAt);
+    expect(saved).not.toHaveProperty("_sitesTrashTimestamp");
+    clock(start + 30 * 86400000 - 1);
+    expect((await call(path)).status).toBe(200);
+    clock(start + 30 * 86400000);
+    expect((await call(path)).status).toBe(410);
+    expect((await call(path, "DELETE", { revision: saved.revision, deletionIntent: "expired" })).status).toBe(200);
+  });
+  it("redacts list content against the final returned database clock", async () => {
+    const document = await photoDocument(), path = `/api/documents/${document.documentId}`;
+    const start = Date.parse("2026-09-16T12:00:00.123Z"), expiry = start + 30 * 86400000;
+    const clock = databaseClock(start);
+    await call(path, "PUT", { ...document, trashedAt: new Date(start).toISOString() });
+    clock(expiry - 1);
+    const prepare = runtime.env.DB.prepare.bind(runtime.env.DB);
+    runtime.env.DB.prepare = sql => {
+      const statement = prepare(sql);
+      if (sql.includes("FROM documents ORDER BY")) {
+        const all = statement.all.bind(statement);
+        statement.all = async <T,>() => { const result = await all<T>(); clock(expiry); return result; };
+      }
+      return statement;
+    };
+    const listed = await (await call("/api/documents")).json();
+    expect(listed.serverNow).toBe(expiry);
+    expect(listed.documents[0].title).toBe("");
+    expect(listed.documents[0].content.content[0].content).toEqual([]);
+  });
   it("uses one deletion decision for legacy withdrawal across the expiry boundary", async () => {
     const document = await photoDocument(), url = await publish(document);
     const start = Date.parse("2026-09-16T12:00:00.123Z"), clock = databaseClock(start);

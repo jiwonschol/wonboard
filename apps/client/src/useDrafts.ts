@@ -97,7 +97,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
     const scheduleRefresh = () => { clearTimeout(resumeTimer); resumeTimer = setTimeout(() => void refreshAfterResume(), 100); };
     async function refreshAfterResume() {
       if (!active || !initialized || !connection || refreshing) return;
-      if (operating.current || running.current) { scheduleRefresh(); return; }
+      if (operating.current || running.current || composing.current) { scheduleRefresh(); return; }
       refreshing = true; refreshNeeded = false;
       const version = listVersion.current;
       try {
@@ -112,6 +112,23 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
         const editing = current.current;
         if (editing && (change.current !== savedChange.current || conflicts.current.has(editing.document.documentId)))
           refreshed = [editing, ...refreshed.filter(value => value.document.documentId !== editing.document.documentId)];
+        else if (editing?.document.revision && !refreshed.some(value =>
+          value.document.documentId === editing.document.documentId &&
+          value.document.revision === editing.document.revision && value.document.trashedAt === undefined)) {
+          const remote = refreshed.find(value => value.document.documentId === editing.document.documentId);
+          const candidate = remote?.document.trashedAt === undefined && remote
+            ? remote : latestActiveDraft(refreshed, locale);
+          const sequence = change.current;
+          const loaded = candidate.document.revision > 0 ? await connection.load(candidate) : candidate;
+          if (!active) return;
+          // A selection, edit, save or IME composition can begin during the read.
+          // Never let that stale continuation overwrite local work.
+          if (version !== listVersion.current || current.current !== editing || sequence !== change.current ||
+              change.current !== savedChange.current || operating.current || running.current || composing.current) {
+            refreshNeeded = true; return;
+          }
+          select(loaded, true);
+        }
         publishList(refreshed.sort(newestDraftFirst));
         setClockError("");
       } catch {
