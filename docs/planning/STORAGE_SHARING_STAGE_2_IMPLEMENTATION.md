@@ -149,3 +149,9 @@ Sites 보관함은 추적 바이트·정리/재시도 대기·업로드 예약·
 - macOS Electron 44.3.0 개발 런타임: `/private/tmp/wonboard-pr23-electron-proof`의 독립 userData에서 한·영 글 작성→저장, 파일 IPC 업로드→커서 삽입, 종료→재실행 후 글/첨부/보관함 복원, page error 0. 종료 0 (`/private/tmp/wonboard-pr23-desktop-runtime-second.log`). `test-results/desktop-proof.png` 직접 확인. 임시 하네스 첫 실행은 잘못된 Electron 모듈 경로로 실패했고 수정 후 재실행했다. 패키징/서명된 설치 앱·Windows/IME 증거로 확장하지 않는다.
 
 운영 DB 적용·실제 Site 계정/다른 계정·CDN·재배포·Windows/IME는 미검증이며 승인 없이 실행하지 않았다. 실제 Site 검증은 계획대로 별도 환경 게이트다. 자동 승인 검토가 기존 PR 브랜치 push의 명시 권한 부족으로 업로드를 거부했다. 따라서 로컬 커밋과 PR 본문 초안만 준비하고, 원격 최신 리뷰/머지는 업로드 승인 이후로 남겼다. #8/#9 운영 검증과 연계 이슈를 닫지 않는다.
+
+## #18 후속 리뷰 수정 통합 — 2026-09-18
+
+머지된 #18의 eac3ae4376263b27efe272458b67b91b72009fdf를 통합했다. 서버의 휴지통 기한 출처를 client JSON 밖의 `documents.server_trashed_at` 열에 저장하고, 언어 변경 후 복귀할 때 마지막 선택 글이 원격에서 삭제되면 최신 언어로 새 글을 만든다. 글/파일 삭제와 배포물 철회의 독립 계약은 그대로 유지했다. 테스트·문서 충돌만 있었으며 중복된 복구 캐시 시험 도우미를 제거했다. 기존 스키마 fixture에서 `0001-trash-provenance.sql` 후 `0002-storage-sharing.sql`을 순서대로 적용해 기존 ID/주소/체크포인트 보존을 검증했다. 초기 스키마는 두 변경을 이미 포함하므로 기존 DB용 마이그레이션을 초기 스키마 위에 중복 적용하지 않는다. 운영 적용은 하지 않았다.
+
+통합 제품 코드에서 타입 검사, 전체 단위 Vitest 223 + Node 363 = 586개, Sites Chromium/Firefox/WebKit 각 27개 = 81/81, Sites 빌드가 통과했다. 로그: `/private/tmp/wonboard-pr23-resume-{types-retry,units,sites-retry,build-retry}.log`. 통합 중 중복 함수 때문에 첫 타입 검사/브라우저 로딩이 실패했고 중복을 제거한 뒤 다시 통과했다. 일반 작성기 Chromium 전체 재검증 결과와 최신 리뷰/머지 상태는 [PR #23](https://github.com/jiwonschol/wonboard/pull/23) 본문의 최신 검증 항목을 정본으로 기록한다. 앞 절의 Electron 독립 프로필 실행은 932038c의 역사적 증거이며 이번 공유 hook 수정 후 Electron 실행 자체는 재검증하지 않았다. 실제 Site/운영 DB/Windows/실제 IME 검증은 남아 있다.

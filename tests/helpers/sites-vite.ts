@@ -36,7 +36,7 @@ export function sitesTestPlugin(): Plugin {
         // Seed pre-existing expired data, not a client timestamp override. This
         // loopback fixture module is never imported by the production worker.
         const timestamp = new Date(Date.now() - 31 * 86400000).toISOString();
-        runtime.sqlite.prepare("UPDATE documents SET body=json_set(body,'$.trashedAt',?,'$._sitesTrashTimestamp',?) WHERE id=?")
+        runtime.sqlite.prepare("UPDATE documents SET body=json_set(body,'$.trashedAt',?),server_trashed_at=? WHERE id=?")
           .run(timestamp, timestamp, expiredFixture[1]);
         res.writeHead(204); res.end(); return;
       }

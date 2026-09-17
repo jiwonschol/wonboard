@@ -95,3 +95,35 @@ Codex 4027281619: Sites는 focus/pageshow/visibilitychange에서 기존 추정 �
 브라우저에서는 performance.now를 정지시키고 테스트 DB 시각만 31일 앞으로 이동했다. 목록 요청 실패 뒤 휴지통 항목 보존·복원 비활성화, focus 재시도 뒤 서버 만료 정리·공개 사진 보존을 확인했다. 테스트 시계 경로는 loopback 전용 Vite 대역에만 있다.
 
 코드 SHA `a16e7ed6675f2567deca51b2920ac991a966aa66`에서 같은 셸 `git rev-parse HEAD` 후 `pnpm typecheck && pnpm test && pnpm test:sites --project=chromium`: 종료 0. 전체 단위 524개(Vitest 177+Node 347), Sites Chromium 12/12. 로그 `/tmp/wonboard-expiry-resume-immutable-unit.log`, `/tmp/wonboard-expiry-resume-immutable-sites.log`. 후속 문서 커밋은 코드 동일성으로 연결한다. 일반 작성기 기존 세 실패·실제 운영 미검증과 #19 Windows/dry-run 후속 통합 대기는 별개다.
+
+## #19 실행기 후속 통합 — 2026-09-17
+
+닝닝의 원본 코드 `ce1d57db732362dfb4021bab96d3ecf534ad967f`와 문서 `054a119a6ec98697d04fe86f759ba4c5ba81c5b8`를 중복 수정 없이 cherry-pick했다. 통합 SHA `177f56f465cb7ded425a0410c4a817cb784ea423`에서 같은 셸 HEAD 확인 후 `pnpm typecheck && pnpm test` 종료 0, Vitest 177 + Node 354 = 531개. 로그 `/tmp/wonboard-expiry-runner-integration.log`.
+
+dry-run도 주입 경로를 검증하며 인증/생성을 호출하지 않는다. 플랫폼 무관 계약 9개와 POSIX 8개를 분리한 원본 변경을 포함한다. 이번 실행은 Linux이며 macOS 담당자의 결과·파괴 시험이나 실제 Windows 실행을 대신 주장하지 않는다. 실제 Windows는 미검증이다. 앱/편집기/브라우저 시험 소스는 e00dfab과 동일하며 브라우저 재실행은 하지 않았다. 기존 12개 Chromium 증거는 a16e7ed에 그대로 묶인다. 머지·운영·일반 작성기 미해결 범위는 별개다.
+## 실행기 후속 통합 및 남은 리뷰 (2026-09-17)
+
+실행기 원본 c2acc52896b7180f487e6ff23dbb4f19f71311ca를 3e17163a9b6013db404c8befeb8150e5a3009485로 통합. 같은 셸 HEAD 확인 후 타입·전체 단위 종료 0. 로그 /tmp/buzz-9-trash-expiry-runner-final.log. 실제 Windows 미검증. 최신 미해결 Codex: 4031758737(과거 느린 시계 정규화), 4031758741(목록 최종 시각), 4031758750(복귀 후 깨끗한 현재 글 갱신). 머지하지 않음.
+
+## 남은 리뷰 수정 완료 — macOS, 2026-09-17
+
+4031758737: 서버가 작성한 `_sitesTrashTimestamp` 표식을 저장하고 클라이언트 요청 값은 무시한다. 표식 없는 기존 빠른/느린 기기 시각은 서버 `updated_at`으로 정규화한다. 원래 작성 시각을 복구할 수 없어 오래된 휴지통 글의 보존 기간이 늘 수 있다. 성급한 영구 삭제를 피하는 보수적 처리이며 표식 저장 후 기한은 고정된다. API 응답에는 표식을 노출하지 않는다.
+4031758741: 목록 본문 숨김에 반환하는 최종 DB 시각을 사용한다. 행 조회와 마지막 시각 조회 사이 정각을 넘기는 반례를 확인했다.
+4031758750: 복귀 후 깨끗한 현재 글의 revision·상태가 바뀌면 본문도 다시 읽는다. 다른 탭의 수정·휴지통 이동·삭제를 반영하고 읽는 동안 새 입력이 생기면 덮어쓰지 않는다. 저장 충돌은 기존 보호 흐름으로 안내한다. 같은 revision은 편집기 선택을 유지한다.
+
+제품 코드 SHA `0bc08f641b339706967cf11001656b2afc321e6c`. 이후 변경은 브라우저 시험 동기화와 문서뿐이다. 원본 미추적 파일을 보존한 별도 worktree에서 실행했다.
+
+- 타입 검사 통과. 전체 단위 Vitest 179 + Node 363 = 542개 통과 (`/private/tmp/wonboard-pr18-units.log`).
+- Sites 빌드 통과 (`/private/tmp/wonboard-pr18-build.log`).
+- Sites Chromium·Firefox·WebKit 각 16개, 전체 48/48 통과 (`/private/tmp/wonboard-pr18-sites-48.log`).
+- 한·영 × 390/1440px 휴지통·확인창 bbox/넘침 검사 통과, 390px 한·영 화면 직접 확인.
+- 복구 시험은 오프라인 사본 저장 완료를 확인하고 탭을 닫은 뒤 온라인 새 탭으로 진입한다. Firefox 번들 Pretendard name-record 순서 경고만 분리하고 다른 콘솔 경고·오류는 실패로 유지한다.
+
+macOS 로컬 SQLite/R2 대역 증거다. 실제 Site 계정·CDN·D1 운영 적용·Windows는 미검증이고 일반 작성기 전체 회귀는 이번 범위에서 재실행하지 않았다. 자동 승인 검토가 기존 PR 브랜치 push의 명시 권한 부족으로 업로드를 거부하여 로컬 커밋만 완료했다. 원격 최신 리뷰와 머지는 업로드 승인 이후다. #9 파일 보관함 단계가 별도로 남아 이슈를 닫지 않는다.
+
+## 새 리뷰 추가 수정 — 2026-09-18
+
+4037659351: 예전 API가 알 수 없는 JSON 속성을 저장할 수 있었으므로 본문의 `_sitesTrashTimestamp`는 서버 작성의 증거로 쓰지 않는다. 서버만 쓰는 `documents.server_trashed_at` 열로 옮기고 본문의 예전 표시는 무시하며 응답에서 제거한다. 기존 행은 NULL로 열을 추가해 서버 updated_at으로 정규화하며 이후 저장에서 기한을 고정한다. 초기 스키마와 한 번 적용하는 `migrations/0001-trash-provenance.sql`을 작성했다. 실제 Site에 worker를 배포하기 전에 대응 도구 체계로 열을 추가해야 한다. 운영 DB는 변경하지 않았다.
+4037659363: 복귀와 초기 비동기 읽기 뒤 새 글을 만들 때 최신 화면 언어를 ref에서 읽는다. 화면 언어를 영어에서 한국어로 바꾼 뒤 다른 탭에서 마지막 선택 글을 삭제하고 복귀하면 새 글이 한국어로 저장되는 브라우저 시험을 추가했다.
+
+추가 수정 후 타입 검사, 전체 단위 Vitest 180 + Node 363 = 543개, Sites Chromium/Firefox/WebKit 각 17개 = 51/51, Sites 빌드가 모두 통과했다. 로그는 `/private/tmp/wonboard-pr18-resume-{types,units,sites-retry,build}.log`다. 첫 브라우저 시도는 sandbox 프로세스 권한 차단으로 실행에 실패했고 승인된 로컬 재실행에서 모두 통과했다. 수정본 push는 지원의 명시 승인 후 진행한다. 실제 Site/운영 DB/Windows 검증은 그대로 남아 있다.

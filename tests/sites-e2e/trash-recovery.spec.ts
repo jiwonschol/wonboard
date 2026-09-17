@@ -56,6 +56,20 @@ for (const action of ["update", "trash", "delete"] as const) test(`resume reconc
     if (action === "trash") { await openTrash(page); await expect(page.locator(".trash-row")).toHaveCount(1); }
   }
 });
+test("resume creates a fallback in the current interface language", async ({ page, request }) => {
+  const { id } = await seed(request), path = `/api/documents/${id}`;
+  await page.goto("/");
+  await expect(page.getByRole("textbox", { name: "Document body" })).toContainText("Saved original");
+  await page.locator(".admin-bar select").selectOption("ko");
+  const stored = await (await request.get(path, { headers })).json();
+  expect((await request.delete(path, { headers, data: { revision: stored.revision, deletionIntent: "manual" } })).status()).toBe(200);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.locator(".tiptap")).not.toContainText("Saved original");
+  await page.locator(".tiptap").fill("현재 언어로 작성");
+  await expect.poll(async () => (await (await request.get("/api/documents", { headers })).json()).documents.some(
+    (document: { locale: string; content: unknown }) => document.locale === "ko" && JSON.stringify(document.content).includes("현재 언어로 작성"),
+  )).toBe(true);
+});
 test("resume preserves edits made while the clean current document is reloading", async ({ page, request }) => {
   const { id } = await seed(request), path = `/api/documents/${id}`;
   await page.goto("/");
@@ -197,7 +211,8 @@ test("offline editing can be recovered explicitly after reopening online", async
   await page.getByRole("textbox", { name: "Document body" }).fill("Offline recovery text");
   await expect(page.locator(".notice.error")).toBeVisible();
   await expectCachedEdits(page, "Offline recovery text");
-  await page.close(); await context.setOffline(false); page = await context.newPage(); await page.goto("/");
+  await page.close(); await context.setOffline(false);
+  page = await context.newPage(); await page.goto("/");
   await expect(page.getByRole("button", { name: "Recover edits", exact: true })).toBeVisible();
   await expect(page.locator(".tiptap")).toHaveAttribute("contenteditable", "false");
   await expect(page.getByRole("button", { name: "Export", exact: true })).toBeDisabled();

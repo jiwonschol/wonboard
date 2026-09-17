@@ -7,13 +7,14 @@ import { handleSitesRequest } from "../../apps/server/src/sites/worker";
 const schema = readFileSync(new URL("../../apps/server/src/sites/schema.sql", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../../apps/server/src/sites/migrations/0002-storage-sharing.sql", import.meta.url), "utf8");
 function legacy() {
-  const f = createSitesTestRuntime(schema.slice(0, schema.indexOf("-- New bytes")));
+  const f = createSitesTestRuntime(schema.slice(0, schema.indexOf("-- New bytes")).replace(",\n  server_trashed_at TEXT", ""));
   f.sqlite.prepare("INSERT INTO installation VALUES(1,'owner-fixture','2026-09-01','en')").run();
   for (let i=0;i<25;i++) {
     const document = newDraft("en").document; document.documentId = `legacy-${String(i).padStart(2,"0")}`; document.revision = 1;
     f.sqlite.prepare("INSERT INTO documents VALUES(?,1,?,'en','',?,?)").run(document.documentId,document.title,JSON.stringify(document),document.updatedAt);
   }
   f.sqlite.prepare("INSERT INTO publications(public_id,document_id,media_id,blob_key,published) VALUES('old-url','legacy-00','photo','publications/old/photo/hash',1)").run();
+  f.sqlite.exec(readFileSync(new URL("../../apps/server/src/sites/migrations/0001-trash-provenance.sql", import.meta.url), "utf8"));
   f.sqlite.exec(migration); return f;
 }
 describe("additive Sites storage migration and bounded indexing", () => {

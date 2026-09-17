@@ -28,6 +28,8 @@ export const selectionAccess = (
       : { readOnly: false, error: "" };
 
 export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
+  const localeRef = useRef(locale);
+  localeRef.current = locale;
   const [draft, setDraft] = useState<Draft | null>(null);
   const [selectionVersion, setSelectionVersion] = useState(0);
   const [list, setList] = useState<Draft[]>([]);
@@ -117,7 +119,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
           value.document.revision === editing.document.revision && value.document.trashedAt === undefined)) {
           const remote = refreshed.find(value => value.document.documentId === editing.document.documentId);
           const candidate = remote?.document.trashedAt === undefined && remote
-            ? remote : latestActiveDraft(refreshed, locale);
+            ? remote : latestActiveDraft(refreshed, localeRef.current);
           const sequence = change.current;
           const loaded = candidate.document.revision > 0 ? await connection.load(candidate) : candidate;
           if (!active) return;
@@ -181,7 +183,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
         if (!active) return;
         // A broken newest draft must not hide the healthy library entries.
         publishList(drafts);
-        const candidate = latestActiveDraft(drafts, locale);
+        const candidate = latestActiveDraft(drafts, localeRef.current);
         const first = candidate.document.revision > 0 ? await value.load(candidate) : candidate;
         const copies = storageMode === "sites" ? await listRecovery().catch(() => []) : [];
         if (!active) return;

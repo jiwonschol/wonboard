@@ -146,6 +146,8 @@ test("owner setup, private save, photo export, anonymous embed, rename, withdraw
     expect(await page.locator("vite-error-overlay").count()).toBe(0);
     if (testInfo.project.name === "chromium") await page.screenshot({ path: testInfo.outputPath("wonboard-sites-mobile.png"), fullPage: false });
     expect(errors).toEqual([]);
+    // Firefox reports metadata ordering in the bundled Pretendard font.
+    // Keep all other browser warnings/errors as regression failures.
     expect(consoleMessages.filter(message => !message.includes("downloadable font: name: name records are not sorted.") || !message.includes("PretendardVariable.subset."))).toEqual([]);
   } finally {
     await testInfo.attach("browser-diagnostics", { body: JSON.stringify({ errors, consoleMessages }, null, 2), contentType: "application/json" });
