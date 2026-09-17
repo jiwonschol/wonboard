@@ -35,6 +35,13 @@ async function move(page: Page) {
 async function openTrash(page: Page, locale = "en") {
   await page.locator(".writing-library > footer").getByRole("button", { name: locale === "en" ? /^Trash/ : /^휴지통/ }).click();
 }
+async function expectCachedEdits(page: Page, text: string) {
+  await expect.poll(() => page.evaluate(async expected => {
+    const moduleUrl = "/apps/client/src/recoveryCache.ts";
+    const { listRecovery } = await import(moduleUrl);
+    return (await listRecovery()).some((copy: { draft: unknown }) => JSON.stringify(copy.draft).includes(expected));
+  }, text)).toBe(true);
+}
 for (const action of ["update", "trash", "delete"] as const) test(`resume reconciles a clean current draft after remote ${action}`, async ({ page, request }) => {
   const { id } = await seed(request), path = `/api/documents/${id}`;
   await page.goto("/");
@@ -198,7 +205,9 @@ test("offline editing can be recovered explicitly after reopening online", async
   await context.setOffline(true);
   await page.getByRole("textbox", { name: "Document body" }).fill("Offline recovery text");
   await expect(page.locator(".notice.error")).toBeVisible();
-  await context.setOffline(false); await page.reload();
+  await expectCachedEdits(page, "Offline recovery text");
+  await page.close(); await context.setOffline(false);
+  page = await context.newPage(); await page.goto("/");
   await expect(page.getByRole("button", { name: "Recover edits", exact: true })).toBeVisible();
   await expect(page.locator(".tiptap")).toHaveAttribute("contenteditable", "false");
   await page.getByRole("button", { name: "Recover edits", exact: true }).click();
@@ -211,11 +220,12 @@ test("a recovery copy never silently revives a document moved to trash elsewhere
   await expect(page.getByRole("textbox", { name: "Document body" })).toBeVisible();
   await context.setOffline(true); await page.getByRole("textbox", { name: "Document body" }).fill("My previous edits");
   await expect(page.locator(".notice.error")).toBeVisible();
-  await context.setOffline(false);
+  await expectCachedEdits(page, "My previous edits");
+  await page.close(); await context.setOffline(false);
   const other = await context.newPage(); await other.goto("/");
   await move(other);
   await expect(other.getByRole("button", { name: "Undo move" })).toBeVisible();
-  await other.close(); await page.reload();
+  await other.close(); page = await context.newPage(); await page.goto("/");
   await expect(page.getByRole("button", { name: "Recover edits", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Recover as new document" }).click();
   await expect(page.locator(".recovery-notice")).toHaveCount(0);
