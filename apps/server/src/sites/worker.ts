@@ -20,7 +20,7 @@ function trashDeadline(trashedAt: string | undefined): number | null {
 }
 function canonicalTrashTimestamp(timestamp: string | undefined, serverUpdatedAt: string, serverTimestamp?: unknown) {
   if (timestamp === undefined) return undefined;
-  // Only PUT writes this private marker; never trust a client's retention clock.
+  // Provenance is a database column that legacy JSON uploads could not populate.
   // Unmarked legacy rows may carry either a fast or a slow device timestamp.
   if (serverTimestamp === timestamp) return timestamp;
   const updated = Date.parse(serverUpdatedAt);
@@ -32,13 +32,13 @@ function expiryBindings(stored: LoadedDocument) {
   return [stored.storedTimestamp ?? null, stored.deadline, stored.deadline];
 }
 async function loadStoredDocument(env: SitesEnv, id: string, missingStatus = 404): Promise<LoadedDocument> {
-  const row = await env.DB.prepare(`SELECT body, updated_at, ${databaseNow} AS server_now FROM documents WHERE id = ?`)
-    .bind(id).first<{ body: string; updated_at: string; server_now: number }>();
+  const row = await env.DB.prepare(`SELECT body, updated_at, server_trashed_at, ${databaseNow} AS server_now FROM documents WHERE id = ?`)
+    .bind(id).first<{ body: string; updated_at: string; server_trashed_at: string | null; server_now: number }>();
   if (!row) throw new HttpError(missingStatus, missingStatus === 409 ? "storageConflict" : "notFound");
   const { _sitesTrashTimestamp, ...document } = JSON.parse(row.body);
   validateDocument(document);
   const storedTimestamp = document.trashedAt;
-  document.trashedAt = canonicalTrashTimestamp(storedTimestamp, row.updated_at, _sitesTrashTimestamp);
+  document.trashedAt = canonicalTrashTimestamp(storedTimestamp, row.updated_at, row.server_trashed_at);
   const deadline = trashDeadline(document.trashedAt);
   if (deadline !== null && row.server_now >= deadline) throw new HttpError(410, "trashExpired");
   return { document, storedTimestamp, deadline };
@@ -123,7 +123,7 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
     if (path === "/api/documents" && request.method === "GET") {
       const offset = Number(url.searchParams.get("offset") ?? 0);
       if (!Number.isSafeInteger(offset) || offset < 0) throw new HttpError(400, "invalidDocument");
-      const { results } = await env.DB.prepare(`SELECT id, revision, title, locale, excerpt, updated_at, json_extract(body, '$.trashedAt') AS trashed_at, json_extract(body, '$._sitesTrashTimestamp') AS server_trashed_at FROM documents ORDER BY updated_at DESC, id LIMIT 100 OFFSET ?`)
+      const { results } = await env.DB.prepare(`SELECT id, revision, title, locale, excerpt, updated_at, json_extract(body, '$.trashedAt') AS trashed_at, server_trashed_at FROM documents ORDER BY updated_at DESC, id LIMIT 100 OFFSET ?`)
         .bind(offset).all<{ id: string; revision: number; title: string; locale: "ko" | "en"; excerpt: string; updated_at: string; trashed_at: string | null; server_trashed_at: string | null }>();
       const clock = await env.DB.prepare(`SELECT ${databaseNow} AS server_now`).first<{ server_now: number }>();
       if (!clock) throw new HttpError(503, "storageFailed");
@@ -175,7 +175,7 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
           (body.deletionIntent !== undefined && !["manual", "expired"].includes(body.deletionIntent)) ||
           (body.withdrawPublications !== undefined && typeof body.withdrawPublications !== "boolean"))
         throw new HttpError(400, "invalidDocument");
-      const row = await env.DB.prepare("SELECT json_extract(body, '$.trashedAt') AS trashed_at, json_extract(body, '$._sitesTrashTimestamp') AS server_trashed_at, updated_at FROM documents WHERE id = ?")
+      const row = await env.DB.prepare("SELECT json_extract(body, '$.trashedAt') AS trashed_at, server_trashed_at, updated_at FROM documents WHERE id = ?")
         .bind(id).first<{ trashed_at: string | null; server_trashed_at: string | null; updated_at: string }>();
       if (!row) return json({ removed: true });
       const timestamp = typeof row.trashed_at === "string" ? row.trashed_at : undefined;
@@ -223,11 +223,11 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
         // revision-zero imports. Return this canonical value to old clients too.
         saved.trashedAt = saved.updatedAt;
       }
-      const values = [saved.revision, saved.title, saved.locale, plainText(saved.content).slice(0, 300), JSON.stringify({ ...saved, _sitesTrashTimestamp: saved.trashedAt }), saved.updatedAt];
+      const values = [saved.revision, saved.title, saved.locale, plainText(saved.content).slice(0, 300), JSON.stringify(saved), saved.updatedAt, saved.trashedAt ?? null];
       const result = document.revision === 0
-        ? await env.DB.prepare("INSERT INTO documents (revision, title, locale, excerpt, body, updated_at, id) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING")
+        ? await env.DB.prepare("INSERT INTO documents (revision, title, locale, excerpt, body, updated_at, server_trashed_at, id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING")
           .bind(...values, id).run()
-        : await env.DB.prepare(`UPDATE documents SET revision = ?, title = ?, locale = ?, excerpt = ?, body = ?, updated_at = ? WHERE id = ? AND revision = ? AND ${unexpiredWrite}`)
+        : await env.DB.prepare(`UPDATE documents SET revision = ?, title = ?, locale = ?, excerpt = ?, body = ?, updated_at = ?, server_trashed_at = ? WHERE id = ? AND revision = ? AND ${unexpiredWrite}`)
           .bind(...values, id, document.revision, ...expiryBindings(stored!)).run();
       if (result.meta.changes !== 1) throw new HttpError(409, "storageConflict");
       return json(saved);

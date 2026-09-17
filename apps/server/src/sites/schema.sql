@@ -13,7 +13,8 @@ CREATE TABLE documents (
   locale TEXT NOT NULL,
   excerpt TEXT NOT NULL,
   body TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  server_trashed_at TEXT
 );
 CREATE TABLE media (
   id TEXT PRIMARY KEY,

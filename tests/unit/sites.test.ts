@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleSitesRequest } from "../../apps/server/src/sites/worker";
 import { createSitesTestRuntime, createSyntheticPng, syntheticPng } from "../helpers/sites-runtime";
@@ -95,10 +96,11 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
   it("bounds legacy future trash by server updated_at and freezes the canonical value on save", async () => {
     const document = await photoDocument(), path = `/api/documents/${document.documentId}`;
     const start = Date.parse("2026-09-16T12:00:00.123Z"), clock = databaseClock(start + 1000);
-    const legacy = { ...document, trashedAt: "2099-01-01T00:00:00.000Z" };
+    const legacy = { ...document, trashedAt: "2099-01-01T00:00:00.000Z", _sitesTrashTimestamp: "2099-01-01T00:00:00.000Z" };
     runtime.sqlite.prepare("UPDATE documents SET body=?,updated_at=? WHERE id=?")
       .run(JSON.stringify(legacy), new Date(start).toISOString(), document.documentId);
     const loaded = await (await call(path)).json();
+    expect(loaded).not.toHaveProperty("_sitesTrashTimestamp");
     expect(loaded.trashedAt).toBe(new Date(start).toISOString());
     expect((await (await call("/api/documents")).json()).documents[0].trashedAt).toBe(loaded.trashedAt);
     expect((await call(path, "PUT", legacy)).status).toBe(409);
@@ -108,6 +110,22 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
     expect((await call(path)).status).toBe(410);
     expect((await call(`${path}/publish`, "POST", { revision: saved.revision, variants: {} })).status).toBe(410);
     expect((await call(path, "DELETE", { revision: saved.revision })).status).toBe(200);
+  });
+  it("migrates existing JSON without trusting pre-saved provenance markers", async () => {
+    await setup();
+    runtime.sqlite.exec("DROP TABLE documents");
+    const schema = readFileSync(new URL("../../apps/server/src/sites/schema.sql", import.meta.url), "utf8");
+    const legacyTable = schema.match(/CREATE TABLE documents \([\s\S]*?\);/)![0].replace(",\n  server_trashed_at TEXT", "");
+    runtime.sqlite.exec(legacyTable);
+    const document = { ...newDraft().document, revision: 1, trashedAt: "2099-01-01T00:00:00.000Z", _sitesTrashTimestamp: "2099-01-01T00:00:00.000Z" };
+    const timestamp = "2026-09-16T12:00:00.123Z";
+    runtime.sqlite.prepare("INSERT INTO documents VALUES (?,?,?,?,?,?,?)").run(
+      document.documentId, 1, document.title, document.locale, "", JSON.stringify(document), timestamp,
+    );
+    runtime.sqlite.exec(readFileSync(new URL("../../apps/server/src/sites/migrations/0001-trash-provenance.sql", import.meta.url), "utf8"));
+    databaseClock(Date.parse(timestamp));
+    expect((await (await call(`/api/documents/${document.documentId}`)).json()).trashedAt).toBe(timestamp);
+    expect(runtime.sqlite.prepare("SELECT server_trashed_at FROM documents").get()!.server_trashed_at).toBeNull();
   });
   it("preserves slow-clock legacy trash and fixes its deadline after saving", async () => {
     const document = await photoDocument(), path = `/api/documents/${document.documentId}`;
@@ -178,7 +196,7 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
     const document = await photoDocument(), url = await publish(document);
     const path = `/api/documents/${document.documentId}`;
     databaseClock(Date.parse("2026-09-16T12:00:00.123Z"));
-    const legacy = { ...document, trashedAt: "2099-01-01T00:00:00.000Z" };
+    const legacy = { ...document, trashedAt: "2099-01-01T00:00:00.000Z", _sitesTrashTimestamp: "2099-01-01T00:00:00.000Z" };
     runtime.sqlite.prepare("UPDATE documents SET body=?,updated_at=? WHERE id=?")
       .run(JSON.stringify(legacy), "2026-08-01T12:00:00.123Z", document.documentId);
     expect((await call(path)).status).toBe(410);
