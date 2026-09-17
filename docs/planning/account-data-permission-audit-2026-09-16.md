@@ -51,10 +51,16 @@ worker.ts:102  …(row.trashed_at === null ? {} : { trashedAt: row.trashed_at })
 
 ### 정정 2 — Sites 브라우저 임시 보관본의 삭제 조건에 예외가 있다
 
-3차 코멘트: "원격 저장 성공 시 삭제, 로그아웃 성공 시 전부 삭제". **저장 쪽은 코드와 맞지만 로그아웃 쪽은 두 가지가 다르다.** 첫째, 조건이 더 붙는다(아래 `writer.readOnly`). 둘째, 그리고 이것이 더 중요한데 — **Sites 경로에서 코드는 로그아웃 성공을 관측하지 않는다.**
+3차 코멘트: "원격 저장 성공 시 삭제, 로그아웃 성공 시 전부 삭제". **둘 다 코드와 그대로 맞지는 않는다.**
+
+**저장 쪽 — 삭제가 아니라 삭제 시도다.** `useDrafts.ts:188-189` 는 `void discardRecovery(snapshot.document.documentId, cacheToken).catch(() => {})` 다. await 하지 않고 거부도 조용히 삼킨다. 이어서 `setStatus("saved")` 가 조건 없이 돈다. 즉 **IndexedDB 삭제가 실패해도 원격 저장은 성공으로 표시되고 회수 사본은 남으며, 정리 실패를 알리는 신호가 어디에도 없다.** 따라서 「원격 저장 성공 시 삭제」는 보유 보장을 과장한다. 정확히는 **「원격 저장 성공 후 삭제 시도(best-effort, 실패 무알림)」** 다.
+
+**로그아웃 쪽 — 두 가지가 다르다.** 첫째, 조건이 더 붙는다(아래 `writer.readOnly`). 둘째, 그리고 이것이 더 중요한데 — **Sites 경로에서 코드는 로그아웃 성공을 관측하지 않는다.**
 
 ```
-useDrafts.ts:189  저장 성공 후 discardRecovery(documentId, token)   ← 해당 사본만
+useDrafts.ts:188-189  저장 성공 후 void discardRecovery(documentId, token).catch(() => {})
+                  ← 해당 사본만, 그러나 await 안 함·거부 삼킴 = 삭제 "시도"
+useDrafts.ts:166-170  저장 "전에" cacheRecovery(snapshot)  ← Sites 모드에서 먼저 사본을 만든다
 App.tsx:243-249   logout(): onLogout() 이 true && storageMode === "sites" && !writer.readOnly 일 때만 clearRecovery()
 SitesGate.tsx:71-73  onLogout = async () => {
                        window.location.assign("/signout-with-chatgpt?return_to=%2F"); return true; }
@@ -65,7 +71,18 @@ recoveryCache.ts:5  IndexedDB name = "wonboard-sites-recovery-v1"
 
 데이터 보유 감사에서 이 차이는 실질적이다. 이 문서와 3차 코멘트가 말한 「로컬 회수 자료 삭제 ↔ 로그아웃 완료」의 결합을 **현재 코드는 보장하지 못한다.** 따라서 표의 이 행은 「로그아웃 성공 시 전부 삭제」가 아니라 「Sites 사인아웃 리다이렉트 시작 시 전부 삭제(성공 여부 미관측)」로 적어야 한다. 코드 수정은 이 문서의 범위가 아니고 `SitesGate.tsx`·`App.tsx` 는 별도 담당 소유이므로, 여기에는 관측된 계약만 기록한다.
 
-그리고 **읽기 전용 상태에서는 로그아웃(정확히는 리다이렉트 시작)을 해도 임시 보관본을 지우지 않는다.** 표에 이 예외가 없다. `writer.readOnly` 는 다른 탭의 쓰기 충돌이나 미래 스키마로 얼어붙은 초안에서 발생하므로, 저장 권한이 없어 사본을 만들지 않았을 가능성이 높다 — 그러나 그 추정은 코드로 확인하지 않았으니 "예외가 있다"까지만 기록한다.
+그리고 **읽기 전용 상태에서는 로그아웃(정확히는 리다이렉트 시작)을 해도 임시 보관본을 지우지 않는다.** 표에 이 예외가 없다.
+
+**앞서 이 문서는 여기서 「저장 권한이 없어 사본을 만들지 않았을 가능성이 높다」고 추정했는데, 그 추정은 쓰기 충돌의 경우 정반대다.** 코드로 확인한 순서는 이렇다.
+
+```
+useDrafts.ts:166-170  sites 모드면 원격 저장 "전에" cacheRecovery(snapshot) 을 await 한다
+useDrafts.ts:194-206  catch 의 StorageConflict 분기는 conflicts 에 넣고 frozen=true,
+                      setReadOnly(true), setError("storageConflict") 만 한다 —
+                      **캐시한 사본을 discard 하지 않는다**
+```
+
+즉 **캐시 쓰기가 성공한 뒤 409 가 오면, 로그아웃이 지우지 않는 바로 그 로컬 회수 자료가 남는다.** 「사본이 없을 가능성이 높다」가 아니라 「사본이 남는 것이 정상 경로」다. 미래 스키마로 얼어붙은 초안처럼 저장 시도에 도달하기 전에 읽기 전용이 되는 경우는 사본이 없을 수 있으나, 두 경우는 구별해야 한다. 이 문서는 확인하지 않은 추정으로 한쪽을 일반화했던 것을 정정한다.
 
 ### 정정 3 — `e139408` 에서 30일 만료 판정 주체는 서버가 아니라 클라이언트다 (#18 이 보강 중, 미머지)
 
@@ -194,14 +211,19 @@ packages/document/src/index.ts:36-50
   title           10,000
   attributeText   10,000      (alt/caption/language/type — validateDocument 와 입력 필드가 같은 상수)
   imageBytes      20 MiB      사진 하나
-  mediaBytes     220 MiB      원본 합계. 주석: "document.json 과 ZIP 컨테이너를 위해 36 MiB 를 남긴다"
+  mediaBytes     220 MiB      원본 합계 — **클라이언트 import 전용 가드.** 주석: "document.json 과
+                              ZIP 컨테이너를 위해 36 MiB 를 남긴다"
   pixels          40,000,000
   images          100
   archiveBytes   256 MiB      ZIP 전체 상한
   text             2,000,000
 ```
 
-상한이 맞물리는 산식은 **원본 합계 220 MiB + 메타데이터·ZIP 컨테이너 여유 36 MiB = 256 MiB** 다. `imageBytes` 20 MiB 는 **사진 하나의 상한**이고 이미 원본 합계 220 MiB 안에 들어가므로 따로 더하는 값이 아니다(`images` 100 × 20 MiB 가 아니라 합계 220 MiB 가 구속한다). 소스 주석도 "원본 합계가 ZIP 전체 상한을 다 써 버리면 정상 초안도 백업할 수 없다. document.json 과 ZIP 컨테이너를 위해 36 MiB 를 남긴다"로 같은 뜻을 적는다. `f44ed9d3` 의 "상한은 유지"는 이 계약을 그대로 둔다는 뜻으로 읽히고, 현재 코드가 이미 그렇다.
+상한이 맞물리는 산식은 **원본 합계 220 MiB + 메타데이터·ZIP 컨테이너 여유 36 MiB = 256 MiB** 다. `imageBytes` 20 MiB 는 **사진 하나의 상한**이고 이미 원본 합계 220 MiB 안에 들어가므로 따로 더하는 값이 아니다(`images` 100 × 20 MiB 가 아니라 합계 220 MiB 가 구속한다).
+
+**단, 그 220 MiB 는 저장·백업 불변식이 아니라 클라이언트 UI import 가드다.** 코드에서 `limits.mediaBytes` 를 합계 검사로 쓰는 곳은 `apps/client/src/media.ts:63` (`if (incomingBytes + existing.bytes > limits.mediaBytes) throw new DocumentError("archiveLimit")`) **한 곳뿐이다** — `importImages` 안이다. `validateDocumentEnvelope` 은 `packages/document/src/index.ts:361` 에서 `Number(m.size) <= limits.imageBytes` 로 **개별 항목만** 보고 합계를 더하지 않는다. 서버 쪽 `worker.ts` 의 문서 PUT 도 각 저장 항목을 검증할 뿐 합산을 하지 않는다(`mediaBytes`·합계 계산이 없다). `apps/server/src/sites/http.ts:39` 의 `limits.archiveBytes - limits.mediaBytes`(36 MiB) 는 요청 본문 읽기 상한이지 미디어 합계 검증이 아니다.
+
+따라서 **Sites 소유자가 API 를 직접 쓰거나 `importImages` 를 거치지 않는 클라이언트에서는 220 MiB 가 구속력이 없다.** 서버는 개별적으로 유효한 20 MiB 원본을 최대 100개까지 받을 수 있고, 그런 문서는 256 MiB 백업 상한을 만족할 수 없다. 이 표의 220 MiB 는 「정상 UI 경로의 import 가드」로 읽어야 하며 현재 저장·백업의 불변식으로 읽으면 안 된다. 그 차이는 백업 실패가 UI 가 아니라 백업 시점에 드러난다는 뜻이므로 데이터 보유 관점에서 남길 만하다. 소스 주석도 "원본 합계가 ZIP 전체 상한을 다 써 버리면 정상 초안도 백업할 수 없다. document.json 과 ZIP 컨테이너를 위해 36 MiB 를 남긴다"로 같은 뜻을 적는다. `f44ed9d3` 의 "상한은 유지"는 이 계약을 그대로 둔다는 뜻으로 읽히고, 현재 코드가 이미 그렇다.
 
 복원·회수 경로에 이미 두 단계가 있다.
 
@@ -220,6 +242,8 @@ App.tsx:660       accept=".zip,application/zip"
 **단, 이 폴백은 검증 전용 경로가 아니다.** `App.tsx:143` 의 `catch` 는 조건이 없는 bare catch 라 `exportBackup()` 이 던지는 **모든** 오류가 `exportRawBackup()` 으로 넘어간다 — 검증 실패만이 아니라 보관 한도 초과, 해싱 오류, ZIP 생성 오류도 같다. 구체적으로 **참조된 사진에 대응하는 Blob 이 없거나 크기가 다르면** `exportBackup()` 이 `missingMedia` 로 던진다(`packages/document/src/backup.ts:21-24`, 기존 시험 `tests/unit/document.test.ts:377` 이 이 reject 를 고정한다). 같은 함수는 `archiveBytes` 초과에서도 `archiveLimit` 을 던진다(backup.ts:20·26). 이어서 원본 수출은 **그 원본을 빼고도** 성공할 수 있다.
 
 따라서 `wonboard-<documentId>-original.zip` 이 「검증은 실패했지만 원본은 온전하다」를 보장하지는 않는다. 이 경로는 검증 실패뿐 아니라 원본 자체가 이미 불완전한 경우에도 그 불완전한 상태로 묶음을 만들어 낼 수 있고, 사용자에게는 성공한 다운로드로 보인다. **데이터 유실 방지 보장은 앞서 적은 것보다 약하다.** `App.tsx:133` 의 코드 주석도 「검증이 막을 때만 검증 없는 원본 묶음으로 넘어간다」고 적어 실제 bare catch 와 어긋나므로, 그 주석도 함께 고쳐야 할 항목으로 남긴다(파일 소유는 별도 담당).
+
+> **미해결 동작 — 문서 정정으로 닫히지 않는다.** 이 절의 문서 서술은 고쳤지만 **동작 자체는 그대로다.** 회수 자료가 불완전한 경우에도 `-original.zip` 이 성공한 다운로드로 보이고, 사용자는 원본이 전부 들어 있다고 알 수 없다. `App.tsx`·`SitesGate.tsx` 는 별도 담당 소유라 이 감사 문서 PR 에서 코드를 고치지 않는다. 따라서 이건 **기록된 미해결 항목**으로 남기며, 완료 처리하지 않는다.
 
 ## 5. 비공개 원본과 공개 사진의 경계
 
