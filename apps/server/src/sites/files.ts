@@ -1,13 +1,16 @@
 import { limits, sha256, type AttachmentFile } from "@wonboard/document";
 import { HttpError, json, readBytes, readJson, validId } from "./http";
 import type { SitesEnv } from "./types";
+import { backfillStoragePage, backfillStatus } from "./storageBackfill";
 import { removeDistributedPhoto } from "./photoObjects";
 
 type FileRow = { id: string; object_id: string; revision: number; body: string; filename: string; created_at: string; trashed_at: string | null; pinned: number; object_key: string; state: string; server_now: number };
 type ShareRow = { id: string; file_id: string; token: string; revision: number; expires_at: number | null; revoked: number; operation_id: string; created_at: string; filename?: string; server_now: number };
 const retention = 30 * 86400000;
 const nowSql = "(CAST(strftime('%s','now') AS INTEGER)*1000 + CAST(substr(strftime('%f','now'),4,3) AS INTEGER))";
-const unreferenced = `NOT EXISTS (SELECT 1 FROM library_files f WHERE f.object_id=file_objects.id AND f.pinned=1
+const legacyIndexed = `(file_objects.object_key NOT LIKE 'publications/%' OR
+  (EXISTS (SELECT 1 FROM storage_backfill WHERE phase='complete') AND NOT EXISTS (SELECT 1 FROM storage_backfill_failures)))`;
+const unreferenced = `${legacyIndexed} AND NOT EXISTS (SELECT 1 FROM library_files f WHERE f.object_id=file_objects.id AND f.pinned=1
   AND (f.trashed_at IS NULL OR strftime('%s',f.trashed_at) IS NULL OR
     (CAST(strftime('%s',f.trashed_at) AS INTEGER)*1000 + CAST(substr(strftime('%f',f.trashed_at),4,3) AS INTEGER)) + ${retention} > ${nowSql}))
   AND NOT EXISTS (SELECT 1 FROM library_files f JOIN document_file_refs r ON r.file_id=f.id WHERE f.object_id=file_objects.id)
@@ -93,11 +96,57 @@ export async function ownerFiles(request: Request, env: SitesEnv, path: string):
       return json({ removed: true });
     }
   }
+  if (path === "/api/files/backfill" && request.method === "POST") {
+    const body = await readJson(request);
+    if (body?.restart === true) await env.DB.batch([
+      env.DB.prepare("UPDATE storage_backfill SET phase='documents',cursor='',revision=revision+1 WHERE singleton=1"),
+      env.DB.prepare("DELETE FROM storage_backfill_failures"),
+    ]);
+    return json(await backfillStoragePage(env));
+  }
+  if (path === "/api/files/usage" && request.method === "GET") {
+    const { results } = await env.DB.prepare(`SELECT id,size,state,attempts,
+      (SELECT group_concat(filename,' · ') FROM library_files f WHERE f.object_id=file_objects.id) AS filename,
+      CASE WHEN ${unreferenced} THEN 1 ELSE 0 END AS collectable,
+      CASE WHEN lease_until>${nowSql} THEN 1 ELSE 0 END AS reserved,
+      CASE WHEN object_key LIKE 'publications/%' AND size=0 THEN 1 ELSE 0 END AS unknown_size,
+      CASE WHEN NOT (${legacyIndexed}) THEN 1 ELSE 0 END AS legacy_pending,
+      (SELECT count(*) FROM library_files f WHERE f.object_id=file_objects.id AND f.pinned=1
+        AND (f.trashed_at IS NULL OR strftime('%s',f.trashed_at) IS NULL OR
+          (CAST(strftime('%s',f.trashed_at) AS INTEGER)*1000 + CAST(substr(strftime('%f',f.trashed_at),4,3) AS INTEGER))+${retention}>${nowSql})) AS library,
+      (SELECT count(*) FROM library_files f JOIN document_file_refs r ON r.file_id=f.id WHERE f.object_id=file_objects.id) AS documents,
+      (SELECT count(*) FROM library_files f JOIN file_shares s ON s.file_id=f.id WHERE f.object_id=file_objects.id) +
+        (SELECT count(*) FROM publications p WHERE p.blob_key=file_objects.object_key) AS distribution,
+      (SELECT count(*) FROM snapshot_assets a JOIN snapshot_versions v ON v.id=a.version_id
+        WHERE a.object_id=file_objects.id AND (v.retired_at IS NULL OR v.retired_at+300000>${nowSql})) AS snapshots
+      FROM file_objects WHERE state!='deleted'`).all<{ id: string; size: number; state: string; attempts: number;
+        filename: string | null; collectable: number; reserved: number; unknown_size: number; legacy_pending: number;
+        library: number; documents: number; distribution: number; snapshots: number }>();
+    let trackedBytes=0, pendingBytes=0, failedBytes=0, reservedBytes=0, unknownObjects=0;
+    const objects = results.map(object => {
+      if (object.unknown_size) unknownObjects++;
+      if (object.state === "uploading") reservedBytes += object.size; else trackedBytes += object.size;
+      if (object.collectable && !object.reserved) { pendingBytes += object.size; if (object.state === "deleting") failedBytes += object.size; }
+      const reasons: string[] = (["library", "documents", "distribution", "snapshots"] as const).filter(reason => object[reason] > 0);
+      if (object.reserved) reasons.push("upload");
+      if (object.legacy_pending) reasons.push("backfill");
+      return { id: object.id, filename: object.filename, bytes: object.size, reasons };
+    });
+    return json({ trackedBytes, pendingBytes, failedBytes, reservedBytes, unknownObjects, objects, backfill: await backfillStatus(env), accountQuota: null });
+  }
   if (path === "/api/files/cleanup" && request.method === "POST") {
+    await backfillStoragePage(env);
+    // Keep current versions even when private; prune only retired versions after grace.
+    await env.DB.batch([
+      env.DB.prepare(`DELETE FROM snapshot_assets WHERE version_id IN (SELECT v.id FROM snapshot_versions v
+        WHERE v.retired_at+300000<=${nowSql} AND NOT EXISTS (SELECT 1 FROM snapshots s WHERE s.current_version=v.id))`),
+      env.DB.prepare(`DELETE FROM snapshot_versions WHERE retired_at+300000<=${nowSql}
+        AND NOT EXISTS (SELECT 1 FROM snapshots s WHERE s.current_version=snapshot_versions.id)`),
+    ]);
     if (!env.MEDIA.delete) throw new HttpError(503, "cleanupUnavailable");
     const { results } = await env.DB.prepare(`SELECT id,object_key,state,size FROM file_objects WHERE retry_at <= ${nowSql} AND lease_until <= ${nowSql} AND ${unreferenced} ORDER BY retry_at,id LIMIT 20`)
       .all<{ id: string; object_key: string; state: string; size: number }>();
-    let deleted = 0, failed = 0;
+    let deleted = 0, failed = 0, reclaimedBytes = 0;
     for (const object of results) {
       // Claim and reference absence are one SQL decision. Document triggers and
       // share creation can only attach to ready objects, never a claimed one.
@@ -107,14 +156,20 @@ export async function ownerFiles(request: Request, env: SitesEnv, path: string):
         .bind(object.id).run();
       if (!claim.meta.changes) continue;
       try {
+        const existing = await env.MEDIA.get(object.object_key);
+        const physicalBytes = existing?.size ?? 0;
+        if (existing) await existing.body.cancel();
         await env.MEDIA.delete(object.object_key);
-        await env.DB.prepare(`UPDATE file_objects SET state='deleted',retry_at=${nowSql}+60000 WHERE id=? AND state='deleting'`).bind(object.id).run();
-        deleted++;
+        const completed = await env.DB.batch([
+          env.DB.prepare("DELETE FROM photo_variants WHERE object_id=? AND EXISTS (SELECT 1 FROM file_objects WHERE id=? AND state='deleting')").bind(object.id, object.id),
+          env.DB.prepare(`UPDATE file_objects SET state='deleted',retry_at=${nowSql}+60000 WHERE id=? AND state='deleting'`).bind(object.id),
+        ]);
+        if (completed[1].meta.changes) { deleted++; reclaimedBytes += physicalBytes; }
       } catch { failed++; }
     }
     // Keep tombstones: an upload already in flight may finish after lease expiry.
     // Later owner visits repeat idempotent deletion, never attach those bytes.
-    return json({ deleted, failed, backgroundService: false });
+    return json({ deleted, failed, reclaimedBytes, backgroundService: false });
   }
   if (path === "/api/files" && request.method === "GET") {
     const { results } = await env.DB.prepare("SELECT f.*, o.object_key, o.state FROM library_files f JOIN file_objects o ON o.id=f.object_id WHERE f.pinned=1 ORDER BY f.created_at DESC, f.id").all<FileRow>();
@@ -156,7 +211,8 @@ export async function ownerFiles(request: Request, env: SitesEnv, path: string):
     if (!file) throw new HttpError(404, "missingFile");
     if (!match[2] && request.method === "DELETE") {
       const body = await readJson(request), revision = revisionOf(body?.revision);
-      const result = await env.DB.prepare("UPDATE library_files SET pinned=0,revision=revision+1 WHERE id=? AND revision=? AND trashed_at IS NOT NULL")
+      if (!file.pinned) return json({ removed: true });
+      const result = await env.DB.prepare("UPDATE library_files SET pinned=0,revision=revision+1 WHERE id=? AND revision=? AND pinned=1 AND trashed_at IS NOT NULL")
         .bind(id, revision).run();
       if (!result.meta.changes) throw new HttpError(409, "storageConflict");
       return json({ removed: true });

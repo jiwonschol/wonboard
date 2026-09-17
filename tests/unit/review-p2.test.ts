@@ -666,6 +666,7 @@ describe("깨진 레코드 하나가 서재 전체를 막지 않는다", () => {
     newer.document.title = "legacy-newer";
     const markup = renderToStaticMarkup(
       createElement(WritingLibrary, {
+        trashFilter: null, onTrashFilter: () => undefined,
         draft: older,
         list: [newer],
         locale: "en",

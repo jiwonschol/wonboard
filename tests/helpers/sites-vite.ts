@@ -23,9 +23,10 @@ export function sitesTestPlugin(): Plugin {
         if (offset > 60 * 86400000) { res.writeHead(400); res.end(); return; }
         const now = Date.now() + offset;
         runtime.sqlite.function("strftime", (format, value) => {
-          if (value !== "now") throw new Error("Clock fixture supports now only");
-          if (format === "%s") return String(Math.floor(now / 1000));
-          if (format === "%f") return new Date(now).toISOString().slice(17, 23);
+          const time = value === "now" ? now : Date.parse(String(value));
+          if (!Number.isFinite(time)) return null;
+          if (format === "%s") return String(Math.floor(time / 1000));
+          if (format === "%f") return new Date(time).toISOString().slice(17, 23);
           throw new Error("Unsupported clock fixture format");
         });
         res.writeHead(204); res.end(); return;
@@ -34,8 +35,9 @@ export function sitesTestPlugin(): Plugin {
       if (expiredFixture && req.method === "POST") {
         // Seed pre-existing expired data, not a client timestamp override. This
         // loopback fixture module is never imported by the production worker.
-        runtime.sqlite.prepare("UPDATE documents SET body=json_set(body,'$.trashedAt',?) WHERE id=?")
-          .run(new Date(Date.now() - 31 * 86400000).toISOString(), expiredFixture[1]);
+        const timestamp = new Date(Date.now() - 31 * 86400000).toISOString();
+        runtime.sqlite.prepare("UPDATE documents SET body=json_set(body,'$.trashedAt',?,'$._sitesTrashTimestamp',?) WHERE id=?")
+          .run(timestamp, timestamp, expiredFixture[1]);
         res.writeHead(204); res.end(); return;
       }
       void (async () => {

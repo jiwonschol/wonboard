@@ -4,33 +4,62 @@ import {gzipSync} from 'node:zlib';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {stageWordnikCandidate} from './stage-wordnik-candidate.mjs';
+import {readReviewedAssets,reviewedAssets} from './check-spelling-data-policy.mjs';
 
 // Build an isolated complete data pair for Worker qualification. No product
 // imports, checked-in payloads or release notices are changed by this command.
-export async function stageProofreadingBundle() {
+//
+// The reviewed payload and notice hashes live only in check-spelling-data-policy.mjs.
+// This command consumes them through readReviewedAssets, so the bytes it verifies and
+// the bytes it stages are the same buffers and a data revision cannot leave a second,
+// stale copy of a hash behind here. Verification runs before any network acquisition
+// and before any artifact write.
+export async function stageProofreadingBundle({read,records=reviewedAssets,stageCandidate=stageWordnikCandidate}={}) {
   const root=new URL('../',import.meta.url);
   const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
-  const source=await readFile(new URL('third_party/spelling/generated/lexicon.json',root));
-  const morphology=await readFile(new URL('third_party/spelling/generated/morphology.json',root));
-  if(digest(source)!=='582a81dcf351da3b369eb4d7cb4b8f3410612dadf60ded14f35af74ffd8000cc'||digest(morphology)!=='d6bc76d4a6cbcff44388fdd8c42677cdbb294927f416cfc2af883da20e3eaa23')throw Error('Current Korean data needs a fresh provenance review');
-  const candidate=await stageWordnikCandidate();
+  const {report,assets}=await readReviewedAssets(read??(file=>readFile(new URL(file,root))),records);
+  const onlyRecord=suffix=>{
+    const found=records.filter(record=>record.file.endsWith(suffix));
+    if(found.length!==1)throw Error(`Expected exactly one reviewed record for ${suffix}, found ${found.length}`);
+    return found[0];
+  };
+  const onlyNotice=(record,suffix)=>{
+    const found=record.notices.filter(notice=>notice.file.endsWith(suffix));
+    if(found.length!==1)throw Error(`Expected exactly one reviewed notice for ${suffix} in ${record.file}, found ${found.length}`);
+    return assets.get(found[0].file);
+  };
+  const lexiconRecord=onlyRecord('generated/lexicon.json');
+  const morphologyRecord=onlyRecord('generated/morphology.json');
+  const source=assets.get(lexiconRecord.file),morphology=assets.get(morphologyRecord.file);
+  // The Wonboard own-license notice is reviewed as a root LICENSE entry. Looked up by exact path
+  // across every record, so moving it between records cannot silently drop the link, and handed
+  // to the sub-generator so it ships the verified buffer instead of re-reading the file after
+  // verification. Standalone `stage-wordnik-candidate.mjs` runs pass nothing and read it locally.
+  const ownNotice='LICENSE';
+  const owners=records.flatMap(record=>record.notices.filter(notice=>notice.file===ownNotice).map(()=>record.file));
+  if(owners.length!==1)throw Error(`Expected exactly one reviewed notice ${ownNotice}, found ${owners.length}`);
+  const ownLicense=assets.get(ownNotice);
+  if(!ownLicense)throw Error(`Reviewed file was not verified: ${ownNotice}`);
+  // The first positional argument stays the fetch source: `stageCandidate` defaults to
+  // `stageWordnikCandidate(fetchSource=fetch, options={})`, so passing the license object alone
+  // would land in `fetchSource` and throw `TypeError: fetchSource is not a function` on the real
+  // command. Injected test doubles ignore both arguments or read the second.
+  const candidate=await stageCandidate(fetch,{ownLicense});
   const english=JSON.parse(await readFile(path.join(candidate.directory,'english-with-basics.json')));
   const combined=Buffer.from(JSON.stringify({notice:'Candidate only: selected Open Korean Text (Apache-2.0), Wordnik wordlist (MIT), and Wonboard original basic forms (MIT).',ko:JSON.parse(source).ko,en:english.en})+'\n');
   const gzipBytes=gzipSync(combined).length+gzipSync(morphology).length;
   if(gzipBytes>2_000_000)throw Error(`Combined data budget exceeded: ${gzipBytes}`);
   const files=[['lexicon.json',combined],['morphology.json',morphology]];
-  const notices=[
-    ['OPEN-KOREAN-TEXT-LICENSE','third_party/spelling/open-korean-text/LICENSE','cb5e8e7e5f4a3988e1063c142c60dc2df75605f4c46515e776e3aca6df976e14'],
-    ['MECAB-COPYING','third_party/spelling/mecab-ko-dic/COPYING','c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4'],
-  ];
-  for(const [name,file,sha] of notices){
-    const bytes=await readFile(new URL(file,root));
-    if(digest(bytes)!==sha)throw Error('Korean notice changed since review');
-    files.push([name,bytes]);
-  }
+  // Notice composition is unchanged: the Korean sources' own retained notices. Their hashes
+  // are verified by the shared policy check above, not re-pinned here.
+  for(const [name,record,suffix] of [
+    ['OPEN-KOREAN-TEXT-LICENSE',lexiconRecord,'open-korean-text/LICENSE'],
+    ['MECAB-COPYING',morphologyRecord,'mecab-ko-dic/COPYING'],
+  ]) files.push([name,onlyNotice(record,suffix)]);
   const manifest={status:'isolated qualification bundle; not release approval',englishRevision:candidate.revision,
     sourceLexiconSha256:digest(source),combinedGzipBytes:gzipBytes,
     licenses:['MIT','Apache-2.0'],englishEntries:english.en.length,
+    policyScope:report.scope,
     files:files.map(([file,bytes])=>({file,sha256:digest(bytes),bytes:bytes.length})),
     englishProvenance:'manifest.json contains pinned Wordnik inputs, original MIT notices and complete authored supplement',
   };

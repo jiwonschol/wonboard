@@ -8,8 +8,8 @@ for (const offsetDays of [-31, 31]) test(`file trash follows server time and tic
   await page.clock.install({ time: new Date(Date.now() + offsetDays * 86400000) });
   await page.goto("/");
   await page.locator(".writing-library").getByRole("button", { name: "File library", exact: true }).click();
-  const panel = page.getByRole("dialog", { name: "File library", exact: true });
-  await panel.getByRole("button", { name: "Trash", exact: true }).click();
+  await page.getByRole("dialog", { name: "File library", exact: true }).getByRole("button", { name: "Trash", exact: true }).click();
+  const panel = page.locator(".file-trash-panel");
   const restore = panel.getByRole("button", { name: "Restore file", exact: true });
   const download = panel.getByRole("button", { name: "Download file", exact: true });
   await expect(restore).toBeEnabled(); await expect(download).toBeEnabled();
@@ -110,4 +110,25 @@ test("Sites persists file references through insertion and reload without publis
   await page.reload();
   await expect(body).toHaveText("left private.txt right");
   expect(await (await request.get("/api/file-shares", { headers: owner })).json()).toEqual([]);
+});
+
+for (const locale of ["en","ko"] as const) for (const width of [1440,390]) test(`one trash entry filters writing and files in ${locale} at ${width}px`, async ({page,request},info)=>{
+  const file=await (await request.put("/api/files/unified-file?name=long-file-name-for-retention.txt",{headers:{...owner,"Content-Type":"text/plain"},data:"retained"})).json();
+  await request.patch("/api/files/unified-file",{headers:owner,data:{revision:file.revision,trashedAt:"requested"}});
+  const draft=newDraft("en"); draft.document.title="Recoverable writing";
+  await request.put(`/api/documents/${draft.document.documentId}`,{headers:owner,data:{...draft.document,trashedAt:new Date().toISOString()}});
+  await page.setViewportSize({width:1440,height:900});await page.goto("/");
+  await page.locator(".admin-bar select").selectOption(locale);await page.setViewportSize({width,height:900});
+  const sidebar=page.locator(".writing-library");
+  await sidebar.locator("footer").getByRole("button",{name:locale==="en"?/^Trash/:/^휴지통/}).click();
+  await expect(sidebar.locator(".trash-row")).toContainText("Recoverable writing");
+  await sidebar.getByRole("button",{name:locale==="en"?"Files":"파일",exact:true}).click();
+  await expect(sidebar.locator(".file-library-list")).toContainText("long-file-name-for-retention.txt");
+  await expect(page.getByRole("dialog",{name:locale==="en"?"File library":"파일 보관함",exact:true})).toHaveCount(0);
+  await expect(sidebar.getByRole("button",{name:locale==="en"?"Restore file":"파일 복원",exact:true})).toBeEnabled();
+  const boxes=await sidebar.locator(".file-trash-panel,.file-library-list li").evaluateAll(nodes=>nodes.map(node=>({x:node.getBoundingClientRect().x,right:node.getBoundingClientRect().right,scroll:node.scrollWidth,client:node.clientWidth})));
+  for(const box of boxes){expect(box.x).toBeGreaterThanOrEqual(0);expect(box.right).toBeLessThanOrEqual(width);expect(box.scroll).toBeLessThanOrEqual(box.client);}
+  await page.screenshot({path:info.outputPath(`unified-trash-${locale}-${width}.png`)});
+  await sidebar.locator(".file-library-tools").getByRole("button",{name:locale==="en"?"My writing":"내 글",exact:true}).click();
+  await expect(sidebar.locator(".trash-row")).toContainText("Recoverable writing");
 });

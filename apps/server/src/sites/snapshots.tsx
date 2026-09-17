@@ -96,7 +96,7 @@ export async function ownerSnapshots(request: Request, env: SitesEnv, path: stri
     const ids = [...new Set(attachmentNodes(document.content).filter(node => node.type === "media").map(node => String(node.attrs?.mediaId)))];
     if (!body.variants || typeof body.variants !== "object" || Object.keys(body.variants).length !== ids.length) throw new HttpError(400, "missingMedia");
     const id = previous?.id ?? crypto.randomUUID(), version = crypto.randomUUID();
-    const urls: Record<string, string> = {}, assets: { media: string; object: string; mime: string }[] = [], fileShares: string[] = [];
+    const urls: Record<string, string> = {}, assets: { media: string; object: string; mime: string }[] = [], fileShares: { id: string; token: string; revision: number }[] = [];
     for (const mediaId of ids) {
       const hash = body.variants[mediaId];
       if (typeof hash !== "string" || !/^[a-f0-9]{64}$/.test(hash)) throw new HttpError(400, "invalidImage");
@@ -112,10 +112,10 @@ export async function ownerSnapshots(request: Request, env: SitesEnv, path: stri
       urls[mediaId] = `assets/${version}/${mediaId}`;
     }
     for (const fileId of referencedFileIds(document.content)) {
-      const share = await env.DB.prepare(`SELECT id,token FROM file_shares WHERE file_id=? AND ${activeSql} ORDER BY created_at DESC,id LIMIT 1`)
-        .bind(fileId).first<{ id: string; token: string }>();
+      const share = await env.DB.prepare(`SELECT id,token,revision FROM file_shares WHERE file_id=? AND ${activeSql} ORDER BY created_at DESC,id LIMIT 1`)
+        .bind(fileId).first<{ id: string; token: string; revision: number }>();
       if (!share) throw new HttpError(400, "privateFile");
-      fileShares.push(share.id); urls[fileId] = new URL(`/shared/files/${share.token}`, request.url).href;
+      fileShares.push(share); urls[fileId] = new URL(`/shared/files/${share.token}`, request.url).href;
     }
     const html = "<!doctype html>" + renderToStaticMarkup(<html lang={document.locale}><head><meta charSet="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="robots" content="noindex,nofollow" />
@@ -123,7 +123,8 @@ export async function ownerSnapshots(request: Request, env: SitesEnv, path: stri
         <h1>{document.title}</h1><PortableDocumentBody document={document} mediaUrls={urls} videoLinksOnly /></body></html>);
     const condition = `EXISTS (SELECT 1 FROM documents WHERE id=? AND revision=? AND json_extract(body,'$.trashedAt') IS ?
       AND (? IS NULL OR ?>${nowSql})) AND NOT EXISTS (SELECT 1 FROM json_each(?) r
-      WHERE NOT EXISTS (SELECT 1 FROM file_shares WHERE id=r.value AND ${activeSql}))`;
+      WHERE NOT EXISTS (SELECT 1 FROM file_shares WHERE id=json_extract(r.value,'$.id') AND token=json_extract(r.value,'$.token')
+        AND revision=json_extract(r.value,'$.revision') AND ${activeSql}))`;
     const guard = [document.documentId, document.revision, source.storedTimestamp ?? null, source.deadline, source.deadline, JSON.stringify(fileShares)];
     const parent = creating
       ? env.DB.prepare(`INSERT INTO snapshots(id,document_id,title,token,current_version,revision,expires_at,operation_id,create_operation_id,updated_at)

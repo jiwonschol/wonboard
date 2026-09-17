@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { Icon } from "@wonboard/editor";
 import {
   matchesQuery,
@@ -29,7 +29,7 @@ export function WritingLibrary({
   onCreate,
   onClose,
   onRestore,
-  onFiles,
+  onFiles, trashFilter, onTrashFilter, fileTrash,
   onTrash, onUntrash, onRemove, onEmptyTrash, canTrash,
   storageMode = "local",
   clockNow = Date.now,
@@ -45,6 +45,9 @@ export function WritingLibrary({
   onClose(): void;
   onRestore(): void;
   onFiles?(): void;
+  trashFilter: "documents" | "files" | null;
+  onTrashFilter(value: "documents" | "files" | null): void;
+  fileTrash?: ReactNode;
   onTrash(draft: Draft): void;
   onUntrash(draft: Draft): void;
   onRemove(draft: Draft): void;
@@ -54,7 +57,8 @@ export function WritingLibrary({
   const t = translator(locale);
   const [query, setQuery] = useState("");
   const [recent, setRecent] = useState(false);
-  const [showTrash, setShowTrash] = useState(false);
+  const showTrash = trashFilter !== null;
+  const setShowTrash = (value: boolean) => onTrashFilter(value ? "documents" : null);
   const [now, setNow] = useState(clockNow);
   useEffect(() => {
     setNow(clockNow());
@@ -79,7 +83,11 @@ export function WritingLibrary({
         <header><button onClick={() => setShowTrash(false)}>{t("trashBack")}</button><h2>{t("trash")}</h2>
           <button className="icon-button" aria-label={t("closeLibrary")} onClick={onClose}><Icon name="close" /></button></header>
         <p className="trash-policy">{t("trashPolicy")}</p>
-        <nav className="document-list" aria-label={t("trash")}>
+        <div className="file-library-tools" aria-label={t("trash")}>
+          <button disabled={busy} aria-pressed={trashFilter === "documents"} onClick={() => onTrashFilter("documents")}>{t("myWriting")}</button>
+          {fileTrash ? <button disabled={busy} aria-pressed={trashFilter === "files"} onClick={() => onTrashFilter("files")}>{t("filesActive")}</button> : null}
+        </div>
+        {trashFilter === "files" ? fileTrash : <><nav className="document-list" aria-label={t("trash")}>
           {trashed.map(d => <section className="trash-row" key={d.document.documentId}>
             <strong>{d.document.title || t("untitled")}</strong>
             <span className="document-excerpt">{excerpt(d)}</span>
@@ -89,8 +97,7 @@ export function WritingLibrary({
           </section>)}
           {!trashed.length && <p>{t("trashEmpty")}</p>}
         </nav>
-        <footer>{onFiles ? <button disabled={busy} onClick={onFiles}>{t("fileLibrary")}</button> : null}
-          <button disabled={busy || !trashed.length} onClick={onEmptyTrash}>{t("emptyTrash")}</button></footer>
+        <footer><button disabled={busy || !trashed.length} onClick={onEmptyTrash}>{t("emptyTrash")}</button></footer></>}
       </> : <>
       <header>
         <h2>{t("myWriting")}</h2>

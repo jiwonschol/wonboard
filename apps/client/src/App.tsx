@@ -54,9 +54,11 @@ export default function App({
   const [locale, setLocale] = useState<Locale>(initialLocale);
   const t = translator(locale);
   const writer = useDrafts(locale, storageMode);
+  const writerState = useRef(writer); writerState.current = writer;
   const [publication, setPublication] = useState(false);
   const [editor, setEditor] = useState<EditorHandle | null>(null);
   const [fileLibrary, setFileLibrary] = useState<FileLibrary | null>(null);
+  const [trashFilter, setTrashFilter] = useState<"documents" | "files" | null>(null);
   const [filePanel, setFilePanel] = useState<"manage" | "pick" | null>(null);
   const fileTarget = useRef<{ documentId: string; editor: EditorHandle; selection: ReturnType<typeof captureAttachmentSelection> } | null>(null);
   const fileTrigger = useRef<HTMLElement | null>(null);
@@ -90,7 +92,7 @@ export default function App({
     return () => { active = false; opened?.close(); fileTarget.current?.selection.close(); };
   }, [storageMode]);
   function openFiles(picking: boolean) {
-    if (!fileLibrary || busy) return;
+    if (!fileLibrary || busy || (picking && (writer.readOnly || writer.recovery.length || !editor?.isEditable))) return;
     fileTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     fileTarget.current?.selection.close();
     const snapshot = writer.snapshot();
@@ -107,7 +109,7 @@ export default function App({
   }
   async function insertLibraryFiles(ids: string[]) {
     const target = fileTarget.current;
-    if (!target || !fileLibrary || writer.readOnly) throw new Error("fileInsertChanged");
+    if (!target || !fileLibrary || writerState.current.readOnly || writerState.current.recovery.length || !target.editor.isEditable) throw new Error("fileInsertChanged");
     const loaded = [];
     for (const id of ids) {
       const item = await fileLibrary.load(id);
@@ -115,7 +117,7 @@ export default function App({
       loaded.push(item);
     }
     const snapshot = writer.snapshot();
-    if (!snapshot || snapshot.document.documentId !== target.documentId || target.editor.isDestroyed) throw new Error("fileInsertChanged");
+    if (!snapshot || snapshot.document.documentId !== target.documentId || target.editor.isDestroyed || !target.editor.isEditable || writerState.current.readOnly || writerState.current.recovery.length) throw new Error("fileInsertChanged");
     const files = { ...snapshot.document.files }, media = { ...snapshot.document.media }, blobs = { ...snapshot.blobs };
     const content: ContentNode[] = [];
     for (const { file, blob } of loaded) {
@@ -132,7 +134,7 @@ export default function App({
       }
       blobs[file.id] = blob;
     }
-    if (writer.snapshot()?.document.documentId !== target.documentId || target.editor.isDestroyed) throw new Error("fileInsertChanged");
+    if (writer.snapshot()?.document.documentId !== target.documentId || target.editor.isDestroyed || !target.editor.isEditable || writerState.current.readOnly || writerState.current.recovery.length) throw new Error("fileInsertChanged");
     validateDocument({ ...snapshot.document, files, media });
     if (!target.selection.restore()) throw new Error("fileInsertChanged");
     const accepted = insertAttachmentContent(target.editor, content);
@@ -477,7 +479,7 @@ export default function App({
             <Icon name="settings" />
           </button>
           <span title={storageMode !== "sites" ? t("publishLater") : undefined}>
-            <button className="publish-button" disabled={storageMode !== "sites" || busy || writer.readOnly}
+            <button className="publish-button" disabled={storageMode !== "sites" || busy || writer.readOnly || writer.recovery.length > 0}
               onClick={() => setPublication(true)}>
               {t(storageMode === "sites" ? "prepareExport" : "publish")}
             </button>
@@ -526,6 +528,9 @@ export default function App({
         {library ? (
           <WritingLibrary
             onFiles={fileLibrary ? () => openFiles(false) : undefined}
+            trashFilter={trashFilter} onTrashFilter={setTrashFilter}
+            fileTrash={fileLibrary ? <FileLibraryPanel library={fileLibrary} locale={locale} picking={false} embeddedTrash
+              onInsert={insertLibraryFiles} onClose={() => setTrashFilter(null)} /> : undefined}
             clockNow={writer.clockNow}
             storageMode={storageMode}
             draft={draft}
@@ -601,7 +606,7 @@ export default function App({
             attachmentCount={attachmentCount}
             attachments={
               <AttachmentsPanel
-                onFiles={fileLibrary ? () => openFiles(true) : undefined}
+                onFiles={fileLibrary && !writer.readOnly && !writer.recovery.length ? () => openFiles(true) : undefined}
                 document={draft.document}
                 locale={locale}
                 urls={urls}
@@ -692,9 +697,14 @@ export default function App({
       {trashDialog && <TrashDialog locale={locale} action={trashDialog.action} count={trashDialog.count} working={busy}
         message={writer.error ? t(Object.hasOwn(en, writer.error) ? writer.error as MessageKey : "storageFailed") : ""}
         onConfirm={() => executeTrash(trashDialog.action, trashDialog.value)} onClose={() => setTrashDialog(null)} />}
-      {filePanel && fileLibrary ? <FileLibraryPanel library={fileLibrary} locale={locale} picking={filePanel === "pick"} onInsert={insertLibraryFiles} onClose={closeFiles}
-        beforeWritingUpdate={id => id === writer.snapshot()?.document.documentId ? writer.save() : Promise.resolve(true)} /> : null}
+      {filePanel && fileLibrary ? <FileLibraryPanel library={fileLibrary} locale={locale} picking={filePanel === "pick"} onTrash={() => { closeFiles(); setLibrary(true); setTrashFilter("files"); }} onInsert={insertLibraryFiles} onClose={closeFiles}
+        canUpdateWriting={!writer.readOnly && writer.recovery.length === 0}
+        beforeWritingUpdate={async id => {
+          if (writerState.current.recovery.length || writerState.current.readOnly) return false;
+          return id === writer.snapshot()?.document.documentId ? writer.save() : true;
+        }} /> : null}
       {publication && <PublicationPanel locale={locale} documentId={draft.document.documentId}
+        canPublish={() => !writerState.current.readOnly && writerState.current.recovery.length === 0}
         save={writer.save} snapshot={writer.snapshot} onBusy={setBusy} onClose={() => setPublication(false)} />}
       {preview ? (
         <div

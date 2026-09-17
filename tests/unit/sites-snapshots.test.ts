@@ -32,6 +32,36 @@ async function fixture() {
 }
 
 describe("independent frozen writing snapshots", () => {
+  it("rejects a file-share token rotation during the final snapshot commit", async () => {
+    const f=await fixture(); try {
+      const file=await (await f.call("/api/files/race-file?name=race.txt","PUT",{text:"race"})).json();
+      const content=structuredClone(f.saved.content); content.content.push({type:"paragraph",content:[{type:"fileRef",attrs:{fileId:"race-file",label:"race.txt"}}]});
+      await f.call(`/api/documents/${f.saved.documentId}`,"PUT",{...f.saved,files:{"race-file":file},content});
+      const share=await (await f.call("/api/files/race-file/share","POST",{revision:1,operationId:"share-race"})).json();
+      const batch=f.env.DB.batch.bind(f.env.DB);
+      f.env.DB.batch=statements=>{f.sqlite.prepare("UPDATE file_shares SET token='rotated-token',revision=revision+1 WHERE id=?").run(share.id); return batch(statements);};
+      expect((await f.call("/api/snapshots","POST",{...f.input,documentRevision:2})).status).toBe(409);
+      expect(f.sqlite.prepare("SELECT count(*) AS count FROM snapshots").get()!.count).toBe(0);
+    } finally {f.close();}
+  });
+  it("prunes expired retired metadata and collected variant mappings but retains a private current snapshot", async () => {
+    const f=await fixture(); try {
+      const snapshot=await (await f.call("/api/snapshots","POST",f.input)).json();
+      const variant=await (await f.call(`/api/documents/${f.saved.documentId}/media/photo/variant`,"PUT",createSyntheticPng(90))).json();
+      const updated=await (await f.call(`/api/snapshots/${snapshot.id}/update`,"POST",{...f.input,revision:1,operationId:"update-prune",variants:{photo:variant.hash}})).json();
+      const switchedAt=f.time();
+      f.setTime(switchedAt+300000-1); await f.call("/api/files/cleanup","POST",{});
+      expect(f.sqlite.prepare("SELECT count(*) AS count FROM snapshot_versions").get()!.count).toBe(2);
+      f.setTime(switchedAt+300000); await f.call("/api/files/cleanup","POST",{});
+      expect(f.sqlite.prepare("SELECT id FROM snapshot_versions").get()!.id).toBe(updated.version);
+      expect(f.sqlite.prepare("SELECT count(*) AS count FROM snapshot_assets").get()!.count).toBe(1);
+      await f.call(`/api/snapshots/${snapshot.id}`,"PATCH",{revision:2,action:"revoke",operationId:"private-current"});
+      f.setTime(switchedAt+3600001); await f.call("/api/files/cleanup","POST",{});
+      expect(f.sqlite.prepare("SELECT count(*) AS count FROM photo_variants").get()!.count).toBe(1);
+      expect((await f.call(`/api/snapshots/${snapshot.id}/preview/`)).status).toBe(200);
+      expect((await f.call(`/api/snapshots/${snapshot.id}/preview/assets/${updated.version}/photo`)).status).toBe(200);
+    } finally {f.close();}
+  });
   it("requires explicit file sharing and renders videos only as source links", async () => {
     const f = await fixture();
     try {

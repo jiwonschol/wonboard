@@ -19,6 +19,8 @@ export function openSitesFileLibrary(): FileLibrary {
     now: () => serverNow + Math.max(0, performance.now() - receivedAt),
     invalidateClock() { clockVersion++; serverNow = Number.NaN; },
     sharing: {
+      async backfill() { await operation("/api/files/backfill", "POST", { restart: true }); },
+      async usage() { return (await sitesRequest("/api/files/usage")).json(); },
       async writings() { return (await sitesRequest("/api/snapshots")).json(); },
       async updateWriting(writing) {
         const repository = await openDraftRepository("sites", () => {});

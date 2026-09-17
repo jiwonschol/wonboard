@@ -20,11 +20,14 @@ const unexpiredWrite = `(json_extract(body, '$.trashedAt') IS ? AND (? IS NULL O
 function trashDeadline(trashedAt: string | undefined): number | null {
   return trashedAt === undefined ? null : Date.parse(trashedAt) + TRASH_RETENTION_MS;
 }
-function canonicalTrashTimestamp(timestamp: string | undefined, serverUpdatedAt: string) {
+function canonicalTrashTimestamp(timestamp: string | undefined, serverUpdatedAt: string, serverTimestamp?: unknown) {
   if (timestamp === undefined) return undefined;
+  // Only PUT writes this private marker; never trust a client's retention clock.
+  // Unmarked legacy rows may carry either a fast or a slow device timestamp.
+  if (serverTimestamp === timestamp) return timestamp;
   const updated = Date.parse(serverUpdatedAt);
   if (!Number.isFinite(updated)) throw new HttpError(503, "storageFailed");
-  return Date.parse(timestamp) > updated ? new Date(updated).toISOString() : timestamp;
+  return new Date(updated).toISOString();
 }
 type LoadedDocument = { document: WriterDocument; storedTimestamp: string | undefined; deadline: number | null };
 function expiryBindings(stored: LoadedDocument) {
@@ -34,10 +37,10 @@ async function loadStoredDocument(env: SitesEnv, id: string, missingStatus = 404
   const row = await env.DB.prepare(`SELECT body, updated_at, ${databaseNow} AS server_now FROM documents WHERE id = ?`)
     .bind(id).first<{ body: string; updated_at: string; server_now: number }>();
   if (!row) throw new HttpError(missingStatus, missingStatus === 409 ? "storageConflict" : "notFound");
-  const document: unknown = JSON.parse(row.body);
+  const { _sitesTrashTimestamp, ...document } = JSON.parse(row.body);
   validateDocument(document);
   const storedTimestamp = document.trashedAt;
-  document.trashedAt = canonicalTrashTimestamp(storedTimestamp, row.updated_at);
+  document.trashedAt = canonicalTrashTimestamp(storedTimestamp, row.updated_at, _sitesTrashTimestamp);
   const deadline = trashDeadline(document.trashedAt);
   if (deadline !== null && row.server_now >= deadline) throw new HttpError(410, "trashExpired");
   return { document, storedTimestamp, deadline };
@@ -139,13 +142,14 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
     if (path === "/api/documents" && request.method === "GET") {
       const offset = Number(url.searchParams.get("offset") ?? 0);
       if (!Number.isSafeInteger(offset) || offset < 0) throw new HttpError(400, "invalidDocument");
-      const { results } = await env.DB.prepare(`SELECT id, revision, title, locale, excerpt, updated_at, json_extract(body, '$.trashedAt') AS trashed_at, ${databaseNow} AS server_now FROM documents ORDER BY updated_at DESC, id LIMIT 100 OFFSET ?`)
-        .bind(offset).all<{ id: string; revision: number; title: string; locale: "ko" | "en"; excerpt: string; updated_at: string; trashed_at: string | null; server_now: number }>();
+      const { results } = await env.DB.prepare(`SELECT id, revision, title, locale, excerpt, updated_at, json_extract(body, '$.trashedAt') AS trashed_at, json_extract(body, '$._sitesTrashTimestamp') AS server_trashed_at FROM documents ORDER BY updated_at DESC, id LIMIT 100 OFFSET ?`)
+        .bind(offset).all<{ id: string; revision: number; title: string; locale: "ko" | "en"; excerpt: string; updated_at: string; trashed_at: string | null; server_trashed_at: string | null }>();
       const clock = await env.DB.prepare(`SELECT ${databaseNow} AS server_now`).first<{ server_now: number }>();
+      if (!clock) throw new HttpError(503, "storageFailed");
       return json({ documents: results.map(row => {
-        const timestamp = canonicalTrashTimestamp(row.trashed_at ?? undefined, row.updated_at);
+        const timestamp = canonicalTrashTimestamp(row.trashed_at ?? undefined, row.updated_at, row.server_trashed_at);
         const deadline = trashDeadline(timestamp);
-        const expired = deadline !== null && row.server_now >= deadline;
+        const expired = deadline !== null && clock.server_now >= deadline;
         // Old clients discover cleanup candidates through this same list. Keep
         // their envelope and revision, but never return expired writing content.
         const excerpt = expired ? "" : row.excerpt;
@@ -154,7 +158,7 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
         ...(timestamp === undefined ? {} : { trashedAt: timestamp }),
         media: {}, content: { type: "doc", content: [{ type: "paragraph", content: excerpt ? [{ type: "text", text: excerpt }] : [] }] } };
       }),
-        serverNow: clock?.server_now, nextOffset: results.length === 100 ? offset + 100 : null });
+        serverNow: clock.server_now, nextOffset: results.length === 100 ? offset + 100 : null });
     }
     const mediaMatch = /^\/api\/media\/([^/]+)$/.exec(path);
     if (mediaMatch && validId(mediaMatch[1])) {
@@ -195,11 +199,11 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
           (body.deletionIntent !== undefined && !["manual", "expired"].includes(body.deletionIntent)) ||
           (body.withdrawPublications !== undefined && typeof body.withdrawPublications !== "boolean"))
         throw new HttpError(400, "invalidDocument");
-      const row = await env.DB.prepare("SELECT json_extract(body, '$.trashedAt') AS trashed_at, updated_at FROM documents WHERE id = ?")
-        .bind(id).first<{ trashed_at: string | null; updated_at: string }>();
+      const row = await env.DB.prepare("SELECT json_extract(body, '$.trashedAt') AS trashed_at, json_extract(body, '$._sitesTrashTimestamp') AS server_trashed_at, updated_at FROM documents WHERE id = ?")
+        .bind(id).first<{ trashed_at: string | null; server_trashed_at: string | null; updated_at: string }>();
       if (!row) return json({ removed: true });
       const timestamp = typeof row.trashed_at === "string" ? row.trashed_at : undefined;
-      const parsedDeadline = trashDeadline(canonicalTrashTimestamp(timestamp, row.updated_at));
+      const parsedDeadline = trashDeadline(canonicalTrashTimestamp(timestamp, row.updated_at, row.server_trashed_at));
       const deadline = parsedDeadline !== null && Number.isFinite(parsedDeadline) ? parsedDeadline : null;
       // No intent means an old client: its auto-cleanup and manual delete have
       // identical wire shapes. Preserve data unless the server deadline passed.
@@ -219,6 +223,8 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
     if (!action && request.method === "PUT") {
       const document: unknown = await readJson(request);
       validateDocument(document);
+      // Internal storage metadata is neither accepted from nor returned to clients.
+      delete (document as WriterDocument & { _sitesTrashTimestamp?: unknown })._sitesTrashTimestamp;
       if (document.documentId !== id) throw new HttpError(400, "invalidDocument");
       const stored = document.revision === 0 ? null : await loadStoredDocument(env, id, 409);
       if (stored?.document.trashedAt !== undefined && document.trashedAt !== undefined && document.trashedAt !== stored.document.trashedAt)
@@ -238,7 +244,7 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
         // revision-zero imports. Return this canonical value to old clients too.
         saved.trashedAt = saved.updatedAt;
       }
-      const values = [saved.revision, saved.title, saved.locale, plainText(saved.content).slice(0, 300), JSON.stringify(saved), saved.updatedAt];
+      const values = [saved.revision, saved.title, saved.locale, plainText(saved.content).slice(0, 300), JSON.stringify({ ...saved, _sitesTrashTimestamp: saved.trashedAt }), saved.updatedAt];
       const result = document.revision === 0
         ? await env.DB.prepare("INSERT INTO documents (revision, title, locale, excerpt, body, updated_at, id) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING")
           .bind(...values, id).run()

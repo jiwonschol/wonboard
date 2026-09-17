@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { exportBackup, importBackup, limits, newDraft, plainText, referencedFileIds, sha256, validateDocument, withoutUnusedMedia } from "@wonboard/document";
+import { zipSync, strToU8 } from "../../packages/document/node_modules/fflate";
 import "fake-indexeddb/auto";
 import { openStorage, saveDraft, loadDrafts, removeDraft } from "../../apps/client/src/storage";
 import { exportHtml } from "../../apps/client/src/htmlExport";
@@ -14,6 +15,14 @@ async function fixture() {
   return draft;
 }
 describe("private file references and portable backup", () => {
+  it("rejects compressed future-schema JSON over the document budget before parsing", async () => {
+    const original=limits.documentBytes;
+    try {
+      const document={...newDraft().document,schemaVersion:99,extra:"x".repeat(2000)};
+      const bytes=strToU8(JSON.stringify(document)); limits.documentBytes=bytes.byteLength-1;
+      await expect(importBackup(new Blob([zipSync({"document.json":bytes})]))).rejects.toThrow("archiveLimit");
+    } finally {limits.documentBytes=original;}
+  });
   it("checks serialized document bytes at the exact metadata budget", () => {
     const draft = newDraft(), original = limits.documentBytes;
     const size = new TextEncoder().encode(JSON.stringify(draft.document)).byteLength;

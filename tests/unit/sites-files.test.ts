@@ -24,6 +24,20 @@ async function fixture() {
 }
 
 describe("Sites independent file distribution", () => {
+  it("treats a repeated library unpin as success and counts only physically reclaimed bytes", async () => {
+    const f = await fixture(); try {
+      await f.upload("reclaim", "12345");
+      await f.call("/api/files/reclaim", "PATCH", { revision: 1, trashedAt: "requested" });
+      expect((await f.call("/api/files/reclaim", "DELETE", {revision:1})).status).toBe(409);
+      expect((await f.call("/api/files/reclaim", "DELETE", {revision:2})).status).toBe(200);
+      expect((await f.call("/api/files/reclaim", "DELETE", {revision:2})).status).toBe(200);
+      expect((await (await f.call("/api/files/usage")).json()).pendingBytes).toBe(5);
+      expect(await (await f.call("/api/files/cleanup", "POST", {})).json()).toMatchObject({deleted:1,reclaimedBytes:5});
+      f.sqlite.prepare("UPDATE file_objects SET retry_at=0").run();
+      expect(await (await f.call("/api/files/cleanup", "POST", {})).json()).toMatchObject({deleted:1,reclaimedBytes:0});
+      expect((await (await f.call("/api/files/usage")).json()).trackedBytes).toBe(0);
+    } finally { f.close(); }
+  });
   it("expires owner library downloads by database time without breaking documents or public shares", async () => {
     const f = await fixture();
     try {

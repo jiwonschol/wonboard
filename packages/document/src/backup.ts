@@ -101,12 +101,7 @@ export async function importBackup(blob: Blob): Promise<Draft> {
                 file.name,
               ) ||
               !Number.isSafeInteger(file.originalSize) ||
-              // 사진 한 장의 상한이지 문서의 상한이 아니다. document.json 에 걸면
-              // exportBackup 이 정상으로 만들어 낸 묶음을 가져오기가 거부한다 —
-              // 같은 사진 노드를 여러 번 쓰면서 설명을 길게 단 문서로 실제로 닿는다.
-              // 문서 크기는 아래 total 이 archiveBytes 로 이미 막는다.
-              (file.name !== "document.json" &&
-                file.originalSize > limits.imageBytes) ||
+              file.originalSize > (file.name === "document.json" ? limits.documentBytes : limits.imageBytes) ||
               total > limits.archiveBytes ||
               names.size >= limits.images + limits.files + 1
             )
@@ -123,6 +118,7 @@ export async function importBackup(blob: Blob): Promise<Draft> {
   );
   if (invalid) throw new DocumentError("archiveLimit");
   if (!files["document.json"]) throw new DocumentError("corruptBackup");
+  if (files["document.json"].byteLength > limits.documentBytes) throw new DocumentError("archiveLimit");
   let document: WriterDocument;
   try {
     document = JSON.parse(strFromU8(files["document.json"]));

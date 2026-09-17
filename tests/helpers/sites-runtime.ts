@@ -4,9 +4,9 @@ import { deflateSync } from "node:zlib";
 import type { Database, ObjectStore, SitesEnv, Statement } from "../../apps/server/src/sites/types.ts";
 
 /** Real SQLite statements + an in-memory R2 double. Never a hosted runtime. */
-export function createSitesTestRuntime() {
+export function createSitesTestRuntime(schemaSql?: string) {
   const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec(readFileSync(new URL("../../apps/server/src/sites/schema.sql", import.meta.url), "utf8"));
+  sqlite.exec(schemaSql ?? readFileSync(new URL("../../apps/server/src/sites/schema.sql", import.meta.url), "utf8"));
   function prepare(sql: string): Statement {
     let values: unknown[] = [];
     const query = () => sqlite.prepare(sql);

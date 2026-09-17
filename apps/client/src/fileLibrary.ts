@@ -6,6 +6,9 @@ export type FileShare = { id: string; fileId: string; token: string; revision: n
 export type DistributedPhoto = { id: string; documentId: string; filename: string; published: boolean; url: string };
 export type SharedWriting = { id: string; documentId: string; title: string; revision: number; token: string; version: string;
   url: string; active: boolean; revoked: boolean; expiresAt: string | null };
+export type StorageUsage = { trackedBytes: number; pendingBytes: number; failedBytes: number; reservedBytes: number;
+  unknownObjects: number; objects: { id: string; filename: string | null; bytes: number; reasons: string[] }[];
+  backfill: { complete: boolean; failures: number }; accountQuota: null };
 export type FileLibrary = {
   now?(): number;
   invalidateClock?(): void;
@@ -24,7 +27,9 @@ export type FileLibrary = {
     create(file: LibraryFile, expiresAt: string | null): Promise<FileShare>;
     change(share: FileShare, action: "extend" | "revoke" | "reissue", expiresAt: string | null): Promise<FileShare>;
     remove(share: FileShare): Promise<void>;
-    cleanup(): Promise<{ deleted: number; failed: number }>;
+    usage(): Promise<StorageUsage>;
+    backfill(): Promise<void>;
+    cleanup(): Promise<{ deleted: number; failed: number; reclaimedBytes: number }>;
     photos(): Promise<DistributedPhoto[]>;
     changePhoto(photo: DistributedPhoto, action: "revoke" | "delete"): Promise<void>;
   };

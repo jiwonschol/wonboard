@@ -6,8 +6,9 @@ import { translator } from "@wonboard/locales";
 import { prepareImageVariants, publishImages, publications, type Publication } from "./publishing";
 import { sitesRequest } from "./draftRepository";
 
-export function PublicationPanel({ locale, documentId, save, snapshot, onBusy, onClose }: {
+export function PublicationPanel({ locale, documentId, save, snapshot, canPublish, onBusy, onClose }: {
   locale: Locale; documentId: string; save(): Promise<boolean>; snapshot(): Draft | null;
+  canPublish(): boolean;
   onBusy(value: boolean): void; onClose(): void;
 }) {
   const t = translator(locale);
@@ -37,7 +38,7 @@ export function PublicationPanel({ locale, documentId, save, snapshot, onBusy, o
   }
   async function publish() {
     setHtml(""); draftText.current = "";
-    if (!accepted || !(await save())) throw new Error("storageFailed");
+    if (!accepted || !canPublish() || !(await save()) || !canPublish()) throw new Error("storageFailed");
     const draft = snapshot();
     if (!draft || draft.document.documentId !== documentId) throw new Error("storageFailed");
     const fileUrls: Record<string, string> = {};
@@ -70,7 +71,7 @@ export function PublicationPanel({ locale, documentId, save, snapshot, onBusy, o
   }
   async function shareWriting() {
     setWritingUrl("");
-    if (!accepted || !(await save())) throw new Error("storageFailed");
+    if (!accepted || !canPublish() || !(await save()) || !canPublish()) throw new Error("storageFailed");
     const draft = snapshot();
     if (!draft || draft.document.documentId !== documentId) throw new Error("storageFailed");
     const expiresAt = writingExpiry ? new Date(writingExpiry).toISOString() : null;
@@ -78,6 +79,7 @@ export function PublicationPanel({ locale, documentId, save, snapshot, onBusy, o
     if (writingOperation.current?.key !== key) writingOperation.current = { key, id: crypto.randomUUID() };
     try {
       const variants = await prepareImageVariants(draft);
+      if (!canPublish()) throw new Error("storageFailed");
       const result = await (await sitesRequest("/api/snapshots", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ documentId, documentRevision: draft.document.revision, variants, expiresAt, operationId: writingOperation.current.id }) })).json();
       setWritingUrl(new URL(result.url, location.origin).href); writingOperation.current = null;
@@ -92,10 +94,10 @@ export function PublicationPanel({ locale, documentId, save, snapshot, onBusy, o
     <header><h2 id="publication-title">{t("prepareExport")}</h2><button disabled={working} onClick={onClose}>{t("close")}</button></header>
     <p>{t("publishNotice")}</p>
     <label className="sites-consent"><input type="checkbox" checked={accepted} disabled={working} onChange={e => setAccepted(e.target.checked)} />{t("publishAccept")}</label>
-    <button className="publish-button" disabled={!accepted || working} onClick={() => void run(publish)}>{t(working ? "saving" : "publishImages")}</button>
+    <button className="publish-button" disabled={!accepted || working || !canPublish()} onClick={() => void run(publish)}>{t(working ? "saving" : "publishImages")}</button>
     <section aria-label={t("sharedWriting")}><p>{t("snapshotNotice")}</p>
       <label>{t("shareExpiry")}<input type="datetime-local" disabled={working} value={writingExpiry} onChange={event => setWritingExpiry(event.target.value)} /></label>
-      <button disabled={!accepted || working} onClick={() => void run(shareWriting)}>{t("createSnapshot")}</button>
+      <button disabled={!accepted || working || !canPublish()} onClick={() => void run(shareWriting)}>{t("createSnapshot")}</button>
       {writingUrl ? <input aria-label={t("sharedWritingUrl")} readOnly value={writingUrl} onFocus={event => event.target.select()} /> : null}
     </section>
     <p role="status">{message}</p>

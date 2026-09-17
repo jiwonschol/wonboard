@@ -4,7 +4,7 @@ The Wonboard application code is MIT. Third-party resources retain their own lic
 
 ## Current experimental bilingual checker
 
-The current review Worker uses original Wonboard checking code and selected Open Korean Text, MeCab Ko Dic and English Speller Database/SCOWL data. No upstream checker engine is imported. Complete data license texts are in ../THIRD_PARTY_NOTICES.txt and the review dialog. Source revisions, hashes and transformations are recorded in third_party/spelling/generated manifests in the repository.
+The current review Worker uses original Wonboard checking code and selected Open Korean Text, MeCab Ko Dic, Wordnik wordlist and Wonboard original basic English forms data. No upstream checker engine is imported. Complete data license texts are in ../THIRD_PARTY_NOTICES.txt and the review dialog. Source revisions, hashes and transformations are recorded in third_party/spelling/generated manifests in the repository.
 
 Korean spelling and spacing and English spelling are processed on the device. Drafts are not sent to a checking service. Personal words are stored on this device; supported Korean particles are recognized separately. General grammar and contextual correctness are not guaranteed.
 
