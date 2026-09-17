@@ -73,7 +73,15 @@ recoveryCache.ts:5  IndexedDB name = "wonboard-sites-recovery-v1"
 
 **삭제 자체도 보장이 아니라 시도다.** `recoveryCache.ts:54-57` 은 `await pending.catch(() => {})` 뒤에 `transaction<void>("readwrite", store => { store.clear(); })` 를 반환한다. IndexedDB 를 열지 못하거나 clear 트랜잭션이 abort 하면 이 Promise 는 거부되고 **사본은 그대로 남는다.** `App.tsx:241-249` 의 `logout()` 은 `try { … await clearRecovery(); } finally { setBusy(false); }` 로 **거부를 잡지 않고 삭제 완료를 확인하지 않는다.** 게다가 그 시점에는 `SitesGate.tsx:71-73` 이 이미 `window.location.assign(...)` 을 불렀으므로 **탐색이 비동기 트랜잭션과 레이스한다.**
 
-결국 관측되지 않는 것이 둘이다 — 사인아웃 성공, 그리고 삭제 완료. 둘 중 하나라도 실패하면 로컬 회수 자료가 남는데 사용자에게는 로그아웃이 된 것처럼 보인다. 데이터 보유 감사에서는 이 행을 「삭제」가 아니라 「삭제 시도(best-effort, 실패 무알림)」로 기록해야 한다. 코드 수정은 이 문서의 범위가 아니고 `SitesGate.tsx`·`App.tsx` 는 별도 담당 소유이므로, 여기에는 관측된 계약만 기록한다.
+관측되지 않는 것이 둘인데, **두 실패의 보유 결과는 같은 방향이 아니다.** `recoveryCache.ts:14-22` 의 `transaction()` 은 `tx.oncomplete` 에서 이행하고 `onabort`·`onerror` 에서 거부하며, `App.tsx:246` 은 `clearRecovery()` 를 **await** 한다. 즉 삭제 완료를 기다린 뒤에야 `logout()` 이 끝난다. 그래서 경우를 갈라야 한다.
+
+| 경우 | 경로 | 회수 사본 | 위험 방향 |
+| --- | --- | --- | --- |
+| 사인아웃·탐색이 실패하고 clear 트랜잭션은 `oncomplete` | `SitesGate.tsx:71-73` 이 `location.assign()` 후 `true` 반환 → `App.tsx:246` 이 기다린 `clearRecovery()` 가 이행 | **이미 삭제됨** | **의도치 않은 삭제** — 플랫폼 사인아웃이 실패해 사용자가 아직 사인인 상태일 수 있는데 로컬 회수 자료가 없다 |
+| clear 가 거부(`open()` 실패 `:11`, `onabort`·`onerror` `:19`) | `logout()` 에 catch 가 없어 예외가 전파되고 `finally` 는 `setBusy(false)` 만 실행 | **남음** | 보유 잔존 — 실패를 알리는 신호 없음 |
+| 탐색이 트랜잭션 완료 전에 문서를 teardown | `location.assign()` 이 먼저 불렸으므로 레이스 | **남을 수 있음** | 보유 잔존 — 완료 여부 미관측 |
+
+**「둘 중 하나라도 실패하면 사본이 남는다」는 틀렸다 — 첫째 경우는 반대다.** 사본이 지워진다. 데이터 보유 감사에서는 두 방향을 따로 세어야 한다: **(가) 사용자 뜻과 무관한 삭제**, **(나) best-effort 보유 잔존**. 어느 쪽이 일어났는지 사용자에게 알리는 신호는 코드에 없다. 표의 이 행은 「삭제」도 「항상 남음」도 아니고 **「리다이렉트 시작 후 삭제 시도 — 결과는 세 경우로 갈리며 어디에도 보고되지 않음」** 이다. 코드 수정은 이 문서의 범위가 아니고 `SitesGate.tsx`·`App.tsx` 는 별도 담당 소유이므로, 여기에는 관측된 계약만 기록한다.
 
 그리고 **읽기 전용 상태에서는 로그아웃(정확히는 리다이렉트 시작)을 해도 임시 보관본을 지우지 않는다.** 표에 이 예외가 없다.
 
