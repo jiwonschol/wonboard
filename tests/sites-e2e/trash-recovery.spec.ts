@@ -1,6 +1,7 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 import { newDraft } from "@wonboard/document";
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { syntheticPng } from "../helpers/sites-runtime";
 
 const headers = { "X-Wonboard-Test-User": "owner-fixture", Origin: "http://127.0.0.1:5174" };
@@ -34,6 +35,153 @@ async function move(page: Page) {
 async function openTrash(page: Page, locale = "en") {
   await page.locator(".writing-library > footer").getByRole("button", { name: locale === "en" ? /^Trash/ : /^휴지통/ }).click();
 }
+async function expectCachedEdits(page: Page, text: string) {
+  await expect.poll(() => page.evaluate(async expected => {
+    const moduleUrl = "/apps/client/src/recoveryCache.ts";
+    const { listRecovery } = await import(moduleUrl);
+    return (await listRecovery()).some((copy: { draft: unknown }) => JSON.stringify(copy.draft).includes(expected));
+  }, text)).toBe(true);
+}
+for (const action of ["update", "trash", "delete"] as const) test(`resume reconciles a clean current draft after remote ${action}`, async ({ page, request }) => {
+  const { id } = await seed(request), path = `/api/documents/${id}`;
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Document body" });
+  await expect(editor).toContainText("Saved original");
+  const stored = await (await request.get(path, { headers })).json();
+  if (action === "delete") expect((await request.delete(path, { headers, data: { revision: stored.revision, deletionIntent: "manual" } })).status()).toBe(200);
+  else expect((await request.put(path, { headers, data: { ...stored,
+    ...(action === "trash" ? { trashedAt: new Date().toISOString() } : {
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Remote saved version" }] }] },
+    }),
+  } })).status()).toBe(200);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  if (action === "update") await expect(editor).toContainText("Remote saved version");
+  else {
+    await expect(editor).not.toContainText("Saved original");
+    await expect(page.locator('.document-list[aria-label="My writing"] > button')).toHaveCount(1);
+    if (action === "trash") { await openTrash(page); await expect(page.locator(".trash-row")).toHaveCount(1); }
+  }
+});
+test("resume creates a fallback in the current interface language", async ({ page, request }) => {
+  const { id } = await seed(request), path = `/api/documents/${id}`;
+  await page.goto("/");
+  await expect(page.getByRole("textbox", { name: "Document body" })).toContainText("Saved original");
+  await page.locator(".admin-bar select").selectOption("ko");
+  const stored = await (await request.get(path, { headers })).json();
+  expect((await request.delete(path, { headers, data: { revision: stored.revision, deletionIntent: "manual" } })).status()).toBe(200);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.locator(".tiptap")).not.toContainText("Saved original");
+  await page.locator(".tiptap").fill("현재 언어로 작성");
+  await expect.poll(async () => (await (await request.get("/api/documents", { headers })).json()).documents.some(
+    (document: { locale: string; content: unknown }) => document.locale === "ko" && JSON.stringify(document.content).includes("현재 언어로 작성"),
+  )).toBe(true);
+});
+test("resume preserves edits made while the clean current document is reloading", async ({ page, request }) => {
+  const { id } = await seed(request), path = `/api/documents/${id}`;
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Document body" });
+  await expect(editor).toContainText("Saved original");
+  const stored = await (await request.get(path, { headers })).json();
+  expect((await request.put(path, { headers, data: { ...stored, title: "Remote update" } })).status()).toBe(200);
+  let loading = false;
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route(`**${path}`, async route => {
+    if (route.request().method() !== "GET") return route.continue();
+    const response = await route.fetch(); loading = true; await pending;
+    await route.fulfill({ response });
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect.poll(() => loading).toBe(true);
+  await editor.fill("My new edits");
+  release();
+  await expect(editor).toContainText("My new edits");
+  await expect(page.getByRole("alert")).toContainText("Another tab changed this document");
+  const downloading = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download original document JSON" }).click();
+  const download = await downloading;
+  expect(await readFile((await download.path())!, "utf8")).toContain("My new edits");
+  expect(JSON.stringify(await (await request.get(path, { headers })).json())).toContain("Saved original");
+});
+test("resume refreshes a suspended monotonic clock, fails closed and retries without revoking photos", async ({ page, request }) => {
+  const { id, url } = await seed(request, true);
+  await page.addInitScript(() => Object.defineProperty(performance, "now", { value: () => 1000 }));
+  await page.goto("/");
+  await move(page);
+  await page.getByRole("dialog", { name: "Move to trash" }).getByRole("button", { name: "Move to trash" }).click();
+  await openTrash(page);
+  await expect(page.locator(".trash-row")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Restore document", exact: true })).toBeEnabled();
+  expect((await request.post(`/__sites-test/advance-clock/${31 * 86400000}`)).status()).toBe(204);
+  let syncAttempts = 0;
+  const listPath = /\/api\/documents(?:\?.*)?$/;
+  await page.route(listPath, route => { syncAttempts++; return route.abort(); });
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect.poll(() => syncAttempts).toBeGreaterThan(0);
+  await expect(page.getByRole("button", { name: "Restore document", exact: true })).toBeDisabled();
+  await expect(page.locator(".trash-row")).toHaveCount(1);
+  expect((await request.get(`/api/documents/${id}`, { headers })).status()).toBe(410);
+  expect((await request.get(url)).status()).toBe(200);
+  await page.unroute(listPath);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.locator(".trash-row")).toHaveCount(0);
+  await expect.poll(async () => (await request.get(`/api/documents/${id}`, { headers })).status()).toBe(404);
+  expect((await request.get(url)).status()).toBe(200);
+});
+for (const offsetDays of [-31, 31]) test(`Sites trash uses server time with device skew ${offsetDays} days`, async ({ page, request }) => {
+  const { id, url } = await seed(request, true);
+  await page.clock.setFixedTime(new Date(Date.now() + offsetDays * 86400000));
+  await page.goto("/");
+  await move(page);
+  await page.getByRole("dialog", { name: "Move to trash" }).getByRole("button", { name: "Move to trash" }).click();
+  await expect(page.getByRole("dialog", { name: "Move to trash" })).toHaveCount(0);
+  await expect.poll(async () => (await (await request.get(`/api/documents/${id}`, { headers })).json()).trashedAt).toBeDefined();
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Document body" })).toBeVisible();
+  expect((await request.get(`/api/documents/${id}`, { headers })).status()).toBe(200);
+  await openTrash(page);
+  await expect(page.locator(".trash-row")).toHaveCount(1);
+  await page.getByRole("button", { name: "Restore document", exact: true }).click();
+  await expect(page.locator(".trash-row")).toHaveCount(0);
+  expect((await (await request.get(`/api/documents/${id}`, { headers })).json()).trashedAt).toBeUndefined();
+  await page.reload();
+  await move(page);
+  await page.getByRole("dialog", { name: "Move to trash" }).getByRole("button", { name: "Move to trash" }).click();
+  await openTrash(page);
+  await page.getByRole("button", { name: "Delete permanently now", exact: true }).click();
+  await page.getByRole("dialog", { name: "Delete permanently now" }).getByRole("button", { name: "Delete permanently now" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect((await request.get(`/api/documents/${id}`, { headers })).status()).toBe(404);
+  expect((await request.get(url)).status()).toBe(200);
+});
+test("expired drafts remain discoverable for cleanup retry without returning content or withdrawing photos", async ({ page, request }) => {
+  const { id, url } = await seed(request, true), path = `/api/documents/${id}`;
+  expect((await request.post(`/__sites-test/expired-document/${id}`)).status()).toBe(204);
+  expect((await request.get(path, { headers })).status()).toBe(410);
+  let failedDeletes = 0;
+  await page.route(`**${path}`, route => {
+    if (route.request().method() === "DELETE") {
+      failedDeletes++;
+      return route.fulfill({ status: 503, json: { error: "storageFailed" } });
+    }
+    return route.continue();
+  });
+  await page.goto("/");
+  await expect(page.getByRole("textbox", { name: "Document body" })).toBeVisible();
+  expect(failedDeletes).toBe(1);
+  await openTrash(page);
+  await expect(page.locator(".trash-row")).toHaveCount(0);
+  const retained = (await (await request.get("/api/documents", { headers })).json()).documents;
+  expect(retained).toHaveLength(1);
+  expect(retained[0].title).toBe("");
+  expect(JSON.stringify(retained)).not.toContain("Saved original");
+  expect((await request.get(url)).status()).toBe(200);
+  await page.unroute(`**${path}`);
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Document body" })).toBeVisible();
+  expect((await request.get(path, { headers })).status()).toBe(404);
+  expect((await request.get(url)).status()).toBe(200);
+});
 test("public photos remain unless explicitly withdrawn when moving or removing a draft", async ({ page, request }) => {
   for (const action of ["keep", "move", "remove"] as const) {
     let rejectWithdrawal = action === "move";
@@ -71,7 +219,9 @@ test("offline editing can be recovered explicitly after reopening online", async
   await context.setOffline(true);
   await page.getByRole("textbox", { name: "Document body" }).fill("Offline recovery text");
   await expect(page.locator(".notice.error")).toBeVisible();
-  await context.setOffline(false); await page.reload();
+  await expectCachedEdits(page, "Offline recovery text");
+  await page.close(); await context.setOffline(false);
+  page = await context.newPage(); await page.goto("/");
   await expect(page.getByRole("button", { name: "Recover edits", exact: true })).toBeVisible();
   await expect(page.locator(".tiptap")).toHaveAttribute("contenteditable", "false");
   await page.getByRole("button", { name: "Recover edits", exact: true }).click();
@@ -84,11 +234,12 @@ test("a recovery copy never silently revives a document moved to trash elsewhere
   await expect(page.getByRole("textbox", { name: "Document body" })).toBeVisible();
   await context.setOffline(true); await page.getByRole("textbox", { name: "Document body" }).fill("My previous edits");
   await expect(page.locator(".notice.error")).toBeVisible();
-  await context.setOffline(false);
+  await expectCachedEdits(page, "My previous edits");
+  await page.close(); await context.setOffline(false);
   const other = await context.newPage(); await other.goto("/");
   await move(other);
   await expect(other.getByRole("button", { name: "Undo move" })).toBeVisible();
-  await other.close(); await page.reload();
+  await other.close(); page = await context.newPage(); await page.goto("/");
   await expect(page.getByRole("button", { name: "Recover edits", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Recover as new document" }).click();
   await expect(page.locator(".recovery-notice")).toHaveCount(0);

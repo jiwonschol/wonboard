@@ -10,13 +10,41 @@ type Publication = { public_id: string; document_id: string; media_id: string;
   blob_key: string | null; mime: string | null; filename: string | null; published: number };
 const originalKey = (id: string, hash: string) => `originals/${id}/${hash}`;
 const variantKey = (doc: string, id: string, hash: string) => `publications/${doc}/${id}/${hash}`;
-
-async function loadDocument(env: SitesEnv, id: string) {
-  const row = await env.DB.prepare("SELECT body FROM documents WHERE id = ?").bind(id).first<{ body: string }>();
-  if (!row) throw new HttpError(404, "notFound");
-  const document: unknown = JSON.parse(row.body);
+const TRASH_RETENTION_MS = 30 * 86400000;
+// SQLite evaluates 'now' at statement execution, including the final conditional
+// write. Integer milliseconds preserve the exact boundary without Julian rounding.
+const databaseNow = `(CAST(strftime('%s', 'now') AS INTEGER) * 1000 + CAST(substr(strftime('%f', 'now'), 4, 3) AS INTEGER))`;
+const unexpiredWrite = `(json_extract(body, '$.trashedAt') IS ? AND (? IS NULL OR ? > ${databaseNow}))`;
+function trashDeadline(trashedAt: string | undefined): number | null {
+  return trashedAt === undefined ? null : Date.parse(trashedAt) + TRASH_RETENTION_MS;
+}
+function canonicalTrashTimestamp(timestamp: string | undefined, serverUpdatedAt: string, serverTimestamp?: unknown) {
+  if (timestamp === undefined) return undefined;
+  // Provenance is a database column that legacy JSON uploads could not populate.
+  // Unmarked legacy rows may carry either a fast or a slow device timestamp.
+  if (serverTimestamp === timestamp) return timestamp;
+  const updated = Date.parse(serverUpdatedAt);
+  if (!Number.isFinite(updated)) throw new HttpError(503, "storageFailed");
+  return new Date(updated).toISOString();
+}
+type LoadedDocument = { document: WriterDocument; storedTimestamp: string | undefined; deadline: number | null };
+function expiryBindings(stored: LoadedDocument) {
+  return [stored.storedTimestamp ?? null, stored.deadline, stored.deadline];
+}
+async function loadStoredDocument(env: SitesEnv, id: string, missingStatus = 404): Promise<LoadedDocument> {
+  const row = await env.DB.prepare(`SELECT body, updated_at, server_trashed_at, ${databaseNow} AS server_now FROM documents WHERE id = ?`)
+    .bind(id).first<{ body: string; updated_at: string; server_trashed_at: string | null; server_now: number }>();
+  if (!row) throw new HttpError(missingStatus, missingStatus === 409 ? "storageConflict" : "notFound");
+  const { _sitesTrashTimestamp, ...document } = JSON.parse(row.body);
   validateDocument(document);
-  return document;
+  const storedTimestamp = document.trashedAt;
+  document.trashedAt = canonicalTrashTimestamp(storedTimestamp, row.updated_at, row.server_trashed_at);
+  const deadline = trashDeadline(document.trashedAt);
+  if (deadline !== null && row.server_now >= deadline) throw new HttpError(410, "trashExpired");
+  return { document, storedTimestamp, deadline };
+}
+async function loadDocument(env: SitesEnv, id: string, missingStatus = 404) {
+  return (await loadStoredDocument(env, id, missingStatus)).document;
 }
 function imageIds(document: WriterDocument) {
   return [...new Set(attachmentNodes(document.content)
@@ -95,13 +123,23 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
     if (path === "/api/documents" && request.method === "GET") {
       const offset = Number(url.searchParams.get("offset") ?? 0);
       if (!Number.isSafeInteger(offset) || offset < 0) throw new HttpError(400, "invalidDocument");
-      const { results } = await env.DB.prepare("SELECT id, revision, title, locale, excerpt, updated_at, json_extract(body, '$.trashedAt') AS trashed_at FROM documents ORDER BY updated_at DESC, id LIMIT 100 OFFSET ?")
-        .bind(offset).all<{ id: string; revision: number; title: string; locale: "ko" | "en"; excerpt: string; updated_at: string; trashed_at: string | null }>();
-      return json({ documents: results.map(row => ({ schemaVersion: 1, documentId: row.id,
-        revision: row.revision, title: row.title, locale: row.locale, updatedAt: row.updated_at,
-        ...(row.trashed_at === null ? {} : { trashedAt: row.trashed_at }),
-        media: {}, content: { type: "doc", content: [{ type: "paragraph", content: row.excerpt ? [{ type: "text", text: row.excerpt }] : [] }] } })),
-        nextOffset: results.length === 100 ? offset + 100 : null });
+      const { results } = await env.DB.prepare(`SELECT id, revision, title, locale, excerpt, updated_at, json_extract(body, '$.trashedAt') AS trashed_at, server_trashed_at FROM documents ORDER BY updated_at DESC, id LIMIT 100 OFFSET ?`)
+        .bind(offset).all<{ id: string; revision: number; title: string; locale: "ko" | "en"; excerpt: string; updated_at: string; trashed_at: string | null; server_trashed_at: string | null }>();
+      const clock = await env.DB.prepare(`SELECT ${databaseNow} AS server_now`).first<{ server_now: number }>();
+      if (!clock) throw new HttpError(503, "storageFailed");
+      return json({ documents: results.map(row => {
+        const timestamp = canonicalTrashTimestamp(row.trashed_at ?? undefined, row.updated_at, row.server_trashed_at);
+        const deadline = trashDeadline(timestamp);
+        const expired = deadline !== null && clock.server_now >= deadline;
+        // Old clients discover cleanup candidates through this same list. Keep
+        // their envelope and revision, but never return expired writing content.
+        const excerpt = expired ? "" : row.excerpt;
+        return { schemaVersion: 1, documentId: row.id,
+        revision: row.revision, title: expired ? "" : row.title, locale: row.locale, updatedAt: row.updated_at,
+        ...(timestamp === undefined ? {} : { trashedAt: timestamp }),
+        media: {}, content: { type: "doc", content: [{ type: "paragraph", content: excerpt ? [{ type: "text", text: excerpt }] : [] }] } };
+      }),
+        serverNow: clock.server_now, nextOffset: results.length === 100 ? offset + 100 : null });
     }
     const mediaMatch = /^\/api\/media\/([^/]+)$/.exec(path);
     if (mediaMatch && validId(mediaMatch[1])) {
@@ -134,15 +172,28 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
     if (!action && request.method === "DELETE") {
       const body = await readJson(request);
       if (!Number.isSafeInteger(body?.revision) || body.revision < 0 ||
+          (body.deletionIntent !== undefined && !["manual", "expired"].includes(body.deletionIntent)) ||
           (body.withdrawPublications !== undefined && typeof body.withdrawPublications !== "boolean"))
         throw new HttpError(400, "invalidDocument");
-      const statements = [];
+      const row = await env.DB.prepare("SELECT json_extract(body, '$.trashedAt') AS trashed_at, server_trashed_at, updated_at FROM documents WHERE id = ?")
+        .bind(id).first<{ trashed_at: string | null; server_trashed_at: string | null; updated_at: string }>();
+      if (!row) return json({ removed: true });
+      const timestamp = typeof row.trashed_at === "string" ? row.trashed_at : undefined;
+      const parsedDeadline = trashDeadline(canonicalTrashTimestamp(timestamp, row.updated_at, row.server_trashed_at));
+      const deadline = parsedDeadline !== null && Number.isFinite(parsedDeadline) ? parsedDeadline : null;
+      // No intent means an old client: its auto-cleanup and manual delete have
+      // identical wire shapes. Preserve data unless the server deadline passed.
+      const deletionGuard = `(? = 1 OR (json_extract(body, '$.trashedAt') IS ? AND ? IS NOT NULL AND ? <= ${databaseNow}))`;
+      const guard = [body.deletionIntent === "manual" ? 1 : 0, timestamp ?? null, deadline, deadline];
+      const statements = [env.DB.prepare(`DELETE FROM documents WHERE id = ? AND revision = ? AND ${deletionGuard}`)
+        .bind(id, body.revision, ...guard)];
+      // D1 batch is a sequential transaction. changes() observes the preceding
+      // DELETE, so withdrawal follows that one permission decision, not a second
+      // clock sample. A failed withdrawal rolls the DELETE back as well.
       if (body.withdrawPublications) statements.push(env.DB.prepare(
-        "UPDATE publications SET published = 0 WHERE document_id = ? AND EXISTS (SELECT 1 FROM documents WHERE id = ? AND revision = ?)")
-        .bind(id, id, body.revision));
-      statements.push(env.DB.prepare("DELETE FROM documents WHERE id = ? AND revision = ?").bind(id, body.revision));
+        "UPDATE publications SET published = 0 WHERE document_id = ? AND changes() = 1").bind(id));
       const result = await env.DB.batch(statements);
-      if (result[result.length - 1].meta.changes !== 1) {
+      if (result[0].meta.changes !== 1) {
         const remaining = await env.DB.prepare("SELECT revision FROM documents WHERE id = ?").bind(id).first();
         if (remaining) throw new HttpError(409, "storageConflict");
       }
@@ -151,20 +202,33 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
     if (!action && request.method === "PUT") {
       const document: unknown = await readJson(request);
       validateDocument(document);
+      // Internal storage metadata is neither accepted from nor returned to clients.
+      delete (document as WriterDocument & { _sitesTrashTimestamp?: unknown })._sitesTrashTimestamp;
       if (document.documentId !== id) throw new HttpError(400, "invalidDocument");
+      const stored = document.revision === 0 ? null : await loadStoredDocument(env, id, 409);
+      if (stored?.document.trashedAt !== undefined && document.trashedAt !== undefined && document.trashedAt !== stored.document.trashedAt)
+        throw new HttpError(409, "storageConflict");
       for (const media of Object.values(document.media)) {
         const stored = await env.DB.prepare("SELECT * FROM media WHERE id = ?").bind(media.id).first<StoredMedia>();
         if (!stored || stored.hash !== media.sha256 || stored.size !== media.size ||
             stored.mime !== media.mime || stored.width !== media.width || stored.height !== media.height)
           throw new HttpError(400, "missingMedia");
       }
-      const saved = { ...document, revision: document.revision + 1, updatedAt: new Date().toISOString() };
-      const values = [saved.revision, saved.title, saved.locale, plainText(saved.content).slice(0, 300), JSON.stringify(saved), saved.updatedAt];
+      const clock = await env.DB.prepare(`SELECT ${databaseNow} AS server_now`).first<{ server_now: number }>();
+      if (!clock) throw new HttpError(503, "storageFailed");
+      const saved = { ...document, revision: document.revision + 1, updatedAt: new Date(clock.server_now).toISOString() };
+      if (document.trashedAt !== undefined && stored?.document.trashedAt === undefined) {
+        // The client expresses intent to trash, never authority over retention.
+        // Use the same database clock as the final expiry predicate, including
+        // revision-zero imports. Return this canonical value to old clients too.
+        saved.trashedAt = saved.updatedAt;
+      }
+      const values = [saved.revision, saved.title, saved.locale, plainText(saved.content).slice(0, 300), JSON.stringify(saved), saved.updatedAt, saved.trashedAt ?? null];
       const result = document.revision === 0
-        ? await env.DB.prepare("INSERT INTO documents (revision, title, locale, excerpt, body, updated_at, id) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING")
+        ? await env.DB.prepare("INSERT INTO documents (revision, title, locale, excerpt, body, updated_at, server_trashed_at, id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING")
           .bind(...values, id).run()
-        : await env.DB.prepare("UPDATE documents SET revision = ?, title = ?, locale = ?, excerpt = ?, body = ?, updated_at = ? WHERE id = ? AND revision = ?")
-          .bind(...values, id, document.revision).run();
+        : await env.DB.prepare(`UPDATE documents SET revision = ?, title = ?, locale = ?, excerpt = ?, body = ?, updated_at = ?, server_trashed_at = ? WHERE id = ? AND revision = ? AND ${unexpiredWrite}`)
+          .bind(...values, id, document.revision, ...expiryBindings(stored!)).run();
       if (result.meta.changes !== 1) throw new HttpError(409, "storageConflict");
       return json(saved);
     }
@@ -188,12 +252,12 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
     }
     if (action === "publish" && request.method === "POST") {
       const body = await readJson(request);
-      const document = await loadDocument(env, id);
+      const stored = await loadStoredDocument(env, id), document = stored.document;
       if (body?.revision !== document.revision) throw new HttpError(409, "storageConflict");
       const ids = imageIds(document);
       if (!body.variants || typeof body.variants !== "object" ||
           Object.keys(body.variants).length !== ids.length) throw new HttpError(400, "missingMedia");
-      const statements = [];
+      const publications: string[][] = [];
       for (const mediaId of ids) {
         const hash = body.variants[mediaId];
         if (typeof hash !== "string" || !/^[a-f0-9]{64}$/.test(hash)) throw new HttpError(400, "invalidImage");
@@ -202,18 +266,23 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
         const mime = object?.httpMetadata?.contentType;
         if (object) await object.body.cancel();
         if (!object || !["image/png", "image/jpeg"].includes(mime ?? "")) throw new HttpError(400, "missingMedia");
-        statements.push(env.DB.prepare(`INSERT INTO publications
+        publications.push([crypto.randomUUID(), id, mediaId, key, mime!, attachmentFilename(document, mediaId)]);
+      }
+      // All photos share a single SQLite statement clock. Separate statements
+      // could straddle expiry and commit only part of a document's publication.
+      if (publications.length) {
+        const statement = env.DB.prepare(`INSERT INTO publications
           (public_id, document_id, media_id, blob_key, mime, filename, published)
-          SELECT ?, ?, ?, ?, ?, ?, 1 WHERE EXISTS (SELECT 1 FROM documents WHERE id = ? AND revision = ?)
+          SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]'),
+            json_extract(value, '$[2]'), json_extract(value, '$[3]'),
+            json_extract(value, '$[4]'), json_extract(value, '$[5]'), 1
+          FROM json_each(?)
+          WHERE EXISTS (SELECT 1 FROM documents WHERE id = ? AND revision = ? AND ${unexpiredWrite})
           ON CONFLICT(document_id, media_id) DO UPDATE SET blob_key = excluded.blob_key,
           mime = excluded.mime, filename = excluded.filename, published = 1`)
-          .bind(crypto.randomUUID(), id, mediaId, key, mime, attachmentFilename(document, mediaId), id, document.revision));
-      }
-      // Every conditional write runs in the same transaction. Inspect that
-      // transaction's result, not a later document version after publication.
-      if (statements.length) {
-        const committed = await env.DB.batch(statements);
-        if (committed.some(result => result.meta.changes === 0)) throw new HttpError(409, "storageConflict");
+          .bind(JSON.stringify(publications), id, document.revision, ...expiryBindings(stored));
+        const committed = await env.DB.batch([statement]);
+        if (committed[0].meta.changes !== publications.length) throw new HttpError(409, "storageConflict");
       } else if ((await loadDocument(env, id)).revision !== document.revision) throw new HttpError(409, "storageConflict");
       const { results } = await env.DB.prepare("SELECT media_id, public_id FROM publications WHERE document_id = ? AND published = 1")
         .bind(id).all<Pick<Publication, "media_id" | "public_id">>();

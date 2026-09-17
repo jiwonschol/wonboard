@@ -31,12 +31,14 @@ export function WritingLibrary({
   onRestore,
   onTrash, onUntrash, onRemove, onEmptyTrash, canTrash,
   storageMode = "local",
+  clockNow = Date.now,
 }: {
   draft: Draft;
   list: Draft[];
   locale: Locale;
   busy: boolean;
   storageMode?: "local" | "sites" | "desktop";
+  clockNow?(): number;
   onSelect(draft: Draft): Promise<void>;
   onCreate(): void;
   onClose(): void;
@@ -51,11 +53,12 @@ export function WritingLibrary({
   const [query, setQuery] = useState("");
   const [recent, setRecent] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
-  const [now, setNow] = useState(Date.now);
+  const [now, setNow] = useState(clockNow);
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    setNow(clockNow());
+    const timer = setInterval(() => setNow(clockNow()), 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [clockNow]);
   const trashed = list.filter(d => d.document.trashedAt !== undefined && !trashExpired(d.document, now));
   const documents = [
     draft,
@@ -78,8 +81,8 @@ export function WritingLibrary({
           {trashed.map(d => <section className="trash-row" key={d.document.documentId}>
             <strong>{d.document.title || t("untitled")}</strong>
             <span className="document-excerpt">{excerpt(d)}</span>
-            <span>{trashDaysRemaining(d.document, now) <= 1 ? t("trashTomorrow") : t("trashDays", { count: trashDaysRemaining(d.document, now) })}</span>
-            <div><button disabled={busy} onClick={() => onUntrash(d)}>{t("restoreFromTrash")}</button>
+            <span>{!Number.isFinite(now) ? t("loading") : trashDaysRemaining(d.document, now) <= 1 ? t("trashTomorrow") : t("trashDays", { count: trashDaysRemaining(d.document, now) })}</span>
+            <div><button disabled={busy || !Number.isFinite(now)} onClick={() => onUntrash(d)}>{t("restoreFromTrash")}</button>
               <button disabled={busy} onClick={() => onRemove(d)}>{t("permanentlyDelete")}</button></div>
           </section>)}
           {!trashed.length && <p>{t("trashEmpty")}</p>}

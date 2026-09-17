@@ -9,13 +9,35 @@ export function sitesTestPlugin(): Plugin {
     server.httpServer?.once("close", () => runtime.close());
     server.middlewares.use((req, res, next) => {
       const path = req.url?.split("?")[0] ?? "";
-      if (!path.startsWith("/api/") && !path.startsWith("/media/") && path !== "/__sites-test/reset") return next();
+      if (!path.startsWith("/api/") && !path.startsWith("/media/") && !path.startsWith("/__sites-test/")) return next();
       if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(req.headers.host ?? "") ||
           !["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress ?? "")) {
         res.writeHead(403); res.end(); return;
       }
       if (path === "/__sites-test/reset" && req.method === "POST") {
         runtime.close(); runtime = createSitesTestRuntime(); res.writeHead(204); res.end(); return;
+      }
+      const advanceClock = /^\/__sites-test\/advance-clock\/(\d+)$/.exec(path);
+      if (advanceClock && req.method === "POST") {
+        const offset = Number(advanceClock[1]);
+        if (offset > 60 * 86400000) { res.writeHead(400); res.end(); return; }
+        const now = Date.now() + offset;
+        runtime.sqlite.function("strftime", (format, value) => {
+          if (value !== "now") throw new Error("Clock fixture supports now only");
+          if (format === "%s") return String(Math.floor(now / 1000));
+          if (format === "%f") return new Date(now).toISOString().slice(17, 23);
+          throw new Error("Unsupported clock fixture format");
+        });
+        res.writeHead(204); res.end(); return;
+      }
+      const expiredFixture = /^\/__sites-test\/expired-document\/([a-zA-Z0-9_-]+)$/.exec(path);
+      if (expiredFixture && req.method === "POST") {
+        // Seed pre-existing expired data, not a client timestamp override. This
+        // loopback fixture module is never imported by the production worker.
+        const timestamp = new Date(Date.now() - 31 * 86400000).toISOString();
+        runtime.sqlite.prepare("UPDATE documents SET body=json_set(body,'$.trashedAt',?),server_trashed_at=? WHERE id=?")
+          .run(timestamp, timestamp, expiredFixture[1]);
+        res.writeHead(204); res.end(); return;
       }
       void (async () => {
         const chunks: Buffer[] = [];

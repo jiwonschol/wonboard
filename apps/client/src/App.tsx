@@ -467,6 +467,7 @@ export default function App({
       <div className="writing-workspace">
         {library ? (
           <WritingLibrary
+            clockNow={writer.clockNow}
             storageMode={storageMode}
             draft={draft}
             list={writer.list}
