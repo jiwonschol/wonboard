@@ -120,6 +120,8 @@ for (const offsetDays of [-31, 31]) test(`Sites trash uses server time with devi
   await page.goto("/");
   await move(page);
   await page.getByRole("dialog", { name: "Move to trash" }).getByRole("button", { name: "Move to trash" }).click();
+  await expect(page.getByRole("dialog", { name: "Move to trash" })).toHaveCount(0);
+  await expect.poll(async () => (await (await request.get(`/api/documents/${id}`, { headers })).json()).trashedAt).toBeDefined();
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Document body" })).toBeVisible();
   expect((await request.get(`/api/documents/${id}`, { headers })).status()).toBe(200);

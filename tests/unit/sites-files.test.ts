@@ -38,6 +38,18 @@ describe("Sites independent file distribution", () => {
       expect((await (await f.call("/api/files/usage")).json()).trackedBytes).toBe(0);
     } finally { f.close(); }
   });
+  it("reports confirmed freed bytes when physical deletion succeeds but ledger completion needs retry", async () => {
+    const f=await fixture(); try {
+      await f.upload("completion-failure","12345");
+      await f.call("/api/files/completion-failure","PATCH",{revision:1,trashedAt:"requested"});
+      await f.call("/api/files/completion-failure","DELETE",{revision:2});
+      f.sqlite.exec("CREATE TRIGGER fail_completion BEFORE UPDATE OF state ON file_objects WHEN NEW.state='deleted' BEGIN SELECT RAISE(ABORT,'fixture completion failure'); END");
+      expect(await (await f.call("/api/files/cleanup","POST",{})).json()).toMatchObject({deleted:0,failed:1,reclaimedBytes:5});
+      expect(f.files.size).toBe(0);
+      f.sqlite.exec("DROP TRIGGER fail_completion");f.sqlite.prepare("UPDATE file_objects SET retry_at=0").run();
+      expect(await (await f.call("/api/files/cleanup","POST",{})).json()).toMatchObject({deleted:1,failed:0,reclaimedBytes:0});
+    } finally {f.close();}
+  });
   it("expires owner library downloads by database time without breaking documents or public shares", async () => {
     const f = await fixture();
     try {

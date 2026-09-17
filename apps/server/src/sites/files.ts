@@ -139,9 +139,11 @@ export async function ownerFiles(request: Request, env: SitesEnv, path: string):
     // Keep current versions even when private; prune only retired versions after grace.
     await env.DB.batch([
       env.DB.prepare(`DELETE FROM snapshot_assets WHERE version_id IN (SELECT v.id FROM snapshot_versions v
-        WHERE v.retired_at+300000<=${nowSql} AND NOT EXISTS (SELECT 1 FROM snapshots s WHERE s.current_version=v.id))`),
-      env.DB.prepare(`DELETE FROM snapshot_versions WHERE retired_at+300000<=${nowSql}
-        AND NOT EXISTS (SELECT 1 FROM snapshots s WHERE s.current_version=snapshot_versions.id)`),
+        WHERE v.retired_at+300000<=${nowSql} AND NOT EXISTS (SELECT 1 FROM snapshots s WHERE s.current_version=v.id)
+        ORDER BY v.retired_at,v.id LIMIT 20)`),
+      env.DB.prepare(`DELETE FROM snapshot_versions WHERE id IN (SELECT v.id FROM snapshot_versions v
+        WHERE v.retired_at+300000<=${nowSql} AND NOT EXISTS (SELECT 1 FROM snapshots s WHERE s.current_version=v.id)
+        ORDER BY v.retired_at,v.id LIMIT 20)`),
     ]);
     if (!env.MEDIA.delete) throw new HttpError(503, "cleanupUnavailable");
     const { results } = await env.DB.prepare(`SELECT id,object_key,state,size FROM file_objects WHERE retry_at <= ${nowSql} AND lease_until <= ${nowSql} AND ${unreferenced} ORDER BY retry_at,id LIMIT 20`)
@@ -160,11 +162,12 @@ export async function ownerFiles(request: Request, env: SitesEnv, path: string):
         const physicalBytes = existing?.size ?? 0;
         if (existing) await existing.body.cancel();
         await env.MEDIA.delete(object.object_key);
+        reclaimedBytes += physicalBytes; // Confirmed physical deletion, even if the ledger commit needs retry.
         const completed = await env.DB.batch([
           env.DB.prepare("DELETE FROM photo_variants WHERE object_id=? AND EXISTS (SELECT 1 FROM file_objects WHERE id=? AND state='deleting')").bind(object.id, object.id),
           env.DB.prepare(`UPDATE file_objects SET state='deleted',retry_at=${nowSql}+60000 WHERE id=? AND state='deleting'`).bind(object.id),
         ]);
-        if (completed[1].meta.changes) { deleted++; reclaimedBytes += physicalBytes; }
+        if (completed[1].meta.changes) deleted++;
       } catch { failed++; }
     }
     // Keep tombstones: an upload already in flight may finish after lease expiry.

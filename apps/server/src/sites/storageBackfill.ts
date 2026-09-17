@@ -15,12 +15,16 @@ export async function backfillStoragePage(env: SitesEnv) {
   const statements: Statement[] = [];
   let cursor = previous.cursor, phase: Progress["phase"] = previous.phase;
   if (phase === "documents") {
-    const { results } = await env.DB.prepare("SELECT id,revision,body FROM documents WHERE id>? ORDER BY id LIMIT 20")
-      .bind(cursor).all<{ id: string; revision: number; body: string }>();
+    const { results } = await env.DB.prepare("SELECT id,revision FROM documents WHERE id>? ORDER BY id LIMIT 20")
+      .bind(cursor).all<{ id: string; revision: number }>();
     for (const row of results) {
       cursor = row.id;
+      // Fetch/parse one body at a time, rather than materializing twenty 32MiB bodies.
+      const stored = await env.DB.prepare("SELECT body FROM documents WHERE id=? AND revision=?")
+        .bind(row.id, row.revision).first<{ body: string }>();
+      if (!stored) continue;
       try {
-        const { _sitesTrashTimestamp: _serverMarker, ...document } = JSON.parse(row.body) as WriterDocument & { _sitesTrashTimestamp?: unknown };
+        const { _sitesTrashTimestamp: _serverMarker, ...document } = JSON.parse(stored.body) as WriterDocument & { _sitesTrashTimestamp?: unknown };
         validateDocument(document);
         if (document.documentId !== row.id || document.revision !== row.revision) throw new Error("invalidDocument");
         for (const file of Object.values(document.files ?? {})) {
