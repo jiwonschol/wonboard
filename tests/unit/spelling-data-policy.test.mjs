@@ -184,12 +184,37 @@ test('staging hands the candidate generator the verified own-license buffer',asy
     if(file==='LICENSE'){if(served)return tampered;served=true;}
     return h.read(file);
   };
-  let received='not-called';
+  let args=null;
   const result=await stageProofreadingBundle({read,records,
-    stageCandidate:async options=>{received=options?.ownLicense;return h.stageCandidate();}});
-  assert.equal(received,tree.LICENSE,'the generator gets the very buffer the policy hashed');
-  assert.notDeepEqual(received,tampered,'a post-verification change cannot be substituted');
+    stageCandidate:async(...a)=>{args=a;return h.stageCandidate();}});
+  assert.ok(args,'the candidate generator must be called');
+  // The default `stageCandidate` is `stageWordnikCandidate(fetchSource=fetch, options={})`.
+  // Handing it the license object alone puts that object in `fetchSource` and the real command
+  // dies with `TypeError: fetchSource is not a function`. A fake that ignored its arguments hid
+  // exactly that, so the call shape is pinned here rather than only the license value.
+  assert.equal(args.length,2,'exactly the fetch source and the options object');
+  assert.equal(typeof args[0],'function','the first positional argument must stay the fetch source');
+  assert.equal(args[0],fetch,'the default global fetch is preserved for the real generator');
+  assert.equal(args[1].ownLicense,tree.LICENSE,'the generator gets the very buffer the policy hashed');
+  assert.notDeepEqual(args[1].ownLicense,tampered,'a post-verification change cannot be substituted');
   assert.equal(result.status,'isolated qualification bundle; not release approval');
+});
+
+test('the default candidate generator receives a callable fetch source',async()=>{
+ // Covers the path the fake `stageCandidate` in every other test replaces: the real
+ // `node scripts/stage-proofreading-bundle.mjs` command. Global fetch is swapped for a sentinel
+ // that throws, so a reachable generator proves it was handed something callable. Under the
+ // argument-order defect the failure is `fetchSource is not a function` and the sentinel is
+ // never reached, which fails both assertions.
+ const h=harness();
+ const realFetch=globalThis.fetch;
+ let reached=false;
+ globalThis.fetch=async()=>{reached=true;throw Error('SENTINEL fetch source reached');};
+ try{
+  await assert.rejects(stageProofreadingBundle({read:h.read,records}),/SENTINEL fetch source reached/);
+ }finally{globalThis.fetch=realFetch;}
+ assert.equal(reached,true,'the real generator must call the fetch source it was handed');
+ assert.deepEqual(readdirSync(h.directory),['english-with-basics.json'],'no artifact is written');
 });
 
 test('an own-license notice reviewed twice or not at all is refused before acquisition',async()=>{

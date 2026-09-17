@@ -40,7 +40,11 @@ export async function stageProofreadingBundle({read,records=reviewedAssets,stage
   if(owners.length!==1)throw Error(`Expected exactly one reviewed notice ${ownNotice}, found ${owners.length}`);
   const ownLicense=assets.get(ownNotice);
   if(!ownLicense)throw Error(`Reviewed file was not verified: ${ownNotice}`);
-  const candidate=await stageCandidate({ownLicense});
+  // The first positional argument stays the fetch source: `stageCandidate` defaults to
+  // `stageWordnikCandidate(fetchSource=fetch, options={})`, so passing the license object alone
+  // would land in `fetchSource` and throw `TypeError: fetchSource is not a function` on the real
+  // command. Injected test doubles ignore both arguments or read the second.
+  const candidate=await stageCandidate(fetch,{ownLicense});
   const english=JSON.parse(await readFile(path.join(candidate.directory,'english-with-basics.json')));
   const combined=Buffer.from(JSON.stringify({notice:'Candidate only: selected Open Korean Text (Apache-2.0), Wordnik wordlist (MIT), and Wonboard original basic forms (MIT).',ko:JSON.parse(source).ko,en:english.en})+'\n');
   const gzipBytes=gzipSync(combined).length+gzipSync(morphology).length;
