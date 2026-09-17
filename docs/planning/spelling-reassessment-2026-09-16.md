@@ -13,7 +13,11 @@ node        v24.18.0  execPath "/Users/jiwon/Library/Application Support/Buzz/ru
 pnpm        11.19.0 (corepack, 저장소 packageManager 고정값)
 작업 공간    <repo>/.claude/worktrees/buzz-6  (전용 워크트리, main 체크아웃 미사용)
 local-corpora  이 Mac에 실재(5.6GB, Git 제외). 평가에 사용하지 않았고 원문을 인용하지 않았다
-codex CLI   /opt/homebrew/bin/codex 설치·로그인 상태. 이 문서의 어떤 수치도 실제 모델 호출로 만들지 않았다
+codex CLI   /opt/homebrew/bin/codex 설치·로그인 상태. 이 문서의 **언어 품질 수치는 어느 것도** 실제 모델
+            호출로 만들지 않았다(아래 "하지 않은 것"의 같은 한정). 단 격리 회귀 절의 사용량 기록
+            (input 162,254 · cached 13,568 · output 1,219 · reasoning 551, 12건)은 실제 Codex CLI
+            호출에서 나온 값이다. 회귀 결함을 재현하는 과정에서 소비됐고 맞춤법 품질 점수에는
+            쓰지 않았다. 두 종류 수치를 섞어 "어떤 수치도"로 뭉개지 않는다
 ```
 
 동준의 실행 환경(Linux VPS)과 다르다. 아래 9장의 격리 결함은 이 차이에서만 드러난다.
@@ -52,23 +56,38 @@ $ node scripts/eval-spelling.mjs --engine scripts/spelling-prototype.mjs --cases
 
 두 출력 모두 `60b22bc`의 `docs/planning/spelling-reassessment-2026-09-15-evaluation.txt` 및 `-reused-fresh.txt`와 `diff` 0줄, sha256 일치다. 표의 모든 행과 `Early gate (holdout): Korean detection 18/20 … PASS`, 실패 목록까지 같다.
 
-`60b22bc`는 **push되지 않은 로컬 브랜치 `codex/spelling-reassessment`(ahead 1 / behind 11)의 커밋**이므로 main에서는 그 기록 파일을 찾을 수 없다. 대조 사본은 `git show 60b22bc:docs/planning/spelling-reassessment-2026-09-15-evaluation.txt`로 꺼냈다. 2026-09-15 재점검의 항목 표 자체는 issue #6 코멘트 `5675909799`에 전문이 있어 공개되어 있다.
+`60b22bc`는 **push되지 않은 로컬 브랜치 `codex/spelling-reassessment`(ahead 1 / behind 11)의 커밋**이라 독자가 `git cat-file`로 풀어 볼 수 없고, 이 대조는 재현 불가능했다. 그래서 **비교 산출물 두 개를 이 저장소에 넣었다.** `docs/planning/spelling-reassessment-2026-09-15-evaluation.txt`(481행)와 `-reused-fresh.txt`(41행)다. 위 표의 sha256은 그 커밋에서 꺼낸 사본을 다시 해시해 일치함을 확인한 값이다. 이제 대조는 도달 불가능한 커밋 없이 검증된다.
 
-`scripts/spelling-prototype.mjs`는 5줄 어댑터로 `packages/editor/src/proofreading/engine.mjs`와 `third_party/spelling/generated/{lexicon,morphology}.json`을 그대로 읽는다. `review.worker.ts`도 같은 `createChecker`에 같은 두 자산을 넘긴다. 차이는 Worker가 `segment.from`으로 문단 좌표를 더하고 `afterProtected`를 넘긴다는 점뿐이며, 이는 재점검이 이미 "별도 E2E 범위"로 분리한 항목이다.
+```
+$ shasum -a 256 docs/planning/spelling-reassessment-2026-09-15-evaluation.txt \
+                docs/planning/spelling-reassessment-2026-09-15-reused-fresh.txt
+05a6cf5848f943c1e0a4b982195a58ccf60f152dd63152aaa450ab1fbd0c10bb  …-evaluation.txt   (481행)
+69a18a1016b38d04e2c8ec8692b8d95df8603890e6e6a7e5ac162df4ddd83bd5  …-reused-fresh.txt (41행)
+```
+
+2026-09-15 재점검의 항목 표 자체는 issue #6 코멘트 `5675909799`에 전문이 있어 공개되어 있다. 같은 커밋의 `-performance.json`과 `spelling-reassessment-2026-09-15.md`는 이 대조가 인용하지 않으므로 넣지 않았다.
+
+`scripts/spelling-prototype.mjs`는 5줄 어댑터로 `packages/editor/src/proofreading/engine.mjs`와 `third_party/spelling/generated/{lexicon,morphology}.json`을 그대로 읽는다. `review.worker.ts`도 같은 `createChecker`에 같은 두 자산을 넘긴다. 그러나 차이가 좌표와 `afterProtected` **뿐인 것은 아니다.** `review.worker.ts:9`는 `check(segment.text, data.personal, { afterProtected: segment.afterProtected })`로 **등록어 사전을 넘기는** 반면, `eval-spelling.mjs:71`은 `check(c.text, [])`로 **항상 빈 배열**을 넘긴다.
+
+따라서 이 두 명령의 대조는 등록어 사전이 있는 사용자의 동작을 재지 않는다. §8 완성도 게이트가 요구하는 등록어 행동을 이 대조로 확인할 수 없고, "Worker와 평가기가 동등하다"는 결론도 개인 사전 항목이 있는 경우에는 성립하지 않는다. 좌표·`afterProtected`와 마찬가지로 **별도 E2E 범위로 남은 항목**이며, 아래 남은 작업 목록에 등록어 사전 경우를 명시한다.
 
 옛 Hunspell 구현은 현재 코드가 아니다. 추적된 `ko.aff`/`ko.dic`/hunspell/wasm 파일은 없다.
 
-## 4. §8 게이트 판정 — 숫자 게이트를 막는 것은 문장 하나다
+## 4. §8 게이트 판정 — 정확도 게이트를 막는 것은 문장 하나다
 
 ```
                           재현율        §8 정확도2 (각각 90% 이상)
 전체 ko/spelling   24/25 = 96.0%       통과
-분리 ko/spelling    7/8  = 87.5%       실패  ← 유일하게 막고 있는 숫자
+분리 ko/spelling    7/8  = 87.5%       실패  ← 정확도 항목에서 유일하게 막는 숫자
 전체 ko/spacing    34/35 = 97.1%       통과
 분리 ko/spacing    11/12 = 91.7%       통과
 전체 en/spelling   28/30 = 93.3%       통과 (§8 정확도9)
 분리 en/spelling    9/10 = 90.0%       통과
 ```
+
+> 이 절은 §8의 **정확도 항목만** 본다. §8은 전 항목 통과를 요구하며, 성능2(자산 gzip ≤1.0MB)은 §7에서
+> 1,885,128 bytes로 **이미 미달**로 측정했다. 따라서 완성도를 막는 것이 정확도 하나뿐이라는 뜻이
+> 아니며, 위 표의 "유일"은 정확도 소항목 안에서만 참이다.
 
 분리 띄어쓰기 11/12는 91.7%로 **통과**다. 재점검 표가 "철자 분리 게이트 미달"이라고만 적은 것이 정확하다.
 
@@ -98,7 +117,54 @@ en-spelling-15 "Check your calender."                 findings 0건
         calender   ∈ lexicon.en(198,499)
 ```
 
-§8 정확도2는 "후보 없는 탐지도 분모에 포함한다"고 적지만, `applicable=false`인 미등록 안내는 탐지로 세지 않는다(`emit()`은 `applicable:suggestions.length>0`). 정상 문장 오제안 0건과 미등록 안내는 별도 집계이며, 재점검 기록대로 `all/ko/normal 30`·`all/en/normal 15`·`all/ko/protected 30`의 오제안은 0건이다.
+#### 5-0. 후보 없는 안내의 채점 — 기전 정정과 미정 계약
+
+**기전 정정.** 이 문서는 앞서 `applicable=false`를 근거로 들었으나 틀렸다. 평가기가 실제로 쓰는
+필터는 `scripts/eval-spelling.mjs:83`의 `findings.filter(f=>f.type!=='unknown')`다. **`applicable`은
+`eval-spelling.mjs`에 한 번도 등장하지 않는다**(`grep -c applicable scripts/eval-spelling.mjs` → 0).
+`emit()`의 `applicable:suggestions.length>0`는 채점 근거가 아니므로 그 인용을 철회한다.
+
+두 명제는 분리해서 읽어야 한다.
+
+1. **현재 엔진의 `unknown`은 후보가 없다.** `packages/editor/src/proofreading/engine.mjs`의 `'unknown'`
+   emit 부위 8곳(309·312·324·425·651·665·705·706)을 전수 확인했다. 6곳은 리터럴 `[]`를 넘기고,
+   324·706은 `candidates.length?'spelling':'unknown'`이라 후보가 비었을 때만 `unknown`을 택한다.
+   따라서 `type==='unknown'` ⟹ `suggestions.length===0` ⟹ `applicable===false`.
+2. **그러나 평가기의 두 필터가 전체에서 동치는 아니다.** 반대 방향이 갈린다 — `unknown`이 아니면서
+   후보가 빈 finding은 `applicable:false`여도 `actionable`에 남아 탐지로 세진다. 1번은 **이번 두 실패
+   사례에서 어느 필터로 걸러도 결과가 같다**는 뜻일 뿐, 필터 동치의 증명이 아니다.
+
+**관측 점수는 그대로다.** `node scripts/eval-spelling.mjs --engine scripts/spelling-prototype.mjs`
+(200문장) 실행 결과:
+
+```
+holdout/ko/spelling | 8  | 7/8   | unknown notices 1     (ko-spelling-8)
+holdout/ko/spacing  | 11 | 11/12 | unknown notices 1     (ko-spacing-2)
+Early gate (holdout): Korean detection 18/20; normal false-recommendation cases 0; PASS
+```
+
+**미정 계약.** §8은 분모만 규정한다 — `korean-proofreading-plan.md:187` "후보 없는 탐지도 **분모**에
+포함한다", 191행 "후보 없음과 **탐지 누락**도 전체 오류 분모에 포함한다". 191행은 "후보 없음"을 "탐지
+누락"과 같은 줄에 세우므로, 정확한 위치의 후보 없는 안내를 분모에 넣되 탐지로 세지 않는 현재 평가기
+동작과 부합한다. 반면 187행이 그것을 "탐지"라고 부르므로 반대로 읽을 여지도 있다. **분자에 넣을지는
+계약 결정이고 아직 정해지지 않았다.** 이 문서는 답안도 기준도 바꾸지 않는다.
+
+반대 읽기를 채택할 경우의 수는 관측값이 아니라 **조건부 재채점**이다. 두 실패 사례의 unknown 안내가
+정답 수정 구간을 **포함**하는지는 `edits()`를 직접 실행해 확인했다:
+
+```
+ko-spelling-8  정답 수정 구간 {from:7,to:8,text:"예"}   unknown 안내 [6,9)  → 포함
+ko-spacing-2   정답 수정 구간 {from:6,to:6,text:" "}    unknown 안내 [4,7)  → 포함
+```
+
+**포함이지 일치가 아니며**([6,9)와 [7,8)은 같은 범위가 아니고, [4,7)은 공백 삽입 위치 6을 포함한다),
+**포함을 탐지 성공으로 인정할지는 그 자체가 별도 계약이다.** 또한 그 읽기를 구현하려면 필터 하나가
+아니라 둘이 바뀌어야 한다 — `actionable`의 `type!=='unknown'`과 `relevant`의 `f.type===c.type`(사례형
+`spelling`/`spacing`과 `unknown`은 일치하지 않는다). 그 조건에서 재채점하면 8/8·12/12, 조기 게이트는
+18/20 대신 20/20이 된다. **기록 점수는 18/20이다.** 현재 PASS는 90.0% 경계에 **여유 0**으로 걸쳐
+있고, 그 여유를 만드는 두 이벤트가 정확히 분류 미정의 두 건이다.
+
+정상 문장 오제안 0건과 미등록 안내는 별도 집계이며, 재점검 기록대로 `all/ko/normal 30`·`all/en/normal 15`·`all/ko/protected 30`의 오제안은 0건이다.
 
 ### 5-1. `연애인` — 게이트를 막는 유일한 건
 
@@ -175,7 +241,11 @@ Cases: 200. Independent evaluation: false. Engine: scripts/spelling-prototype.mj
 
 두 눈금을 섞지 않는다. §8의 200문장 게이트(재현율 90%, top3 85%)와 품질 목표의 독립 게이트(98%/95%/≤1%/95%)는 다른 자료·다른 분모다. **5-1의 문장 하나를 고쳐도 독립 게이트 수치는 움직이지 않는다.**
 
-막고 있는 것은 코드가 아니라 판정이다. `proofreading-quality-goal.md` 기준: 4,206행 보류 자료에 미판정 641행(2026-09-13 재확인), 정상 문장 후보 325개, 최종 판정 행 0개, 예측 미실행. 최신 컴파일본은 `local-corpora/holdouts/next-2026-09-10/compiled-provisional-244.json`. 주석 컴파일러는 모든 행에 `completeGold:false`를 출력하고, **평가기는 미완료 행이 들어오면 전체 입력을 거부**한다(쉬운 행만 골라 점수를 올리는 것을 막는 설계). 즉 판정을 끝내야 독립 평가가 한 번 돌아간다.
+**막고 있는 것은 하나가 아니라 둘이다 — 평가 자격과 코드 품질.** 이 둘을 섞지 않는다.
+
+**(1) 평가 자격: 판정.** `proofreading-quality-goal.md` 기준: 4,206행 보류 자료에 미판정 641행(2026-09-13 재확인), 정상 문장 후보 325개, 최종 판정 행 0개, 예측 미실행. 최신 컴파일본은 `local-corpora/holdouts/next-2026-09-10/compiled-provisional-244.json`. 주석 컴파일러는 모든 행에 `completeGold:false`를 출력하고, **평가기는 미완료 행이 들어오면 전체 입력을 거부**한다(쉬운 행만 골라 점수를 올리는 것을 막는 설계). 즉 판정을 끝내야 독립 평가가 한 번 돌아간다.
+
+**(2) 코드 품질: 판정을 끝내도 남는다.** 미판정 641행을 끝내면 다음 독립 평가가 **돌아갈 수 있게** 될 뿐, 이미 관측된 품질 부족을 통과로 만들지 못한다. 구현 179의 수치는 이미 목표에 미달이다 — 첫 후보 309/391 = 79.0%(목표 98%), 필수 후보 291/803 = 36.2%(목표 95%), 정상 오제안 19/1028 = 1.85%(목표 ≤1%). `proofreading-quality-goal.md:47`의 순서도 실패 유형 개선을 각 독립 평가 뒤로 놓는다. 따라서 이 절을 남은 작업 계획으로 읽을 때 "남은 것은 판정뿐"으로 읽히면 안 된다. **판정 → 평가 실행 → 예상되는 실패 → 실패 유형 개선**이 순서이고, 뒤 셋은 코드 작업이다.
 
 이미 소비된 독립 표본은 `clien-independent-075-2026-09-12`와 `clien-independent-173-2026-09-13` 두 개다. 세 번째 표본을 같은 방식으로 뽑으면 노출되어 개발 자료가 된다. **기존 자료를 노출시키지 않는 판정 계획**이 먼저 필요하며, 이건 별도 산출물로 가져온다.
 
@@ -190,7 +260,18 @@ node zlib gzipSync, main e139408 의 추적 데이터:
   §8 성능2 목표 1.0MB                               → 885,128 bytes 초과
 ```
 
-`third_party/spelling/README.md`는 2026-09-12 기준 combined gzip 1,861,303 bytes를 기록한다. 측정 시점과 산식(개별 gzip 합 vs 결합 후 gzip)이 달라 수치가 조금 다르며, **둘 다 상한 안·1MB 목표 초과**라는 결론은 같다. 재점검 코멘트의 1,859,445/1,850,339는 stage된 후보 자산 기준이라 역시 측정 대상이 다르다.
+`third_party/spelling/README.md`는 combined gzip 1,861,303 bytes를 기록한다. **앞서 이 문서는 그 차이를 「측정 시점과 산식(개별 gzip 합 vs 결합 후 gzip)」으로 설명했으나 틀렸다.** 산식은 같다. checked-in manifest가 증거다.
+
+```
+third_party/spelling/generated/manifest.json
+  bytes 2,810,026   gzipBytes   661,175   sha256 582a81dc…  (= 현재 검토 lexicon 해시)
+third_party/spelling/generated/morphology-manifest.json
+  bytes 4,679,129   gzipBytes 1,200,128   combinedGzipBytes 1,861,303
+```
+
+661,175 + 1,200,128 = 1,861,303으로 **개별 gzip의 합**이며, §7이 `stage-proofreading-bundle.mjs`의 산식과 같다고 적은 바로 그 방식이다(`gzipSync(a).length + gzipSync(b).length`). 원시 바이트 길이도 위 실측과 완전히 같다(2,810,026 / 4,679,129). 즉 **같은 입력·같은 산식에서 다른 출력**이 나왔다. node v24.18.0에서 재측정하면 666,476 / 1,218,652, 합 1,885,128로 §7의 표와 일치한다. 차이 +23,825 bytes의 원인은 측정 시점이나 payload가 아니라 **압축 런타임(zlib 버전·기본 level) 차이**다.
+
+**결과적으로 하드 상한 여유는 지원 환경 전체에서 재현되지 않는다.** node v24.18.0(이 Mac) 기준 114,872 bytes(5.7%), checked-in manifest 값 기준 138,697 bytes(6.9%)다. §7의 5.7%는 이 장비·이 Node에서의 측정이지 보장값이 아니다. 어휘를 늘리는 개편은 **작은 쪽** 여유를 기준으로 예산을 잡아야 한다. 재점검 코멘트의 1,859,445/1,850,339는 stage된 후보 자산 기준이라 측정 대상이 다르다.
 
 §8 성능2의 1MB 목표는 현재 데이터로 이미 달성되지 않았다. 남은 것은 하드 상한까지 5.7%다. 5-2에서 정정한 대로 `함께책`은 이 예산을 쓰지 않지만, 앞으로 어휘를 늘리는 방향의 개편은 전부 이 114KB 안에서 경쟁한다.
 
@@ -209,6 +290,8 @@ morphology.json  실측 38a8386eace92d1e1ecff9c9a2f2c40989c851651305511f53731488
 ### morphology 출처 판단 — 원문 권한은 불명확하지 않다
 
 지시대로 변경 이력·생성기·원문 LICENSE/NOTICE·재현 해시를 조사했다. 결론은 **출처 검토는 이미 되어 있고 권한도 명확하다**이며, 따라서 라이선스 문제로 올리지 않는다.
+
+**단, "남은 라이선스·고지 문제 없음"으로 읽히면 안 된다.** 배포 중인 `public/spelling/NOTICE.md:7`은 여전히 현재 Worker가 "English Speller Database/SCOWL" 데이터를 쓴다고 적고 있었다. 실제 구성은 `third_party/spelling/generated` manifest와 `scripts/build-spelling-notices.mjs`가 기록하는 대로 **Wordnik wordlist(MIT) + Wonboard 원본 기본 형태(MIT)**다. `public/THIRD_PARTY_NOTICES.txt`는 이미 Wordnik을 싣고 있으나 이 파일은 어떤 생성기도 거치지 않는 수동 관리 파일이라 정책 명령(`check-spelling-data-policy.mjs`)이 잡지 못한다 — 그 명령은 생성 payload와 보존 원본_LICENSE 파일만 검증한다. `korean-proofreading-plan.md:212-213`의 §8 게이트는 **공개 고지가 새 구성과 일치할 것**을 별도로 요구하므로, 이건 미충족 게이트이자 잘못된 배포 표기였다. 이번 커밋에서 고쳤고 남은 작업 목록에도 넣었다.
 
 ```
 해시 이력   715319d (2026-09-14) 38a8386e…  ← 현재
@@ -247,7 +330,7 @@ morphology.json  실측 38a8386eace92d1e1ecff9c9a2f2c40989c851651305511f53731488
 
 그 결과 가짜 **안에** 있던 격리 assert(`--ignore-user-config`, `--ephemeral`, `features.shell_tool=false`, `forced_login_method="chatgpt"`, API 키 제거, 격리 cwd, 출력 스키마 `additionalProperties:false`, stdin 원문)가 하나도 실행되지 않았고, 바깥 assert는 실제 모델이 대신 통과시켰다. **초록인데 아무것도 재지 않은 상태**였다. 드러난 증상은 `line 61`의 `assert.equal(failed.status,1)` 실패 하나였다.
 
-수정과 검증은 [PR #19](https://github.com/jiwonschol/wonboard/pull/19)에 있으며 최종 head는 `fabd8e657bbadc394e9f32e3150a90ec01da0d6e`다. 요지:
+수정과 검증은 [PR #19](https://github.com/jiwonschol/wonboard/pull/19)에 있으며 **이 재점검 시점의** head는 `fabd8e657bbadc394e9f32e3150a90ec01da0d6e`다. `08e7424c`는 최초 커밋(시험 9개), `1fe19d0b`는 판별력 보강 커밋이고 `fabd8e65`는 그 위 README 한 줄이라, 세 해시는 서로 다른 시점의 같은 작업을 가리킨다 — 모순이 아니다. 그 뒤 #19는 준비 실행 검증·Windows 시험 분리·디렉터리 실행기 거부를 더해 `c2acc52896b7180f487e6ff23dbb4f19f71311ca`로 진행했다. 요지:
 
 ```
 resolveRunner(binary)   절대 경로만 허용, 시작 전 X_OK 확인. 슬래시가 있으면 execvp가
@@ -331,4 +414,6 @@ run.mjs --codex-bin     luna 전용 주입. manifest.execution.runner 가 주입
 - macOS Electron 실제 저장·재실행, Windows 실기기, 실제 OS 한글 조합 입력을 실행하지 않았다. 재점검의 미확인 상태 그대로다
 - 성능1의 입력 지연 200ms·취소 500ms·메모리는 측정하지 않았다
 - morphology 재현 해시(원본 CSV → 38a8386e…)는 이번에 만들지 않았다. 입력이 공개 pinned 값이라 재현 자체에 새 승인이 필요한 것은 아니고, 이번 범위(재점검 대조)에 넣지 않았다는 뜻이다
-- `stage-proofreading-bundle.mjs`의 해시 상수를 고치지 않았다. 닝닝 담당·별도 PR로 배정된 상태이고 아직 코드는 그대로다
+- 등록어 사전(개인 사전)이 채워진 상태의 Worker–평가기 대조는 실행하지 않았다. `eval-spelling.mjs:71`은 항상 `check(c.text, [])`를 부르고 `review.worker.ts:9`는 `data.personal`을 넘기므로, 등록어 행동은 이 문서의 어느 대조로도 검증되지 않았다. §8 완성도 게이트가 요구하는 항목이며 별도 E2E 범위로 남는다
+- `public/spelling/NOTICE.md`의 구성 표기는 이번 커밋에서 Wordnik + Wonboard 원본 기본 형태로 고쳤지만, **공개 고지가 데이터 구성과 계속 맞는지를 감시하는 자동 검사는 만들지 않았다.** 그 파일은 생성기를 거치지 않는 수동 관리 파일이고 `check-spelling-data-policy.mjs`의 검증 범위(생성 payload와 보존 원본 라이선스 파일) 밖에 있다. 같은 어긋남이 다시 생겨도 지금은 아무것도 잡지 못한다
+- ~~`stage-proofreading-bundle.mjs`의 해시 상수를 고치지 않았다~~ → **이후 처리됨.** 별도 PR #22에서 단일 출처화를 먼저 반영했고(`92d8d543`), 이 재점검이 기록한 시점에는 아직 그대로였다. 검증한 자체 고지 바이트를 하위 생성기에 연결하는 보완은 `f67d59b0`에 있다
