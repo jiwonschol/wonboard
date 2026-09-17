@@ -51,15 +51,21 @@ worker.ts:102  …(row.trashed_at === null ? {} : { trashedAt: row.trashed_at })
 
 ### 정정 2 — Sites 브라우저 임시 보관본의 삭제 조건에 예외가 있다
 
-3차 코멘트: "원격 저장 성공 시 삭제, 로그아웃 성공 시 전부 삭제". 코드는 둘 다 맞지만 로그아웃 쪽에 조건이 더 붙는다.
+3차 코멘트: "원격 저장 성공 시 삭제, 로그아웃 성공 시 전부 삭제". **저장 쪽은 코드와 맞지만 로그아웃 쪽은 두 가지가 다르다.** 첫째, 조건이 더 붙는다(아래 `writer.readOnly`). 둘째, 그리고 이것이 더 중요한데 — **Sites 경로에서 코드는 로그아웃 성공을 관측하지 않는다.**
 
 ```
 useDrafts.ts:189  저장 성공 후 discardRecovery(documentId, token)   ← 해당 사본만
-App.tsx:243-249   logout(): onLogout() 성공 && storageMode === "sites" && !writer.readOnly 일 때만 clearRecovery()
+App.tsx:243-249   logout(): onLogout() 이 true && storageMode === "sites" && !writer.readOnly 일 때만 clearRecovery()
+SitesGate.tsx:71-73  onLogout = async () => {
+                       window.location.assign("/signout-with-chatgpt?return_to=%2F"); return true; }
 recoveryCache.ts:5  IndexedDB name = "wonboard-sites-recovery-v1"
 ```
 
-즉 **읽기 전용 상태에서는 로그아웃해도 임시 보관본을 지우지 않는다.** 표에 이 예외가 없다. `writer.readOnly` 는 다른 탭의 쓰기 충돌이나 미래 스키마로 얼어붙은 초안에서 발생하므로, 저장 권한이 없어 사본을 만들지 않았을 가능성이 높다 — 그러나 그 추정은 코드로 확인하지 않았으니 "예외가 있다"까지만 기록한다.
+`SitesGate.tsx:71-73` 은 `window.location.assign(...)` 을 부르고 **곧바로 `true` 를 반환한다.** 이후 플랫폼 사인아웃 요청이나 탐색이 성공했는지를 전혀 관측하지 않는다. `App.tsx:245-246` 은 `if (!(await onLogout())) setNotice("logoutFailed"); else if (...) await clearRecovery();` 이므로, `clearRecovery()` 의 실제 발동 조건은 「로그아웃 성공」이 아니라 **「사인아웃 리다이렉트를 시작했다」** 이다. 사인아웃 요청이나 탐색이 실패해도 `clearRecovery()` 는 이미 돌 수 있다.
+
+데이터 보유 감사에서 이 차이는 실질적이다. 이 문서와 3차 코멘트가 말한 「로컬 회수 자료 삭제 ↔ 로그아웃 완료」의 결합을 **현재 코드는 보장하지 못한다.** 따라서 표의 이 행은 「로그아웃 성공 시 전부 삭제」가 아니라 「Sites 사인아웃 리다이렉트 시작 시 전부 삭제(성공 여부 미관측)」로 적어야 한다. 코드 수정은 이 문서의 범위가 아니고 `SitesGate.tsx`·`App.tsx` 는 별도 담당 소유이므로, 여기에는 관측된 계약만 기록한다.
+
+그리고 **읽기 전용 상태에서는 로그아웃(정확히는 리다이렉트 시작)을 해도 임시 보관본을 지우지 않는다.** 표에 이 예외가 없다. `writer.readOnly` 는 다른 탭의 쓰기 충돌이나 미래 스키마로 얼어붙은 초안에서 발생하므로, 저장 권한이 없어 사본을 만들지 않았을 가능성이 높다 — 그러나 그 추정은 코드로 확인하지 않았으니 "예외가 있다"까지만 기록한다.
 
 ### 정정 3 — `e139408` 에서 30일 만료 판정 주체는 서버가 아니라 클라이언트다 (#18 이 보강 중, 미머지)
 
@@ -201,7 +207,8 @@ packages/document/src/index.ts:36-50
 
 ```
 App.tsx:114-127   backup()           exportBackup(snapshot) → wonboard-<documentId>.zip
-App.tsx:133-152   recoveryBackup()   먼저 exportBackup, 검증이 막을 때만 exportRawBackup
+App.tsx:133-152   recoveryBackup()   먼저 exportBackup, 그것이 던진 **모든** 오류에서 exportRawBackup
+                                     (catch 절에 조건이 없다 — bare `catch {`)
                                      → wonboard-<documentId>-original.zip
                   주석: 미래 스키마나 미지원 노드로 얼어붙은 초안은 exportBackup 이 던져서
                         사진이 든 초안에 회수 경로가 없었다. 그래서 검증 없는 원본 묶음을 추가
@@ -209,6 +216,10 @@ App.tsx:660       accept=".zip,application/zip"
 ```
 
 **검증을 통과하지 못하는 초안도 원본 ZIP으로 회수된다.** 이건 데이터 유실 방지 관점에서 중요하므로 데이터 항목 표에 행으로 넣을 만하다(현재 표에는 ZIP 행이 없다).
+
+**단, 이 폴백은 검증 전용 경로가 아니다.** `App.tsx:143` 의 `catch` 는 조건이 없는 bare catch 라 `exportBackup()` 이 던지는 **모든** 오류가 `exportRawBackup()` 으로 넘어간다 — 검증 실패만이 아니라 보관 한도 초과, 해싱 오류, ZIP 생성 오류도 같다. 구체적으로 **참조된 사진에 대응하는 Blob 이 없거나 크기가 다르면** `exportBackup()` 이 `missingMedia` 로 던진다(`packages/document/src/backup.ts:21-24`, 기존 시험 `tests/unit/document.test.ts:377` 이 이 reject 를 고정한다). 같은 함수는 `archiveBytes` 초과에서도 `archiveLimit` 을 던진다(backup.ts:20·26). 이어서 원본 수출은 **그 원본을 빼고도** 성공할 수 있다.
+
+따라서 `wonboard-<documentId>-original.zip` 이 「검증은 실패했지만 원본은 온전하다」를 보장하지는 않는다. 이 경로는 검증 실패뿐 아니라 원본 자체가 이미 불완전한 경우에도 그 불완전한 상태로 묶음을 만들어 낼 수 있고, 사용자에게는 성공한 다운로드로 보인다. **데이터 유실 방지 보장은 앞서 적은 것보다 약하다.** `App.tsx:133` 의 코드 주석도 「검증이 막을 때만 검증 없는 원본 묶음으로 넘어간다」고 적어 실제 bare catch 와 어긋나므로, 그 주석도 함께 고쳐야 할 항목으로 남긴다(파일 소유는 별도 담당).
 
 ## 5. 비공개 원본과 공개 사진의 경계
 
