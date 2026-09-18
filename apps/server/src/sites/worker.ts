@@ -4,12 +4,14 @@ import {
 } from "@wonboard/document";
 import { HttpError, json, readImage, readJson, validId } from "./http";
 import type { SitesEnv } from "./types";
+import { ownerFiles, sharedFile, documentFile } from "./files";
+import { photoVariantKey, storePhotoVariant } from "./photoObjects";
+import { ownerSnapshots, publicSnapshot } from "./snapshots";
 
 type StoredMedia = { id: string; hash: string; mime: string; size: number; width: number; height: number };
 type Publication = { public_id: string; document_id: string; media_id: string;
   blob_key: string | null; mime: string | null; filename: string | null; published: number };
 const originalKey = (id: string, hash: string) => `originals/${id}/${hash}`;
-const variantKey = (doc: string, id: string, hash: string) => `publications/${doc}/${id}/${hash}`;
 const TRASH_RETENTION_MS = 30 * 86400000;
 // SQLite evaluates 'now' at statement execution, including the final conditional
 // write. Integer milliseconds preserve the exact boundary without Julian rounding.
@@ -84,6 +86,16 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
   try {
     const url = new URL(request.url);
     const path = url.pathname;
+    if (path.startsWith("/shared/posts/")) {
+      const response = await publicSnapshot(request, env, path);
+      if (response) return response;
+      throw new HttpError(404, "notFound");
+    }
+    const sharedMatch = /^\/shared\/files\/([a-zA-Z0-9_-]{1,80})$/.exec(path);
+    if (sharedMatch) {
+      if (!["GET", "HEAD"].includes(request.method)) throw new HttpError(405, "notFound");
+      return await sharedFile(request, env, sharedMatch[1]);
+    }
     const publicMatch = /^\/media\/([a-zA-Z0-9_-]{1,80})$/.exec(path);
     if (publicMatch && ["GET", "HEAD"].includes(request.method))
       return await publicImage(request, env, publicMatch[1]);
@@ -120,6 +132,13 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
       return json({ accepted: true });
     }
     if (!installed) throw new HttpError(403, "setupRequired");
+    if (path === "/api/snapshots" || path.startsWith("/api/snapshots/")) {
+      const response = await ownerSnapshots(request, env, path, id => loadStoredDocument(env, id));
+      if (response) return response;
+      throw new HttpError(404, "notFound");
+    }
+    const fileResponse = await ownerFiles(request, env, path);
+    if (fileResponse) return fileResponse;
     if (path === "/api/documents" && request.method === "GET") {
       const offset = Number(url.searchParams.get("offset") ?? 0);
       if (!Number.isSafeInteger(offset) || offset < 0) throw new HttpError(400, "invalidDocument");
@@ -168,6 +187,11 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
     const docMatch = /^\/api\/documents\/([^/]+)(?:\/(.*))?$/.exec(path);
     if (!docMatch || !validId(docMatch[1])) throw new HttpError(404, "notFound");
     const [, id, action] = docMatch;
+    const documentFileId = /^files\/([^/]+)$/.exec(action ?? "");
+    if (documentFileId && validId(documentFileId[1]) && ["GET", "HEAD"].includes(request.method)) {
+      await loadDocument(env, id);
+      return documentFile(request, env, id, documentFileId[1]);
+    }
     if (!action && request.method === "GET") return json(await loadDocument(env, id));
     if (!action && request.method === "DELETE") {
       const body = await readJson(request);
@@ -185,13 +209,10 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
       // identical wire shapes. Preserve data unless the server deadline passed.
       const deletionGuard = `(? = 1 OR (json_extract(body, '$.trashedAt') IS ? AND ? IS NOT NULL AND ? <= ${databaseNow}))`;
       const guard = [body.deletionIntent === "manual" ? 1 : 0, timestamp ?? null, deadline, deadline];
+      // Draft lifetime never controls already distributed copies, including
+      // requests from old clients that still send withdrawPublications=true.
       const statements = [env.DB.prepare(`DELETE FROM documents WHERE id = ? AND revision = ? AND ${deletionGuard}`)
         .bind(id, body.revision, ...guard)];
-      // D1 batch is a sequential transaction. changes() observes the preceding
-      // DELETE, so withdrawal follows that one permission decision, not a second
-      // clock sample. A failed withdrawal rolls the DELETE back as well.
-      if (body.withdrawPublications) statements.push(env.DB.prepare(
-        "UPDATE publications SET published = 0 WHERE document_id = ? AND changes() = 1").bind(id));
       const result = await env.DB.batch(statements);
       if (result[0].meta.changes !== 1) {
         const remaining = await env.DB.prepare("SELECT revision FROM documents WHERE id = ?").bind(id).first();
@@ -237,7 +258,7 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
       const document = await loadDocument(env, id);
       if (!imageIds(document).includes(variant[1])) throw new HttpError(400, "missingMedia");
       const image = await readImage(request);
-      await env.MEDIA.put(variantKey(id, variant[1], image.hash), image.bytes, { httpMetadata: { contentType: image.mime } });
+      await storePhotoVariant(env, id, variant[1], image);
       return json({ hash: image.hash });
     }
     if (action === "publications" && request.method === "GET") {
@@ -261,7 +282,7 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
       for (const mediaId of ids) {
         const hash = body.variants[mediaId];
         if (typeof hash !== "string" || !/^[a-f0-9]{64}$/.test(hash)) throw new HttpError(400, "invalidImage");
-        const key = variantKey(id, mediaId, hash);
+        const key = await photoVariantKey(env, id, mediaId, hash);
         const object = await env.MEDIA.get(key);
         const mime = object?.httpMetadata?.contentType;
         if (object) await object.body.cancel();

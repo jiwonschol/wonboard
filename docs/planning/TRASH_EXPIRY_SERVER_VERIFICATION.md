@@ -52,18 +52,6 @@ DB 시각은 SQLite strftime의 정수 밀리초로 비교한다. Julian 실수 
 
 처음에는 로컬/global git user.name/email이 없어 커밋을 보류했다. 지원이 2026-09-16 채널 이벤트 `f44ed9d31694e26a509c57e6408baa3300c48c733cff9416405b568cfa43bc2a`에서 VPS 커밋 작성자를 기존 규칙대로 유지하라고 확정했다. 따라서 전역 설정은 바꾸지 않고 커밋 명령에 `Ji Won Chung <noname2k@naver.com>`을 적용하며, `Co-authored-by: Codex <noreply@openai.com>`과 기존 규칙의 Signed-off-by를 기록한다. merge·운영 배포는 하지 않는다.
 
-## main 기준선 대조와 독립 검토
-
-앞의 '기준선 미확인'은 최초 전체 실행 시점의 상태다. 이후 수정 전 main `e139408274d76a507eab397f1ebca7ac1d3fc395`의 별도 전용 워크트리에서 아래 세 사례만 대조했다. 같은 셸에서 HEAD를 확인했으며 이 실행 시점에는 제품 수정이 없었다.
-
-```sh
-WONBOARD_LOGIN_ID=expiry-fixture WONBOARD_LOGIN_PASSWORD=local-only-expiry-test pnpm test:e2e --project=chromium -g 'conditional intention with lexical rieul preservation|uncertain lexical candidate can be skipped without rewriting 유의미하다까진|new drafts use Nanum Myeongjo'
-```
-
-결과는 종료 1, 세 사례 모두 실패다. 원본 로그는 `/tmp/wonboard-expiry-baseline-three.log`다. 글꼴 시험은 CSS 확인 뒤 `page.screenshot`이 Linux에 없는 `/private/tmp/wonboard-nanum-default.png`를 열다가 같은 ENOENT로 실패했다. 두 번째 맞춤법 사례는 수정본 전체 실행의 563행과 달리 기준선에서 555행의 `Skip once` 찾기에서 실패했다. 따라서 같은 사례의 실패는 확인했지만 같은 assertion 또는 같은 원인이라고 입증하지 않았다. 전체 main 브라우저 기준선도 실행하지 않았다. 이 대조는 위험한 Luna/Node 단위 시험을 실행하지 않았다.
-
-동준은 PR #18의 `fc2b4568214b7311a10c87b1bf1f0c80154cd440`을 독립 검토해 코드·SQL 범위의 차단 결함 0개를 보고했다. 실제 SQL을 SQLite에서 실행해 밀리초 .000/.123/.999 및 다음 초, 정각 0행/직전 2행, 두 번째 사진 ABORT 시 전체 롤백을 확인했다는 검토다. 전체 통합·운영·머지 승인이 아니며 이 문서 작성자가 재실행한 결과로 합산하지 않는다. 자동 체크 목록은 비어 있어 CI 통과로 표현하지 않는다. 안전한 전체 단위 재실행은 닝닝의 실행기 격리 수정 이후 남아 있다.
-
 PR 제목안: `fix: enforce Sites trash expiry at server write boundaries`.
 PR은 `Refs #8, #9`로 연결한다. 파일 보관함 2단계가 남아 이슈를 닫지 않는다.
 

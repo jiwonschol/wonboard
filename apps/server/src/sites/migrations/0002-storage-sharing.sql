@@ -1,44 +1,5 @@
--- Initial schema for local validation. Generate Sites migrations from this
--- schema with the supported Sites toolchain before a hosted deployment.
-CREATE TABLE installation (
-  singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
-  owner_id TEXT NOT NULL UNIQUE,
-  accepted_at TEXT NOT NULL,
-  locale TEXT NOT NULL CHECK (locale IN ('ko', 'en'))
-);
-CREATE TABLE documents (
-  id TEXT PRIMARY KEY,
-  revision INTEGER NOT NULL,
-  title TEXT NOT NULL,
-  locale TEXT NOT NULL,
-  excerpt TEXT NOT NULL,
-  body TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  server_trashed_at TEXT
-);
-CREATE TABLE media (
-  id TEXT PRIMARY KEY,
-  hash TEXT NOT NULL,
-  mime TEXT NOT NULL,
-  size INTEGER NOT NULL,
-  width INTEGER NOT NULL,
-  height INTEGER NOT NULL
-);
-CREATE TABLE publications (
-  public_id TEXT PRIMARY KEY,
-  document_id TEXT NOT NULL,
-  media_id TEXT NOT NULL,
-  blob_key TEXT,
-  mime TEXT,
-  filename TEXT,
-  published INTEGER NOT NULL DEFAULT 0 CHECK (published IN (0, 1)),
-  UNIQUE (document_id, media_id)
-);
--- Publications deliberately have no cascading document/media deletion.
-
--- New bytes are tracked before R2 writes. Private legacy originals remain
--- outside collection; legacy public keys are registered before row removal.
-CREATE TABLE file_objects (
+-- Additive, restart-safe stage-2 migration. Apply only through the supported Sites migration flow.
+CREATE TABLE IF NOT EXISTS file_objects (
   id TEXT PRIMARY KEY,
   object_key TEXT NOT NULL UNIQUE,
   state TEXT NOT NULL CHECK (state IN ('uploading', 'ready', 'deleting', 'deleted')),
@@ -47,14 +8,14 @@ CREATE TABLE file_objects (
   attempts INTEGER NOT NULL DEFAULT 0,
   size INTEGER NOT NULL
 );
-CREATE TABLE photo_variants (
+CREATE TABLE IF NOT EXISTS photo_variants (
   document_id TEXT NOT NULL,
   media_id TEXT NOT NULL,
   hash TEXT NOT NULL,
   object_id TEXT NOT NULL REFERENCES file_objects(id),
   PRIMARY KEY(document_id,media_id,hash)
 );
-CREATE TABLE snapshots (
+CREATE TABLE IF NOT EXISTS snapshots (
   id TEXT PRIMARY KEY,
   document_id TEXT NOT NULL,
   title TEXT NOT NULL,
@@ -68,31 +29,31 @@ CREATE TABLE snapshots (
   updated_at INTEGER NOT NULL,
   UNIQUE(document_id,create_operation_id)
 );
-CREATE TABLE snapshot_versions (
+CREATE TABLE IF NOT EXISTS snapshot_versions (
   id TEXT PRIMARY KEY,
   snapshot_id TEXT NOT NULL,
   source_revision INTEGER NOT NULL,
   html TEXT NOT NULL,
   retired_at INTEGER
 );
-CREATE TABLE snapshot_assets (
+CREATE TABLE IF NOT EXISTS snapshot_assets (
   version_id TEXT NOT NULL,
   media_id TEXT NOT NULL,
   object_id TEXT NOT NULL REFERENCES file_objects(id),
   mime TEXT NOT NULL,
   PRIMARY KEY(version_id,media_id)
 );
-CREATE TRIGGER snapshot_asset_ready BEFORE INSERT ON snapshot_assets BEGIN
+CREATE TRIGGER IF NOT EXISTS snapshot_asset_ready BEFORE INSERT ON snapshot_assets BEGIN
   SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM file_objects WHERE id=NEW.object_id AND state='ready')
     THEN RAISE(ABORT,'missingMedia') END;
 END;
-CREATE TRIGGER publication_object_insert BEFORE INSERT ON publications WHEN NEW.blob_key IS NOT NULL BEGIN
+CREATE TRIGGER IF NOT EXISTS publication_object_insert BEFORE INSERT ON publications WHEN NEW.blob_key IS NOT NULL BEGIN
   INSERT INTO file_objects(id,object_key,state,lease_until,size)
     VALUES ('legacy:' || NEW.blob_key,NEW.blob_key,'ready',0,0) ON CONFLICT DO NOTHING;
   SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM file_objects WHERE object_key=NEW.blob_key AND state='ready')
     THEN RAISE(ABORT,'missingMedia') END;
 END;
-CREATE TRIGGER publication_object_update BEFORE UPDATE OF blob_key ON publications WHEN NEW.blob_key IS NOT NULL BEGIN
+CREATE TRIGGER IF NOT EXISTS publication_object_update BEFORE UPDATE OF blob_key ON publications WHEN NEW.blob_key IS NOT NULL BEGIN
   INSERT INTO file_objects(id,object_key,state,lease_until,size)
     SELECT 'legacy:' || OLD.blob_key,OLD.blob_key,'ready',0,0 WHERE OLD.blob_key IS NOT NULL ON CONFLICT DO NOTHING;
   INSERT INTO file_objects(id,object_key,state,lease_until,size)
@@ -100,7 +61,7 @@ CREATE TRIGGER publication_object_update BEFORE UPDATE OF blob_key ON publicatio
   SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM file_objects WHERE object_key=NEW.blob_key AND state='ready')
     THEN RAISE(ABORT,'missingMedia') END;
 END;
-CREATE TABLE library_files (
+CREATE TABLE IF NOT EXISTS library_files (
   id TEXT PRIMARY KEY,
   object_id TEXT NOT NULL REFERENCES file_objects(id),
   revision INTEGER NOT NULL,
@@ -110,7 +71,7 @@ CREATE TABLE library_files (
   trashed_at TEXT,
   pinned INTEGER NOT NULL DEFAULT 1 CHECK (pinned IN (0,1))
 );
-CREATE TABLE file_shares (
+CREATE TABLE IF NOT EXISTS file_shares (
   id TEXT PRIMARY KEY,
   file_id TEXT NOT NULL REFERENCES library_files(id),
   token TEXT NOT NULL UNIQUE,
@@ -122,14 +83,14 @@ CREATE TABLE file_shares (
   created_at TEXT NOT NULL
   ,UNIQUE(file_id, create_operation_id)
 );
-CREATE TABLE document_file_refs (
+CREATE TABLE IF NOT EXISTS document_file_refs (
   document_id TEXT NOT NULL,
   file_id TEXT NOT NULL REFERENCES library_files(id),
   PRIMARY KEY (document_id, file_id)
 );
 -- Reference publication and revision changes share the document transaction.
 -- RAISE aborts the write if cleanup already claimed the immutable bytes.
-CREATE TRIGGER document_files_insert AFTER INSERT ON documents BEGIN
+CREATE TRIGGER IF NOT EXISTS document_files_insert AFTER INSERT ON documents BEGIN
   SELECT CASE WHEN EXISTS (
     SELECT 1 FROM json_each(NEW.body, '$.files') AS entry
     WHERE NOT EXISTS (
@@ -141,7 +102,7 @@ CREATE TRIGGER document_files_insert AFTER INSERT ON documents BEGIN
   ) THEN RAISE(ABORT, 'missingFile') END;
   INSERT INTO document_file_refs SELECT NEW.id, entry.key FROM json_each(NEW.body,'$.files') entry;
 END;
-CREATE TRIGGER document_files_update AFTER UPDATE OF body ON documents BEGIN
+CREATE TRIGGER IF NOT EXISTS document_files_update AFTER UPDATE OF body ON documents BEGIN
   SELECT CASE WHEN EXISTS (
     SELECT 1 FROM json_each(NEW.body, '$.files') AS entry
     WHERE NOT EXISTS (
@@ -154,20 +115,20 @@ CREATE TRIGGER document_files_update AFTER UPDATE OF body ON documents BEGIN
   DELETE FROM document_file_refs WHERE document_id=NEW.id;
   INSERT INTO document_file_refs SELECT NEW.id, entry.key FROM json_each(NEW.body,'$.files') entry;
 END;
-CREATE TRIGGER document_files_delete AFTER DELETE ON documents BEGIN
+CREATE TRIGGER IF NOT EXISTS document_files_delete AFTER DELETE ON documents BEGIN
   DELETE FROM document_file_refs WHERE document_id=OLD.id;
 END;
 
 -- A migration starts pending. Legacy public objects cannot be collected until
 -- every document/publication page has been indexed without parsing failures.
-CREATE TABLE storage_backfill (
+CREATE TABLE IF NOT EXISTS storage_backfill (
   singleton INTEGER PRIMARY KEY CHECK(singleton=1),
   phase TEXT NOT NULL CHECK(phase IN ('documents','publications','complete')),
   cursor TEXT NOT NULL,
   revision INTEGER NOT NULL
 );
-INSERT INTO storage_backfill VALUES(1,'documents','',1);
-CREATE TABLE storage_backfill_failures (
+INSERT OR IGNORE INTO storage_backfill VALUES(1,'documents','',1);
+CREATE TABLE IF NOT EXISTS storage_backfill_failures (
   document_id TEXT PRIMARY KEY,
   reason TEXT NOT NULL
 );

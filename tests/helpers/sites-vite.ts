@@ -9,7 +9,7 @@ export function sitesTestPlugin(): Plugin {
     server.httpServer?.once("close", () => runtime.close());
     server.middlewares.use((req, res, next) => {
       const path = req.url?.split("?")[0] ?? "";
-      if (!path.startsWith("/api/") && !path.startsWith("/media/") && !path.startsWith("/__sites-test/")) return next();
+      if (!path.startsWith("/api/") && !path.startsWith("/media/") && !path.startsWith("/shared/") && !path.startsWith("/__sites-test/")) return next();
       if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(req.headers.host ?? "") ||
           !["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress ?? "")) {
         res.writeHead(403); res.end(); return;
@@ -23,9 +23,10 @@ export function sitesTestPlugin(): Plugin {
         if (offset > 60 * 86400000) { res.writeHead(400); res.end(); return; }
         const now = Date.now() + offset;
         runtime.sqlite.function("strftime", (format, value) => {
-          if (value !== "now") throw new Error("Clock fixture supports now only");
-          if (format === "%s") return String(Math.floor(now / 1000));
-          if (format === "%f") return new Date(now).toISOString().slice(17, 23);
+          const time = value === "now" ? now : Date.parse(String(value));
+          if (!Number.isFinite(time)) return null;
+          if (format === "%s") return String(Math.floor(time / 1000));
+          if (format === "%f") return new Date(time).toISOString().slice(17, 23);
           throw new Error("Unsupported clock fixture format");
         });
         res.writeHead(204); res.end(); return;

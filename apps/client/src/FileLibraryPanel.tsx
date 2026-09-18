@@ -1,0 +1,170 @@
+import { useEffect, useRef, useState } from "react";
+import { translator, en, type MessageKey } from "@wonboard/locales";
+import type { Locale } from "@wonboard/document";
+import { fileExpired, type FileLibrary, type LibraryFile, type FileShare, type DistributedPhoto, type SharedWriting, type StorageUsage } from "./fileLibrary";
+
+export function FileLibraryPanel({ library, locale, picking, onInsert, onClose, beforeWritingUpdate, embeddedTrash = false, onTrash, canUpdateWriting = true }: {
+  library: FileLibrary; locale: Locale; picking: boolean;
+  onInsert(ids: string[], files: LibraryFile[]): Promise<void>; onClose(): void;
+  canUpdateWriting?: boolean; embeddedTrash?: boolean; onTrash?(): void;
+  beforeWritingUpdate?(documentId: string): Promise<boolean>;
+}) {
+  const t = translator(locale), input = useRef<HTMLInputElement>(null), panel = useRef<HTMLElement>(null);
+  const [files, setFiles] = useState<LibraryFile[]>([]), [query, setQuery] = useState("");
+  const [trash, setTrash] = useState(embeddedTrash), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
+  const [distributed, setDistributed] = useState(false), [shares, setShares] = useState<FileShare[]>([]), [expiry, setExpiry] = useState("");
+  const [usage, setUsage] = useState<StorageUsage | null>(null);
+  const [cleanup, setCleanup] = useState("");
+  const [photos, setPhotos] = useState<DistributedPhoto[]>([]);
+  const [writings, setWritings] = useState<SharedWriting[]>([]);
+  const errorNotice = useRef<HTMLParagraphElement>(null);
+  const [error, setError] = useState(""), [selected, setSelected] = useState<string[]>([]);
+  const [clockError, setClockError] = useState("");
+  const [failed, setFailed] = useState<File[]>([]), [renaming, setRenaming] = useState<string | null>(null), [name, setName] = useState("");
+  const [now, setNow] = useState(() => library.now?.() ?? Date.now());
+  const refreshVersion = useRef(0), operationActive = useRef(false);
+  const refresh = async () => {
+    const version = ++refreshVersion.current;
+    try {
+      const [files, shared, pictures, writings, usage] = await Promise.all([library.list(), library.sharing?.list() ?? Promise.resolve([]), library.sharing?.photos() ?? Promise.resolve([]), library.sharing?.writings() ?? Promise.resolve([]), library.sharing?.usage() ?? Promise.resolve(null)]);
+      if (version !== refreshVersion.current) return;
+      setUsage(usage); setFiles(files); setShares(shared); setPhotos(pictures); setWritings(writings); setNow(library.now?.() ?? Date.now()); setClockError("");
+    } catch (error) { if (version === refreshVersion.current) throw error; }
+  };
+  useEffect(() => {
+    if (error || clockError) errorNotice.current?.scrollIntoView({ block: "center" });
+  }, [error, clockError]);
+  const report = (error: unknown) => setError(error instanceof Error && Object.hasOwn(en, error.message) ? error.message : "storageFailed");
+  useEffect(() => {
+    let active = true;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const resync = () => {
+      if (!active || !library.now) return;
+      library.invalidateClock?.(); setNow(Number.NaN);
+      if (document.visibilityState === "hidden") return;
+      if (operationActive.current) { clearTimeout(retry); retry = setTimeout(resync, 100); return; }
+      void refresh().catch(() => { if (active) { library.invalidateClock?.(); setNow(Number.NaN); setClockError("storageFailed"); } });
+    };
+    panel.current?.focus();
+    refresh().catch(error => { if (active) report(error); })
+      .finally(() => { if (active) setLoading(false); });
+    const timer = setInterval(() => setNow(library.now?.() ?? Date.now()), 1000);
+    if (library.now) {
+      window.addEventListener("focus", resync); window.addEventListener("pageshow", resync);
+      document.addEventListener("visibilitychange", resync);
+    }
+    return () => {
+      active = false; refreshVersion.current++;
+      clearInterval(timer); clearTimeout(retry);
+      window.removeEventListener("focus", resync); window.removeEventListener("pageshow", resync);
+      document.removeEventListener("visibilitychange", resync);
+    };
+  }, [library]);
+  async function run(action: () => Promise<void>) {
+    if (operationActive.current) return;
+    operationActive.current = true; refreshVersion.current++;
+    setBusy(true); setError("");
+    try { await action(); await refresh(); } catch (error) { report(error); } finally { operationActive.current = false; setBusy(false); }
+  }
+  async function upload(incoming: File[]) {
+    await run(async () => {
+      const failures: File[] = [];
+      for (const file of incoming) {
+        try { await library.upload(file); } catch (error) { failures.push(file); report(error); }
+      }
+      setFailed(failures);
+    });
+  }
+  const visible = files.filter(file => Boolean(file.trashedAt) === trash && file.filename.toLocaleLowerCase(locale).includes(query.toLocaleLowerCase(locale)));
+  return <div className={embeddedTrash ? "file-trash" : "file-library-backdrop"}>
+    <section ref={panel} tabIndex={-1} className={embeddedTrash ? "file-trash-panel" : "file-library-panel"} role={embeddedTrash ? undefined : "dialog"} aria-modal={embeddedTrash ? undefined : true} aria-label={t("fileLibrary")}
+      onKeyDown={event => {
+        if (embeddedTrash) return;
+        if (event.key === "Escape" && !busy) { event.stopPropagation(); onClose(); }
+        if (event.key === "Tab") {
+          const elements = [...event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled),input:not(:disabled),[tabindex='0']")];
+          const first = elements[0], last = elements.at(-1);
+          if (event.shiftKey && (document.activeElement === first || document.activeElement === panel.current)) { event.preventDefault(); last?.focus(); }
+          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+        }
+      }}>
+      {!embeddedTrash ? <><header><h2>{t("fileLibrary")}</h2><button disabled={busy} onClick={onClose}>{t("close")}</button></header>
+      <p>{t("fileLibraryPolicy")}</p>
+      <div className="file-library-tools">
+        <button disabled={busy} aria-pressed={!trash && !distributed} onClick={() => { setTrash(false); setDistributed(false); setSelected([]); }}>{t("filesActive")}</button>
+        <button disabled={busy} aria-pressed={trash && !distributed} onClick={() => { if (onTrash) onTrash(); else setTrash(true); setDistributed(false); setSelected([]); }}>{t("trash")}</button>
+        {library.sharing ? <button disabled={busy} aria-pressed={distributed} onClick={() => { setDistributed(true); setSelected([]); }}>{t("distributedFiles")}</button> : null}
+        <button disabled={busy} onClick={() => input.current?.click()}>{t("fileUpload")}</button>
+        <input ref={input} hidden type="file" multiple onChange={event => { const incoming = [...(event.currentTarget.files ?? [])]; event.currentTarget.value = ""; void upload(incoming); }} />
+      </div>
+      </> : null}
+      <input type="search" aria-label={t("search")} placeholder={t("search")} value={query} onChange={event => setQuery(event.target.value)} />
+      {library.sharing && !embeddedTrash ? <><p>{t("shareFileNotice")}</p><label>{t("shareExpiry")}<input type="datetime-local" value={expiry} onChange={event => setExpiry(event.target.value)} /></label></> : null}
+      {error || clockError ? <p ref={errorNotice} role="alert">{t((error || clockError) as MessageKey)} <button disabled={busy} onClick={() => void run(refresh)}>{t("trashRetry")}</button></p> : null}
+      {failed.length ? <div role="status">{failed.map(file => file.name).join(", ")} <button disabled={busy} onClick={() => void upload(failed)}>{t("fileRetry")}</button></div> : null}
+      {loading ? <p role="status">{t("loading")}</p> : distributed ? <ul className="file-library-list">{shares.filter(share => (share.filename ?? share.fileId).toLocaleLowerCase(locale).includes(query.toLocaleLowerCase(locale))).map(share => <li key={share.id}>
+        <strong className="file-library-name">{share.filename ?? share.fileId}</strong>
+        <span>{t(share.active ? "shareActive" : "shareInactive")}</span>
+        <input aria-label={share.filename ?? share.fileId} readOnly value={new URL(share.url, location.origin).href} onFocus={event => event.target.select()} />
+        <button disabled={busy || share.revoked} onClick={() => void run(async () => { await library.sharing!.change(share, "extend", expiry ? new Date(expiry).toISOString() : null); })}>{t("shareExtend")}</button>
+        <button disabled={busy || share.revoked} onClick={() => void run(async () => { await library.sharing!.change(share, "revoke", null); })}>{t("shareRevoke")}</button>
+        <button disabled={busy} onClick={() => void run(async () => { await library.sharing!.change(share, "reissue", expiry ? new Date(expiry).toISOString() : null); })}>{t("shareReissue")}</button>
+        <button disabled={busy} onClick={() => { if (window.confirm(t("deleteDistributedNotice"))) void run(() => library.sharing!.remove(share)); }}>{t("shareDelete")}</button>
+      </li>)}</ul> : <ul className="file-library-list">{visible.map(file => <li key={file.id}>
+        {picking && !trash ? <input type="checkbox" aria-label={file.filename} checked={selected.includes(file.id)} disabled={busy}
+          onChange={event => setSelected(value => event.target.checked ? [...value, file.id] : value.filter(id => id !== file.id))} /> : null}
+        <span className="file-library-name">{file.filename}</span><small>{(file.size / 1024).toFixed(1)} KiB</small>
+        {trash ? <span>{!Number.isFinite(now) ? t("loading") : fileExpired(file, now) ? t("trashExpired") : t("trashDays", {count: Math.max(1, Math.ceil((Date.parse(file.trashedAt!) + 30 * 86400000 - now) / 86400000))})}</span> : null}
+        {renaming === file.id ? <form onSubmit={event => { event.preventDefault(); void run(async () => { await library.change(file.id, file.revision, { filename: name }); setRenaming(null); }); }}>
+          <input aria-label={t("fileRename")} value={name} onChange={event => setName(event.target.value)} maxLength={1024} /><button disabled={busy}>{t("save")}</button>
+        </form> : null}
+        {!trash ? <>
+          <button disabled={busy} onClick={() => { setRenaming(file.id); setName(file.filename); }}>{t("fileRename")}</button>
+          {library.sharing ? <button disabled={busy} onClick={() => void run(async () => {
+            await library.sharing!.create(file, expiry ? new Date(expiry).toISOString() : null); setDistributed(true); setSelected([]);
+          })}>{t("shareFile")}</button> : null}
+          <button disabled={busy} onClick={() => void run(async () => { await library.change(file.id, file.revision, { trashedAt: new Date().toISOString() }); setSelected(value => value.filter(id => id !== file.id)); })}>{t("moveToTrash")}</button>
+        </> : <>
+          <button disabled={busy || !Number.isFinite(now) || fileExpired(file, now)} onClick={() => void run(async () => { await library.change(file.id, file.revision, { trashedAt: null }); })}>{t("fileRestore")}</button>
+          <button disabled={busy} onClick={() => { if (window.confirm(t("deleteLibraryFileNotice"))) void run(() => library.remove(file.id, file.revision)); }}>{t("permanentlyDelete")}</button>
+        </>}
+        <button disabled={busy || !Number.isFinite(now) || fileExpired(file, now)} onClick={() => void run(async () => {
+          const { blob } = await library.load(file.id), url = URL.createObjectURL(blob);
+          const link = document.createElement("a"); link.href = url; link.download = file.filename; link.click();
+          setTimeout(() => URL.revokeObjectURL(url), 60000);
+        })}>{t("fileDownload")}</button>
+      </li>)}</ul>}
+      {distributed ? <ul className="file-library-list">{photos.filter(photo => (photo.filename ?? photo.id).toLocaleLowerCase(locale).includes(query.toLocaleLowerCase(locale))).map(photo => <li key={photo.id}>
+        <strong className="file-library-name">{photo.filename || photo.id}</strong><span>{t(photo.published ? "shareActive" : "shareInactive")}</span>
+        <input aria-label={photo.filename || photo.id} readOnly value={new URL(photo.url, location.origin).href} onFocus={event => event.target.select()} />
+        <button disabled={busy || !photo.published} onClick={() => void run(() => library.sharing!.changePhoto(photo, "revoke"))}>{t("shareRevoke")}</button>
+        <button disabled={busy} onClick={() => { if (window.confirm(t("deleteDistributedNotice"))) void run(() => library.sharing!.changePhoto(photo, "delete")); }}>{t("shareDelete")}</button>
+      </li>)}</ul> : null}
+      {distributed ? <section aria-label={t("sharedWriting")}><h3>{t("sharedWriting")}</h3><ul className="file-library-list">
+        {writings.filter(writing => writing.title.toLocaleLowerCase(locale).includes(query.toLocaleLowerCase(locale))).map(writing => <li key={writing.id}>
+          <strong className="file-library-name">{writing.title || t("untitled")}</strong><span>{t(writing.active ? "shareActive" : "shareInactive")}</span>
+          <input aria-label={t("sharedWritingUrl")} readOnly value={new URL(writing.url, location.origin).href} onFocus={event => event.target.select()} />
+          <a href={`/api/snapshots/${writing.id}/preview/`} target="_blank" rel="noopener noreferrer">{t("previewSnapshot")}</a>
+          <button disabled={busy || !canUpdateWriting} onClick={() => { if (window.confirm(t("snapshotUpdateNotice"))) void run(async () => {
+            if (beforeWritingUpdate && !(await beforeWritingUpdate(writing.documentId))) throw new Error("storageFailed");
+            await library.sharing!.updateWriting(writing);
+          }); }}>{t("updateSnapshot")}</button>
+          <button disabled={busy || writing.revoked} onClick={() => void run(async () => { await library.sharing!.changeWriting(writing, "extend", expiry ? new Date(expiry).toISOString() : null); })}>{t("shareExtend")}</button>
+          <button disabled={busy || writing.revoked} onClick={() => void run(async () => { await library.sharing!.changeWriting(writing, "revoke", null); })}>{t("shareRevoke")}</button>
+          <button disabled={busy} onClick={() => void run(async () => { await library.sharing!.changeWriting(writing, "reissue", expiry ? new Date(expiry).toISOString() : null); })}>{t("shareReissue")}</button>
+          <button disabled={busy} onClick={() => { if (window.confirm(t("deleteDistributedNotice"))) void run(() => library.sharing!.removeWriting(writing)); }}>{t("shareDelete")}</button>
+        </li>)}
+      </ul></section> : null}
+      {!loading && !(distributed ? shares.length + photos.length + writings.length : visible.length) ? <p>{t(query ? "fileSearchEmpty" : "fileLibraryEmpty")}</p> : null}
+      {usage ? <details className="storage-usage"><summary>{t("storageTracked", { bytes: (usage.trackedBytes / 1048576).toFixed(2) })}</summary>
+        <p>{t("storagePending", { bytes: (usage.pendingBytes / 1048576).toFixed(2), failed: (usage.failedBytes / 1048576).toFixed(2), reserved: (usage.reservedBytes / 1048576).toFixed(2) })}</p>
+        <p>{t("storageUnknown", { count: usage.unknownObjects })}</p>
+        {!usage.backfill.complete ? <p>{t("storageBackfill", { count: usage.backfill.failures })} <button disabled={busy} onClick={() => void run(() => library.sharing!.backfill())}>{t("storageBackfillRetry")}</button></p> : null}
+        <ul>{usage.objects.map(object => <li key={object.id}><span>{object.filename ?? t("storageObject")}</span>{" "}
+          {(object.bytes / 1048576).toFixed(2)} MiB — {object.reasons.map(reason => t(("storageReason" + reason[0].toUpperCase() + reason.slice(1)) as MessageKey)).join(", ") || t("storageReasonPending")}</li>)}</ul>
+      </details> : null}
+      {library.sharing ? <><button disabled={busy} onClick={() => void run(async () => { const result = await library.sharing!.cleanup(); setCleanup(t("cleanupResult", { ...result, bytes: (result.reclaimedBytes / 1048576).toFixed(2) })); })}>{t("cleanupFiles")}</button><p role="status">{cleanup}</p></> : null}
+      {picking && !distributed ? <footer><button disabled={busy || !selected.length || trash} onClick={() => void run(() => onInsert(selected, files.filter(file => selected.includes(file.id))))}>{t("fileInsert")}</button></footer> : null}
+    </section>
+  </div>;
+}

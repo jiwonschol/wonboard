@@ -5,7 +5,7 @@ export type Publication = { mediaId: string; publicId: string; published: boolea
 export async function publications(documentId: string): Promise<Publication[]> {
   return (await sitesRequest(`/api/documents/${documentId}/publications`)).json();
 }
-export async function publishImages(draft: Draft): Promise<Record<string, string>> {
+export async function prepareImageVariants(draft: Draft): Promise<Record<string, string>> {
   const snapshot = withoutUnusedMedia(draft);
   const variants: Record<string, string> = {};
   const nodes = attachmentNodes(snapshot.document.content).filter(node => node.type === "media");
@@ -32,6 +32,10 @@ export async function publishImages(draft: Draft): Promise<Record<string, string
       variants[media.id] = result.hash;
     } finally { bitmap.close(); }
   }
+  return variants;
+}
+export async function publishImages(draft: Draft): Promise<Record<string, string>> {
+  const snapshot = withoutUnusedMedia(draft), variants = await prepareImageVariants(snapshot);
   const result = await (await sitesRequest(`/api/documents/${snapshot.document.documentId}/publish`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ revision: snapshot.document.revision, variants }),

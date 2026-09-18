@@ -58,7 +58,8 @@ export async function openDraftRepository(mode: StorageMode, onBlocked: () => vo
     },
     async load(draft) {
       if (draft.document.revision === 0) return draft;
-      const document = await (await sitesRequest(`/api/documents/${draft.document.documentId}`)).json();
+      const stored = await (await sitesRequest(`/api/documents/${draft.document.documentId}`)).json();
+      const document = withoutUnusedMedia({ document: stored, blobs: {} }).document;
       validateDocument(document);
       const blobs: Draft["blobs"] = {};
       // Bounded, sequential loading avoids materializing the entire library's photos.
@@ -70,10 +71,36 @@ export async function openDraftRepository(mode: StorageMode, onBlocked: () => vo
         blobs[media.id] = blob;
         uploaded.set(media.id, media.sha256);
       }
-      return { document, blobs };
+      for (const file of Object.values(document.files ?? {})) {
+        const bytes = await (await sitesRequest(`/api/documents/${document.documentId}/files/${file.id}`)).arrayBuffer();
+        if (bytes.byteLength !== file.size || await sha256(bytes) !== file.sha256) throw new Error("missingMedia");
+        blobs[file.id] = new Blob([bytes], { type: file.mime });
+        uploaded.set(file.id, file.sha256);
+      }
+      // A new editing session has no history for the previous session's unused files.
+      return withoutUnusedMedia({ document, blobs });
     },
     async save(draft, revision) {
       const snapshot = withoutUnusedMedia(draft);
+      // The live draft retains removed file refs for Undo. Keep their server
+      // references too, so library cleanup cannot delete bytes while Undo can
+      // restore them. Opening a new session prunes them before its next save.
+      if (draft.document.files) {
+        snapshot.document.files = draft.document.files;
+        for (const id of Object.keys(draft.document.files)) {
+          if (draft.blobs[id]) snapshot.blobs[id] = draft.blobs[id];
+        }
+      }
+      for (const file of Object.values(snapshot.document.files ?? {})) {
+        const blob = snapshot.blobs[file.id];
+        if (!blob || blob.size !== file.size) throw new Error("missingMedia");
+        if (uploaded.get(file.id) === file.sha256) continue;
+        const saved = await (await sitesRequest(`/api/files/${file.id}?name=${encodeURIComponent(file.originalName)}`, {
+          method: "PUT", headers: { "Content-Type": file.mime }, body: blob,
+        })).json();
+        if (saved.sha256 !== file.sha256) throw new Error("missingMedia");
+        uploaded.set(file.id, file.sha256);
+      }
       for (const media of Object.values(snapshot.document.media)) {
         const blob = snapshot.blobs[media.id];
         if (!blob || blob.size !== media.size) throw new Error("missingMedia");

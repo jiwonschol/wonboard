@@ -17,7 +17,7 @@ export async function exportBackup(draft: Draft): Promise<Blob> {
     "document.json": strToU8(JSON.stringify(draft.document)),
   };
   let total = files["document.json"].byteLength;
-  if (total > limits.archiveBytes) throw new DocumentError("archiveLimit");
+  if (total > Math.min(limits.documentBytes, limits.archiveBytes)) throw new DocumentError("archiveLimit");
   for (const media of Object.values(draft.document.media)) {
     const blob = draft.blobs[media.id];
     if (!blob || blob.size !== media.size)
@@ -28,6 +28,15 @@ export async function exportBackup(draft: Draft): Promise<Blob> {
     if ((await sha256(buffer)) !== media.sha256)
       throw new DocumentError("corruptBackup");
     files[`media/${media.id}`] = new Uint8Array(buffer);
+  }
+  for (const file of Object.values(draft.document.files ?? {})) {
+    const blob = draft.blobs[file.id];
+    if (!blob || blob.size !== file.size) throw new DocumentError("missingMedia");
+    total += blob.size;
+    if (total > limits.archiveBytes) throw new DocumentError("archiveLimit");
+    const bytes = await blob.arrayBuffer();
+    if (await sha256(bytes) !== file.sha256) throw new DocumentError("corruptBackup");
+    files[`files/${file.id}`] = new Uint8Array(bytes);
   }
   const data = await new Promise<Uint8Array<ArrayBuffer>>((resolve, reject) =>
     zip(files, { level: 0 }, (error, result) =>
@@ -88,18 +97,13 @@ export async function importBackup(blob: Blob): Promise<Draft> {
             total += file.originalSize;
             if (
               names.has(file.name) ||
-              !/^(document\.json|media\/[a-zA-Z0-9_-]{1,80})$/.test(
+              !/^(document\.json|(?:media|files)\/[a-zA-Z0-9_-]{1,80})$/.test(
                 file.name,
               ) ||
               !Number.isSafeInteger(file.originalSize) ||
-              // 사진 한 장의 상한이지 문서의 상한이 아니다. document.json 에 걸면
-              // exportBackup 이 정상으로 만들어 낸 묶음을 가져오기가 거부한다 —
-              // 같은 사진 노드를 여러 번 쓰면서 설명을 길게 단 문서로 실제로 닿는다.
-              // 문서 크기는 아래 total 이 archiveBytes 로 이미 막는다.
-              (file.name !== "document.json" &&
-                file.originalSize > limits.imageBytes) ||
+              file.originalSize > (file.name === "document.json" ? limits.documentBytes : limits.imageBytes) ||
               total > limits.archiveBytes ||
-              names.size >= limits.images + 1
+              names.size >= limits.images + limits.files + 1
             )
               invalid = true;
             names.add(file.name);
@@ -114,6 +118,7 @@ export async function importBackup(blob: Blob): Promise<Draft> {
   );
   if (invalid) throw new DocumentError("archiveLimit");
   if (!files["document.json"]) throw new DocumentError("corruptBackup");
+  if (files["document.json"].byteLength > limits.documentBytes) throw new DocumentError("archiveLimit");
   let document: WriterDocument;
   try {
     document = JSON.parse(strFromU8(files["document.json"]));
@@ -130,7 +135,7 @@ export async function importBackup(blob: Blob): Promise<Draft> {
     // and verify its binary originals.
     validateDocumentEnvelope(document);
   }
-  if (names.size !== Object.keys(document.media).length + 1)
+  if (names.size !== Object.keys(document.media).length + Object.keys(document.files ?? {}).length + 1)
     throw new DocumentError("corruptBackup");
   const blobs: Record<string, Blob> = {};
   for (const media of Object.values(document.media)) {
@@ -143,6 +148,12 @@ export async function importBackup(blob: Blob): Promise<Draft> {
     )
       throw new DocumentError("corruptBackup");
     blobs[media.id] = new Blob([data], { type: media.mime });
+  }
+  for (const file of Object.values(document.files ?? {})) {
+    const data = files[`files/${file.id}`];
+    if (!data || data.byteLength !== file.size || await sha256(data.buffer) !== file.sha256)
+      throw new DocumentError("corruptBackup");
+    blobs[file.id] = new Blob([data], { type: file.mime });
   }
   return { document, blobs };
 }

@@ -31,7 +31,7 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
     expect((await call(`/api/documents/${document.documentId}`)).status).toBe(200);
     expect((await call(new URL(urls).pathname, "GET", undefined, null)).status).toBe(200);
   });
-  it("removes documents with explicit photo withdrawal only and enforces owner and origin", async () => {
+  it("preserves distributed photos even for legacy withdrawal flags and enforces owner and origin", async () => {
     for (const withdrawPublications of [false, true]) {
       const document = await photoDocument(), urls = await publish(document);
       const path = `/api/documents/${document.documentId}`, body = { revision: document.revision, withdrawPublications, deletionIntent: "manual" };
@@ -41,12 +41,84 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
       expect((await call(path, "DELETE", body)).status).toBe(200);
       expect((await call(path, "DELETE", body)).status).toBe(200);
       expect((await call(path)).status).toBe(404);
-      expect((await call(new URL(urls).pathname, "GET", undefined, null)).status).toBe(withdrawPublications ? 404 : 200);
+      expect((await call(new URL(urls).pathname, "GET", undefined, null)).status).toBe(200);
       expect((await call("/api/media/photo")).status).toBe(200);
       expect((await call(`${path}/publications`).then(r => r.json()))).toHaveLength(1);
     }
   });
   async function setup() { expect((await call("/api/sites/setup", "POST", { accepted: true, locale: "ko" })).status).toBe(200); }
+  it("retains a photo cleanup job after deletion failure and retries without deleting its original", async () => {
+    const document = await photoDocument(), url = await publish(document);
+    const photoId = new URL(url).pathname.split("/").at(-1)!;
+    const row = runtime.sqlite.prepare("SELECT blob_key FROM publications WHERE public_id=?").get(photoId)!;
+    const key = String(row.blob_key), remove = runtime.env.MEDIA.delete!;
+    runtime.env.MEDIA.delete = async () => { throw new Error("simulated R2 failure"); };
+    expect((await call(`/api/distributed-photos/${photoId}`, "DELETE")).status).toBe(200);
+    await call("/api/files/cleanup", "POST", {});
+    expect(runtime.files.has(key)).toBe(true);
+    runtime.env.MEDIA.delete = remove;
+    databaseClock(Date.now() + 120000);
+    await call("/api/files/cleanup", "POST", {});
+    expect(runtime.files.has(key)).toBe(false);
+    expect((await call("/api/media/photo")).status).toBe(200);
+  });
+  it("keeps a photo shared by another publication until the last explicit removal", async () => {
+    const document = await photoDocument(), url = await publish(document);
+    const photoId = new URL(url).pathname.split("/").at(-1)!;
+    runtime.sqlite.prepare("INSERT INTO publications SELECT 'other-photo','other-doc',media_id,blob_key,mime,filename,1 FROM publications WHERE public_id=?").run(photoId);
+    expect((await call(`/api/distributed-photos/${photoId}`, "DELETE")).status).toBe(200);
+    await call("/api/files/cleanup", "POST", {});
+    expect((await call("/media/other-photo", "GET", undefined, null)).status).toBe(200);
+    const key = String(runtime.sqlite.prepare("SELECT blob_key FROM publications WHERE public_id='other-photo'").get()!.blob_key);
+    expect((await call("/api/distributed-photos/other-photo", "DELETE")).status).toBe(200);
+    await call("/api/files/cleanup", "POST", {});
+    expect(runtime.files.has(key)).toBe(false);
+  });
+  it("fences a photo upload that completes after its reservation was collected", async () => {
+    const document = await photoDocument(), put = runtime.env.MEDIA.put.bind(runtime.env.MEDIA);
+    const start = Date.now(), clock = databaseClock(start);
+    let lateKey = "";
+    runtime.env.MEDIA.put = async (key, bytes, options) => {
+      lateKey = key;
+      clock(start + 3600001);
+      await call("/api/files/cleanup", "POST", {});
+      return put(key, bytes, options);
+    };
+    expect((await call(`/api/documents/${document.documentId}/media/photo/variant`, "PUT", syntheticPng)).status).toBe(409);
+    expect(runtime.files.has(lateKey)).toBe(true);
+    clock(start + 3660002);
+    await call("/api/files/cleanup", "POST", {});
+    expect(runtime.files.has(lateKey)).toBe(false);
+    expect(runtime.sqlite.prepare("SELECT count(*) AS count FROM photo_variants").get()!.count).toBe(0);
+  });
+  it("rejects a stale photo publication after cleanup claimed the validated bytes", async () => {
+    const document = await photoDocument();
+    const variant = await (await call(`/api/documents/${document.documentId}/media/photo/variant`, "PUT", syntheticPng)).json();
+    const batch = runtime.env.DB.batch.bind(runtime.env.DB);
+    runtime.env.DB.batch = async statements => {
+      runtime.sqlite.prepare("UPDATE file_objects SET state='deleting'").run();
+      return batch(statements);
+    };
+    expect((await call(`/api/documents/${document.documentId}/publish`, "POST", { revision: document.revision, variants: { photo: variant.hash } })).status).toBe(503);
+    expect(runtime.sqlite.prepare("SELECT count(*) AS count FROM publications").get()!.count).toBe(0);
+  });
+  it("records legacy photo keys and rolls back metadata removal if ledger storage fails", async () => {
+    await setup();
+    const key = "publications/legacy/photo/hash";
+    await runtime.env.MEDIA.put(key, new Uint8Array(syntheticPng).buffer, { httpMetadata: { contentType: "image/png" } });
+    // Simulate a row that predates the new reference trigger.
+    runtime.sqlite.exec("DROP TRIGGER publication_object_insert");
+    runtime.sqlite.prepare("INSERT INTO publications VALUES ('legacy-photo','legacy','photo',?,'image/png','p.png',1)").run(key);
+    runtime.sqlite.exec("CREATE TRIGGER fail_ledger BEFORE INSERT ON file_objects BEGIN SELECT RAISE(ABORT,'fixture failure'); END");
+    expect((await call("/api/distributed-photos/legacy-photo", "DELETE")).status).toBe(503);
+    expect((await call("/media/legacy-photo", "GET", undefined, null)).status).toBe(200);
+    runtime.sqlite.exec("DROP TRIGGER fail_ledger");
+    expect((await call("/api/distributed-photos/legacy-photo", "DELETE")).status).toBe(200);
+    await call("/api/files/cleanup", "POST", {});
+    expect(runtime.files.has(key)).toBe(true); // Index checkpoint is not complete yet.
+    await call("/api/files/cleanup", "POST", {});
+    expect(runtime.files.has(key)).toBe(false);
+  });
   it("anchors new and active trash timestamps to the database clock", async () => {
     await setup();
     const now = Date.parse("2026-09-16T12:00:00.123Z");
@@ -92,24 +164,6 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
     expect((await call(path, "DELETE", { revision: saved.revision })).status).toBe(200);
     expect((await call(path, "DELETE", { revision: saved.revision, deletionIntent: "expired" })).status).toBe(200);
     expect((await call(new URL(url).pathname, "GET", undefined, null)).status).toBe(200);
-  });
-  it("bounds legacy future trash by server updated_at and freezes the canonical value on save", async () => {
-    const document = await photoDocument(), path = `/api/documents/${document.documentId}`;
-    const start = Date.parse("2026-09-16T12:00:00.123Z"), clock = databaseClock(start + 1000);
-    const legacy = { ...document, trashedAt: "2099-01-01T00:00:00.000Z", _sitesTrashTimestamp: "2099-01-01T00:00:00.000Z" };
-    runtime.sqlite.prepare("UPDATE documents SET body=?,updated_at=? WHERE id=?")
-      .run(JSON.stringify(legacy), new Date(start).toISOString(), document.documentId);
-    const loaded = await (await call(path)).json();
-    expect(loaded).not.toHaveProperty("_sitesTrashTimestamp");
-    expect(loaded.trashedAt).toBe(new Date(start).toISOString());
-    expect((await (await call("/api/documents")).json()).documents[0].trashedAt).toBe(loaded.trashedAt);
-    expect((await call(path, "PUT", legacy)).status).toBe(409);
-    const saved = await (await call(path, "PUT", { ...loaded, title: "safe legacy save" })).json();
-    expect(saved.trashedAt).toBe(loaded.trashedAt);
-    clock(start + 30 * 86400000);
-    expect((await call(path)).status).toBe(410);
-    expect((await call(`${path}/publish`, "POST", { revision: saved.revision, variants: {} })).status).toBe(410);
-    expect((await call(path, "DELETE", { revision: saved.revision })).status).toBe(200);
   });
   it("migrates existing JSON without trusting pre-saved provenance markers", async () => {
     await setup();
@@ -166,30 +220,42 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
     expect(listed.documents[0].title).toBe("");
     expect(listed.documents[0].content.content[0].content).toEqual([]);
   });
-  it("uses one deletion decision for legacy withdrawal across the expiry boundary", async () => {
+  it("bounds legacy future trash by server updated_at and freezes the canonical value on save", async () => {
+    const document = await photoDocument(), path = `/api/documents/${document.documentId}`;
+    const start = Date.parse("2026-09-16T12:00:00.123Z"), clock = databaseClock(start + 1000);
+    const legacy = { ...document, trashedAt: "2099-01-01T00:00:00.000Z", _sitesTrashTimestamp: "2099-01-01T00:00:00.000Z" };
+    runtime.sqlite.prepare("UPDATE documents SET body=?,updated_at=? WHERE id=?")
+      .run(JSON.stringify(legacy), new Date(start).toISOString(), document.documentId);
+    const loaded = await (await call(path)).json();
+    expect(loaded.trashedAt).toBe(new Date(start).toISOString());
+    expect((await (await call("/api/documents")).json()).documents[0].trashedAt).toBe(loaded.trashedAt);
+    expect((await call(path, "PUT", legacy)).status).toBe(409);
+    const saved = await (await call(path, "PUT", { ...loaded, title: "safe legacy save" })).json();
+    expect(saved.trashedAt).toBe(loaded.trashedAt);
+    clock(start + 30 * 86400000);
+    expect((await call(path)).status).toBe(410);
+    expect((await call(`${path}/publish`, "POST", { revision: saved.revision, variants: {} })).status).toBe(410);
+    expect((await call(path, "DELETE", { revision: saved.revision })).status).toBe(200);
+  });
+  it("preserves distributed photos on both sides of legacy deletion expiry", async () => {
     const document = await photoDocument(), url = await publish(document);
     const start = Date.parse("2026-09-16T12:00:00.123Z"), clock = databaseClock(start);
     const path = `/api/documents/${document.documentId}`;
     const saved = await (await call(path, "PUT", { ...document, trashedAt: new Date(start).toISOString() })).json();
     clock(start + 30 * 86400000 - 1);
-    const batch = runtime.env.DB.batch.bind(runtime.env.DB);
-    runtime.env.DB.batch = statements => batch(statements.map((statement, index) => {
-      const run = statement.run.bind(statement);
-      statement.run = async () => { if (index > 0) clock(start + 30 * 86400000); return run(); };
-      return statement;
-    }));
     expect((await call(path, "DELETE", { revision: saved.revision, withdrawPublications: true })).status).toBe(409);
     expect(runtime.sqlite.prepare("SELECT id FROM documents WHERE id=?").get(document.documentId)).toBeDefined();
     expect((await call(new URL(url).pathname, "GET", undefined, null)).status).toBe(200);
+    clock(start + 30 * 86400000);
     expect((await call(path, "DELETE", { revision: saved.revision, withdrawPublications: true })).status).toBe(200);
-    expect((await call(new URL(url).pathname, "GET", undefined, null)).status).toBe(404);
+    expect((await call(new URL(url).pathname, "GET", undefined, null)).status).toBe(200);
   });
-  it("rolls document deletion back when the requested photo withdrawal fails", async () => {
+  it("does not execute photo withdrawal SQL during draft deletion", async () => {
     const document = await photoDocument(), url = await publish(document);
     runtime.sqlite.exec("CREATE TRIGGER fail_withdraw BEFORE UPDATE ON publications BEGIN SELECT RAISE(ABORT,'fixture failure'); END");
     const path = `/api/documents/${document.documentId}`;
-    expect((await call(path, "DELETE", { revision: document.revision, deletionIntent: "manual", withdrawPublications: true })).status).toBe(503);
-    expect((await call(path)).status).toBe(200);
+    expect((await call(path, "DELETE", { revision: document.revision, deletionIntent: "manual", withdrawPublications: true })).status).toBe(200);
+    expect((await call(path)).status).toBe(404);
     expect((await call(new URL(url).pathname, "GET", undefined, null)).status).toBe(200);
   });
   it("expires an untouched legacy future timestamp consistently across every owner path", async () => {
@@ -358,6 +424,7 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
 
   it("keeps a successful publication successful when a later save changes revision", async () => {
     const document = await photoDocument();
+    const variant = await (await call(`/api/documents/${document.documentId}/media/photo/variant`, "PUT", syntheticPng)).json();
     const batch = runtime.env.DB.batch.bind(runtime.env.DB);
     runtime.env.DB.batch = async statements => {
       const result = await batch(statements);
@@ -365,7 +432,9 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
       runtime.sqlite.prepare("UPDATE documents SET revision = ?, body = ? WHERE id = ?").run(changed.revision, JSON.stringify(changed), document.documentId);
       return result;
     };
-    const url = await publish(document);
+    const response = await call(`/api/documents/${document.documentId}/publish`, "POST", { revision: document.revision, variants: { photo: variant.hash } });
+    expect(response.status).toBe(200);
+    const url = (await response.json()).urls.photo;
     expect((await call(new URL(url).pathname, "GET", undefined, null)).status).toBe(200);
   });
   it("does not publish when the revision changes before the conditional transaction", async () => {

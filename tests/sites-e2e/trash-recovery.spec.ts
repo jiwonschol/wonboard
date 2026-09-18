@@ -29,12 +29,6 @@ async function seed(request: APIRequestContext, photo = false) {
   }
   return { id, url };
 }
-async function move(page: Page) {
-  await page.locator(".document-row-actions button").click();
-}
-async function openTrash(page: Page, locale = "en") {
-  await page.locator(".writing-library > footer").getByRole("button", { name: locale === "en" ? /^Trash/ : /^휴지통/ }).click();
-}
 async function expectCachedEdits(page: Page, text: string) {
   await expect.poll(() => page.evaluate(async expected => {
     const moduleUrl = "/apps/client/src/recoveryCache.ts";
@@ -103,6 +97,12 @@ test("resume preserves edits made while the clean current document is reloading"
   expect(await readFile((await download.path())!, "utf8")).toContain("My new edits");
   expect(JSON.stringify(await (await request.get(path, { headers })).json())).toContain("Saved original");
 });
+async function move(page: Page) {
+  await page.locator(".document-row-actions button").click();
+}
+async function openTrash(page: Page, locale = "en") {
+  await page.locator(".writing-library > footer").getByRole("button", { name: locale === "en" ? /^Trash/ : /^휴지통/ }).click();
+}
 test("resume refreshes a suspended monotonic clock, fails closed and retries without revoking photos", async ({ page, request }) => {
   const { id, url } = await seed(request, true);
   await page.addInitScript(() => Object.defineProperty(performance, "now", { value: () => 1000 }));
@@ -182,36 +182,27 @@ test("expired drafts remain discoverable for cleanup retry without returning con
   expect((await request.get(path, { headers })).status()).toBe(404);
   expect((await request.get(url)).status()).toBe(200);
 });
-test("public photos remain unless explicitly withdrawn when moving or removing a draft", async ({ page, request }) => {
-  for (const action of ["keep", "move", "remove"] as const) {
-    let rejectWithdrawal = action === "move";
-    await page.route("**/api/documents/*/publications", route => {
-      if (route.request().method() === "DELETE" && rejectWithdrawal) {
-        rejectWithdrawal = false; return route.abort();
-      }
-      return route.continue();
-    });
+test("draft trash and deletion preserve photos until separate library withdrawal", async ({ page, request }) => {
     const { url } = await seed(request, true); await page.goto("/"); await move(page);
     let dialog = page.getByRole("dialog", { name: "Move to trash" });
-    await expect(dialog.getByRole("checkbox")).not.toBeChecked();
-    if (action === "move") await dialog.getByRole("checkbox").check();
+    await expect(dialog.getByRole("checkbox")).toHaveCount(0);
     await dialog.getByRole("button", { name: "Move to trash" }).click();
     await expect(dialog).toHaveCount(0);
-    if (action === "move") {
-      await expect(page.getByText("The document is in trash, but its photo URLs could not be turned off.")).toBeVisible();
-      expect((await request.get(url)).status()).toBe(200);
-      await page.getByRole("button", { name: "Try again", exact: true }).click();
-      await expect(page.getByRole("button", { name: "Try again", exact: true })).toHaveCount(0);
-    }
-    expect((await request.get(url)).status()).toBe(action === "move" ? 404 : 200);
+    expect((await request.get(url)).status()).toBe(200);
     await openTrash(page);
     await page.getByRole("button", { name: "Delete permanently now", exact: true }).click();
     dialog = page.getByRole("dialog", { name: "Delete permanently now" });
-    if (action === "remove") await dialog.getByRole("checkbox").check();
+    await expect(dialog.getByRole("checkbox")).toHaveCount(0);
     await dialog.getByRole("button", { name: "Delete permanently now" }).click();
     await expect(dialog).toHaveCount(0);
-    expect((await request.get(url)).status()).toBe(action === "keep" ? 200 : 404);
-  }
+    expect((await request.get(url)).status()).toBe(200);
+    await page.getByRole("button", { name: "Back to my writing", exact: true }).click();
+    await page.locator(".writing-library").getByRole("button", { name: "File library", exact: true }).click();
+    const library = page.getByRole("dialog", { name: "File library", exact: true });
+    await library.getByRole("button", { name: "Distributed copies", exact: true }).click();
+    await library.getByRole("button", { name: "Revoke link", exact: true }).click();
+    await expect(library.getByText("Revoked or expired", { exact: true })).toBeVisible();
+    expect((await request.get(url)).status()).toBe(404);
 });
 test("offline editing can be recovered explicitly after reopening online", async ({ page, context, request }) => {
   const { id } = await seed(request); await page.goto("/");
@@ -224,6 +215,9 @@ test("offline editing can be recovered explicitly after reopening online", async
   page = await context.newPage(); await page.goto("/");
   await expect(page.getByRole("button", { name: "Recover edits", exact: true })).toBeVisible();
   await expect(page.locator(".tiptap")).toHaveAttribute("contenteditable", "false");
+  await expect(page.getByRole("button", { name: "Export", exact: true })).toBeDisabled();
+  await page.getByRole("tab", { name: "Attachments 0", exact: true }).click();
+  await expect(page.locator(".attachments-panel").getByRole("button", {name:"File library",exact:true})).toHaveCount(0);
   await page.getByRole("button", { name: "Recover edits", exact: true }).click();
   await expect(page.locator(".recovery-notice")).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "Document body" })).toContainText("Offline recovery text");

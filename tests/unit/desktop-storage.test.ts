@@ -4,11 +4,47 @@ import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { newDraft } from "@wonboard/document";
+import { newDraft, type LibraryFile } from "@wonboard/document";
 import { openDesktopStore } from "../../apps/desktop/src/store";
 import { openDesktopRepository } from "../../apps/client/src/desktopRepository";
 
 describe("desktop storage", () => {
+  it("persists the independent file library and keeps document bytes after library deletion", () => {
+    const directory = mkdtempSync(join(tmpdir(), "wonboard-files-"));
+    let store = openDesktopStore(directory);
+    const bytes = new TextEncoder().encode("portable attachment");
+    const file: LibraryFile = { id: "attachment", originalName: "a.txt", filename: "a.txt", mime: "text/plain", size: bytes.byteLength,
+      sha256: createHash("sha256").update(bytes).digest("hex"), revision: 1, createdAt: "2026-01-01T00:00:00Z" };
+    store.filesUpload(file, bytes.buffer);
+    store.close(); store = openDesktopStore(directory);
+    try {
+      expect(store.filesList()).toHaveLength(1);
+      expect(new TextDecoder().decode(store.filesLoad(file.id).bytes)).toBe("portable attachment");
+      const draft = newDraft();
+      draft.document.files = { [file.id]: file };
+      draft.document.content = { type: "doc", content: [{ type: "paragraph", content: [{ type: "fileRef", attrs: { fileId: file.id, label: file.filename } }] }] };
+      const saved = store.save({ document: draft.document, blobs: { [file.id]: bytes.buffer } }, 0);
+      expect(() => store.filesRemove(file.id, 1)).toThrow("fileNotTrashed");
+      const renamed = store.filesChange(file.id, 1, { filename: "renamed.txt" });
+      expect(renamed.sha256).toBe(file.sha256);
+      expect(() => store.filesChange(file.id, 1, { filename: "stale.txt" })).toThrow("storageConflict");
+      const trashed = store.filesChange(file.id, 2, { trashedAt: "2099-01-01T00:00:00Z" });
+      expect(trashed.trashedAt).not.toBe("2099-01-01T00:00:00Z");
+      store.filesRemove(file.id, 3);
+      expect(store.filesList()).toEqual([]);
+      expect(new TextDecoder().decode(store.load(saved.document.documentId).blobs[file.id])).toBe("portable attachment");
+    } finally { store.close(); }
+  });
+  it("rejects oversized or forged library bytes at the main-process boundary", () => {
+    const store = openDesktopStore(mkdtempSync(join(tmpdir(), "wonboard-files-")));
+    const file: LibraryFile = { id: "file", originalName: "a.txt", filename: "a.txt", mime: "text/plain", size: 1,
+      sha256: "a".repeat(64), revision: 1, createdAt: "2026-01-01T00:00:00Z" };
+    try {
+      expect(() => store.filesUpload(file, new Uint8Array([1]).buffer)).toThrow("missingMedia");
+      expect(() => store.filesUpload({ ...file, size: 20 * 1024 * 1024 + 1 }, new ArrayBuffer(0))).toThrow("invalidDocument");
+      expect(store.filesList()).toEqual([]);
+    } finally { store.close(); }
+  });
   it("omits persisted photo bytes on later text saves and after loading", async () => {
     const store = openDesktopStore(mkdtempSync(join(tmpdir(), "wonboard-ipc-")));
     const save = vi.fn(async (...args: Parameters<typeof store.save>) => store.save(...args));
