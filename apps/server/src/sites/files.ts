@@ -98,9 +98,11 @@ export async function ownerFiles(request: Request, env: SitesEnv, path: string):
   }
   if (path === "/api/files/backfill" && request.method === "POST") {
     const body = await readJson(request);
-    if (body?.restart === true) await env.DB.batch([
-      env.DB.prepare("UPDATE storage_backfill SET phase='documents',cursor='',revision=revision+1 WHERE singleton=1"),
-      env.DB.prepare("DELETE FROM storage_backfill_failures"),
+    const status = await backfillStatus(env);
+    // Pending runs always resume. Only a completed failed run needs reindexing.
+    if (body?.restart !== false && status.phase === "complete" && status.failures > 0) await env.DB.batch([
+      env.DB.prepare("UPDATE storage_backfill SET phase='documents',cursor='',revision=revision+1 WHERE singleton=1 AND phase='complete' AND revision=?").bind(status.revision),
+      env.DB.prepare("DELETE FROM storage_backfill_failures WHERE EXISTS (SELECT 1 FROM storage_backfill WHERE phase='documents' AND cursor='' AND revision=?)").bind(status.revision! + 1),
     ]);
     return json(await backfillStoragePage(env));
   }

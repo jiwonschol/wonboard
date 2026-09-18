@@ -58,7 +58,8 @@ export async function openDraftRepository(mode: StorageMode, onBlocked: () => vo
     },
     async load(draft) {
       if (draft.document.revision === 0) return draft;
-      const document = await (await sitesRequest(`/api/documents/${draft.document.documentId}`)).json();
+      const stored = await (await sitesRequest(`/api/documents/${draft.document.documentId}`)).json();
+      const document = withoutUnusedMedia({ document: stored, blobs: {} }).document;
       validateDocument(document);
       const blobs: Draft["blobs"] = {};
       // Bounded, sequential loading avoids materializing the entire library's photos.
@@ -76,10 +77,20 @@ export async function openDraftRepository(mode: StorageMode, onBlocked: () => vo
         blobs[file.id] = new Blob([bytes], { type: file.mime });
         uploaded.set(file.id, file.sha256);
       }
-      return { document, blobs };
+      // A new editing session has no history for the previous session's unused files.
+      return withoutUnusedMedia({ document, blobs });
     },
     async save(draft, revision) {
       const snapshot = withoutUnusedMedia(draft);
+      // The live draft retains removed file refs for Undo. Keep their server
+      // references too, so library cleanup cannot delete bytes while Undo can
+      // restore them. Opening a new session prunes them before its next save.
+      if (draft.document.files) {
+        snapshot.document.files = draft.document.files;
+        for (const id of Object.keys(draft.document.files)) {
+          if (draft.blobs[id]) snapshot.blobs[id] = draft.blobs[id];
+        }
+      }
       for (const file of Object.values(snapshot.document.files ?? {})) {
         const blob = snapshot.blobs[file.id];
         if (!blob || blob.size !== file.size) throw new Error("missingMedia");

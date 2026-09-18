@@ -2,6 +2,28 @@ import { test, expect } from "@playwright/test";
 import { newDraft } from "@wonboard/document";
 
 const owner = { "X-Wonboard-Test-User": "owner-fixture", Origin: "http://127.0.0.1:5174" };
+test("Undo restores a removed attachment after its library entry is deleted and cleanup runs", async ({ page, request }) => {
+  const file = await (await request.put("/api/files/undo-file?name=undo.txt", { headers: { ...owner, "Content-Type": "text/plain" }, data: "undo bytes" })).json();
+  const draft = newDraft("en"), path = `/api/documents/${draft.document.documentId}`;
+  draft.document.files = { "undo-file": file };
+  draft.document.content = { type: "doc", content: [{ type: "paragraph", content: [{ type: "fileRef", attrs: { fileId: "undo-file", label: "undo.txt" } }] }] };
+  expect((await request.put(path, { headers: owner, data: draft.document })).status()).toBe(200);
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Document body" });
+  await expect(editor).toContainText("undo.txt");
+  await request.patch("/api/files/undo-file", { headers: owner, data: { revision: 1, trashedAt: "requested" } });
+  await request.delete("/api/files/undo-file", { headers: owner, data: { revision: 2 } });
+  await editor.focus(); await editor.press("ControlOrMeta+A"); await editor.press("Backspace");
+  await expect(editor).not.toContainText("undo.txt");
+  await expect.poll(async () => JSON.stringify((await (await request.get(path, { headers: owner })).json()).content)).not.toContain("fileRef");
+  expect((await request.post("/api/files/cleanup", { headers: owner, data: {} })).status()).toBe(200);
+  await editor.press("ControlOrMeta+z");
+  await expect(editor).toContainText("undo.txt");
+  await expect.poll(async () => JSON.stringify((await (await request.get(path, { headers: owner })).json()).content)).toContain("fileRef");
+  await expect(page.getByText("Saved to my Site", { exact: true })).toBeVisible();
+  await page.reload(); await expect(editor).toContainText("undo.txt");
+  expect(await (await request.get(`${path}/files/undo-file`, { headers: owner })).text()).toBe("undo bytes");
+});
 for (const offsetDays of [-31, 31]) test(`file trash follows server time and ticks across expiry with device skew ${offsetDays}`, async ({ page, request }) => {
   expect((await request.put("/api/files/clock-file?name=clock.txt", { headers: { ...owner, "Content-Type": "text/plain" }, data: "retained" })).status()).toBe(201);
   expect((await request.patch("/api/files/clock-file", { headers: owner, data: { revision: 1, trashedAt: "requested" } })).status()).toBe(200);

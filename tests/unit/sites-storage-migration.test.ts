@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { newDraft } from "@wonboard/document";
 import { createSitesTestRuntime } from "../helpers/sites-runtime";
 import { backfillStoragePage, backfillStatus, classifyStorageInventory } from "../../apps/server/src/sites/storageBackfill";
 import { handleSitesRequest } from "../../apps/server/src/sites/worker";
+import { openSitesFileLibrary } from "../../apps/client/src/sitesFileLibrary";
 const schema = readFileSync(new URL("../../apps/server/src/sites/schema.sql", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../../apps/server/src/sites/migrations/0002-storage-sharing.sql", import.meta.url), "utf8");
 function legacy() {
@@ -25,6 +26,32 @@ async function finishBackfill(f: ReturnType<typeof legacy>) {
   throw new Error("backfill did not finish");
 }
 describe("additive Sites storage migration and bounded indexing", () => {
+  it("resumes repeated client retries and restarts only a completed failed run", async () => {
+    const f = legacy();
+    vi.stubGlobal("fetch", async (path: string, init: RequestInit = {}) => {
+      const headers = new Headers(init.headers);
+      headers.set("origin", "https://site.test"); headers.set("oai-authenticated-user-id", "owner-fixture");
+      return handleSitesRequest(new Request(new URL(path, "https://site.test"), { ...init, headers }), f.env);
+    });
+    const library = openSitesFileLibrary();
+    try {
+      f.sqlite.exec("DROP TRIGGER document_files_update");
+      f.sqlite.prepare("UPDATE documents SET body='null' WHERE id='legacy-00'").run();
+      await library.sharing!.backfill();
+      const first = await backfillStatus(f.env);
+      await library.sharing!.backfill();
+      expect((await backfillStatus(f.env)).cursor! > first.cursor!).toBe(true);
+      for (let i = 0; i < 12 && (await backfillStatus(f.env)).phase !== "complete"; i++) await library.sharing!.backfill();
+      expect(await backfillStatus(f.env)).toMatchObject({ phase: "complete", failures: 1 });
+      const repaired = newDraft().document; repaired.documentId = "legacy-00"; repaired.revision = 1;
+      f.sqlite.prepare("UPDATE documents SET body=? WHERE id='legacy-00'").run(JSON.stringify(repaired));
+      await library.sharing!.backfill();
+      expect(await backfillStatus(f.env)).toMatchObject({ phase: "documents", failures: 0 });
+      for (let i = 0; i < 12 && !(await backfillStatus(f.env)).complete; i++) await library.sharing!.backfill();
+      const complete = await backfillStatus(f.env); expect(complete.complete).toBe(true);
+      await library.sharing!.backfill(); expect(await backfillStatus(f.env)).toEqual(complete);
+    } finally { library.close(); vi.unstubAllGlobals(); f.close(); }
+  });
   it("preserves IDs, URLs and restart checkpoints when the migration is reapplied", async () => {
     const f=legacy(); try {
       const first=await backfillStoragePage(f.env); expect(first).toMatchObject({phase:"documents",cursor:"legacy-03",complete:false});

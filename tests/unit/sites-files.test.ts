@@ -24,6 +24,37 @@ async function fixture() {
 }
 
 describe("Sites independent file distribution", () => {
+  it("keeps live Undo files through cleanup and releases unused files on the next session save", async () => {
+    const f = await fixture();
+    vi.stubGlobal("fetch", async (path: string, init: RequestInit = {}) => {
+      const headers = new Headers(init.headers);
+      headers.set("origin", "https://site.test"); headers.set("oai-authenticated-user-id", "owner-fixture");
+      return handleSitesRequest(new Request(new URL(path, "https://site.test"), { ...init, headers }), f.env);
+    });
+    const repository = await openDraftRepository("sites", () => {});
+    try {
+      const file = await (await f.upload("undo", "undo bytes")).json(), draft = newDraft();
+      draft.document.files = { undo: file }; draft.blobs.undo = new Blob(["undo bytes"], { type: file.mime });
+      const content = { type: "doc", content: [{ type: "paragraph", content: [{ type: "fileRef", attrs: { fileId: "undo", label: "report.html" } }] }] };
+      draft.document.content = content;
+      let saved = await repository.save(draft, 0);
+      await f.call("/api/files/undo", "PATCH", { revision: 1, trashedAt: "requested" });
+      await f.call("/api/files/undo", "DELETE", { revision: 2 });
+      draft.document.content = newDraft().document.content;
+      saved = await repository.save(draft, saved.document.revision);
+      expect(await (await f.call("/api/files/cleanup", "POST", {})).json()).toMatchObject({ reclaimedBytes: 0 });
+      draft.document.content = content;
+      saved = await repository.save(draft, saved.document.revision);
+      expect(await (await repository.load(saved)).blobs.undo.text()).toBe("undo bytes");
+      expect(await (await f.call("/api/file-shares")).json()).toEqual([]);
+      draft.document.content = newDraft().document.content;
+      saved = await repository.save(draft, saved.document.revision);
+      const reopened = await repository.load(saved);
+      expect(reopened.document.files).toEqual({}); expect(reopened.blobs.undo).toBeUndefined();
+      await repository.save(reopened, reopened.document.revision);
+      expect(await (await f.call("/api/files/cleanup", "POST", {})).json()).toMatchObject({ reclaimedBytes: 10 });
+    } finally { repository.close(); vi.unstubAllGlobals(); f.close(); }
+  });
   it("treats a repeated library unpin as success and counts only physically reclaimed bytes", async () => {
     const f = await fixture(); try {
       await f.upload("reclaim", "12345");
