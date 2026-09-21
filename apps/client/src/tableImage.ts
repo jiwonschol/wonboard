@@ -57,9 +57,12 @@ function layout(context: CanvasRenderingContext2D, runs: Run[], maxWidth: number
   push();
   return lines;
 }
+/** 글꼴을 못 불러오면 그리지 않는다. 대체 글꼴로 그린 그림이 같은 ID로 저장돼 계속 재사용되는 것을 막는다. */
 async function loadFonts(runs: Run[]) {
-  await Promise.all(runs.filter(run => run.text.trim()).map(run => document.fonts.load(run.font, run.text).catch(() => [])));
+  const texts = runs.filter(run => run.text.trim());
+  await Promise.all(texts.map(run => document.fonts.load(run.font, run.text).catch(() => [])));
   await document.fonts.ready;
+  if (texts.some(run => !document.fonts.check(run.font, run.text))) throw new Error("fontUnavailable");
 }
 export function tableAlt(table: ContentNode) {
   const text = (table.content ?? []).map(row => (row.content ?? []).map(plainText).join(" | ")).join("\n");

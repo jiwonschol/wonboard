@@ -23,7 +23,7 @@ test("tables become reusable public images only when the writer chooses it", asy
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   const tableUploads: string[] = [];
-  page.on("request", request => { if (/\/media\/table-[a-f0-9]+\/variant$/.test(request.url())) tableUploads.push(request.url()); });
+  page.on("request", request => { if (/\/media\/table:[a-f0-9]+\/variant$/.test(request.url())) tableUploads.push(request.url()); });
   await context.setExtraHTTPHeaders({ "X-Wonboard-Test-User": "owner-fixture" });
   await page.goto("/");
   await page.getByRole("checkbox", { name: "I understand where my data is stored", exact: false }).check();

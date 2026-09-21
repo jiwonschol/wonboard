@@ -260,7 +260,7 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
       return json(saved);
     }
     const variant = /^media\/([^/]+)\/variant$/.exec(action ?? "");
-    if (variant && validId(variant[1]) && request.method === "PUT") {
+    if (variant && (validId(variant[1]) || /^table:[a-f0-9]{40}$/.test(variant[1])) && request.method === "PUT") {
       const document = await loadDocument(env, id);
       if (!imageIds(document).includes(variant[1]) && !(await tableIds(document)).includes(variant[1]))
         throw new HttpError(400, "missingMedia");

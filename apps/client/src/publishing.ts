@@ -74,7 +74,7 @@ export async function publishImages(draft: Draft, tablesAsImages = false): Promi
     if (typeof src !== "string" || new URL(src).origin !== location.origin) throw new Error("publishFailed");
     tableImages.set(image.node, { src, alt: image.alt, width: image.width });
   }
-  // 사진 ID가 우연히 table- 로 시작해도 지우지 않도록, 이번에 그린 표의 ID만 뺀다.
+  // 이번에 그린 표의 ID만 뺀다. 표 ID는 사진 ID에 없는 ':'를 가져 서로 겹치지 않는다.
   const tableIds = new Set(prepared?.images.map(image => image.id));
   const urls: Record<string, string> = {};
   for (const [id, url] of Object.entries(result.urls as Record<string, string>)) if (!tableIds.has(id)) urls[id] = url;

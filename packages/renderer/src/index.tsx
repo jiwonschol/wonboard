@@ -31,7 +31,8 @@ const tableImageVersion = 1;
 export async function tableImageId(node: ContentNode, font: string | undefined) {
   const bytes = new TextEncoder().encode(JSON.stringify([tableImageVersion, font ?? "sans", node]));
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
-  return `table-${Array.from(digest.slice(0, 20), b => b.toString(16).padStart(2, "0")).join("")}`;
+  // 사진 ID에는 쓸 수 없는 ':'를 넣어, 가져온 문서의 사진 ID와 게시 기록에서 겹치지 않게 한다.
+  return `table:${Array.from(digest.slice(0, 20), b => b.toString(16).padStart(2, "0")).join("")}`;
 }
 const orderedListTypes = ["1", "a", "A", "i", "I"] as const;
 const listType = (value: unknown) =>

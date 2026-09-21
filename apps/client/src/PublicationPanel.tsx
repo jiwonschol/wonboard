@@ -39,7 +39,7 @@ export function PublicationPanel({ locale, documentId, save, snapshot, canPublis
     try { await action(); }
     catch (error) {
       const reason = error instanceof Error ? error.message : "";
-      setMessage(t(reason === "tooManyTables" || reason === "tableTooLarge" ? reason : "publishFailed"));
+      setMessage(t(reason === "tooManyTables" || reason === "tableTooLarge" || reason === "fontUnavailable" ? reason : "publishFailed"));
     }
     finally { setWorking(false); onBusy(false); }
   }
