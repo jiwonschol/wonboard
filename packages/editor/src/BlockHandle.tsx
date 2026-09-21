@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type DragEvent, type RefObject } from "react";
 import type { Editor } from "@tiptap/core";
-import { NodeSelection } from "@tiptap/pm/state";
+import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import type { Locale } from "@wonboard/document";
 import { translator, type MessageKey } from "@wonboard/locales";
 import { Icon } from "./icons";
@@ -64,7 +64,11 @@ export function BlockHandle({ editor, locale, page }: { editor: Editor; locale: 
     setMenu(false);
     editor.view.focus();
   }
-  const selectBlock = () => editor.chain().focus().setTextSelection(Math.min(block.pos + 1, editor.state.doc.content.size)).run();
+  // 목록·인용·글상자는 첫 위치가 글자 자리가 아니다. 가장 가까운 글자 자리에 커서를 둔다.
+  const selectBlock = () => editor.chain().focus().command(({ tr }) => {
+    tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(block.pos + 1, tr.doc.content.size))));
+    return true;
+  }).run();
   return (
     <div className="block-handle" style={{ top: hover.top }}>
       <button type="button" draggable aria-label={t("blockHandle")} title={t("blockHandle")} aria-expanded={menu}

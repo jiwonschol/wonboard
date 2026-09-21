@@ -39,7 +39,9 @@ function renderNode(
       if (mark.type === "underline") return <u>{content}</u>;
       if (mark.type === "strike") return <s>{content}</s>;
       if (mark.type === "code") return <code style={portable ? { fontFamily: writingFonts[3].family } : undefined}>{content}</code>;
-      if (mark.type === "textStyle") return <span style={textStyle(mark.attrs)}>{content}</span>;
+      // 표식을 달아 미리보기·내보낸 글을 다시 붙여넣어도 드래그로 준 스타일이 되살아나게 한다.
+      if (mark.type === "textStyle") return <span style={textStyle(mark.attrs)}
+        data-wb-variant={typeof mark.attrs?.variant === "string" ? mark.attrs.variant : undefined}>{content}</span>;
       if (mark.type === "link" && safeLink(mark.attrs?.href))
         return (
           <a href={mark.attrs.href} title={typeof mark.attrs.title === "string" ? mark.attrs.title : undefined} target="_blank" rel="noopener noreferrer">

@@ -15,6 +15,7 @@ import { TextBox, tableExtensions } from "../../packages/editor/src/blocks";
 import { TextStyle } from "../../packages/editor/src/TextStyle";
 import { matchesInsertType } from "../../packages/editor/src/blockActions";
 import { looksLikeMarkdown, markdownToHtml } from "../../packages/editor/src/markdown";
+import { findMatches } from "../../packages/editor/src/find";
 
 const paragraph = (text: string): ContentNode => ({ type: "paragraph", content: [{ type: "text", text }] });
 const cell = (type: string, text: string, attrs: Record<string, unknown> = {}): ContentNode => ({
@@ -91,7 +92,7 @@ describe("글상자와 표가 문서 형식을 통과한다", () => {
     const html = renderToStaticMarkup(PortableDocumentBody({ document: withContent({ type: "paragraph", content: [
       { type: "text", text: "보통 " }, { type: "text", text: "강조", marks: [{ type: "textStyle", attrs: { variant: "display" } }] },
     ] }).document, mediaUrls: {} }));
-    expect(html).toMatch(/<span style="font-size:36px;font-weight:500">강조<\/span>/);
+    expect(html).toMatch(/<span style="font-size:36px;font-weight:500" data-wb-variant="display">강조<\/span>/);
     expect(html).not.toMatch(/<p style="[^"]*font-size/);
   });
 });
@@ -120,5 +121,16 @@ describe("`/` 메뉴 거르기", () => {
     expect(matchesInsertType("table", "Tab")).toBe(true);
     expect(matchesInsertType("table", "글상자")).toBe(false);
     expect(matchesInsertType("heading", "")).toBe(true);
+  });
+});
+
+describe("본문 찾기", () => {
+  it("조합형으로 들어온 한글과 악센트도 찾고, 문서의 실제 자리를 가리킨다", () => {
+    const schema = getSchema([StarterKit]);
+    const decomposed = "푸른 하늘 café".normalize("NFD");
+    const doc = schema.nodeFromJSON({ type: "doc", content: [paragraph(decomposed)] });
+    const [sky] = findMatches(doc, "하늘"), [cafe] = findMatches(doc, "CAFÉ");
+    expect(doc.textBetween(sky.from, sky.to)).toBe("하늘".normalize("NFD"));
+    expect(doc.textBetween(cafe.from, cafe.to)).toBe("café".normalize("NFD"));
   });
 });

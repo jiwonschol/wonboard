@@ -303,6 +303,8 @@ export function WonboardEditor(props: WonboardEditorProps) {
     return () => document.removeEventListener("keydown", open);
   }, []);
   const fileInput = useRef<HTMLInputElement>(null);
+  // `/사진`으로 파일 창을 열었을 때 친 글자. 파일을 고른 뒤에만 지워, 취소하면 그대로 남는다.
+  const pendingSlash = useRef<{ from: number; to: number; text: string } | null>(null);
   const title = useRef<HTMLTextAreaElement>(null);
   const editor = useEditor({
     extensions: [
@@ -479,7 +481,9 @@ export function WonboardEditor(props: WonboardEditorProps) {
     setPlusOpen(false);
     props.onCloseInsert?.();
     if (type === "image") {
-      if (slashRange) editor.chain().focus().deleteRange(slashRange).run();
+      pendingSlash.current = slashRange
+        ? { ...slashRange, text: editor.state.doc.textBetween(slashRange.from, slashRange.to) }
+        : null;
       fileInput.current?.click();
       return;
     }
@@ -665,8 +669,15 @@ export function WonboardEditor(props: WonboardEditorProps) {
           onChange={(e) => {
             const files = Array.from(e.target.files ?? []);
             e.target.value = "";
-            if (files.length)
-              void props.onImages(files, editor.state.selection.from, editor);
+            const typed = pendingSlash.current;
+            pendingSlash.current = null;
+            if (!files.length) return;
+            // 친 `/사진`이 그 자리에 그대로 있을 때만 지운다. 넣기에 실패하면 되돌려 놓는다.
+            const removable = typed && editor.state.doc.textBetween(typed.from, Math.min(typed.to, editor.state.doc.content.size)) === typed.text;
+            if (removable) editor.chain().focus().deleteRange(typed).run();
+            void props.onImages(files, editor.state.selection.from, editor).catch(() => {
+              if (removable) editor.chain().insertContentAt(typed.from, typed.text).run();
+            });
           }}
         />
       </div>

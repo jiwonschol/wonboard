@@ -14,14 +14,28 @@ const fold = (text: string) => {
   const lower = text.toLowerCase();
   return lower.length === text.length ? lower : text;
 };
+// 조합형으로 들어온 한글·악센트(é = e + ́)도 찾도록 NFC로 맞춘다. 결합 문자까지를 한 조각으로
+// 정규화하고, 조각마다 원래 위치를 기억해 강조와 바꾸기가 문서의 실제 자리를 가리키게 한다.
+function normalized(text: string) {
+  let value = "";
+  const starts: number[] = [], ends: number[] = [];
+  let offset = 0;
+  for (const piece of text.match(/[^\p{M}\u1160-\u11ff][\p{M}\u1160-\u11ff]*|[\p{M}\u1160-\u11ff]+/gu) ?? []) {
+    const folded = fold(piece.normalize("NFC"));
+    for (let i = 0; i < folded.length; i++) { starts.push(offset); ends.push(offset + piece.length); }
+    value += folded;
+    offset += piece.length;
+  }
+  return { value, starts, ends };
+}
 export function findMatches(doc: ProseMirrorNode, query: string): Match[] {
   if (!query) return [];
-  const needle = fold(query), matches: Match[] = [];
+  const needle = fold(query.normalize("NFC")), matches: Match[] = [];
   doc.descendants((node, pos) => {
     if (!node.isTextblock) return true;
-    const text = fold(node.textBetween(0, node.content.size, undefined, leaf));
-    for (let index = text.indexOf(needle); index >= 0; index = text.indexOf(needle, index + needle.length))
-      matches.push({ from: pos + 1 + index, to: pos + 1 + index + needle.length });
+    const text = normalized(node.textBetween(0, node.content.size, undefined, leaf));
+    for (let index = text.value.indexOf(needle); index >= 0; index = text.value.indexOf(needle, index + needle.length))
+      matches.push({ from: pos + 1 + text.starts[index], to: pos + 1 + text.ends[index + needle.length - 1] });
     return false;
   });
   return matches;

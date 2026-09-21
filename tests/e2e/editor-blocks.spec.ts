@@ -286,3 +286,15 @@ test("slash menu in a table cell offers only blocks a cell can hold and keeps th
   await expect(body.locator("table th").first()).toContainText("/heading");
   await expect(body.locator("table h2")).toHaveCount(0);
 });
+
+test("block menu converts a list into a heading", async ({ page }) => {
+  await page.goto("/");
+  const body = bodyOf(page);
+  await body.click();
+  await page.keyboard.type("- 목록 항목");
+  await expect(body.locator("ul li")).toHaveCount(1);
+  await body.locator("ul").hover();
+  await page.getByRole("button", { name: "Drag to move. Click for block options." }).click();
+  await page.getByRole("menu").getByRole("menuitem", { name: "Heading 2" }).click();
+  await expect(body.locator("h2")).toHaveText("목록 항목");
+});
