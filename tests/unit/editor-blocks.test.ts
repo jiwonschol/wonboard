@@ -54,6 +54,9 @@ describe("글상자와 표가 문서 형식을 통과한다", () => {
       ],
     }).toJSON() as ContentNode;
     expect(() => validateDocument({ ...newDraft().document, content: json })).not.toThrow();
+    // 칸 정렬은 TipTap 칸 확장에서 물려받는다. 빠지면 불러온 문서의 정렬이 다음 저장에서 사라진다.
+    expect(Object.keys(schema.nodes.tableCell.spec.attrs ?? {})).toContain("align");
+    expect(Object.keys(schema.nodes.tableHeader.spec.attrs ?? {})).toContain("align");
   });
   it("병합·열 너비·칸 안의 목록·빈 글상자·잘못된 색은 거부한다", () => {
     const bad: ContentNode[] = [

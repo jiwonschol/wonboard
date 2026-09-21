@@ -1,4 +1,4 @@
-import type { Editor } from "@tiptap/core";
+import type { ChainedCommands, Editor } from "@tiptap/core";
 import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { liftTarget } from "@tiptap/pm/transform";
 import { textVariants } from "@wonboard/document";
@@ -90,18 +90,34 @@ const insertAliases: Partial<Record<InsertType, string>> = {
 export const matchesInsertType = (type: InsertType, query: string) =>
   !query ||
   [type, en[type], ko[type], insertAliases[type] ?? ""].some((label) => jamo(label).includes(jamo(query)));
-/** 사진은 파일 선택이 필요해 호출하는 쪽이 처리한다. */
-export function insertBlock(editor: Editor, type: Exclude<InsertType, "image">) {
+function blockCommand(chain: ChainedCommands, type: Exclude<InsertType, "image">) {
+  if (type === "paragraph") return chain.setParagraph();
+  if (type === "heading") return chain.toggleHeading({ level: 2 });
+  if (type === "textBox") return chain.wrapIn("textBox");
+  if (type === "table") return chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true });
+  if (type === "bulletList") return chain.toggleBulletList();
+  if (type === "orderedList") return chain.toggleOrderedList();
+  if (type === "blockquote") return chain.toggleBlockquote();
+  if (type === "codeBlock") return chain.toggleCodeBlock();
+  return chain.setHorizontalRule();
+}
+/**
+ * `/글상자` 처럼 친 글자(`remove`)를 지우고 블록을 넣는 일을 한 번에 한다. 표 칸처럼
+ * 그 블록이 들어갈 수 없는 자리에서는 둘 다 하지 않아 입력한 글자가 남는다.
+ * 사진은 파일 선택이 필요해 호출하는 쪽이 처리한다.
+ */
+export function insertBlock(editor: Editor, type: Exclude<InsertType, "image">, remove?: { from: number; to: number }) {
+  if (!canInsertBlock(editor, type, remove)) return false;
   const chain = editor.chain().focus();
-  if (type === "paragraph") chain.setParagraph().run();
-  if (type === "heading") chain.toggleHeading({ level: 2 }).run();
-  if (type === "textBox") chain.wrapIn("textBox").run();
-  if (type === "table") chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
-  if (type === "bulletList") chain.toggleBulletList().run();
-  if (type === "orderedList") chain.toggleOrderedList().run();
-  if (type === "blockquote") chain.toggleBlockquote().run();
-  if (type === "codeBlock") chain.toggleCodeBlock().run();
-  if (type === "horizontalRule") chain.setHorizontalRule().run();
+  return blockCommand(remove ? chain.deleteRange(remove) : chain, type).run();
+}
+export function canInsertBlock(editor: Editor, type: InsertType, remove?: { from: number; to: number }) {
+  // 표 칸은 문단만 담는다. 표·구분선은 표 뒤로 밀려 들어가 뜻밖의 자리에 생기므로 칸 안에서는 막는다.
+  if (editor.isActive("table")) return type === "paragraph";
+  // 이미 문단인 줄을 문단으로 바꾸는 것은 할 일이 없을 뿐 실패가 아니다.
+  if (type === "paragraph" || type === "image") return true;
+  const chain = editor.can().chain();
+  return blockCommand(remove ? chain.deleteRange(remove) : chain, type).run();
 }
 
 /** 본문 맨 위층 블록의 시작 위치. 옮기기·복제·삭제는 이 단위로 한다. */

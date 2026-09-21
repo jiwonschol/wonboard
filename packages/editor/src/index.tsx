@@ -28,7 +28,7 @@ import { VideoNode } from "./VideoNode";
 import { TextStyle } from "./TextStyle";
 import { WritingToolbar } from "./WritingToolbar";
 import { TextBox, tableExtensions } from "./blocks";
-import { insertBlock, insertTypes, matchesInsertType, moveBlock, topLevelIndex, type InsertType } from "./blockActions";
+import { canInsertBlock, insertBlock, insertTypes, matchesInsertType, moveBlock, topLevelIndex, type InsertType } from "./blockActions";
 import { SelectionMenu } from "./SelectionMenu";
 import { EditMenu, type DesktopEditing, type EditMenuTarget } from "./EditMenu";
 import { BlockHandle } from "./BlockHandle";
@@ -463,21 +463,27 @@ export function WonboardEditor(props: WonboardEditorProps) {
     if (slash !== null && slashText === null) setSlash(null);
   }, [slash, slashText]);
   if (!editor) return <div className="editor-loading">{t("loading")}</div>;
-  const insertItems = insertTypes.filter((type) => matchesInsertType(type, slashText ?? ""));
+  const slashRange =
+    slash !== null && slashText !== null
+      ? { from: slash, to: editor.state.selection.from }
+      : undefined;
   const isInsert = props.insertOpen || plusOpen || slash !== null;
+  // 그 자리에 넣을 수 없는 블록(표 칸 안의 제목·목록 등)은 메뉴에 보이지 않는다.
+  const insertItems = isInsert
+    ? insertTypes.filter((type) => matchesInsertType(type, slashText ?? "") && canInsertBlock(editor, type, slashRange))
+    : [];
   function insert(type: InsertType) {
     if (!editor) return;
-    // `/글상자` 처럼 친 글자는 지우고, 비어 있는 그 문단을 고른 블록으로 바꾼다.
-    if (slash !== null && slashText !== null)
-      editor.chain().deleteRange({ from: slash, to: editor.state.selection.from }).run();
     setSlash(null);
     setPlusOpen(false);
     props.onCloseInsert?.();
     if (type === "image") {
+      if (slashRange) editor.chain().focus().deleteRange(slashRange).run();
       fileInput.current?.click();
       return;
     }
-    insertBlock(editor, type);
+    // `/글상자` 처럼 친 글자를 지우고, 비어 있는 그 문단을 고른 블록으로 바꾼다.
+    insertBlock(editor, type, slashRange);
   }
   const activeInsert = Math.min(slashIndex, Math.max(insertItems.length - 1, 0));
   slashMenu.current = slash !== null ? { items: insertItems, index: activeInsert, choose: insert } : null;

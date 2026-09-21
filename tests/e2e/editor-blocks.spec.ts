@@ -268,3 +268,21 @@ test("replace moves on even when the replacement still matches", async ({ page }
   for (let i = 0; i < 3; i++) await find.getByRole("button", { name: "Replace", exact: true }).click();
   await expect(body).toHaveText("cats cats cats");
 });
+
+test("slash menu in a table cell offers only blocks a cell can hold and keeps the typed text", async ({ page }) => {
+  await page.goto("/");
+  const body = bodyOf(page);
+  await body.click();
+  await page.keyboard.press("/");
+  await page.keyboard.insertText("table");
+  await page.keyboard.press("Enter");
+  await expect(body.locator("table")).toHaveCount(1);
+  await page.keyboard.press("/");
+  const inserter = page.getByRole("dialog", { name: "Block Inserter" });
+  await expect(inserter.getByRole("option")).toHaveText(["Paragraph"]);
+  await page.keyboard.insertText("heading");
+  await expect(inserter).toContainText("No matching blocks");
+  await page.keyboard.press("Enter");
+  await expect(body.locator("table th").first()).toContainText("/heading");
+  await expect(body.locator("table h2")).toHaveCount(0);
+});
