@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import type { Editor } from "@tiptap/react";
-import { limits, type Locale, type FontId } from "@wonboard/document";
+import { limits, textBoxColors, textBoxDefaults, type Locale, type FontId } from "@wonboard/document";
 
 // alt·caption 은 validateDocument 가 limits.attributeText 로 거른다. 그 한도를 넘긴 값이
 // 문서에 들어가면 이후 모든 자동 저장과 백업이 실패하고, 사용자는 어느 칸을 줄여야
@@ -10,6 +10,7 @@ export const capAttributeText = (value: string) =>
 import { translator, type MessageKey } from "@wonboard/locales";
 import { Icon } from "./icons";
 import { WritingToolbar } from "./WritingToolbar";
+import { applyVariant, currentVariant, hasTextSelection, unwrapTextBox, variants } from "./blockActions";
 
 export function Inspector({
   editor,
@@ -40,6 +41,11 @@ export function Inspector({
       ? "heading"
       : "paragraph";
   const attrs = editor.getAttributes(type);
+  // 글자를 드래그해 골랐으면 스타일과 배경색은 그 글자에만 적용한다. 커서만 있으면 문단에 적용한다.
+  const selected = hasTextSelection(editor);
+  const box = editor.isActive("textBox") ? editor.getAttributes("textBox") : null;
+  const changeBox = (key: string, value: unknown) =>
+    editor.chain().updateAttributes("textBox", { [key]: value }).run();
   const change = (key: string, value: unknown) =>
     editor
       .chain()
@@ -75,7 +81,10 @@ export function Inspector({
           <button
             className="reset-section"
             onClick={() => {
-              editor.chain().focus().resetAttributes(type, attributes).run();
+              // 드래그한 글자에 적용한 스타일·배경은 글자 서식에 있으므로 그쪽을 지운다.
+              if (selected && key !== "typography")
+                editor.chain().focus().setMark("textStyle", key === "styles" ? { variant: null } : { highlight: null }).run();
+              else editor.chain().focus().resetAttributes(type, attributes).run();
               setSectionOptions(null);
             }}
           >
@@ -141,6 +150,60 @@ export function Inspector({
             </h2>
             {!image ? <p>{t("paragraphHelp")}</p> : null}
           </section>
+          {box && !image ? (
+            <section className="text-box-controls">
+              <h2>{t("textBox")}</h2>
+              <div className="swatches" role="group" aria-label={t("textBoxColor")}>
+                {textBoxColors.map((value) => (
+                  <button
+                    key={value}
+                    className={box.backgroundColor === value ? "active" : ""}
+                    aria-label={value}
+                    aria-pressed={box.backgroundColor === value}
+                    style={{ background: value }}
+                    onClick={() => changeBox("backgroundColor", value)}
+                  />
+                ))}
+                <label className="swatch-custom" title={t("customColor")}>
+                  <input
+                    type="color"
+                    aria-label={t("customColor")}
+                    value={box.backgroundColor ?? textBoxDefaults.backgroundColor}
+                    onChange={(e) => changeBox("backgroundColor", e.target.value)}
+                  />
+                </label>
+              </div>
+              <label>
+                {t("borderWidth")}
+                <input
+                  type="range"
+                  min="0"
+                  max="8"
+                  value={box.borderWidth ?? textBoxDefaults.borderWidth}
+                  onChange={(e) => changeBox("borderWidth", Number(e.target.value))}
+                />
+              </label>
+              <label>
+                {t("border")} · {t("color")}
+                <input
+                  type="color"
+                  value={box.borderColor ?? textBoxDefaults.borderColor}
+                  onChange={(e) => changeBox("borderColor", e.target.value)}
+                />
+              </label>
+              <label>
+                {t("padding")}
+                <input
+                  type="range"
+                  min="0"
+                  max="80"
+                  value={box.padding ?? textBoxDefaults.padding}
+                  onChange={(e) => changeBox("padding", Number(e.target.value))}
+                />
+              </label>
+              <button onClick={() => unwrapTextBox(editor)}>{t("removeTextBox")}</button>
+            </section>
+          ) : null}
           {image ? (
             <section className="image-controls">
               <label>
@@ -198,16 +261,17 @@ export function Inspector({
             <>
               <section>
                 {heading("styles")}
+                <p className="style-scope">
+                  {t(selected ? "styleScopeSelection" : "styleScopeBlock")}
+                </p>
                 <div className="style-grid">
-                  {(
-                    ["default", "display", "subtitle", "annotation"] as const
-                  ).map((v) => (
+                  {variants.map((v) => (
                     <button
                       key={v}
-                      className={
-                        (attrs.variant ?? "default") === v ? "active" : ""
-                      }
-                      onClick={() => change("variant", v)}
+                      className={currentVariant(editor) === v ? "active" : ""}
+                      aria-pressed={currentVariant(editor) === v}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => applyVariant(editor, v)}
                     >
                       {t(v)}
                     </button>
@@ -230,7 +294,12 @@ export function Inspector({
                 >
                   <span
                     className="color-swatch"
-                    style={{ background: attrs.backgroundColor ?? undefined }}
+                    style={{
+                      background:
+                        (selected
+                          ? editor.getAttributes("textStyle").highlight
+                          : attrs.backgroundColor) ?? undefined,
+                    }}
                   />
                   {t("color")}
                 </button>
@@ -238,8 +307,19 @@ export function Inspector({
                   <input
                     type="color"
                     aria-label={t("background")}
-                    value={attrs.backgroundColor ?? "#ffffff"}
-                    onChange={(e) => change("backgroundColor", e.target.value)}
+                    value={
+                      (selected
+                        ? editor.getAttributes("textStyle").highlight
+                        : attrs.backgroundColor) ?? "#ffffff"
+                    }
+                    onChange={(e) =>
+                      selected
+                        ? editor
+                            .chain()
+                            .setMark("textStyle", { highlight: e.target.value })
+                            .run()
+                        : change("backgroundColor", e.target.value)
+                    }
                   />
                 ) : null}
                 <button

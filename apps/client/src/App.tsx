@@ -613,6 +613,7 @@ export default function App({
             onCloseInspector={() => setInspector(false)}
             onCloseInsert={() => setInsert(false)}
             onComposition={writer.composition}
+            desktopEditing={window.wonboardDesktopEditing}
             attachmentCount={attachmentCount}
             attachments={
               <AttachmentsPanel

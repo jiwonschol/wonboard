@@ -1,6 +1,8 @@
 # 문서 v1과 로컬 저장 계약
 
-`packages/document/src/index.ts`가 실행 가능한 검증 정본이다. 제목, 본문 노드, 문서 언어, revision, 미디어 메타데이터를 JSON으로 보관한다. 지원하는 노드는 문단·제목·인용·목록·코드·구분선·줄바꿈·이미지·영상 링크다. 표시 스타일은 허용한 속성만 받는다. 사용자 HTML을 그대로 실행하지 않는다.
+`packages/document/src/index.ts`가 실행 가능한 검증 정본이다. 제목, 본문 노드, 문서 언어, revision, 미디어 메타데이터를 JSON으로 보관한다. 지원하는 노드는 문단·제목·인용·목록·코드·구분선·줄바꿈·이미지·영상 링크·글상자·표다. 표시 스타일은 허용한 속성만 받는다. 사용자 HTML을 그대로 실행하지 않는다.
+
+`textBox`(글상자)는 다른 블록을 담는 블록이다. 배경색·테두리색(`#rrggbb`), 테두리 두께 0~8, 안쪽 여백 0~80만 받으며 비어 있을 수 없다. `table`은 `tableRow`만, 행은 `tableCell`·`tableHeader`만, 칸은 문단만 담는다. 셀 병합과 열 너비는 지원하지 않아 `colspan`·`rowspan`은 1, `colwidth`는 null만 받는다. 붙여넣은 표의 병합·너비 표식은 편집기가 버린다. 칸 정렬 `align`은 left·center·right다. 글자 서식 `textStyle`의 `variant`(display·subtitle·annotation)는 드래그한 글자에만 붙는 스타일이고, 문단의 `variant`는 문단 전체에 붙는다. 게시판용 HTML에서 글상자와 표는 class 없이 인라인 스타일로만 표현한다. 이 노드를 모르는 이전 버전은 기존 규칙대로 해당 문서를 읽기 전용으로 연다.
 
 `video`는 YouTube/Vimeo provider, 검증한 videoId, Vimeo 비공개 링크의 privacyHash, startSeconds, autoplay를 보관한다. 입력 URL의 autoplay 값은 가져오지 않으며 기본값 false다. 플레이어 주소는 허용한 제공자의 URL만 생성하고 미리보기에서만 불러온다. 임의 iframe HTML은 받지 않는다. 영상 노드를 모르는 이전 구현은 기존의 알 수 없는 노드 보호 규칙에 따라 읽기 전용으로 처리한다.
 

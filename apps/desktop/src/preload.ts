@@ -1,4 +1,5 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webFrame } from "electron";
+import type { DesktopEditing } from "@wonboard/editor";
 import type { DesktopStorage } from "./bridge";
 
 const storage: DesktopStorage = {
@@ -13,3 +14,10 @@ const storage: DesktopStorage = {
   save: (draft, revision) => ipcRenderer.invoke("drafts:save", draft, revision),
 };
 contextBridge.exposeInMainWorld("wonboardDesktop", storage);
+// 편집기의 우클릭 메뉴가 운영체제 맞춤법 추천과 붙여넣기를 쓸 수 있게 한다.
+const editing: DesktopEditing = {
+  isMisspelled: word => webFrame.isWordMisspelled(word),
+  suggestions: word => webFrame.getWordSuggestions(word),
+  paste: () => { void ipcRenderer.invoke("edit:paste"); },
+};
+contextBridge.exposeInMainWorld("wonboardDesktopEditing", editing);

@@ -34,10 +34,14 @@ if (ownsLock) void app.whenReady().then(() => {
   });
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   session.defaultSession.setPermissionCheckHandler(() => false);
+  const authorize = (event: Electron.IpcMainInvokeEvent) => {
+    if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame ||
+        !event.senderFrame.url.startsWith("wonboard://app/")) throw new Error("unauthorized");
+  };
+  ipcMain.handle("edit:paste", event => { authorize(event); event.sender.paste(); });
   for (const operation of ["list", "load", "save", "remove", "filesList", "filesLoad", "filesUpload", "filesChange", "filesRemove"] as const) {
     ipcMain.handle(`drafts:${operation}`, (event, ...args) => {
-      if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame ||
-          !event.senderFrame.url.startsWith("wonboard://app/")) throw new Error("unauthorized");
+      authorize(event);
       if (operation === "list") return store.list();
       if (operation === "filesList") return store.filesList();
       if (operation === "filesLoad") return store.filesLoad(args[0]);
@@ -66,6 +70,22 @@ if (ownsLock) void app.whenReady().then(() => {
         detail: "저장하지 않고 종료하면 마지막 변경을 잃습니다. / Unsaved changes will be lost.",
         buttons: ["계속 작성 / Stay", "저장하지 않고 종료 / Quit without saving"], defaultId: 0, cancelId: 0 });
       if (choice === 1) event.preventDefault();
+    });
+    // Electron 은 앱이 만들지 않으면 우클릭 메뉴가 없다. 편집기가 자기 메뉴를 띄우지 않은
+    // 경우(Shift+우클릭, 제목 칸 등)에 잘라내기·복사·붙여넣기와 맞춤법 추천을 준다.
+    window.webContents.on("context-menu", (_event, params) => {
+      const suggestions = params.dictionarySuggestions.slice(0, 5).map(word => ({
+        label: word, click: () => window?.webContents.replaceMisspelling(word),
+      }));
+      Menu.buildFromTemplate([
+        ...suggestions,
+        ...(params.misspelledWord ? [{ type: "separator" as const }] : []),
+        { role: "cut", enabled: params.editFlags.canCut },
+        { role: "copy", enabled: params.editFlags.canCopy },
+        { role: "paste", enabled: params.editFlags.canPaste },
+        { type: "separator" },
+        { role: "selectAll", enabled: params.editFlags.canSelectAll },
+      ]).popup({ window: window! });
     });
     window.on("closed", () => { window = null; });
     void window.loadURL("wonboard://app/");

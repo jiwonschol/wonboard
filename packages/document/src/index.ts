@@ -1,5 +1,5 @@
 import { isVideo, attachmentNodes } from "./attachments";
-import { isFontId, type FontId } from "./typography";
+import { isFontId, textVariants, variantStyle, type FontId } from "./typography";
 export * from "./typography";
 export * from "./attachments";
 export type Locale = "ko" | "en";
@@ -202,9 +202,10 @@ export function markAttrsFitDocument(type: unknown, attrs: unknown): boolean {
   if (type === "textStyle") {
     if (!isObject(attrs)) return false;
     return Object.entries(attrs).every(([key, value]) => {
-      if (!["fontFamily", "fontSize", "color", "highlight"].includes(key)) return false;
+      if (!["fontFamily", "fontSize", "color", "highlight", "variant"].includes(key)) return false;
       if (value === null) return true;
       if (key === "fontFamily") return isFontId(value);
+      if (key === "variant") return (textVariants as readonly unknown[]).includes(value);
       if (key === "fontSize") return typeof value === "number" && Number.isFinite(value) && value >= 12 && value <= 96;
       return typeof value === "string" && hexColor.test(value);
     });
@@ -230,7 +231,22 @@ const blockNodes = new Set([
   "horizontalRule",
   "media",
   "video",
+  "textBox",
+  "table",
 ]);
+// 여러 블록을 담는 노드. 비어 있으면 편집기가 만들 수 없는 모양이라 거부한다.
+const containerNodes = [
+  "doc",
+  "blockquote",
+  "bulletList",
+  "orderedList",
+  "listItem",
+  "textBox",
+  "table",
+  "tableRow",
+  "tableCell",
+  "tableHeader",
+];
 const inlineNodes = new Set(["text", "hardBreak", "fileRef"]);
 const allowedAttrs: Record<string, string[]> = {
   paragraph: [
@@ -259,6 +275,10 @@ const allowedAttrs: Record<string, string[]> = {
   media: ["mediaId", "width", "align", "alt", "caption"],
   video: ["provider", "videoId", "privacyHash", "startSeconds", "autoplay"],
   fileRef: ["fileId", "label"],
+  textBox: ["backgroundColor", "borderColor", "borderWidth", "padding"],
+  // 셀 병합과 열 너비 조절은 지원하지 않는다. 표 확장이 늘 싣는 속성은 기본값만 받는다.
+  tableCell: ["colspan", "rowspan", "colwidth", "align"],
+  tableHeader: ["colspan", "rowspan", "colwidth", "align"],
 };
 export function nodeAttrsFitDocument(type: unknown, attrs: unknown): boolean {
   if (typeof type !== "string") return false;
@@ -266,6 +286,8 @@ export function nodeAttrsFitDocument(type: unknown, attrs: unknown): boolean {
   if (!isObject(attrs)) return false;
   for (const [key, v] of Object.entries(attrs)) {
     if (!(allowedAttrs[type] ?? []).includes(key)) return false;
+    // 칸 너비는 병합 없이 늘 1이다. null도 받지 않는다(편집기가 폭 0인 칸으로 읽는다).
+    if ((key === "colspan" || key === "rowspan") && v !== 1) return false;
     if (v === null) continue;
     if (
       (key === "textAlign" || key === "align") &&
@@ -280,7 +302,7 @@ export function nodeAttrsFitDocument(type: unknown, attrs: unknown): boolean {
     if (key === "fontSize" && !(typeof v === "number" && v >= 12 && v <= 96))
       return false;
     if (
-      (key === "textColor" || key === "backgroundColor") &&
+      (key === "textColor" || key === "backgroundColor" || key === "borderColor") &&
       !(typeof v === "string" && hexColor.test(v))
     )
       return false;
@@ -293,6 +315,7 @@ export function nodeAttrsFitDocument(type: unknown, attrs: unknown): boolean {
       !(typeof v === "number" && v >= 0 && v <= 8)
     )
       return false;
+    if (key === "colwidth") return false;
     if (
       key === "level" &&
       !([1, 2, 3].includes(Number(v)) && typeof v === "number")
@@ -420,10 +443,16 @@ export function validateDocument(
     const allowed =
       parent === ""
         ? type === "doc"
-        : parent === "doc" || parent === "blockquote" || parent === "listItem"
+        : ["doc", "blockquote", "listItem", "textBox"].includes(parent)
           ? blockNodes.has(type)
           : parent === "bulletList" || parent === "orderedList"
             ? type === "listItem"
+            : parent === "table"
+              ? type === "tableRow"
+              : parent === "tableRow"
+                ? type === "tableCell" || type === "tableHeader"
+                : parent === "tableCell" || parent === "tableHeader"
+                  ? type === "paragraph"
             : parent === "codeBlock"
               ? type === "text"
               : (parent === "paragraph" || parent === "heading") &&
@@ -470,11 +499,7 @@ export function validateDocument(
       requireThat(Array.isArray(n.content));
       for (const child of n.content) walk(child, type, depth + 1);
     }
-    if (
-      ["doc", "blockquote", "bulletList", "orderedList", "listItem"].includes(
-        type,
-      )
-    )
+    if (containerNodes.includes(type))
       requireThat(Array.isArray(n.content) && n.content.length > 0);
     if (type === "listItem")
       requireThat((n.content as ContentNode[])[0].type === "paragraph");
@@ -491,11 +516,11 @@ export function plainText(node: ContentNode): string {
   return (node.content ?? [])
     .map(plainText)
     .join(
-      ["doc", "blockquote", "bulletList", "orderedList", "listItem"].includes(
-        node.type,
-      )
-        ? "\n"
-        : "",
+      node.type === "tableRow"
+        ? "\t"
+        : containerNodes.includes(node.type)
+          ? "\n"
+          : "",
     );
 }
 export const characterCount = (text: string, locale: Locale) => {
@@ -523,18 +548,12 @@ export const isComposingKey = (e: {
 export function blockStyle(
   attrs: Record<string, unknown> = {},
 ): Record<string, string | number | undefined> {
-  const variant = attrs.variant;
+  const variant = variantStyle(attrs.variant);
   return {
     textAlign: String(attrs.textAlign ?? "left"),
-    fontSize: attrs.fontSize
-      ? `${attrs.fontSize}px`
-      : variant === "display"
-        ? "36px"
-        : variant === "annotation"
-          ? "14px"
-          : undefined,
-    fontWeight: variant === "display" ? 500 : undefined,
-    fontStyle: variant === "subtitle" ? "italic" : undefined,
+    fontSize: attrs.fontSize ? `${attrs.fontSize}px` : variant.fontSize,
+    fontWeight: variant.fontWeight,
+    fontStyle: variant.fontStyle,
     color: attrs.textColor ? String(attrs.textColor) : undefined,
     backgroundColor: attrs.backgroundColor
       ? String(attrs.backgroundColor)
@@ -549,6 +568,37 @@ export function blockStyle(
     border: attrs.borderWidth
       ? `${attrs.borderWidth}px solid currentColor`
       : undefined,
+  };
+}
+/** 글상자의 기본값. 게시판에 붙여넣어도 남도록 인라인 스타일로만 표현한다. */
+export const textBoxDefaults = {
+  backgroundColor: "#fff4d6",
+  borderColor: "#e8c46a",
+  borderWidth: 1,
+  padding: 16,
+} as const;
+export const textBoxColors = [
+  "#fff4d6",
+  "#e8f3ff",
+  "#e9f7ec",
+  "#fde8e8",
+  "#f1ebfb",
+  "#f2f3f5",
+] as const;
+export function textBoxStyle(
+  attrs: Record<string, unknown> = {},
+): Record<string, string | undefined> {
+  const hex = (value: unknown) =>
+    typeof value === "string" && hexColor.test(value) ? value : undefined;
+  const width = typeof attrs.borderWidth === "number" ? attrs.borderWidth : textBoxDefaults.borderWidth;
+  const padding = typeof attrs.padding === "number" ? attrs.padding : textBoxDefaults.padding;
+  return {
+    backgroundColor: hex(attrs.backgroundColor) ?? textBoxDefaults.backgroundColor,
+    border: width
+      ? `${width}px solid ${hex(attrs.borderColor) ?? textBoxDefaults.borderColor}`
+      : undefined,
+    borderRadius: "8px",
+    padding: `${padding}px`,
   };
 }
 export async function sha256(bytes: ArrayBuffer): Promise<string> {

@@ -66,6 +66,24 @@ const paths: Record<string, ReactNode> = {
   blockquote: <path d="M4 6h6v6H6c-1 3 0 4 3 5M14 6h6v6h-4c-1 3 0 4 3 5" />,
   codeBlock: <path d="m7 6-5 6 5 6m10-12 5 6-5 6M14 3l-4 18" />,
   horizontalRule: <path d="M3 12h18" />,
+  textBox: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" fill="currentColor" fillOpacity=".12" />
+      <path d="M7 10h10M7 14h6" />
+    </>
+  ),
+  table: <path d="M3 5h18v14H3zM3 10h18M3 15h18M10 5v14" />,
+  grip: (
+    <>
+      <circle cx="9" cy="6" r="1" fill="currentColor" />
+      <circle cx="15" cy="6" r="1" fill="currentColor" />
+      <circle cx="9" cy="12" r="1" fill="currentColor" />
+      <circle cx="15" cy="12" r="1" fill="currentColor" />
+      <circle cx="9" cy="18" r="1" fill="currentColor" />
+      <circle cx="15" cy="18" r="1" fill="currentColor" />
+    </>
+  ),
+  search: <path d="M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13ZM15.5 15.5 21 21" />,
   sliders: (
     <>
       <path d="M4 7h16M4 17h16" />
