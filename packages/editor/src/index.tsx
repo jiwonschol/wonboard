@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Extension, type Editor as EditorType } from "@tiptap/core";
-import { Plugin } from "@tiptap/pm/state";
+import { Plugin, TextSelection } from "@tiptap/pm/state";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -17,7 +18,7 @@ import {
   type Locale,
   type Media,
 } from "@wonboard/document";
-import { translator, type MessageKey } from "@wonboard/locales";
+import { translator } from "@wonboard/locales";
 import { MediaContext, MediaNode } from "./MediaNode";
 import { FileNode } from "./FileNode";
 export { captureAttachmentSelection, insertAttachmentContent } from "./attachmentSelection";
@@ -26,6 +27,15 @@ import { Icon } from "./icons";
 import { VideoNode } from "./VideoNode";
 import { TextStyle } from "./TextStyle";
 import { WritingToolbar } from "./WritingToolbar";
+import { TextBox, tableExtensions } from "./blocks";
+import { insertBlock, insertTypes, matchesInsertType, moveBlock, topLevelIndex, type InsertType } from "./blockActions";
+import { SelectionMenu } from "./SelectionMenu";
+import { EditMenu, type DesktopEditing, type EditMenuTarget } from "./EditMenu";
+import { BlockHandle } from "./BlockHandle";
+import { Outline } from "./Outline";
+import { Find } from "./find";
+import { FindBar } from "./FindBar";
+import { looksLikeMarkdown, markdownToHtml } from "./markdown";
 import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 import "@fontsource-variable/noto-serif-kr";
 import "@fontsource/gowun-dodum";
@@ -41,6 +51,7 @@ import "@fontsource/nanum-gothic/400.css";
 import "@fontsource/nanum-gothic/700.css";
 
 export type EditorHandle = EditorType;
+export type { DesktopEditing };
 export { Icon };
 export interface WonboardEditorProps {
   content: ContentNode;
@@ -57,6 +68,7 @@ export interface WonboardEditorProps {
   overviewOpen?: boolean;
   attachments?: ReactNode;
   attachmentCount?: number;
+  desktopEditing?: DesktopEditing;
   onTitleChange(title: string): void;
   onChange(content: ContentNode): void;
   onImages(files: File[], position: number, editor: EditorType): Promise<void>;
@@ -219,23 +231,38 @@ export const DocumentLimits = Extension.create({
     ];
   },
 });
-const insertTypes = [
-  "paragraph",
-  "heading",
-  "image",
-  "bulletList",
-  "orderedList",
-  "blockquote",
-  "codeBlock",
-  "horizontalRule",
-] as const;
+/** `/` 바로 뒤부터 커서까지의 글자. 조합 중인 한글도 문서에 들어 있으므로 문서에서 읽는다. */
+function slashQuery(doc: ProseMirrorNode, slashFrom: number, cursor: number) {
+  if (cursor <= slashFrom || cursor > doc.content.size) return null;
+  const $slash = doc.resolve(slashFrom), $cursor = doc.resolve(cursor);
+  if ($slash.start() !== $cursor.start()) return null;
+  const text = doc.textBetween(slashFrom, cursor);
+  return text.startsWith("/") && !/\s/u.test(text) ? text.slice(1) : null;
+}
+function wordAt(doc: ProseMirrorNode, pos: number) {
+  const $pos = doc.resolve(pos);
+  if (!$pos.parent.isTextblock) return undefined;
+  const text = $pos.parent.textBetween(0, $pos.parent.content.size, undefined, "\ufffc");
+  const letter = /[\p{L}\p{N}'’]/u;
+  let start = $pos.parentOffset, end = $pos.parentOffset;
+  while (start > 0 && letter.test(text[start - 1])) start--;
+  while (end < text.length && letter.test(text[end])) end++;
+  return start === end ? undefined : { text: text.slice(start, end), from: $pos.start() + start, to: $pos.start() + end };
+}
 
 export function WonboardEditor(props: WonboardEditorProps) {
   const latest = useRef(props);
   latest.current = props;
   const t = translator(props.locale);
   const [tick, setTick] = useState(0);
-  const [slash, setSlash] = useState(false);
+  const [slash, setSlash] = useState<number | null>(null);
+  const [slashIndex, setSlashIndex] = useState(0);
+  const [menuTarget, setMenuTarget] = useState<EditMenuTarget | null>(null);
+  const [findOpen, setFindOpen] = useState(false);
+  const [plusOpen, setPlusOpen] = useState(false);
+  const page = useRef<HTMLDivElement>(null);
+  // handleKeyDown 은 편집기를 만들 때 한 번 묶이므로 최신 `/` 메뉴 상태를 ref 로 읽는다.
+  const slashMenu = useRef<{ items: InsertType[]; index: number; choose(type: InsertType): void } | null>(null);
   const [linkOpen, setLinkOpen] = useState(false);
   const [link, setLink] = useState("");
   const [linkError, setLinkError] = useState(false);
@@ -260,6 +287,20 @@ export function WonboardEditor(props: WonboardEditorProps) {
     document.addEventListener("pointerdown", dismiss);
     return () => { resize.disconnect(); document.removeEventListener("pointerdown", dismiss); };
   }, [toolPanel]);
+  useEffect(() => {
+    // 편집 영역 안이나, 아무것도 선택되지 않은 화면에서 Ctrl/⌘+F 를 누르면 본문 찾기를 연다.
+    const open = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.key.toLowerCase() !== "f") return;
+      const area = page.current?.closest(".wb-editing-area");
+      const focused = document.activeElement;
+      if (!area || (focused && focused !== document.body && !area.contains(focused))) return;
+      event.preventDefault();
+      setFindOpen(true);
+      area.querySelector<HTMLInputElement>(".find-bar input")?.focus();
+    };
+    document.addEventListener("keydown", open);
+    return () => document.removeEventListener("keydown", open);
+  }, []);
   const fileInput = useRef<HTMLInputElement>(null);
   const title = useRef<HTMLTextAreaElement>(null);
   const editor = useEditor({
@@ -281,6 +322,9 @@ export function WonboardEditor(props: WonboardEditorProps) {
       FileNode.configure({ ownsFile: (id: string) => Object.hasOwn(latest.current.files ?? {}, id) }),
       Formatting,
       TextStyle,
+      TextBox,
+      ...tableExtensions,
+      Find,
       DocumentLimits,
       Placeholder.configure({
         placeholder: () => translator(latest.current.locale)("placeholder"),
@@ -307,16 +351,32 @@ export function WonboardEditor(props: WonboardEditorProps) {
       },
       handleKeyDown: (view, event) => {
         if (isComposingKey(event)) return false;
-        if (
-          event.key === "/" &&
-          view.state.selection.$from.parent.textContent === ""
-        ) {
-          setSlash(true);
+        const menu = slashMenu.current;
+        if (menu && ["ArrowDown", "ArrowUp", "Enter"].includes(event.key)) {
+          if (event.key === "Enter") {
+            if (!menu.items.length) return false;
+            menu.choose(menu.items[menu.index]);
+          } else
+            setSlashIndex((menu.index + (event.key === "ArrowDown" ? 1 : menu.items.length - 1)) % Math.max(menu.items.length, 1));
+          return true;
+        }
+        if (event.altKey && event.shiftKey && (event.key === "ArrowUp" || event.key === "ArrowDown") && editor) {
+          moveBlock(editor, topLevelIndex(editor), event.key === "ArrowUp" ? -1 : 1);
           return true;
         }
         if (event.key === "Escape") {
-          setSlash(false);
+          setSlash(null);
           setLinkOpen(false);
+        }
+        return false;
+      },
+      handleTextInput: (view, from, to, text) => {
+        // `/` 는 본문에 그대로 입력하고, 그 뒤에 치는 글자로 메뉴를 거른다. keydown 에서
+        // 열면 `/` 가 들어가기 전 화면이 한 번 그려져 메뉴가 곧바로 닫힌다.
+        const { $from } = view.state.selection;
+        if (text === "/" && from === to && $from.parent.isTextblock && $from.parent.textContent === "") {
+          setSlash(from);
+          setSlashIndex(0);
         }
         return false;
       },
@@ -330,10 +390,29 @@ export function WonboardEditor(props: WonboardEditorProps) {
           setTimeout(() => { setComposing(false); latest.current.onComposition?.(false); }, 0);
           return false;
         },
+        contextmenu: (view, event) => {
+          // Shift+우클릭은 브라우저(데스크톱은 운영체제) 기본 메뉴를 그대로 연다.
+          if (event.shiftKey || latest.current.readOnly) return false;
+          event.preventDefault();
+          const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
+          const { from, to } = view.state.selection;
+          if (pos !== undefined && (pos < from || pos > to))
+            view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(pos))));
+          const desktop = latest.current.desktopEditing;
+          const word = desktop && pos !== undefined ? wordAt(view.state.doc, pos) : undefined;
+          setMenuTarget({ x: event.clientX, y: event.clientY, word: word && desktop?.isMisspelled(word.text) ? word : undefined });
+          return true;
+        },
       },
       handlePaste: (view, event) => {
         const files = Array.from(event.clipboardData?.files ?? []);
-        if (!files.length) return false;
+        if (!files.length) {
+          // 서식 있는 HTML은 그대로 붙이고, 마크다운으로 쓴 글자만 서식으로 바꾼다.
+          const text = event.clipboardData?.getData("text/plain") ?? "";
+          if (event.clipboardData?.types.includes("text/html") || view.state.selection.$from.parent.type.spec.code || !looksLikeMarkdown(text))
+            return false;
+          return view.pasteHTML(markdownToHtml(text));
+        }
         if (latest.current.readOnly) return true;
         void latest.current.onImages(files, view.state.selection.from, editor!);
         return true;
@@ -375,49 +454,33 @@ export function WonboardEditor(props: WonboardEditorProps) {
       el.style.height = `${el.scrollHeight}px`;
     }
   }, [props.title]);
+  const slashText =
+    editor && slash !== null
+      ? slashQuery(editor.state.doc, slash, editor.state.selection.from)
+      : null;
+  // `/` 를 지웠거나 커서가 그 줄을 떠나면 메뉴를 닫는다.
+  useEffect(() => {
+    if (slash !== null && slashText === null) setSlash(null);
+  }, [slash, slashText]);
   if (!editor) return <div className="editor-loading">{t("loading")}</div>;
-  const isInsert = props.insertOpen || slash;
-  function insert(type: (typeof insertTypes)[number]) {
+  const insertItems = insertTypes.filter((type) => matchesInsertType(type, slashText ?? ""));
+  const isInsert = props.insertOpen || plusOpen || slash !== null;
+  function insert(type: InsertType) {
     if (!editor) return;
-    setSlash(false);
+    // `/글상자` 처럼 친 글자는 지우고, 비어 있는 그 문단을 고른 블록으로 바꾼다.
+    if (slash !== null && slashText !== null)
+      editor.chain().deleteRange({ from: slash, to: editor.state.selection.from }).run();
+    setSlash(null);
+    setPlusOpen(false);
     props.onCloseInsert?.();
     if (type === "image") {
       fileInput.current?.click();
       return;
     }
-    const chain = editor.chain().focus();
-    if (type === "paragraph") chain.setParagraph().run();
-    if (type === "heading") chain.toggleHeading({ level: 2 }).run();
-    if (type === "bulletList") chain.toggleBulletList().run();
-    if (type === "orderedList") chain.toggleOrderedList().run();
-    if (type === "blockquote") chain.toggleBlockquote().run();
-    if (type === "codeBlock") chain.toggleCodeBlock().run();
-    if (type === "horizontalRule") chain.setHorizontalRule().run();
+    insertBlock(editor, type);
   }
-  const blocks: { pos: number; type: string; text: string; size: number }[] =
-    [];
-  editor.state.doc.forEach((node, offset) =>
-    blocks.push({
-      pos: offset,
-      type: node.type.name,
-      text: node.textContent,
-      size: node.nodeSize,
-    }),
-  );
-  function moveBlock(index: number, direction: number) {
-    const target = blocks[index + direction];
-    if (!target || !editor) return;
-    const current = blocks[index];
-    const json = editor.state.doc.child(index).toJSON();
-    const transaction = editor.state.tr.delete(
-      current.pos,
-      current.pos + current.size,
-    );
-    const destination =
-      direction < 0 ? target.pos : target.pos + target.size - current.size;
-    transaction.insert(destination, editor.schema.nodeFromJSON(json));
-    editor.view.dispatch(transaction);
-  }
+  const activeInsert = Math.min(slashIndex, Math.max(insertItems.length - 1, 0));
+  slashMenu.current = slash !== null ? { items: insertItems, index: activeInsert, choose: insert } : null;
   function openLink() {
     setToolPanel(null);
     setLink(String(editor!.getAttributes("link").href ?? ""));
@@ -435,43 +498,7 @@ export function WonboardEditor(props: WonboardEditorProps) {
         }
         if (e.key === "Escape" && toolPanel) { setToolPanel(null); editor.commands.focus(); }
       }}>
-        {props.overviewOpen ? (
-          <nav className="outline" aria-label={t("overview")}>
-            <h2>{t("overview")}</h2>
-            {blocks.map((b, i) => (
-              <div key={`${i}-${b.type}`}>
-                <button
-                  onClick={() =>
-                    editor
-                      .chain()
-                      .focus()
-                      .setTextSelection(
-                        Math.min(b.pos + 1, editor.state.doc.content.size),
-                      )
-                      .run()
-                  }
-                >
-                  {b.text.slice(0, 40) ||
-                    t(b.type === "media" ? "image" : (b.type as MessageKey))}
-                </button>
-                <button
-                  disabled={!editor.isEditable || i === 0}
-                  aria-label={t("moveUp")}
-                  onClick={() => moveBlock(i, -1)}
-                >
-                  ↑
-                </button>
-                <button
-                  disabled={!editor.isEditable || i === blocks.length - 1}
-                  aria-label={t("moveDown")}
-                  onClick={() => moveBlock(i, 1)}
-                >
-                  ↓
-                </button>
-              </div>
-            ))}
-          </nav>
-        ) : null}
+        {props.overviewOpen ? <Outline editor={editor} locale={props.locale} /> : null}
         <main className="wb-canvas" id="document-canvas">
           <WritingToolbar editor={editor} defaultFont={props.defaultFont} locale={props.locale} composing={composing} onLink={openLink} actions={
             <div className="writing-actions">
@@ -485,7 +512,9 @@ export function WonboardEditor(props: WonboardEditorProps) {
                 onClick={() => setToolPanel(toolPanel === "block" ? null : "block")}><Icon name="sliders" /></button>
             </div>
           } />
-          <div className="document-page" style={{ fontFamily: fontFamily(props.defaultFont) }}>
+          {findOpen ? <FindBar editor={editor} locale={props.locale} onClose={() => setFindOpen(false)} /> : null}
+          <div ref={page} className="document-page" style={{ fontFamily: fontFamily(props.defaultFont) }}>
+            <BlockHandle editor={editor} locale={props.locale} page={page} />
             <textarea
               ref={title}
               className="document-title"
@@ -502,11 +531,12 @@ export function WonboardEditor(props: WonboardEditorProps) {
               onCompositionEnd={() => props.onComposition?.(false)}
             />
             <EditorContent editor={editor} />
+            <SelectionMenu editor={editor} locale={props.locale} composing={composing} onLink={openLink} />
             {editor.isEmpty && editor.isEditable ? (
               <button
                 className="inline-insert"
                 aria-label={t("insert")}
-                onClick={() => setSlash(!slash)}
+                onClick={() => setPlusOpen(!plusOpen)}
               >
                 <Icon name="plus" />
               </button>
@@ -542,22 +572,40 @@ export function WonboardEditor(props: WonboardEditorProps) {
                 className="icon-button"
                 aria-label={t("close")}
                 onClick={() => {
-                  setSlash(false);
+                  setSlash(null);
+                  setPlusOpen(false);
                   props.onCloseInsert?.();
                 }}
               >
                 <Icon name="close" />
               </button>
             </div>
-            <div className="insert-grid">
-              {insertTypes.map((type) => (
-                <button key={type} onClick={() => insert(type)}>
+            {slashText ? <p className="insert-query">/{slashText}</p> : null}
+            <div className="insert-grid" role="listbox" aria-label={t("insert")}>
+              {insertItems.map((type, index) => (
+                <button
+                  key={type}
+                  role="option"
+                  aria-selected={slash !== null && index === activeInsert}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => insert(type)}
+                >
                   <Icon name={type} />
                   {t(type)}
                 </button>
               ))}
             </div>
+            {insertItems.length ? null : <p>{t("slashNoResults")}</p>}
           </div>
+        ) : null}
+        {menuTarget ? (
+          <EditMenu
+            editor={editor}
+            locale={props.locale}
+            target={menuTarget}
+            desktop={props.desktopEditing}
+            onClose={() => setMenuTarget(null)}
+          />
         ) : null}
         {linkOpen ? (
           <div className="link-popover" role="dialog" aria-label={t("link")}>

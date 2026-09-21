@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode, type CSSProperties } from "react";
 import {
   blockStyle,
+  textBoxStyle,
   textStyle,
   writingFonts,
   fontFamily,
@@ -27,7 +28,7 @@ function renderNode(
     <Fragment key={i}>{renderNode(child, urls, portable, node.type, videoLinksOnly)}</Fragment>
   ));
   const attrs = node.attrs ?? {};
-  const margin = portable ? { margin: parent === "listItem" ? "0" : "0 0 1.35em" } : {};
+  const margin = portable ? { margin: ["listItem", "tableCell", "tableHeader"].includes(parent) ? "0" : "0 0 1.35em" } : {};
   const style = { ...margin, ...blockStyle(attrs) } as CSSProperties;
   if (node.type === "text")
     return (node.marks ?? []).reduce<ReactNode>((content, mark) => {
@@ -57,6 +58,18 @@ function renderNode(
   if (node.type === "heading") {
     const Tag = attrs.level === 2 ? "h2" : attrs.level === 3 ? "h3" : "h1";
     return <Tag style={{ ...(portable ? { fontSize: attrs.level === 1 ? "2em" : attrs.level === 3 ? "1.3em" : "1.65em", lineHeight: 1.2, fontWeight: 500 } : {}), ...style }}>{children}</Tag>;
+  }
+  // 게시판은 외부 CSS·class를 버리므로 글상자와 표는 인라인 스타일만으로 모양을 갖춘다.
+  if (node.type === "textBox")
+    return <div data-wb-text-box="" style={{ ...(portable ? { margin: "0 0 1.35em" } : {}), ...textBoxStyle(attrs) } as CSSProperties}>{children}</div>;
+  if (node.type === "table")
+    return <table style={portable ? { ...margin, borderCollapse: "collapse", width: "100%" } : undefined}><tbody>{children}</tbody></table>;
+  if (node.type === "tableRow") return <tr>{children}</tr>;
+  if (node.type === "tableCell" || node.type === "tableHeader") {
+    const Cell = node.type === "tableHeader" ? "th" : "td";
+    const align = ["left", "center", "right"].includes(String(attrs.align)) ? String(attrs.align) as CSSProperties["textAlign"] : undefined;
+    return <Cell style={{ ...(portable ? { border: "1px solid #c9ced6", padding: "6px 10px", verticalAlign: "top",
+      textAlign: align ?? "left", ...(node.type === "tableHeader" ? { backgroundColor: "#f2f4f7", fontWeight: 600 } : {}) } : { textAlign: align }) }}>{children}</Cell>;
   }
   if (node.type === "blockquote") return <blockquote style={portable ? { ...margin, borderLeft: "3px solid #111", paddingLeft: "1.25em" } : undefined}>{children}</blockquote>;
   if (node.type === "bulletList") return <ul style={portable ? { ...margin, paddingLeft: "1.6em" } : undefined}>{children}</ul>;

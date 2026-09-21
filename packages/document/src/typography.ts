@@ -16,10 +16,22 @@ export type FontId = typeof writingFonts[number]["id"];
 export const primaryFontIds: readonly FontId[] = ["nanum-serif", "system", "nanum-gothic", "dotum"];
 export const fontFamily = (id: string = "sans") => writingFonts.find(font => font.id === id)?.family;
 export const isFontId = (value: unknown) => writingFonts.some(font => font.id === value);
+/** 문단과 드래그한 글자가 같은 모양이 되도록 '스타일' 값의 표시 규칙을 한곳에 둔다. */
+export const textVariants = ["display", "subtitle", "annotation"] as const;
+export function variantStyle(variant: unknown) {
+  return {
+    fontSize: variant === "display" ? "36px" : variant === "annotation" ? "14px" : undefined,
+    fontWeight: variant === "display" ? 500 : undefined,
+    fontStyle: variant === "subtitle" ? "italic" : undefined,
+  };
+}
 export function textStyle(attrs: Record<string, unknown> = {}) {
+  const variant = variantStyle(attrs.variant);
   return {
     fontFamily: writingFonts.find(font => font.id === attrs.fontFamily)?.family,
-    fontSize: typeof attrs.fontSize === "number" && attrs.fontSize >= 12 && attrs.fontSize <= 96 ? `${attrs.fontSize}px` : undefined,
+    fontSize: typeof attrs.fontSize === "number" && attrs.fontSize >= 12 && attrs.fontSize <= 96 ? `${attrs.fontSize}px` : variant.fontSize,
+    fontWeight: variant.fontWeight,
+    fontStyle: variant.fontStyle,
     color: typeof attrs.color === "string" && /^#[\da-f]{6}$/i.test(attrs.color) ? attrs.color : undefined,
     backgroundColor: typeof attrs.highlight === "string" && /^#[\da-f]{6}$/i.test(attrs.highlight) ? attrs.highlight : undefined,
   };
