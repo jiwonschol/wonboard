@@ -15,5 +15,9 @@ export const looksLikeMarkdown = (text: string) => signals.some(signal => signal
 const escape = (text: string) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 // 마크다운 안의 HTML 조각은 실행하지도 되살리지도 않고 글자 그대로 둔다.
-const marked = new Marked({ gfm: true, breaks: false, renderer: { html: ({ text }) => escape(text) } });
+// 원격 그림은 편집기가 받지 않는다(사진은 원보드가 원본을 가진 것만). 그림 문법은 글자로 남긴다.
+const marked = new Marked({ gfm: true, breaks: false, renderer: {
+  html: ({ text }) => escape(text),
+  image: ({ href, text }) => escape(`![${text}](${href})`),
+} });
 export const markdownToHtml = (text: string) => marked.parse(text, { async: false });

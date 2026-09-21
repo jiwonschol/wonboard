@@ -286,6 +286,8 @@ export function nodeAttrsFitDocument(type: unknown, attrs: unknown): boolean {
   if (!isObject(attrs)) return false;
   for (const [key, v] of Object.entries(attrs)) {
     if (!(allowedAttrs[type] ?? []).includes(key)) return false;
+    // 칸 너비는 병합 없이 늘 1이다. null도 받지 않는다(편집기가 폭 0인 칸으로 읽는다).
+    if ((key === "colspan" || key === "rowspan") && v !== 1) return false;
     if (v === null) continue;
     if (
       (key === "textAlign" || key === "align") &&
@@ -313,7 +315,6 @@ export function nodeAttrsFitDocument(type: unknown, attrs: unknown): boolean {
       !(typeof v === "number" && v >= 0 && v <= 8)
     )
       return false;
-    if ((key === "colspan" || key === "rowspan") && v !== 1) return false;
     if (key === "colwidth") return false;
     if (
       key === "level" &&

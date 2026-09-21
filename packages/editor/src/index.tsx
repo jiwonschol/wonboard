@@ -125,8 +125,9 @@ export const Formatting = Extension.create({
                 if (key !== "textAlign") return marker;
                 return {
                   ...marker,
+                  // 정렬을 고르지 않은 문단은 부모(표 칸의 정렬 등)를 따르게 left 를 적지 않는다.
                   style: Object.entries(blockStyle(attrs))
-                    .filter(([, v]) => v !== undefined)
+                    .filter(([k, v]) => v !== undefined && (k !== "textAlign" || attrs.textAlign !== null))
                     .map(([k, v]) => `${dashed(k)}:${v}`)
                     .join(";"),
                 };

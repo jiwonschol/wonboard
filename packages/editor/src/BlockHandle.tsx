@@ -19,15 +19,13 @@ export function BlockHandle({ editor, locale, page }: { editor: Editor; locale: 
     const track = (event: MouseEvent) => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        const pageTop = element.getBoundingClientRect().top;
-        const blocks = topLevelBlocks(editor);
-        for (let index = 0; index < blocks.length; index++) {
-          const dom = editor.view.nodeDOM(blocks[index].pos);
-          if (!(dom instanceof HTMLElement)) continue;
-          const rect = dom.getBoundingClientRect();
-          if (event.clientY >= rect.top - 4 && event.clientY <= rect.bottom + 4)
-            return setHover({ index, top: rect.top - pageTop });
-        }
+        // 긴 글에서 모든 블록을 재지 않도록, 포인터 높이의 본문 위치에서 맨 위층 블록을 바로 찾는다.
+        const { view } = editor, content = view.dom.getBoundingClientRect();
+        const found = view.posAtCoords({ left: content.left + 1, top: Math.min(Math.max(event.clientY, content.top + 1), content.bottom - 1) });
+        if (!found) return;
+        const index = Math.min(view.state.doc.resolve(found.pos).index(0), view.state.doc.childCount - 1);
+        const dom = view.nodeDOM(topLevelBlocks(editor)[index]?.pos ?? -1);
+        if (dom instanceof HTMLElement) setHover({ index, top: dom.getBoundingClientRect().top - element.getBoundingClientRect().top });
       });
     };
     element.addEventListener("mousemove", track);
@@ -70,7 +68,7 @@ export function BlockHandle({ editor, locale, page }: { editor: Editor; locale: 
   return (
     <div className="block-handle" style={{ top: hover.top }}>
       <button type="button" draggable aria-label={t("blockHandle")} title={t("blockHandle")} aria-expanded={menu}
-        onDragStart={dragStart} onClick={() => { selectBlock(); setMenu(!menu); }}>
+        onDragStart={dragStart} onDragEnd={() => { editor.view.dragging = null; }} onClick={() => { selectBlock(); setMenu(!menu); }}>
         <Icon name="grip" />
       </button>
       {menu ? (

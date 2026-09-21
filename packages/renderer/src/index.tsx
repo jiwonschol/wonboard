@@ -30,6 +30,8 @@ function renderNode(
   const attrs = node.attrs ?? {};
   const margin = portable ? { margin: ["listItem", "tableCell", "tableHeader"].includes(parent) ? "0" : "0 0 1.35em" } : {};
   const style = { ...margin, ...blockStyle(attrs) } as CSSProperties;
+  // 칸 안에서 정렬을 고르지 않은 문단은 칸의 정렬을 따른다.
+  if (["tableCell", "tableHeader"].includes(parent) && (attrs.textAlign ?? null) === null) delete style.textAlign;
   if (node.type === "text")
     return (node.marks ?? []).reduce<ReactNode>((content, mark) => {
       if (mark.type === "bold") return <strong>{content}</strong>;

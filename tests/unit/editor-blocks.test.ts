@@ -66,6 +66,7 @@ describe("글상자와 표가 문서 형식을 통과한다", () => {
       { type: "table", content: [paragraph("가")] },
       { type: "textBox", content: [] },
       { type: "textBox", attrs: { backgroundColor: "red;background:url(x)" }, content: [paragraph("가")] },
+      { type: "table", content: [{ type: "tableRow", content: [cell("tableCell", "가", { colspan: null })] }] },
     ];
     for (const node of bad) expect(() => validateDocument(withContent(node).document)).toThrow();
   });
@@ -84,7 +85,7 @@ describe("글상자와 표가 문서 형식을 통과한다", () => {
     expect(html).toContain("border:2px solid #88aadd");
     expect(html).toMatch(/<table style="[^"]*border-collapse:collapse/);
     expect(html).toMatch(/<th style="[^"]*background-color:#f2f4f7/);
-    expect(html).toMatch(/<td style="[^"]*text-align:right[^"]*">.*120/);
+    expect(html).toMatch(/<td style="[^"]*text-align:right[^"]*"><p style="(?![^"]*text-align)[^"]*">120/);
   });
   it("드래그한 글자의 스타일은 게시판용 HTML에서도 보인다", () => {
     const html = renderToStaticMarkup(PortableDocumentBody({ document: withContent({ type: "paragraph", content: [
@@ -107,6 +108,7 @@ describe("마크다운 붙여넣기", () => {
     expect(html).toContain("<h1>제목</h1>");
     expect(html).toContain("<table>");
     expect(html).not.toContain("<img");
+    expect(markdownToHtml("**굵게** ![그림](https://example.com/a.png)")).toContain("![그림](https://example.com/a.png)");
   });
 });
 
