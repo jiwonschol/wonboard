@@ -118,7 +118,7 @@ test("selection toolbar appears over dragged text", async ({ page }) => {
   await expect(bar).toBeVisible();
   await bar.getByRole("button", { name: "Italic" }).click();
   await expect(body.locator("em")).toHaveText("선택 막대");
-  await page.keyboard.press("End");
+  await page.keyboard.press("ArrowRight");
   await expect(bar).toBeHidden();
 });
 
@@ -145,7 +145,8 @@ test("block handle moves and duplicates blocks", async ({ page }) => {
   await expect(body.locator("p")).toHaveText(["둘", "하나", "하나"]);
 });
 
-test("markdown paste converts markdown but keeps community plain text", async ({ page }) => {
+test("markdown paste converts markdown but keeps community plain text", async ({ page, browserName }) => {
+  test.skip(browserName === "firefox", "Firefox ignores clipboardData given to a synthetic paste event");
   await page.goto("/");
   const body = bodyOf(page);
   await body.click();
@@ -216,6 +217,8 @@ for (const locale of ["ko", "en"] as const)
       await page.keyboard.press("Shift+ArrowLeft");
       await page.keyboard.press("Shift+ArrowLeft");
       await expectInside(page.locator(".selection-menu"), width);
+      await page.keyboard.press("ArrowRight");
+      await expect(page.locator(".selection-menu")).toBeHidden();
       const box = (await body.locator("p").boundingBox())!;
       await page.mouse.click(box.x + box.width - 4, box.y + 4, { button: "right" });
       const menu = page.locator(".edit-menu");
@@ -227,6 +230,7 @@ for (const locale of ["ko", "en"] as const)
       await expectInside(page.locator(".find-bar"), width);
       await page.keyboard.press("Escape");
       await expect(body).toBeFocused();
+      await body.focus();
       await page.keyboard.press("ControlOrMeta+a");
       await page.keyboard.press("Backspace");
       await page.keyboard.press("/");
@@ -235,7 +239,8 @@ for (const locale of ["ko", "en"] as const)
       await page.screenshot({ path: `/private/tmp/wonboard-editor-blocks-${locale}-${width}.png` });
     });
 
-test("copied text box and table keep their color and cells when pasted back", async ({ page }) => {
+test("copied text box and table keep their color and cells when pasted back", async ({ page, browserName }) => {
+  test.skip(browserName === "firefox", "Firefox ignores clipboardData given to a synthetic paste event");
   await page.goto("/");
   const body = bodyOf(page);
   await body.click();
