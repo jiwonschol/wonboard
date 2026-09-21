@@ -1,5 +1,5 @@
 import { attachmentNodes, withoutUnusedMedia, type Draft } from "@wonboard/document";
-import { tableImageId, tableNodes, type TableImage } from "@wonboard/renderer";
+import { maxTableImages, tableImageId, tableNodes, type TableImage } from "@wonboard/renderer";
 import { sitesRequest } from "./draftRepository";
 import { renderTableImage, tableAlt } from "./tableImage";
 
@@ -41,9 +41,10 @@ async function prepareTableImages(draft: Draft) {
   const { documentId, content, defaultFont } = draft.document;
   const published = new Set((await publications(documentId)).map(item => item.mediaId));
   const tables: Record<string, string> = {}, images: { node: typeof content; id: string; alt: string; width: number }[] = [];
-  for (const node of tableNodes(content)) {
-    const id = await tableImageId(node, defaultFont);
-    images.push({ node, id, alt: tableAlt(node), width: 720 });
+  for (const node of tableNodes(content)) images.push({ node, id: await tableImageId(node, defaultFont), alt: tableAlt(node), width: 720 });
+  // 올리기 전에 막는다. 표가 많은 글이 공개 그림 수천 개를 만들지 않게 한다.
+  if (new Set(images.map(image => image.id)).size > maxTableImages) throw new Error("tooManyTables");
+  for (const { node, id } of images) {
     if (tables[id]) continue;
     if (published.has(id)) { tables[id] = "existing"; continue; }
     const { blob } = await renderTableImage(node, defaultFont);
@@ -73,7 +74,9 @@ export async function publishImages(draft: Draft, tablesAsImages = false): Promi
     if (typeof src !== "string" || new URL(src).origin !== location.origin) throw new Error("publishFailed");
     tableImages.set(image.node, { src, alt: image.alt, width: image.width });
   }
+  // 사진 ID가 우연히 table- 로 시작해도 지우지 않도록, 이번에 그린 표의 ID만 뺀다.
+  const tableIds = new Set(prepared?.images.map(image => image.id));
   const urls: Record<string, string> = {};
-  for (const [id, url] of Object.entries(result.urls as Record<string, string>)) if (!id.startsWith("table-")) urls[id] = url;
+  for (const [id, url] of Object.entries(result.urls as Record<string, string>)) if (!tableIds.has(id)) urls[id] = url;
   return { urls, tableImages };
 }

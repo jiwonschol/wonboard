@@ -37,7 +37,10 @@ export function PublicationPanel({ locale, documentId, save, snapshot, canPublis
     if (working) return;
     setWorking(true); onBusy(true); setMessage("");
     try { await action(); }
-    catch { setMessage(t("publishFailed")); }
+    catch (error) {
+      const reason = error instanceof Error ? error.message : "";
+      setMessage(t(reason === "tooManyTables" || reason === "tableTooLarge" ? reason : "publishFailed"));
+    }
     finally { setWorking(false); onBusy(false); }
   }
   async function publish() {

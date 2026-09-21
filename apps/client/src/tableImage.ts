@@ -1,23 +1,27 @@
-import { fontFamily, limits, plainText, textStyle, writingFonts, type ContentNode, type FontId } from "@wonboard/document";
+import { blockStyle, fontFamily, limits, plainText, textStyle, writingFonts, type ContentNode, type FontId } from "@wonboard/document";
 
 // 게시판용 본문(PortableDocumentBody)과 같은 글자 크기·줄 간격·칸 모양으로 그린다.
-const width = 720, scale = 2, padX = 10, padY = 6, base = 19.3642, lineRatio = 1.4;
+const width = 720, maxScale = 2, padX = 10, padY = 6, base = 19.3642, lineRatio = 1.4;
 const borderColor = "#c9ced6", headerColor = "#f2f4f7";
 type Run = { text: string; font: string; color: string; highlight?: string; underline: boolean; strike: boolean; size: number };
 type Piece = { run: Run; text: string; width: number };
-type Line = { pieces: Piece[]; width: number; height: number; ascent: number };
+type Line = { pieces: Piece[]; width: number; height: number; ascent: number; align?: string };
 
+/** 글자 서식이 문단 서식(커서만 두고 적용한 스타일·크기·색·정렬)보다 우선한다. HTML 렌더러와 같은 순서다. */
 function runsOf(paragraph: ContentNode, family: string, header: boolean): Run[] {
+  const block = blockStyle(paragraph.attrs);
+  const blockSize = block.fontSize ? parseFloat(String(block.fontSize)) : base;
   return (paragraph.content ?? []).map(node => {
-    if (node.type !== "text") return { text: node.type === "hardBreak" ? "\n" : plainText(node), font: `${header ? 600 : 400} ${base}px ${family}`,
-      color: "#111111", underline: false, strike: false, size: base };
-    const marks = node.marks ?? [], has = (type: string) => marks.some(mark => mark.type === type);
+    const marks = node.type === "text" ? node.marks ?? [] : [], has = (type: string) => marks.some(mark => mark.type === type);
     const styled = textStyle(marks.find(mark => mark.type === "textStyle")?.attrs);
-    const size = styled.fontSize ? parseFloat(styled.fontSize) : base;
-    const weight = has("bold") ? 700 : styled.fontWeight ?? (header ? 600 : 400);
+    const size = styled.fontSize ? parseFloat(styled.fontSize) : blockSize;
+    const weight = has("bold") ? 700 : styled.fontWeight ?? block.fontWeight ?? (header ? 600 : 400);
+    const italic = has("italic") || styled.fontStyle || block.fontStyle;
     const face = has("code") ? writingFonts.find(font => font.id === "mono")!.family : styled.fontFamily ?? family;
-    return { text: node.text ?? "", size, font: `${has("italic") || styled.fontStyle ? "italic " : ""}${weight} ${size}px ${face}`,
-      color: has("link") ? "#4f46e5" : styled.color ?? "#111111", highlight: styled.backgroundColor,
+    const text = node.type === "text" ? node.text ?? "" : node.type === "hardBreak" ? "\n" : plainText(node);
+    return { text, size, font: `${italic ? "italic " : ""}${weight} ${size}px ${face}`,
+      color: has("link") ? "#4f46e5" : styled.color ?? (block.color as string | undefined) ?? "#111111",
+      highlight: styled.backgroundColor ?? (block.backgroundColor as string | undefined),
       underline: has("underline") || has("link"), strike: has("strike") };
   });
 }
@@ -68,18 +72,26 @@ export async function renderTableImage(table: ContentNode, defaultFont?: FontId)
   const rows = (table.content ?? []).map(row => (row.content ?? []).map(cell => ({
     header: cell.type === "tableHeader",
     align: ["center", "right"].includes(String(cell.attrs?.align)) ? String(cell.attrs?.align) : "left",
-    paragraphs: (cell.content ?? []).map(paragraph => runsOf(paragraph, family, cell.type === "tableHeader")),
+    paragraphs: (cell.content ?? []).map(paragraph => ({
+      align: typeof paragraph.attrs?.textAlign === "string" ? paragraph.attrs.textAlign : undefined,
+      runs: runsOf(paragraph, family, cell.type === "tableHeader"),
+    })),
   })));
-  await loadFonts(rows.flat().flatMap(cell => cell.paragraphs.flat()));
+  await loadFonts(rows.flat().flatMap(cell => cell.paragraphs.flatMap(paragraph => paragraph.runs)));
   const columns = Math.max(1, ...rows.map(row => row.length));
   const columnWidth = (width - 1) / columns, textWidth = columnWidth - padX * 2;
   const canvas = document.createElement("canvas"), context = canvas.getContext("2d");
   if (!context) throw new Error("invalidImage");
-  const laidOut = rows.map(row => row.map(cell => ({ ...cell, lines: cell.paragraphs.flatMap(runs => layout(context, runs, textWidth)) })));
+  const laidOut = rows.map(row => row.map(cell => ({ ...cell, lines: cell.paragraphs.flatMap(paragraph =>
+    layout(context, paragraph.runs, textWidth).map(line => ({ ...line, align: paragraph.align ?? cell.align }))) })));
   const heights = laidOut.map(row => Math.max(base * lineRatio, ...row.map(cell => cell.lines.reduce((sum, line) => sum + line.height, 0))) + padY * 2);
   const height = heights.reduce((sum, value) => sum + value, 0) + 1;
-  canvas.width = Math.ceil(width * scale);
-  canvas.height = Math.ceil(height * scale);
+  // 서버의 사진 화소 한도와 브라우저 캔버스 한도(Safari는 약 1,670만 화소, 한 변 16,384) 안에서
+  // 가장 선명하게 그린다. 1배로도 넘치는 표는 그리지 않고 알린다.
+  const scale = Math.min(maxScale, Math.sqrt(Math.min(limits.pixels, 16_000_000) / (width * height)), 16_384 / height);
+  if (scale < 1) throw new Error("tableTooLarge");
+  canvas.width = Math.floor(width * scale);
+  canvas.height = Math.floor(height * scale);
   context.scale(scale, scale);
   context.fillStyle = "#ffffff";
   context.fillRect(0, 0, width, height);
@@ -94,7 +106,7 @@ export async function renderTableImage(table: ContentNode, defaultFont?: FontId)
       }
       let y = top + padY;
       for (const line of cell.lines) {
-        let x = left + padX + (cell.align === "center" ? (textWidth - line.width) / 2 : cell.align === "right" ? textWidth - line.width : 0);
+        let x = left + padX + (line.align === "center" ? (textWidth - line.width) / 2 : line.align === "right" ? textWidth - line.width : 0);
         const baseline = y + (line.height - line.ascent) / 2 + line.ascent * 0.82;
         for (const piece of line.pieces) {
           if (piece.run.highlight) {
@@ -104,9 +116,8 @@ export async function renderTableImage(table: ContentNode, defaultFont?: FontId)
           context.font = piece.run.font;
           context.fillStyle = piece.run.color;
           context.fillText(piece.text, x, baseline);
-          if (piece.run.underline || piece.run.strike) {
-            context.fillRect(x, piece.run.underline ? baseline + 2 : baseline - piece.run.size * 0.3, piece.width, 1);
-          }
+          if (piece.run.underline) context.fillRect(x, baseline + 2, piece.width, 1);
+          if (piece.run.strike) context.fillRect(x, baseline - piece.run.size * 0.3, piece.width, 1);
           x += piece.width;
         }
         y += line.height;

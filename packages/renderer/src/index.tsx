@@ -19,9 +19,13 @@ export function tableNodes(node: ContentNode): ContentNode[] {
   if (node.type === "table") return [node];
   return (node.content ?? []).flatMap(tableNodes);
 }
+/** 한 번의 내보내기에서 그림으로 바꾸는 표의 상한. 문서당 사진 한도와 같은 규모로 둔다. */
+export const maxTableImages = 50;
+// 그리는 방식이나 글꼴 파일이 바뀌면 올린다. 바뀌지 않은 표도 새로 그려 예전 그림을 계속 쓰지 않게 한다.
+const tableImageVersion = 1;
 /** 표 내용과 글꼴이 같으면 같은 값. 다시 게시할 때 바뀌지 않은 표의 주소를 그대로 쓴다. */
 export async function tableImageId(node: ContentNode, font: string | undefined) {
-  const bytes = new TextEncoder().encode(JSON.stringify([font ?? "sans", node]));
+  const bytes = new TextEncoder().encode(JSON.stringify([tableImageVersion, font ?? "sans", node]));
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
   return `table-${Array.from(digest.slice(0, 20), b => b.toString(16).padStart(2, "0")).join("")}`;
 }

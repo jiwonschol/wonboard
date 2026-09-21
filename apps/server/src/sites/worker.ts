@@ -7,7 +7,7 @@ import type { SitesEnv } from "./types";
 import { ownerFiles, sharedFile, documentFile } from "./files";
 import { photoVariantKey, storePhotoVariant } from "./photoObjects";
 import { ownerSnapshots, publicSnapshot } from "./snapshots";
-import { tableImageId, tableNodes } from "@wonboard/renderer";
+import { maxTableImages, tableImageId, tableNodes } from "@wonboard/renderer";
 
 type StoredMedia = { id: string; hash: string; mime: string; size: number; width: number; height: number };
 type Publication = { public_id: string; document_id: string; media_id: string;
@@ -300,6 +300,7 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
       const tables = body.tables === undefined ? [] : await tableIds(document);
       if (body.tables !== undefined && (!body.tables || typeof body.tables !== "object" ||
           Object.keys(body.tables).length !== tables.length)) throw new HttpError(400, "missingMedia");
+      if (tables.length > maxTableImages) throw new HttpError(400, "tooManyTables");
       for (const [index, tableId] of tables.entries()) {
         const hash = body.tables[tableId];
         let key: string | null = null;
