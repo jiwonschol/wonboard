@@ -67,8 +67,17 @@ export function tableAlt(table: ContentNode) {
 }
 
 const columnCount = (table: ContentNode) => Math.max(1, ...(table.content ?? []).map(row => row.content?.length ?? 0));
-/** 칸이 너무 좁아 글자가 겹치지 않도록, 열이 많으면 그림을 넓힌다. 게시판에서는 폭에 맞춰 줄어든다. */
-export const tableImageWidth = (table: ContentNode) => Math.max(baseWidth, columnCount(table) * minColumn);
+const boxInset = (paragraph: ContentNode) =>
+  (typeof paragraph.attrs?.padding === "number" ? paragraph.attrs.padding : 0) +
+  (typeof paragraph.attrs?.borderWidth === "number" ? paragraph.attrs.borderWidth : 0);
+/**
+ * 칸이 너무 좁아 글자가 겹치지 않도록, 열이 많으면 그림을 넓힌다. 문단 여백·테두리를 빼고도
+ * 글자 자리가 남게 잰다. 게시판에서는 폭에 맞춰 줄어든다.
+ */
+export function tableImageWidth(table: ContentNode) {
+  const inset = Math.max(0, ...(table.content ?? []).flatMap(row => (row.content ?? []).flatMap(cell => (cell.content ?? []).map(boxInset))));
+  return Math.max(baseWidth, columnCount(table) * (minColumn + inset * 2));
+}
 const gradients: Record<string, [string, string]> = { light: ["#ffffff", "#e5e7eb"], blue: ["#eff6ff", "#bfdbfe"] };
 type Box = { lines: Line[]; padding: number; border: number; borderColor: string; background?: string; gradient?: [string, string]; height: number };
 
@@ -88,8 +97,9 @@ export async function renderTableImage(table: ContentNode, defaultFont?: FontId)
   const laidOut = rows.map(row => row.map(cell => ({ ...cell, boxes: cell.paragraphs.map(({ attrs, runs }): Box => {
     const padding = typeof attrs.padding === "number" ? attrs.padding : 0;
     const border = typeof attrs.borderWidth === "number" ? attrs.borderWidth : 0;
-    const inner = Math.max(8, columnWidth - padX * 2 - (padding + border) * 2);
-    const align = typeof attrs.textAlign === "string" && attrs.textAlign !== "left" ? attrs.textAlign : cell.align;
+    const inner = columnWidth - padX * 2 - (padding + border) * 2;
+    // 문단에 정렬을 직접 골랐으면(왼쪽 포함) 그것이, 아니면 칸의 정렬이 적용된다. 게시판용 HTML과 같다.
+    const align = typeof attrs.textAlign === "string" ? attrs.textAlign : cell.align;
     const lines = layout(context, runs, inner).map(line => ({ ...line, align }));
     return { lines, padding, border, borderColor: typeof attrs.textColor === "string" ? attrs.textColor : "#111111",
       background: typeof attrs.backgroundColor === "string" ? attrs.backgroundColor : undefined,

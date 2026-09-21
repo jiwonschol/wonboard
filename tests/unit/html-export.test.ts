@@ -75,5 +75,8 @@ describe("tables exported as images", () => {
     const row = (count: number): ContentNode => ({ type: "table", content: [{ type: "tableRow", content: Array.from({ length: count }, () => cell([])) }] });
     expect(tableImageWidth(row(3))).toBe(720);
     expect(tableImageWidth(row(40))).toBe(40 * 64);
+    const padded: ContentNode = { type: "table", content: [{ type: "tableRow", content: Array.from({ length: 40 }, () =>
+      ({ ...cell([]), content: [{ type: "paragraph", attrs: { padding: 30, borderWidth: 2 } }] })) }] };
+    expect(tableImageWidth(padded)).toBe(40 * (64 + 64));
   });
 });
