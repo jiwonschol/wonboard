@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { newDraft, writingFonts } from "@wonboard/document";
+import { newDraft, writingFonts, type ContentNode } from "@wonboard/document";
 import { exportHtml } from "../../apps/client/src/htmlExport";
 
 describe("portable HTML export", () => {
@@ -54,5 +54,29 @@ describe("portable HTML export", () => {
     expect(html).toContain('src="https://site.test/media/stable"'); expect(html).toContain('width="320"');
     expect(html).toContain("사진 &lt;1&gt;"); expect(html).toContain("text-align:right");
     expect(html).not.toContain("data-media-id");
+  });
+});
+
+describe("tables exported as images", () => {
+  const fileId = "11111111-1111-4111-8111-111111111111";
+  const cell = (content: ContentNode[]): ContentNode => ({ type: "tableCell", attrs: { colspan: 1, rowspan: 1, colwidth: null, align: null }, content: [{ type: "paragraph", content }] });
+  it("replaces the table with its image and does not require a share for file links inside it", () => {
+    const { document } = newDraft();
+    document.files = { [fileId]: { id: fileId, originalName: "a.zip", mime: "application/zip", size: 1, sha256: "a".repeat(64) } };
+    const table: ContentNode = { type: "table", content: [{ type: "tableRow", content: [cell([{ type: "fileRef", attrs: { fileId, label: "a.zip" } }])] }] };
+    document.content.content = [table];
+    expect(() => exportHtml(document, {})).toThrow("privateFile");
+    const html = exportHtml(document, {}, new Map([[table, { src: "https://example.com/media/t", alt: "a.zip", width: 720 }]]));
+    expect(html).not.toContain("<table");
+    expect(html).toContain('<img src="https://example.com/media/t" alt="a.zip" width="720"');
+  });
+  it("widens images of tables with many columns instead of squeezing cells", async () => {
+    const { tableImageWidth } = await import("../../apps/client/src/tableImage");
+    const row = (count: number): ContentNode => ({ type: "table", content: [{ type: "tableRow", content: Array.from({ length: count }, () => cell([])) }] });
+    expect(tableImageWidth(row(3))).toBe(720);
+    expect(tableImageWidth(row(40))).toBe(40 * 64);
+    const padded: ContentNode = { type: "table", content: [{ type: "tableRow", content: Array.from({ length: 40 }, () =>
+      ({ ...cell([]), content: [{ type: "paragraph", attrs: { padding: 30, borderWidth: 2 } }] })) }] };
+    expect(tableImageWidth(padded)).toBe(40 * (64 + 64));
   });
 });

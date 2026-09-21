@@ -12,6 +12,28 @@ import {
   type ContentNode,
   type WriterDocument,
 } from "@wonboard/document";
+/** 게시판이 표를 지원하지 않을 때 표 대신 넣는 게시용 그림. */
+export type TableImage = { src: string; alt: string; width: number };
+export type TableImages = ReadonlyMap<ContentNode, TableImage>;
+export function tableNodes(node: ContentNode): ContentNode[] {
+  if (node.type === "table") return [node];
+  return (node.content ?? []).flatMap(tableNodes);
+}
+/** `drop`이 참인 노드를 뺀 사본. 그림으로 바뀌는 표 안의 파일 링크처럼 결과에 남지 않는 것을 거를 때 쓴다. */
+export function withoutNodes(node: ContentNode, drop: (node: ContentNode) => boolean): ContentNode {
+  return node.content ? { ...node, content: node.content.filter(child => !drop(child)).map(child => withoutNodes(child, drop)) } : node;
+}
+/** 한 번의 내보내기에서 그림으로 바꾸는 표의 상한. 문서당 사진 한도와 같은 규모로 둔다. */
+export const maxTableImages = 50;
+// 그리는 방식이나 글꼴 파일이 바뀌면 올린다. 바뀌지 않은 표도 새로 그려 예전 그림을 계속 쓰지 않게 한다.
+const tableImageVersion = 1;
+/** 표 내용과 글꼴이 같으면 같은 값. 다시 게시할 때 바뀌지 않은 표의 주소를 그대로 쓴다. */
+export async function tableImageId(node: ContentNode, font: string | undefined) {
+  const bytes = new TextEncoder().encode(JSON.stringify([tableImageVersion, font ?? "sans", node]));
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  // 사진 ID에는 쓸 수 없는 ':'를 넣어, 가져온 문서의 사진 ID와 게시 기록에서 겹치지 않게 한다.
+  return `table:${Array.from(digest.slice(0, 20), b => b.toString(16).padStart(2, "0")).join("")}`;
+}
 const orderedListTypes = ["1", "a", "A", "i", "I"] as const;
 const listType = (value: unknown) =>
   (orderedListTypes as readonly string[]).includes(String(value))
@@ -23,9 +45,10 @@ function renderNode(
   portable = false,
   parent = "",
   videoLinksOnly = false,
+  tableImages?: TableImages,
 ): ReactNode {
   const children = node.content?.map((child, i) => (
-    <Fragment key={i}>{renderNode(child, urls, portable, node.type, videoLinksOnly)}</Fragment>
+    <Fragment key={i}>{renderNode(child, urls, portable, node.type, videoLinksOnly, tableImages)}</Fragment>
   ));
   const attrs = node.attrs ?? {};
   const margin = portable ? { margin: ["listItem", "tableCell", "tableHeader"].includes(parent) ? "0" : "0 0 1.35em" } : {};
@@ -66,6 +89,10 @@ function renderNode(
   // 게시판은 외부 CSS·class를 버리므로 글상자와 표는 인라인 스타일만으로 모양을 갖춘다.
   if (node.type === "textBox")
     return <div data-wb-text-box="" style={{ ...(portable ? { margin: "0 0 1.35em" } : {}), ...textBoxStyle(attrs) } as CSSProperties}>{children}</div>;
+  const tableImage = node.type === "table" ? tableImages?.get(node) : undefined;
+  if (tableImage)
+    return <div style={{ ...margin, lineHeight: 0 }}><img src={tableImage.src} alt={tableImage.alt} width={tableImage.width}
+      style={{ display: "block", width: "100%", maxWidth: tableImage.width, height: "auto" }} /></div>;
   if (node.type === "table")
     return <table style={portable ? { ...margin, borderCollapse: "collapse", width: "100%" } : undefined}><tbody>{children}</tbody></table>;
   if (node.type === "tableRow") return <tr>{children}</tr>;
@@ -141,12 +168,12 @@ function renderNode(
     );
   return children;
 }
-export function PortableDocumentBody({ document, mediaUrls, videoLinksOnly = false }: {
-  document: WriterDocument; mediaUrls: Record<string, string>; videoLinksOnly?: boolean;
+export function PortableDocumentBody({ document, mediaUrls, videoLinksOnly = false, tableImages }: {
+  document: WriterDocument; mediaUrls: Record<string, string>; videoLinksOnly?: boolean; tableImages?: TableImages;
 }) {
   return <div lang={document.locale} style={{ color: "#111", fontFamily: fontFamily(document.defaultFont),
     fontSize: "19.3642px", lineHeight: 1.4, fontWeight: 400, letterSpacing: "-0.1px",
-    whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{renderNode(document.content, mediaUrls, true, "", videoLinksOnly)}</div>;
+    whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{renderNode(document.content, mediaUrls, true, "", videoLinksOnly, tableImages)}</div>;
 }
 export function DocumentPreview({
   document,
