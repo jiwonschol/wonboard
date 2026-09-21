@@ -77,6 +77,10 @@ export function replaceCurrent(editor: Editor, replacement: string) {
   if (replacement) tr.insertText(replacement, match.from, match.to);
   else tr.delete(match.from, match.to);
   editor.view.dispatch(tr);
+  // 바꾼 글자가 다시 검색어와 맞아도(foo → FOO) 그 뒤의 항목으로 넘어간다.
+  const after = match.from + replacement.length;
+  const next = findState(editor).matches.findIndex(item => item.from >= after);
+  editor.view.dispatch(editor.state.tr.setMeta(findKey, { current: Math.max(next, 0) }));
   reveal(editor);
 }
 /** 모두 바꾸기는 한 트랜잭션이라 실행 취소 한 번으로 되돌아간다. */

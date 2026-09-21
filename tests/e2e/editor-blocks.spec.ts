@@ -255,3 +255,16 @@ test("copied text box and table keep their color and cells when pasted back", as
   await page.reload();
   await expect(bodyOf(page).locator(".wb-text-box")).toHaveCSS("background-color", "rgb(232, 243, 255)");
 });
+
+test("replace moves on even when the replacement still matches", async ({ page }) => {
+  await page.goto("/");
+  const body = bodyOf(page);
+  await body.click();
+  await page.keyboard.type("cat cat cat");
+  await page.keyboard.press("ControlOrMeta+f");
+  const find = page.getByRole("search", { name: "Find" });
+  await find.getByRole("textbox", { name: "Find" }).fill("cat");
+  await find.getByRole("textbox", { name: "Replace with" }).fill("cats");
+  for (let i = 0; i < 3; i++) await find.getByRole("button", { name: "Replace", exact: true }).click();
+  await expect(body).toHaveText("cats cats cats");
+});

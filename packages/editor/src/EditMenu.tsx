@@ -3,6 +3,7 @@ import type { Editor } from "@tiptap/core";
 import type { Locale } from "@wonboard/document";
 import { translator, type MessageKey } from "@wonboard/locales";
 import { Icon } from "./icons";
+import { looksLikeMarkdown, markdownToHtml } from "./markdown";
 import { applyVariant, currentVariant, hasTextSelection, isBlockType, turnInto, turnIntoTypes, unwrapTextBox, variants } from "./blockActions";
 
 /** 데스크톱 앱만 주는 기능. 웹에는 Shift+우클릭으로 여는 브라우저 메뉴가 같은 일을 한다. */
@@ -62,7 +63,11 @@ export function EditMenu({ editor, locale, target, desktop, onClose }: {
           return onClose();
         }
         if (item.types.includes("text/plain")) {
-          editor.view.pasteText(await (await item.getType("text/plain")).text());
+          // 단축키 붙여넣기와 같은 규칙으로 마크다운만 서식으로 바꾼다.
+          const text = await (await item.getType("text/plain")).text();
+          if (looksLikeMarkdown(text) && !editor.state.selection.$from.parent.type.spec.code)
+            editor.view.pasteHTML(markdownToHtml(text));
+          else editor.view.pasteText(text);
           return onClose();
         }
       }
@@ -97,8 +102,8 @@ export function EditMenu({ editor, locale, target, desktop, onClose }: {
         </div>
       ) : null}
       <div role="group">
-        {item(t("cut"), () => clipboard("cut"), { disabled: !selected })}
-        {item(t("copy"), () => clipboard("copy"), { disabled: !selected })}
+        {item(t("cut"), () => clipboard("cut"), { disabled: editor.state.selection.empty })}
+        {item(t("copy"), () => clipboard("copy"), { disabled: editor.state.selection.empty })}
         {item(t("paste"), () => void paste())}
       </div>
       {notice ? <p className="edit-menu-note" role="status">{notice}</p> : null}

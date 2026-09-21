@@ -81,7 +81,10 @@ export function Inspector({
           <button
             className="reset-section"
             onClick={() => {
-              editor.chain().focus().resetAttributes(type, attributes).run();
+              // 드래그한 글자에 적용한 스타일·배경은 글자 서식에 있으므로 그쪽을 지운다.
+              if (selected && key !== "typography")
+                editor.chain().focus().setMark("textStyle", key === "styles" ? { variant: null } : { highlight: null }).run();
+              else editor.chain().focus().resetAttributes(type, attributes).run();
               setSectionOptions(null);
             }}
           >
