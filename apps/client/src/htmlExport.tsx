@@ -1,8 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { PortableDocumentBody } from "@wonboard/renderer";
+import { PortableDocumentBody, type TableImages } from "@wonboard/renderer";
 import { attachmentNodes, referencedFileIds, validateDocument, type WriterDocument } from "@wonboard/document";
 
-export function exportHtml(document: WriterDocument, mediaUrls: Record<string, string>) {
+export function exportHtml(document: WriterDocument, mediaUrls: Record<string, string>, tableImages?: TableImages) {
   validateDocument(document);
   for (const id of referencedFileIds(document.content)) {
     const value = mediaUrls[id];
@@ -18,5 +18,5 @@ export function exportHtml(document: WriterDocument, mediaUrls: Record<string, s
     if (!["https:", "http:"].includes(url.protocol) || url.username || url.password)
       throw new Error("invalidLink");
   }
-  return renderToStaticMarkup(<PortableDocumentBody document={document} mediaUrls={mediaUrls} />);
+  return renderToStaticMarkup(<PortableDocumentBody document={document} mediaUrls={mediaUrls} tableImages={tableImages} />);
 }

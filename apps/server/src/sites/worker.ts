@@ -7,6 +7,7 @@ import type { SitesEnv } from "./types";
 import { ownerFiles, sharedFile, documentFile } from "./files";
 import { photoVariantKey, storePhotoVariant } from "./photoObjects";
 import { ownerSnapshots, publicSnapshot } from "./snapshots";
+import { tableImageId, tableNodes } from "@wonboard/renderer";
 
 type StoredMedia = { id: string; hash: string; mime: string; size: number; width: number; height: number };
 type Publication = { public_id: string; document_id: string; media_id: string;
@@ -51,6 +52,11 @@ async function loadDocument(env: SitesEnv, id: string, missingStatus = 404) {
 function imageIds(document: WriterDocument) {
   return [...new Set(attachmentNodes(document.content)
     .filter(n => n.type === "media").map(n => String(n.attrs?.mediaId)))];
+}
+/** 게시판용으로 그림으로 바꾼 표. 사진과 같은 게시 기록에 표 내용의 해시로 올린다. */
+async function tableIds(document: WriterDocument) {
+  return [...new Set(await Promise.all(tableNodes(document.content)
+    .map(node => tableImageId(node, document.defaultFont))))];
 }
 async function installation(env: SitesEnv) {
   return env.DB.prepare("SELECT owner_id, accepted_at FROM installation WHERE singleton = 1")
@@ -256,7 +262,8 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
     const variant = /^media\/([^/]+)\/variant$/.exec(action ?? "");
     if (variant && validId(variant[1]) && request.method === "PUT") {
       const document = await loadDocument(env, id);
-      if (!imageIds(document).includes(variant[1])) throw new HttpError(400, "missingMedia");
+      if (!imageIds(document).includes(variant[1]) && !(await tableIds(document)).includes(variant[1]))
+        throw new HttpError(400, "missingMedia");
       const image = await readImage(request);
       await storePhotoVariant(env, id, variant[1], image);
       return json({ hash: image.hash });
@@ -289,6 +296,27 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
         if (!object || !["image/png", "image/jpeg"].includes(mime ?? "")) throw new HttpError(400, "missingMedia");
         publications.push([crypto.randomUUID(), id, mediaId, key, mime!, attachmentFilename(document, mediaId)]);
       }
+      // 표를 그림으로 내보낼 때만 온다. 값이 "existing"이면 이미 게시한 같은 표의 그림을 다시 쓴다.
+      const tables = body.tables === undefined ? [] : await tableIds(document);
+      if (body.tables !== undefined && (!body.tables || typeof body.tables !== "object" ||
+          Object.keys(body.tables).length !== tables.length)) throw new HttpError(400, "missingMedia");
+      for (const [index, tableId] of tables.entries()) {
+        const hash = body.tables[tableId];
+        let key: string | null = null;
+        if (hash === "existing") {
+          const row = await env.DB.prepare("SELECT blob_key, mime FROM publications WHERE document_id = ? AND media_id = ?")
+            .bind(id, tableId).first<Pick<Publication, "blob_key" | "mime">>();
+          if (row?.mime === "image/png") key = row.blob_key;
+        } else if (typeof hash === "string" && /^[a-f0-9]{64}$/.test(hash)) {
+          key = await photoVariantKey(env, id, tableId, hash);
+          const object = await env.MEDIA.get(key);
+          if (object) await object.body.cancel();
+          if (object?.httpMetadata?.contentType !== "image/png") key = null;
+        }
+        if (!key) throw new HttpError(400, "missingMedia");
+        publications.push([crypto.randomUUID(), id, tableId, key, "image/png", `table-${index + 1}.png`]);
+      }
+      ids.push(...tables);
       // All photos share a single SQLite statement clock. Separate statements
       // could straddle expiry and commit only part of a document's publication.
       if (publications.length) {

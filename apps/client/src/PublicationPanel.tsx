@@ -5,6 +5,7 @@ import type { FileShare } from "./fileLibrary";
 import { translator } from "@wonboard/locales";
 import { prepareImageVariants, publishImages, publications, type Publication } from "./publishing";
 import { sitesRequest } from "./draftRepository";
+import { tableNodes } from "@wonboard/renderer";
 
 export function PublicationPanel({ locale, documentId, save, snapshot, canPublish, onBusy, onClose }: {
   locale: Locale; documentId: string; save(): Promise<boolean>; snapshot(): Draft | null;
@@ -13,6 +14,9 @@ export function PublicationPanel({ locale, documentId, save, snapshot, canPublis
 }) {
   const t = translator(locale);
   const [accepted, setAccepted] = useState(false);
+  // 표가 있는 글에서만 묻는다. 표를 지원하지 않는 게시판을 판별할 수 없어 사용자가 고른다.
+  const [hasTables] = useState(() => { const draft = snapshot(); return Boolean(draft && tableNodes(draft.document.content).length); });
+  const [tablesAsImages, setTablesAsImages] = useState(false);
   const [working, setWorking] = useState(false);
   const [items, setItems] = useState<Publication[]>([]);
   const [html, setHtml] = useState("");
@@ -51,10 +55,11 @@ export function PublicationPanel({ locale, documentId, save, snapshot, canPublis
         fileUrls[id] = new URL(share.url, location.origin).href;
       }
     }
-    const urls = { ...await publishImages(draft), ...fileUrls };
+    const published = await publishImages(draft, tablesAsImages);
+    const urls = { ...published.urls, ...fileUrls };
     // The HTML serializer is needed only after an explicit export action.
     const { exportHtml } = await import("./htmlExport");
-    setHtml(exportHtml(draft.document, urls));
+    setHtml(exportHtml(draft.document, urls, published.tableImages));
     draftText.current = plainText(draft.document.content);
     setItems(await publications(documentId));
     setMessage(t("publishReady"));
@@ -94,6 +99,9 @@ export function PublicationPanel({ locale, documentId, save, snapshot, canPublis
     <header><h2 id="publication-title">{t("prepareExport")}</h2><button disabled={working} onClick={onClose}>{t("close")}</button></header>
     <p>{t("publishNotice")}</p>
     <label className="sites-consent"><input type="checkbox" checked={accepted} disabled={working} onChange={e => setAccepted(e.target.checked)} />{t("publishAccept")}</label>
+    {hasTables ? <label className="sites-consent"><input type="checkbox" checked={tablesAsImages} disabled={working}
+      onChange={e => setTablesAsImages(e.target.checked)} />{t("tablesAsImages")}</label> : null}
+    {hasTables && tablesAsImages ? <p>{t("tablesAsImagesNotice")}</p> : null}
     <button className="publish-button" disabled={!accepted || working || !canPublish()} onClick={() => void run(publish)}>{t(working ? "saving" : "publishImages")}</button>
     <section aria-label={t("sharedWriting")}><p>{t("snapshotNotice")}</p>
       <label>{t("shareExpiry")}<input type="datetime-local" disabled={working} value={writingExpiry} onChange={event => setWritingExpiry(event.target.value)} /></label>
