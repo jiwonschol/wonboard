@@ -1,10 +1,12 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { PortableDocumentBody, type TableImages } from "@wonboard/renderer";
+import { PortableDocumentBody, withoutNodes, type TableImages } from "@wonboard/renderer";
 import { attachmentNodes, referencedFileIds, validateDocument, type WriterDocument } from "@wonboard/document";
 
 export function exportHtml(document: WriterDocument, mediaUrls: Record<string, string>, tableImages?: TableImages) {
   validateDocument(document);
-  for (const id of referencedFileIds(document.content)) {
+  // 그림으로 바꾼 표 안의 파일 링크는 HTML에 남지 않으므로 공개 주소를 요구하지 않는다.
+  const exported = tableImages?.size ? withoutNodes(document.content, node => tableImages.has(node)) : document.content;
+  for (const id of referencedFileIds(exported)) {
     const value = mediaUrls[id];
     if (!value) throw new Error("privateFile");
     const url = new URL(value);

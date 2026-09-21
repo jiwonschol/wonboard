@@ -5,7 +5,7 @@ import type { FileShare } from "./fileLibrary";
 import { translator } from "@wonboard/locales";
 import { prepareImageVariants, publishImages, publications, type Publication } from "./publishing";
 import { sitesRequest } from "./draftRepository";
-import { tableNodes } from "@wonboard/renderer";
+import { tableNodes, withoutNodes } from "@wonboard/renderer";
 
 export function PublicationPanel({ locale, documentId, save, snapshot, canPublish, onBusy, onClose }: {
   locale: Locale; documentId: string; save(): Promise<boolean>; snapshot(): Draft | null;
@@ -49,7 +49,8 @@ export function PublicationPanel({ locale, documentId, save, snapshot, canPublis
     const draft = snapshot();
     if (!draft || draft.document.documentId !== documentId) throw new Error("storageFailed");
     const fileUrls: Record<string, string> = {};
-    const fileIds = referencedFileIds(draft.document.content);
+    // 표를 그림으로 내보내면 표 안의 파일 링크는 결과에 남지 않는다. 공개 공유가 없어도 막지 않는다.
+    const fileIds = referencedFileIds(tablesAsImages ? withoutNodes(draft.document.content, node => node.type === "table") : draft.document.content);
     if (fileIds.length) {
       const shares: FileShare[] = await (await sitesRequest("/api/file-shares")).json();
       for (const id of fileIds) {

@@ -19,6 +19,10 @@ export function tableNodes(node: ContentNode): ContentNode[] {
   if (node.type === "table") return [node];
   return (node.content ?? []).flatMap(tableNodes);
 }
+/** `drop`이 참인 노드를 뺀 사본. 그림으로 바뀌는 표 안의 파일 링크처럼 결과에 남지 않는 것을 거를 때 쓴다. */
+export function withoutNodes(node: ContentNode, drop: (node: ContentNode) => boolean): ContentNode {
+  return node.content ? { ...node, content: node.content.filter(child => !drop(child)).map(child => withoutNodes(child, drop)) } : node;
+}
 /** 한 번의 내보내기에서 그림으로 바꾸는 표의 상한. 문서당 사진 한도와 같은 규모로 둔다. */
 export const maxTableImages = 50;
 // 그리는 방식이나 글꼴 파일이 바뀌면 올린다. 바뀌지 않은 표도 새로 그려 예전 그림을 계속 쓰지 않게 한다.

@@ -1,7 +1,7 @@
 import { attachmentNodes, withoutUnusedMedia, type Draft } from "@wonboard/document";
 import { maxTableImages, tableImageId, tableNodes, type TableImage } from "@wonboard/renderer";
 import { sitesRequest } from "./draftRepository";
-import { renderTableImage, tableAlt } from "./tableImage";
+import { renderTableImage, tableAlt, tableImageWidth } from "./tableImage";
 
 export type Publication = { mediaId: string; publicId: string; published: boolean; url: string };
 export async function publications(documentId: string): Promise<Publication[]> {
@@ -41,7 +41,7 @@ async function prepareTableImages(draft: Draft) {
   const { documentId, content, defaultFont } = draft.document;
   const published = new Set((await publications(documentId)).map(item => item.mediaId));
   const tables: Record<string, string> = {}, images: { node: typeof content; id: string; alt: string; width: number }[] = [];
-  for (const node of tableNodes(content)) images.push({ node, id: await tableImageId(node, defaultFont), alt: tableAlt(node), width: 720 });
+  for (const node of tableNodes(content)) images.push({ node, id: await tableImageId(node, defaultFont), alt: tableAlt(node), width: tableImageWidth(node) });
   // 올리기 전에 막는다. 표가 많은 글이 공개 그림 수천 개를 만들지 않게 한다.
   if (new Set(images.map(image => image.id)).size > maxTableImages) throw new Error("tooManyTables");
   for (const { node, id } of images) {
