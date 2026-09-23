@@ -19,6 +19,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          package-manager-cache: false  # pnpm은 다음 단계 corepack이 켠다
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
