@@ -73,6 +73,11 @@ test('English grammar candidates repair attested constructions without changing 
     ['The page loads millions of URL each day.', 'millions of URLs'],
     ['He thinks he is a expert.', 'an expert'],
     ['The service includes an "takeout" feature.', 'a "takeout'],
+    ["Its a paid add-on.","It's"],
+    ["I think its been useful.","it's"],
+    ['Nobody wants to treated as a fool.','to be treated as'],
+    ['This will make it sounds better.','make it sound'],
+    ['This has changed in past 10 years.','in the past 10 years'],
   ])assert.ok(check(source).some(f=>f.type===(['paid','natural','Chinese'].includes(target)?'spelling':'grammar')&&f.suggestions.includes(target)),source);
   for(const source of [
     'I am here. We can build it.', 'I wonder what you will do next.',
@@ -92,11 +97,12 @@ test('English grammar candidates repair attested constructions without changing 
     "The LLM's output is useful. It's basically useless otherwise.",
     'Should we be worried? I mentioned it. Two URLs were saved.',
     'An expert built a takeout feature. The team finished the task.',
+    "It's a useful addition. Its benefits have been clear in the past 10 years.",
   ])assert.equal(check(source).filter(f=>f.type==='grammar').length,0,source);
 });
 
 test('reviewed English words and names are recognized without granting arbitrary unknown words',()=>{
-  for(const word of ['minecraft','railgun','randomisation','etc','NDAs','cm','dxf','Pareto','decompiled','subfunctions','Voxile','non-technical','internet','runtime','schelling']){
+  for(const word of ['minecraft','railgun','randomisation','etc','NDAs','cm','dxf','Pareto','decompiled','subfunctions','Voxile','non-technical','internet','runtime','schelling','Ayn','re-add','RSS','woulda','dem','non-programmers','SPSS','numpy','coursework','xlookup','multivalue','scrollbars','normalisation']){
     assert.equal(check(word).some(f=>f.applicable),false,word);
   }
   assert.equal(check('custome languages').find(f=>f.original==='custome')?.suggestions[0],'custom');

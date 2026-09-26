@@ -19,6 +19,9 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b[Ii]ts\b(?=\s+(?:fun|fine|okay|ok|great)\b(?:\s*(?:[.!?]|[:;][)(DP]|$)))/g)){
     add(match.index,match.index+match[0].length,match[0][0]==='I'?"It's":"it's",'The following adjective needs the contraction it is');
   }
+  for(const match of text.matchAll(/\b[Ii]ts\b(?=\s+(?:a|an|been)\b)/g)){
+    add(match.index,match.index+match[0].length,match[0][0]==='I'?"It's":"it's",'It is or it has needs a contraction here');
+  }
   for(const match of text.matchAll(/\bit['’]s\b(?=\s+(?:account|owner|name|title|role|users|settings|source|purpose|tail|tool)\b)/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='I'?'Its':'its','A possessive determiner before this noun has no apostrophe');
   }
@@ -35,6 +38,15 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(?:can|could|should|would|may|might|must|will)\s+(?:built|went|did|was|were)\b/gi)){
     const words=match[0].split(/\s+/),replacement=words[0]+' '+modalForms.get(words[1].toLowerCase());
     add(match.index,match.index+match[0].length,replacement,'A modal verb takes the base form of the following verb');
+  }
+  for(const match of text.matchAll(/\bto treated as\b/gi)){
+    add(match.index,match.index+match[0].length,match[0].replace(/ treated as$/i,' be treated as'),'A passive infinitive needs be');
+  }
+  for(const match of text.matchAll(/\bmake it sounds\b/gi)){
+    add(match.index,match.index+match[0].length,match[0].replace(/sounds$/i,'sound'),'Make takes a bare infinitive after its object');
+  }
+  for(const match of text.matchAll(/\bin past (\d+ years?)\b/gi)){
+    add(match.index,match.index+match[0].length,'in the past '+match[1],'This time phrase uses the before past');
   }
   for(const match of text.matchAll(/\ba few hundreds\b(?!\s+of)/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/hundreds$/i,'hundred'),'A few is followed by the uninflected hundred');

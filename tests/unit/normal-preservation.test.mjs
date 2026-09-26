@@ -1429,5 +1429,5 @@ test('counted kinds and place names keep independent noun boundaries',()=>{
 });
 
 test('reviewed gaming slang does not become a different ordinary word',()=>{
-  for(const source of ['모루저가','샛기는','개빡세네'])assert.ok(!check(source).some(f=>f.applicable),source);
+  for(const source of ['모루저가','샛기는','개빡세네','도화가랑','클영상은','할모시','클리어임'])assert.ok(!check(source).some(f=>f.applicable),source);
 });
