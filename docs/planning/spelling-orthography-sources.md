@@ -1,5 +1,15 @@
 # 표기 규칙 출처 / 2026-09-10
 
+## 2026-09-26 공개 문장 후속 확인
+
+[국립국어원 -는구나 답변](https://korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=98&pageIndex=1&qna_seq=327042), [-고 나서 답변](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=261&pageIndex=1&qna_seq=321071), [-고 있다 보조 용언 답변](https://korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=98&pageIndex=1&qna_seq=331002)을 확인했다. 공개 글에서 드러난 누락을 기존 어간과 연결형 검증에 한정해 보완했다. 원문이나 사전 정의를 배포 데이터로 복제하지 않았다.
+
+[한국어기초사전 남아돌다](https://krdict.korean.go.kr/m/eng/searchResultView?ParaWordNo=37337&currentPage=1&exaType=&font_size=12&mainSearchWord=%EB%8F%8C%EB%8B%A4&nation=eng&nationCode=6&proverbType=&searchType=W&sort=W&viewType=A&wordMatchFlag=N)와 [남아돈다 용례](https://krdict.korean.go.kr/kor/dicSearch/SearchView?ParaWordNo=27559), [국립국어원 의존 명사 게 답변](https://m.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=314310)을 대조했다. 이미 허용된 ㄹ 받침 동사 어간의 현재형 -ㄴ다를 생성해 `남아돈다`를 보존하고 `남아돈다는 게` 경계를 찾는다. 같은 어미를 형용사에는 적용하지 않는다.
+
+[국립국어원 안 되고 답변](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=&pageIndex=1&qna_seq=277552)은 `돼고`가 `되고`의 잘못된 표기이고 부정 부사 `안`을 앞에 띄는 예를 명시한다. 교정 후 완전한 용언이 분석되는 경우만 후보로 내고 `안돼고`의 첫 후보를 `안 되고`로 둔다.
+
+[국립국어원 2026년 뻔하다 답변](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=326735)은 `-ㄹ 뻔하다`의 띄어쓰기를 원칙으로, 경우에 따라 붙여 쓰기도 허용한다고 설명한다. 따라서 붙임 형태 자체를 오류로 신고하지 않는다. 다중 경계 표본의 뻔 앞 공백은 독립 필수 교정으로 계산하지 않는다.
+
 ## 스펙 표기
 
 [국립국어원 온라인가나다 306215](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=306215)는 영어 `spec`의 한글 표기를 `스펙`으로 안내한다. 공통 인식 목록에는 `스펙`을 두고 `스팩`은 수정 후보로 제안한다. 원문과 사전 정의를 배포 자료에 복제하지 않았다. 이미 검사 결과에 노출된 개발 자료의 점수는 독립 품질 증거가 아니다.
@@ -718,3 +728,7 @@ Luna 두 역할이 이뻐→예뻐를 필수 수정으로 제안한 것은 [국�
 [국립국어원 교육 자료](https://www.korean.go.kr/common/download.do%3Bfront%3D052E464FB4F4D9E2EB12B90C4EBF3EC6?c_file_name=b29c6837-dee9-4f2a-918e-3f8edbb3c46a_0.pdf&file_path=reportData&o_file_name=%EC%84%B8%EC%A2%85%ED%95%9C%EA%B5%AD%EC%96%B4+2+%EA%B5%90%EC%9B%90%EC%9A%A9+%EC%A7%80%EC%B9%A8%EC%84%9C.pdf)는 이동 표현 `갔다 오다`를 별도 말로 제시한다. 이를 기존 완성 용언 두 개에 한정해 분리한다.
 
 실전 게시글에서 `놀림받지만`을 잘못 띄우라고 한 후보를 발견했다. [국립국어원 상담 사례](https://www.korean.go.kr/front/mcfaq/mcfaqView.do?mcfaq_seq=5869&mn_id=217&pageIndex=1)는 `놀림받다`를 접미사 결합으로 붙여 쓰도록 명시한다. 제한된 `-받다` 파생 목록에 `놀림`을 더해 전체 활용을 보존한다.
+
+## 공개 글 판정 감사: 좀더의 허용 붙임
+
+[국립국어원 온라인가나다 320875](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=320875&searchCondition=&searchKeyword=)는 한글 맞춤법 제46항의 연속 단음절어 예에서 `좀 더`가 원칙이고 `좀더`도 허용된다고 설명한다. 공개 글 평가표의 `좀더→좀 더`는 필수 교정으로 세지 않는다. 검사기에 이를 강제하는 규칙도 넣지 않는다. 원래 평가표와 첫 결과는 사후 수정하지 않고 감사판에서 분모를 조정한다.

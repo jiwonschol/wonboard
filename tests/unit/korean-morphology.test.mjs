@@ -18,6 +18,24 @@ test('particle typo composes a unique noun boundary without altering registered 
 });
 import {createMorphology} from '../../packages/editor/src/proofreading/korean-morphology.mjs';
 
+test('public prose keeps complete endings and finds validated multiword boundaries',()=>{
+  for(const text of ['버는구나','햇빛','멜론','통째로','남아돈다는 게','먹을뻔했다'])assert.deepEqual(check(text),[],text);
+  for(const [source,target] of [
+    ['결혼하고나서','결혼하고 나서'],['해야만하는','해야만 하는'],
+    ['운동안하고','운동 안 하고'],['정리해보고있습니다','정리해보고 있습니다'],
+    ['집어올뻔했다','집어 올뻔했다'],['먹고있다','먹고 있다'],
+    ['남아돈다는게','남아돈다는 게'],
+  ])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
+});
+
+test('past ending repairs combine with word boundaries and leave unrelated nouns intact',()=>{
+  for(const [source,target] of [
+    ['불안햇던','불안했던'],['싶엇다','싶었다'],['살고싶엇다','살고 싶었다'],
+    ['메론은','멜론은'],['통채로','통째로'],['안돼고','안 되고'],
+  ])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
+  for(const text of ['햇볕','햇빛','멜론은','통째로','안 되고','되고'])assert.deepEqual(check(text),[],text);
+});
+
 test('ro particle allomorphs preserve known nouns without licensing arbitrary endings',()=>{
   for(const text of ['이후로도','학교로도','길로도','학교로서도','학교로만'])assert.deepEqual(check(text),[],text);
   const sets={noun:new Set(['학교','길','책']),verb:new Set(),adjective:new Set(),adverb:new Set(),ending:new Set(),josa:new Set(['으로도','으로서도','으로만'])};
@@ -444,6 +462,21 @@ test('spelling uses decomposed Hangul without changing source offsets',()=>{
 test('ending versus dependent noun ambiguity is exposed',()=>{
   assert.equal(check('하시는걸')[0].ambiguous,true);
 });
+test('ambiguous Korean boundaries preserve the intended reading and lexical names',()=>{
+  const joined=check('교회가야해서').find(f=>f.original==='교회가야해서');
+  assert.deepEqual(joined?.suggestions,['교회 가야 해서']);
+  assert.equal(joined?.ambiguous,true);
+  assert.deepEqual(check('교회가 야해서'),[]);
+
+  const enumeration=check('아이등 가족손님으로');
+  const childEtc=enumeration.find(f=>f.original==='아이등');
+  assert.deepEqual(childEtc?.suggestions,['아이 등']);
+  assert.equal(childEtc?.ambiguous,true);
+  assert.equal(enumeration.some(f=>f.original==='님으로'||f.suggestions.some(s=>s.includes('님으로'))),false);
+
+  assert.equal(check('한살림이 오픈됐어요').some(f=>f.original==='한살림이'),false);
+  assert.deepEqual(check('한 살림이 필요하다'),[]);
+});
 test('finite endings, plural nouns and permitted auxiliary spelling stay intact',()=>{
   for(const text of ['시작합니다','기다릴게요','남았어요','아이들이','문을 열어주세요.','알려주려고','알려주면','읽어보려고','오리보스는','어둠땅은'])assert.equal(check(text).filter(f=>f.suggestions.length).length,0,text);
 });
@@ -653,4 +686,37 @@ test('polite connective endings and jeok derivatives retain their boundaries',()
   assert.ok(check('학교에갔어요').some(f=>f.suggestions.includes('학교에 갔어요')));
   assert.ok(check('질게에서').some(f=>f.type==='unknown'));
   for(const [source,target]of [['달아줘야해서요','달아줘야 해서요'],['만들어야하는데','만들어야 하는데']])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
+});
+
+test('native duration plus degree separates only the mandatory degree boundary',()=>{
+  for(const [source,target]of [['한시간정도','한시간 정도'],['두달정도만','두달 정도만'],['세시간정도는','세시간 정도는']]){
+    assert.ok(check(source).some(f=>f.original===source&&f.suggestions[0]===target),source);
+    assert.ok(!check(source,[source]).some(f=>f.applicable),source);
+  }
+  assert.equal(check('한 시간 정도').filter(f=>f.applicable).length,0);
+  assert.ok(!check('한시간정도쯤').some(f=>f.suggestions.includes('한시간 정도쯤')));
+});
+
+test('independent all-adverb precedes validated adjective inflections without splitting names',()=>{
+  for(const [source,target]of [['다좋은데','다 좋은데'],['다좋아요','다 좋아요']])assert.ok(check(source).some(f=>f.original===source&&f.suggestions[0]===target),source);
+  for(const source of ['다크','다크한','다음','다 좋은데'])assert.equal(check(source).filter(f=>f.applicable).length,0,source);
+  assert.deepEqual(check('다좋은데',['다좋은데']),[]);
+});
+
+test('context resolves negative adnominal against a recognized noun homograph',()=>{
+  for(const [source,word,target]of [['집엔 안가는 법이지','안가는','안 가는'],['학교에 못가는 날','못가는','못 가는']]){
+    assert.ok(check(source).some(f=>f.original===word&&f.suggestions[0]===target),source);
+  }
+  for(const source of ['안가는','안가는 법이지','집엔 안보이는 법이지','집엔 안내는 법이지','집엔 `안가는` 법이지'])assert.equal(check(source).filter(f=>f.applicable).length,0,source);
+  assert.equal(check('집엔 안가는 법이지',['안가는']).filter(f=>f.applicable).length,0);
+});
+
+test('consecutive particles attach to a nominal while elapsed-time man remains separate',()=>{
+  for(const [source,target]of [['본인 만이 아니라','본인만이'],['학생 만이','학생만이']])assert.ok(check(source).some(f=>f.original===source.slice(0,target.length+1)&&f.suggestions[0]===target),source);
+  for(const source of ['본인만이 아니라','십 년 만이 아니다','10년 만이 아니다','두 달 만이 아니다','일주일 만이 아니다','열흘 만이 아니다','닷새 만이 아니다','세 주일 만이 아니다','오랜 만이'])assert.equal(check(source).filter(f=>f.applicable).length,0,source);
+  assert.equal(check('`본인 만이`').filter(f=>f.applicable).length,0);
+});
+
+test('rule 46 permits joined short adverbs as an author variant',()=>{
+  for(const source of ['좀더 선명하고요','좀 더 선명하고요'])assert.equal(check(source).filter(f=>f.applicable).length,0,source);
 });

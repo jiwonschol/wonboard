@@ -11,7 +11,7 @@ export const communityNominalOnly = ['님', '얼리버드', '좋아요', '싫어
 export const technicalAbbreviations = ['CPU', 'GPU', 'SNS', 'RSS'];
 // Reviewed English forms absent from the small bundled word list. Recognition
 // only: these do not become edit-distance correction targets.
-export const englishRecognizedTerms = ['minecraft', 'railgun', 'randomisation', 'etc', 'ndas', 'cm', 'dxf', 'pareto', 'decompiled', 'subfunctions', 'voxile', 'non-technical', 'non-obvious', 're-stating', 'greps', 'mins', 'ok', 'softcores', 'dbase', 'vdos', 'unix', 'mhz', 'pcie', 'runtime', 'dialup', 'internet', 'llm', 'llms', 'slaughterbots', 'devops', 'captcha', 'stateful', 'openai', 'schelling', 'cli', 'imo', 'adversarially', 'codebase', 'frontend', 'micro-manage', 'readonly', 'env', 'gpt', 'refactor', 'off-guard', 'midwits', 're-reads', 'claude', 'tmp', 'dir', 'omp', "astra's", 'jev', 'backend', 'elmo', 're-training', 'trade-off', 'qwen', 'laya', 'real-time', 'multi', 'reranker', 'multiclass', 'vibed', 'idk', 'reddit', 'hominem', 'ollama', 'infringey', 'eval', 'grep', 'sandboxed', 'christmas', 'imho', 'hostname', 'xen', 'untrusted', 'non-stop', 'priori', 'async', 'lego', 'non-deterministic', 'non-trivial', 'ayn', 're-add', 'woulda', 'dem', 'non-programmers', 'spss', 'numpy', 'coursework', 'xlookup', 'multivalue', 'scrollbars', 'normalisation'];
+export const englishRecognizedTerms = ['minecraft', 'railgun', 'randomisation', 'etc', 'ndas', 'cm', 'dxf', 'pareto', 'decompiled', 'subfunctions', 'voxile', 'non-technical', 'non-obvious', 're-stating', 'greps', 'mins', 'ok', 'softcores', 'dbase', 'vdos', 'unix', 'mhz', 'pcie', 'runtime', 'dialup', 'internet', 'llm', 'llms', 'slaughterbots', 'devops', 'captcha', 'stateful', 'openai', 'schelling', 'cli', 'imo', 'adversarially', 'codebase', 'frontend', 'micro-manage', 'readonly', 'env', 'gpt', 'refactor', 'off-guard', 'midwits', 're-reads', 'claude', 'tmp', 'dir', 'omp', "astra's", 'jev', 'backend', 'elmo', 're-training', 'trade-off', 'qwen', 'laya', 'real-time', 'multi', 'reranker', 'multiclass', 'vibed', 'idk', 'reddit', 'hominem', 'ollama', 'infringey', 'eval', 'grep', 'sandboxed', 'christmas', 'imho', 'hostname', 'xen', 'untrusted', 'non-stop', 'priori', 'async', 'lego', 'non-deterministic', 'non-trivial', 'ayn', 're-add', 'woulda', 'dem', 'non-programmers', 'spss', 'numpy', 'coursework', 'xlookup', 'multivalue', 'scrollbars', 'normalisation', 'rtmp', 'config', 'restreaming', 'duckdns', 'ints', 'initializers', 'png', 'sudo', 'pkg', 'yaml'];
 // Verified lexical stems missing from the selected inventory.
 export const communityVerbStems = ['개기'];
 export const communityAdjectiveStems = ['찰떡같', '불꽃같', '푹신푹신하', '개빡세'];
@@ -39,7 +39,7 @@ export const candidatePhraseBoundaries = [
   ['안보이더군요', '안 보이더군요'], ['안보이는쪽이라', '안 보이는 쪽이라'],
   ['언제했는지', '언제 했는지'], ['위안삼고', '위안 삼고'],
   ['구입한지', '구입한 지'], ['수세기에', '수 세기에'],
-  ['살돈이면', '살 돈이면'], ['좀더', '좀 더'],
+  ['살돈이면', '살 돈이면'],
   ['다음날', '다음 날'], ['천년', '천 년'],
   ['십여년', '십여 년'], ['이틀차라', '이틀 차라'],
   ['제품간', '제품 간'], ['별다섯개', '별 다섯 개'],

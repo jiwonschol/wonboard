@@ -21,6 +21,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   // Independently verified lexical stem missing from the selected subset.
   // XR roots are not all licensed to combine with 하다.
   const roots=new Set([...sets.verb,...sets.adjective,'말하','구하','그러','유의미하','만하','듯하','뻔하','고민되','아니','받들','못하']);
+  const recognitionVerbRoots=new Set(data?.recognitionVerbRoots??[]);
   // Recover a lexical -하다 stem only when both regular adnominal forms
   // independently name that root in the supplied Apache morphology data.
   const suppliedForms=new Set((data?.forms??[]).map(([s,e,r])=>s+'\t'+e+'\t'+r));
@@ -93,7 +94,13 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       for(const tail of ['게','게요','까','까요'])add(withFinal(vowelStem,8)+tail,root);
     }
     if(final(root)===0){add(withFinal(root,4),root,true);add(withFinal(root,8),root,true);}
-    else if(final(root)===8){add(withFinal(root,4),root,true);add(root,root,true);}
+    else if(final(root)===8){
+      const present=withFinal(root,4);
+      add(present,root,true);add(root,root,true);
+      // ㄹ drops before present -ㄴ다: 남아돌다 -> 남아돈다. Only
+      // attested verb roots get this form; adjectives cannot use it.
+      if((sets.verb.has(root)||recognitionVerbRoots.has(root))&&!sets.adjective.has(root))add(present+'다',root);
+    }
     add((final(root)===8?withFinal(root,0):root)+'는',root,true);
     // -(으)ㄴ/-(으)ㄹ select an allomorph by the stem's final consonant.
     // Unconditional concatenation invented 가은, 만들을 and 만들는.
@@ -247,6 +254,12 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     return result;
   }
   function analyzePredicate(s) {
+    // The present exclamatory ending -는구나 is attached to a verb. The
+    // supplied forms can recognize -는 alone without its longer ending.
+    if(s.endsWith('는구나')){
+      const present=predicate(s.slice(0,-2));
+      if(present?.adnominal&&(sets.verb.has(present.root)||present.root.endsWith('하')&&actionNouns.has(present.root.slice(0,-1))))return {...present,adnominal:false};
+    }
     // -고프다 is the standard contraction of -고 싶다. Validate both
     // the uninflected host and the complete 고프다 ending; do not split
     // 추천하고픈 into 추천하고 + a coincidental 픈 fragment.
@@ -642,7 +655,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       const lexicalNegative=negativeEnding?(predicate(word)??recognizeWhole?.(word,personal))?.root:null;
       const lexicalNegativeAdjective=lexicalNegative?.endsWith('지않')&&(sets.adjective.has(lexicalNegative)||data?.recognitionAdjectiveRoots?.includes(lexicalNegative));
       const negative=negativeEnding&&!lexicalNegativeAdjective&&predicate(left)?.root!==left;
-      const boundary=negative||left.endsWith('야')&&['하','되'].includes(tail?.root)||left.endsWith('게')&&tail?.root==='되'||emphasis;
+      const boundary=negative||/(?:야|야만)$/.test(left)&&['하','되'].includes(tail?.root)||left.endsWith('게')&&tail?.root==='되'||emphasis;
       if(boundary&&!right.startsWith('겠')&&(predicate(left)||analyze(left,personal)?.kind==='predicate'||emphasis&&(noun(left,personal)?.copula||emphasisHost)))return {text:(negative?(knownAdverbBoundary(left,personal)?.text??left):left)+' '+(nested?.text??right),ambiguous:true,rule:'47'};
     }
     return null;
@@ -667,6 +680,25 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     }
     const adverbBoundary=knownAdverbBoundary(word,personal);
     if(adverbBoundary)return adverbBoundary;
+    // A validated action noun cannot be the beginning of a duration noun
+    // merely because its last syllable resembles 운 + 동안.
+    if(word.length<=64)for(let i=2;i<word.length-2;i++){
+      const base=word.slice(0,i);
+      if(!actionNouns.has(base)||word[i]!=='안'||!predicate(word.slice(i+1)))continue;
+      return {text:base+' 안 '+word.slice(i+1),ambiguous:true,rule:'2'};
+    }
+    // -고 있다 follows a complete predicate, including an optionally
+    // attached auxiliary such as 정리해보고. Retain the author's first gap.
+    for(let i=2;word.length<=64&&i<word.length-1;i++){
+      const left=word.slice(0,i),right=word.slice(i),tail=predicate(right);
+      const attachedBogo=left.endsWith('보고')&&predicate(left.slice(0,-2))&&predicate('보고')?.root==='보';
+      if(left.endsWith('고')&&tail?.root==='있'&&(predicate(left)||auxiliaryBoundary(left,personal)||attachedBogo))return {text:left+' '+right,ambiguous:false,rule:'47'};
+    }
+    // The connective -고 and following 나서 are separate words.
+    if(word.endsWith('고나서')){
+      const left=word.slice(0,-2);
+      if(predicate(left))return {text:left+' 나서',ambiguous:false,rule:'2'};
+    }
     // 수 있다 keeps its boundary even when the preceding adnominal is
     // already separated. 수없다 has a lexical reading and is not included.
     if(word.startsWith('수있')){
@@ -682,11 +714,19 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     // Keep the boundary explicit instead of splitting every adverb compound.
     const together=word.match(/^다(같이|함께)(도|만|는)?$/);
     if(together)return {text:'다 '+together[1]+(together[2]??''),ambiguous:true,rule:'2'};
+    // A complete adjective inflection can follow the independent adverb 다.
+    // Avoid short one-syllable pairs and known whole nouns or proper names.
+    const allAdjective=word.startsWith('다')&&word.length>=4?predicate(word.slice(1)):null;
+    if(allAdjective&&sets.adjective.has(allAdjective.root)&&!knownNominal(word)&&!predicate(word)&&!recognizeWhole?.(word,personal))return {text:'다 '+word.slice(1),ambiguous:true,rule:'2'};
     // The descriptive vocabulary includes 둘다/셋다 as whole forms.
     // A cardinal followed by independent 다 still keeps its word boundary.
     const allCount=word.match(/^(둘|셋|넷|다섯|여섯|일곱|여덟|아홉|열)다(요|는|도|만)?$/);
     if(allCount)return {text:allCount[1]+' 다'+(allCount[2]??''),ambiguous:true,rule:'2'};
     const quantity=word.match(/^(한두|두세|서너|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|스무|몇|여러)(번째|개|장|번|군데|달|시간|조각|권|명|사람|배|마리|살|쪽|줄|잔|병|봉지|그루|켤레|벌|세트|차례|개월|년|분|초|가지|폭|칸|날)(.*)$/);
+    // A native numeral and duration unit may be joined, but the following
+    // independent 정도 always has its own boundary.
+    const durationDegree=quantity&&['달','시간','개월','년','분','초','날'].includes(quantity[2])&&quantity[3].match(/^정도(.*)$/);
+    if(durationDegree&&(!durationDegree[1]||sets.josa.has(durationDegree[1])))return {text:quantity[1]+quantity[2]+' 정도'+durationDegree[1],ambiguous:true,rule:'43/42'};
     if(quantity&&['년','개월','달','날','시간','분','초'].includes(quantity[2])){
       const relative=quantity[3].match(/^(전|후|만에)(.*)$/);
       if(relative&&(!relative[2]||sets.josa.has(relative[2])))return {text:quantity[1]+' '+quantity[2]+' '+quantity[3],ambiguous:true,rule:'43'};
@@ -989,7 +1029,11 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     if(result&&result.parts.every(p=>analyze(p,personal,true)?.kind==='noun')&&noun(result.parts[0],personal)?.base===result.parts[0]&&!['동안','이상','이하','전','후','계속','다시'].includes(result.parts.at(-1)))return null;
     // Dictionary-recognized fragments establish a possible segmentation,
     // not its meaning in context. All generic segmentation needs review.
-    return result&&result.parts.length>1?{text:result.parts.join(' '),ambiguous:true,rule:'41/42',unknowns:result.unknowns}:null;
+    if(result&&result.parts.length>1){
+      const nested=result.parts.map(part=>auxiliaryBoundary(part,personal));
+      return {text:result.parts.map((part,i)=>nested[i]?.text??part).join(' '),ambiguous:true,rule:'41/42',unknowns:result.unknowns};
+    }
+    return null;
   }
   return {analyze,predicate,spacing,unknownNoun,isDridaNoun:word=>dridaNouns.has(word),isBatdaNoun:word=>batdaNouns.has(word),isDerivedNominal:derivedNominal,isDoedaNoun:word=>doedaNouns.has(word),
     isNominalAdnominal:(word,personal)=>Boolean(isNominalAdnominal(word,noun(word,personal),personal))};

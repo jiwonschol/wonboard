@@ -8,6 +8,9 @@ import {communityNouns,communityNominalOnly,technicalAbbreviations,englishRecogn
 export function createChecker(data) {
   const sets=Object.fromEntries(Object.entries(data.ko).map(([k,v])=>[k,new Set(v)]));
   for(const word of [...communityNouns,...communityActionNouns])sets.noun.add(word);
+  // 한살림 is the proper name of the consumer cooperative; do not parse it
+  // as the ordinary phrase 한 살림 when followed by a particle.
+  sets.noun.add('한살림');
   for(const stem of communityVerbStems)sets.verb.add(stem);
   for(const stem of communityAdjectiveStems)sets.adjective.add(stem);
   // Additional stems recognize a complete word only. They must not become
@@ -24,8 +27,21 @@ export function createChecker(data) {
   const recognizedNouns=new Set([...(data.morphology?.recognizedNouns??[]),...communityNominalOnly]);
   const knownOrthographicPredicate=word=>Boolean(morphology.predicate(word)||recognition?.predicate(word));
   const knownOrthographicNoun=word=>sets.noun.has(word)||recognizedNouns.has(word)||morphology.isDerivedNominal(word);
-  const candidateBoundary=(word,personal)=>{
+  const candidateBoundary=(word,personal,text,from,to)=>{
     if(personal.has(word))return null;
+    // A recognition-only noun plus topic particle can coincide with 안/못
+    // and an adnominal verb (안가+는 / 안 가는). A preceding destination or
+    // object and following nominal support the negative reading in context.
+    const negativeAdnominal=word.match(/^(안|못)([가-힣]{2,})$/);
+    if(negativeAdnominal&&recognizedNoun(word)&&!recognizeWhole?.(word,personal)){
+      const before=text.slice(0,from).match(/([가-힣]+)[ \u00a0]+$/)?.[1];
+      const after=text.slice(to).match(/^[ \u00a0]+([가-힣]+)/)?.[1];
+      if(before&&/(?:에|엔|에서|에선|에게|께|으?로|을|를)$/.test(before)&&after&&morphology.predicate(negativeAdnominal[2])?.adnominal&&morphology.analyze(after,personal)?.kind==='noun')return {type:'spacing',suggestions:[negativeAdnominal[1]+' '+negativeAdnominal[2]],reason:'Context review: separate the negative adverb before an adnominal predicate',ambiguous:true};
+    }
+    // Keep a validated noun + 가야 해서 boundary reviewable. The unspaced
+    // form can also parse as noun + 가 + 야해서, so never auto-resolve it.
+    const mustGo=word.match(/^([가-힣]{2,})가야해서(요)?$/);
+    if(mustGo&&knownOrthographicNoun(mustGo[1])&&!isPronoun(mustGo[1])&&morphology.predicate('가야')&&morphology.predicate('해서'))return {type:'spacing',suggestions:[`${mustGo[1]} 가야 해서${mustGo[2]??''}`],reason:'Separate the validated predicate 가야 해서; the joined form can have another reading',ambiguous:true};
     const countedKinds=word.match(/^(두|세|네|몇)가지(중(?:에|에서|의)?)$/);
     if(countedKinds)return {type:'spacing',suggestions:[countedKinds[1]+' 가지 '+countedKinds[2]],reason:'The count noun 가지 and following 중 are separate words',ambiguous:false};
     for(let i=2;i<word.length-2;i++){
@@ -79,7 +95,7 @@ export function createChecker(data) {
   };
   const english=new Set(data.en);
   const knownTechnicalAbbreviations=new Set(technicalAbbreviations.map(word=>word.toLowerCase()));
-  const recognizedEnglish=new Set(englishRecognizedTerms);
+  const recognizedEnglish=new Set([...englishRecognizedTerms,'carry-on','systemd']);
   const enLower=new Set(data.en.filter(w=>w===w.toLowerCase()));
   const englishByLength=new Map();
   for(const word of enLower){const key=word.slice(0,3)+':'+word.length;const bucket=englishByLength.get(key)||[];bucket.push(word);englishByLength.set(key,bucket);}
@@ -434,6 +450,10 @@ export function createChecker(data) {
           if(!strong)continue;
         }
         if(knownTechnicalAbbreviations.has(lookup.toLowerCase())||recognizedEnglish.has(lookup.toLowerCase()))continue;
+        // Re- can form a valid hyphenated compound when the base is known.
+        // An unknown base still goes through the normal review path.
+        const reCompound=lookup.match(/^re-([a-z]+)$/i);
+        if(reCompound&&enLower.has(reCompound[1].toLowerCase()))continue;
         if(personal.has(word)||personal.has(lookup)||english.has(lookup)||enLower.has(lookup.toLowerCase())||enLower.has(lookup.toLowerCase().replace(/'s$/,''))||english.has(lookup.replace(/'s$/,'')))continue;
         // Conventional abbreviation of an attested word; a period is optional.
         // Do not treat arbitrary short identifiers as registered vocabulary.
@@ -707,7 +727,7 @@ export function createChecker(data) {
         const comparisonNext=['보다','보단'].includes(word)&&text.slice(to).match(/^[ \u00a0]+(?:(?:더|덜|훨씬|조금|소폭)[ \u00a0]+)?([가-힣]+)/)?.[1];
         const comparisonPredicate=comparisonNext&&morphology.predicate(comparisonNext);
         const comparative=!!comparisonPredicate&&sets.adjective.has(comparisonPredicate.root);
-        const nominalParticle=comparative||/^(?:에|마다|조차도|마저도|만큼(?:은|도|만)?|치고는|뿐(?:만(?:이|은|도|으로(?:는)?)?|이다|이고|입니다|이에요|이지만)?)$/.test(word);
+        const nominalParticle=comparative||word==='만이'||/^(?:에|마다|조차도|마저도|만큼(?:은|도|만)?|치고는|뿐(?:만(?:이|은|도|으로(?:는)?)?|이다|이고|입니다|이에요|이지만)?)$/.test(word);
         if(copulaBoundary||nominalParticle||unambiguousParticles.has(word)||['라고','이라는','라는','이나마'].includes(word)){
           const preceding=text.slice(0,from).match(/([가-힣]+)([ \u00a0]+)$/);
           if(preceding){
@@ -723,7 +743,19 @@ export function createChecker(data) {
             const quotationHost=predicateHost&&['라고','라는'].includes(word);
             const comparativeHost=!comparative||knownOrthographicNoun(host)||personal.has(host)||hostAnalysis?.kind==='noun'&&hostAnalysis.base===host;
             const nominalHost=comparativeHost&&(((hostAnalysis?.kind==='noun'||recognizedNoun(host))&&(word!=='치고는'||host==='것'))||afterEnding||quotationHost);
-            if(!adnominal&&!excluded.some(([a,b])=>start<b&&to>a)&&nominalHost&&!results.some(f=>f!==prior&&f.from<to&&f.to>start)){
+            // Elapsed-time 만 is a dependent noun. Reuse the quantity
+            // analysis for joined counts (한시간 -> 한 시간), then keep both
+            // unit nouns and attested whole duration nouns separate from 만이.
+            let elapsedTime=false;
+            if(word==='만이'){
+              const durationUnits=['년','개월','달','일','시간','분','초','주','주일'];
+              const quantity=morphology.spacing(host,personal);
+              const elapsedUnit=durationUnits.includes(host)||quantity?.rule==='43'&&durationUnits.includes(quantity.text.split(' ').at(-1));
+              const wholeDuration=(hostAnalysis?.kind==='noun'||recognizedNoun(host))&&
+                (['하루','이틀','사흘','나흘','닷새','엿새','이레','여드레','아흐레','열흘','보름','달포'].includes(host)||/^(?:일|한|두|세|네)주일$/.test(host));
+              elapsedTime=elapsedUnit||wholeDuration;
+            }
+            if(!adnominal&&!elapsedTime&&!excluded.some(([a,b])=>start<b&&to>a)&&nominalHost&&!results.some(f=>f!==prior&&f.from<to&&f.to>start)){
               if(prior)results.splice(results.indexOf(prior),1);
               const repair=orthography(host+word,sets,personal,knownOrthographicPredicate,knownOrthographicNoun);
               const candidates=repair?repair.suggestions.map(s=>phrase.slice(0,-host.length)+s):[phrase+word];
@@ -733,7 +765,7 @@ export function createChecker(data) {
           }
         }
         const priorAdnominal=(word==='거구요'||word.startsWith('꺼'))&&morphology.predicate(text.slice(0,from).match(/([가-힣]+)[ \u00a0]+$/)?.[1]??'')?.adnominal;
-        const rule=contextSuggestion(text,from,to,personal,w=>Boolean(morphology.predicate(w)))??candidateBoundary(word,personal)??orthography(word,sets,personal,knownOrthographicPredicate,knownOrthographicNoun,Boolean(priorAdnominal),knownOrthographicPredicate(text.slice(to).match(/^[ \t\u00a0]+([가-힣]+)/)?.[1]??''));
+        const rule=contextSuggestion(text,from,to,personal,w=>Boolean(morphology.predicate(w)))??candidateBoundary(word,personal,text,from,to)??orthography(word,sets,personal,knownOrthographicPredicate,knownOrthographicNoun,Boolean(priorAdnominal),knownOrthographicPredicate(text.slice(to).match(/^[ \t\u00a0]+([가-힣]+)/)?.[1]??''));
         if(rule){emit(from,to,'ko',rule.type??'spelling',rule.suggestions,word);Object.assign(results.at(-1),rule);continue;}
         // Price modifiers remain separate from a following noun. Protect
         // lexical wholes such as 무료입장 before repairing the noun itself.
@@ -788,6 +820,13 @@ export function createChecker(data) {
         }
         // An unrecognized name and the dependent honorific 님 are separate
         // review spans. Registering just the name must not hide its gap.
+        const compoundWithHonorific=word.match(/^([가-힣]+님)(.*)$/);
+        if(compoundWithHonorific){
+          const compound=compoundWithHonorific[1];
+          let recognizedCompound=false;
+          for(let i=1;i<compound.length-1;i++)if(sets.noun.has(compound.slice(0,i))&&sets.noun.has(compound.slice(i))){recognizedCompound=true;break;}
+          if(recognizedCompound)continue;
+        }
         const namedHonorific=word.match(/^([가-힣]{2,})님(.*)$/);
         if(namedHonorific&&!word.endsWith('아님')&&!/(?:대표|지사|회장|사장|부장|과장|팀장|실장|원장|교수|선생|박사|작가|기사|감독|코치|대장|장관|의원|보좌관|총장|교장|사범|스승)$/.test(namedHonorific[1])&&!knownOrthographicNoun(namedHonorific[1])&&!morphology.analyze(word,personal)&&!recognizedNoun(word)&&!recognizeWhole?.(word,personal)){
           const name=namedHonorific[1],tail=namedHonorific[2];

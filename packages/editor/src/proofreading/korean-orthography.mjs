@@ -4,10 +4,15 @@ export function orthography(word,sets,personal,isPredicate,isKnownNoun=w=>sets.n
   if(personal.has(word))return null;
   // The past form of 하다 is 했-, including action-noun compounds. Restrict
   // this repair to finite endings so 햇볕 and other lexical words stay intact.
-  const malformedPast=word.match(/^(.+)?햇(는데|어요|지만|고|다)$/);
+  const malformedPast=word.match(/^(.+)?햇(는데|어요|지만|고|다|던)$/);
   if(malformedPast){
     const corrected=(malformedPast[1]??'')+'했'+malformedPast[2];
     if(isPredicate(corrected))return {suggestions:[corrected],reason:'Past 하다 inflects with 했, not 햇',ambiguous:false};
+  }
+  const missingPastConsonant=word.match(/^(.+)엇(는데|어요|지만|고|다|던)$/);
+  if(missingPastConsonant){
+    const corrected=missingPastConsonant[1]+'었'+missingPastConsonant[2];
+    if(isPredicate(corrected))return {suggestions:[corrected],reason:'Past -었- uses a doubled final consonant on a validated predicate',ambiguous:false};
   }
   // 높이다 is the attested causative; validate the complete repaired inflection.
   for(const [bad,good]of [['높히','높이'],['높혀','높여'],['높혔','높였'],['높힌','높인'],['높힐','높일']]){
@@ -157,6 +162,12 @@ export function orthography(word,sets,personal,isPredicate,isKnownNoun=w=>sets.n
     const corrected=word.slice(0,-2)+'돼서';
     return {suggestions:word==='안되서'?['안 돼서',corrected]:[corrected],reason:'되어서 contracts to 돼서; 안되다 spacing depends on meaning',ambiguous:word==='안되서'};
   }
+  // 되 + -고 never contracts to 돼고. Validate the complete corrected
+  // predicate, and keep the negative adverb separate in its ordinary use.
+  if(word.endsWith('돼고')){
+    const corrected=word.slice(0,-2)+'되고';
+    if(isPredicate(corrected))return {suggestions:word==='안돼고'?['안 되고',corrected]:[corrected],reason:'The connective -고 attaches to 되-, not 돼-',ambiguous:word==='안돼고'};
+  }
   const uncertain=word.match(/^(.+)(?:런지|른지)(요)?$/);
   if(uncertain&&uncertain[1].endsWith('야할')&&isPredicate(uncertain[1].slice(0,-1)))return {suggestions:[uncertain[1].slice(0,-1)+' 할는지'+(uncertain[2]??'')],reason:'Standard -ㄹ는지 plus the -야 하다 boundary; confirm intended meaning',ambiguous:true};
   if(uncertain&&(uncertain[1].charCodeAt(uncertain[1].length-1)-0xac00)%28===8&&isPredicate(uncertain[1]))return {suggestions:[uncertain[1]+'는지'+(uncertain[2]??'')],reason:'Standard ending -ㄹ는지 when this is a predicate; confirm intended word',ambiguous:true};
@@ -206,7 +217,7 @@ export function orthography(word,sets,personal,isPredicate,isKnownNoun=w=>sets.n
 // predicate or particle replacements on an unrelated interior fragment.
 export function lexicalNounRepair(word,sets,personal,isPredicate){
   if(personal.has(word))return null;
-  const lexical=[['맞춥법','맞춤법'],['전세집','전셋집'],['몇일','며칠'],['설겆이','설거지'],['오랫만','오랜만'],['오랬동안','오랫동안'],['역활','역할'],['뒤치닥거리','뒤치다꺼리'],['환골탈퇴','환골탈태'],['메세지','메시지'],['제테크','재테크'],['헤택','혜택'],['데스크탑','데스크톱'],['라이센스','라이선스'],['런닝','러닝'],['머리속','머릿속'],['스크레치','스크래치'],['판넬','패널'],['컨텐츠','콘텐츠'],['엑세스','액세스'],['워크플로우','워크플로'],['마이그레션','마이그레이션'],['테트스','테스트'],['스폰지','스펀지'],['뒷통수','뒤통수'],['마찮가지','마찬가지'],['깨닳음','깨달음'],['플라스탁','플라스틱'],['셋팅','세팅'],['렌트카','렌터카'],['연습양','연습량'],['스팩','스펙']];
+  const lexical=[['맞춥법','맞춤법'],['전세집','전셋집'],['몇일','며칠'],['설겆이','설거지'],['오랫만','오랜만'],['오랬동안','오랫동안'],['역활','역할'],['뒤치닥거리','뒤치다꺼리'],['환골탈퇴','환골탈태'],['메세지','메시지'],['메론','멜론'],['통채로','통째로'],['제테크','재테크'],['헤택','혜택'],['데스크탑','데스크톱'],['라이센스','라이선스'],['런닝','러닝'],['머리속','머릿속'],['스크레치','스크래치'],['판넬','패널'],['컨텐츠','콘텐츠'],['엑세스','액세스'],['워크플로우','워크플로'],['마이그레션','마이그레이션'],['테트스','테스트'],['스폰지','스펀지'],['뒷통수','뒤통수'],['마찮가지','마찬가지'],['깨닳음','깨달음'],['플라스탁','플라스틱'],['셋팅','세팅'],['렌트카','렌터카'],['연습양','연습량'],['스팩','스펙']];
   for(const [bad,good] of lexical)if(word.startsWith(bad)){
     const tail=word.slice(bad.length);
     // Compose the verified noun repair with a complete derived predicate.
