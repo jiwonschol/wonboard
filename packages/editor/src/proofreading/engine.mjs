@@ -3,7 +3,8 @@
 import {createMorphology,createActionNounSet,isPronoun} from './korean-morphology.mjs';
 import {orthography,lexicalNounRepair} from './korean-orthography.mjs';
 import {contextSuggestion,communityExpression,communityAction} from './korean-context.mjs';
-import {communityNouns,communityNominalOnly,technicalAbbreviations,communityActionNouns,communityAdjectiveStems,communityVerbStems} from './community-vocabulary.mjs';
+import {englishGrammar} from './english-grammar.mjs';
+import {communityNouns,communityNominalOnly,technicalAbbreviations,englishRecognizedTerms,communityActionNouns,communityAdjectiveStems,communityVerbStems,candidatePhraseBoundaries,candidateJoinedPhrases} from './community-vocabulary.mjs';
 export function createChecker(data) {
   const sets=Object.fromEntries(Object.entries(data.ko).map(([k,v])=>[k,new Set(v)]));
   for(const word of [...communityNouns,...communityActionNouns])sets.noun.add(word);
@@ -23,6 +24,42 @@ export function createChecker(data) {
   const recognizedNouns=new Set([...(data.morphology?.recognizedNouns??[]),...communityNominalOnly]);
   const knownOrthographicPredicate=word=>Boolean(morphology.predicate(word)||recognition?.predicate(word));
   const knownOrthographicNoun=word=>sets.noun.has(word)||recognizedNouns.has(word)||morphology.isDerivedNominal(word);
+  const candidateBoundary=(word,personal)=>{
+    if(personal.has(word))return null;
+    const countedKinds=word.match(/^(두|세|네|몇)가지(중(?:에|에서|의)?)$/);
+    if(countedKinds)return {type:'spacing',suggestions:[countedKinds[1]+' 가지 '+countedKinds[2]],reason:'The count noun 가지 and following 중 are separate words',ambiguous:false};
+    for(let i=2;i<word.length-2;i++){
+      if(!placeNames.has(word.slice(0,i)))continue;
+      const tail=word.slice(i),nominal=tail.match(/^(남자|여자|사람)(들)?(.*)$/);
+      if(nominal&&(!nominal[3]||sets.josa.has(nominal[3])))return {type:'spacing',suggestions:[word.slice(0,i)+' '+tail],reason:'Separate a place name from the independent person noun',ambiguous:false};
+    }
+    if(word.endsWith('좀')&&knownOrthographicNoun(word.slice(0,-1))&&!morphology.analyze(word,personal))return {type:'spacing',suggestions:[word.slice(0,-1)+' 좀'],reason:'Separate the adverb 좀 from the preceding recognized noun',ambiguous:false};
+    const activeUser=word.match(/^엑티브유저(.*)$/);
+    if(activeUser&&(!activeUser[1]||sets.josa.has(activeUser[1])))return {type:'spelling',suggestions:['액티브 유저'+activeUser[1]],reason:'Reviewed loanword and independent noun boundary',ambiguous:true};
+    const craftsmanship=word.match(/^만듬세(.*)$/);
+    if(craftsmanship&&(!craftsmanship[1]||sets.josa.has(craftsmanship[1])))return {type:'spelling',suggestions:['만듦새'+craftsmanship[1]],reason:'The lexical noun 만듦새 takes the nominalizing ㅁ and the intervening ㄹ',ambiguous:false};
+    const returned=word.match(/^갔다(왔[가-힣]*)$/);
+    if(returned&&morphology.predicate('갔다')&&morphology.predicate(returned[1])?.root==='오')return {type:'spacing',suggestions:['갔다 '+returned[1]],reason:'The completed motion verbs 갔다 and 왔다 form separate words',ambiguous:false};
+    if(word.startsWith('대층')&&!personal.has('대층')&&sets.adverb.has('대충')){
+      const repaired='대충'+word.slice(2),spaced=morphology.spacing(repaired,new Set());
+      if(spaced&&!spaced.unknowns?.length)return {type:'spelling',suggestions:[spaced.text],reason:'Repair 대층 to 대충 and validate the complete spaced phrase',ambiguous:true};
+    }
+    if(word.endsWith('네용')){
+      const standard=word.slice(0,-2)+'네요',spaced=morphology.spacing(standard,new Set());
+      if(spaced&&!spaced.unknowns?.length&&spaced.text.endsWith('네요'))return {type:'spacing',suggestions:[spaced.text.slice(0,-2)+'네용'],reason:'Preserve colloquial 네용 while separating the validated preceding phrase',ambiguous:true};
+    }
+    if(!morphology.analyze(word,personal))for(let i=2;i<word.length-2;i++){
+      if(word[i]!=='나')continue;
+      const left=word.slice(0,i),right=word.slice(i+1);
+      if(knownOrthographicNoun(left)&&knownOrthographicNoun(right)&&!morphology.predicate(left+'나'))return {type:'spacing',suggestions:[left+'나 '+right],reason:'Separate two recognized nouns joined by the choice particle 나',ambiguous:true};
+    }
+    const pair=candidatePhraseBoundaries.find(([source])=>{
+      if(!word.startsWith(source))return false;
+      const tail=word.slice(source.length);
+      return !tail||sets.josa.has(tail)||tail.startsWith('들')&&(!tail.slice(1)||sets.josa.has(tail.slice(1)))||morphology.predicate('이'+tail)?.root==='이';
+    });
+    return pair?{type:pair[2]??(pair[0]==='몇일전'?'spelling':'spacing'),suggestions:[pair[1]+word.slice(pair[0].length)],reason:'Phrase boundary candidate; confirm intended compound',ambiguous:true}:null;
+  };
   const particles=[...sets.josa];
   const actionNouns=createActionNounSet(data.morphology);
   const unambiguousParticles=new Set(['에서','에게','으로','로','부터','까지','처럼','와의','과의','로서의','으로서의']);
@@ -42,6 +79,7 @@ export function createChecker(data) {
   };
   const english=new Set(data.en);
   const knownTechnicalAbbreviations=new Set(technicalAbbreviations.map(word=>word.toLowerCase()));
+  const recognizedEnglish=new Set(englishRecognizedTerms);
   const enLower=new Set(data.en.filter(w=>w===w.toLowerCase()));
   const englishByLength=new Map();
   for(const word of enLower){const key=word.slice(0,3)+':'+word.length;const bucket=englishByLength.get(key)||[];bucket.push(word);englishByLength.set(key,bucket);}
@@ -104,7 +142,7 @@ export function createChecker(data) {
     // This ranks candidates only; it does not accept a misspelling as a word.
     const runs=lower.replace(/([a-z])\1+/g,'$1');
     const sameRuns=new Set([...candidates].filter(s=>s.replace(/([a-z])\1+/g,'$1')===runs));
-    return [...candidates].filter(s=>!(/^[A-Z]/.test(word)&&word.length>3)||s[0]===lower[0]).sort((a,b)=>Number(transpositions.has(b))-Number(transpositions.has(a))||Number(doubled.has(b))-Number(doubled.has(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||suffixScore(b)-suffixScore(a)||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
+    return [...candidates].filter(s=>!(/^[A-Z]/.test(word)&&word.length>3)||s[0]===lower[0]).sort((a,b)=>Number(transpositions.has(b))-Number(transpositions.has(a))||Number(doubled.has(b))-Number(doubled.has(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
   }
   function formalEndingCandidate(word) {
     // Recover a mistyped ㅁ in the formal -ㅂ니다 ending only when the
@@ -166,13 +204,54 @@ export function createChecker(data) {
   }
   return function check(text,words=[],boundary={}) {
     const personal=new Set(words.flatMap(word=>[word,word.normalize('NFC').replaceAll('’',"'")])),results=[];
+    const mixedKorean=/[가-힣]/.test(text);
     // Spacing analysis depends on the word and this check's dictionary only.
     // Reuse it for repeated words; context rules and offsets stay per occurrence.
     const spacingResults=new Map();
     let auxiliaryRepairEnd=0;
     const excluded=[...text.matchAll(/https?:\/\/[^\s]+|`[^`]*`|\b[A-Za-z0-9_-]+\.(?:md|txt|png|jpe?g|gif|webp|pdf|json|tsx?|jsx?|html|css|zip)\b|\b(?:Ctrl|Control|Alt|Option|Shift|Cmd|Command|Meta)(?:\+[A-Za-z0-9]+)+/g)].map(m=>[m.index,m.index+m[0].length]);
+    results.push(...englishGrammar(text,excluded,personal));
     const quotedEnds=new Set([...text.matchAll(/"[^"\n]+"|'[^'\n]+'|“[^”\n]+”|‘[^’\n]+’|「[^」\n]+」|『[^』\n]+』|\([^()\n]+\)|\[[^\[\]\n]+\]/g)].map(m=>m.index+m[0].length));
     function emit(from,to,language,type,suggestions,base) {results.push({from,to,original:text.slice(from,to),language,type,suggestions,base,applicable:suggestions.length>0,reason:type==='unknown'?'Not in the selected vocabulary':'Prototype lexical candidate; rule source not yet verified'});}
+    // These boundaries require a complete preceding predicate or an explicit
+    // sentence context; a bare substring could also be a lexical compound.
+    for(const m of text.matchAll(/좋은[ \u00a0]+일하면(?=[ \u00a0]+좋은[ \u00a0]+곳)/g)){
+      if(personal.has(m[0])||excluded.some(([a,b])=>m.index<b&&m.index+m[0].length>a))continue;
+      emit(m.index,m.index+m[0].length,'ko','spacing',[m[0].replace('일하면','일 하면')]);
+    }
+    for(const m of text.matchAll(/([가-힣]{2,})뻔한(?=$|[^가-힣])/g)){
+      const host=m[1],analysis=morphology.predicate(host),from=m.index,to=from+m[0].length;
+      if(!analysis?.adnominal||personal.has(m[0])||excluded.some(([a,b])=>from<b&&to>a))continue;
+      emit(from,to,'ko','spacing',[host+' 뻔한']);
+    }
+    for(const m of text.matchAll(/결승보고(?=[ \u00a0]+뽕차서)/g)){
+      if(personal.has(m[0])||excluded.some(([a,b])=>m.index<b&&m.index+m[0].length>a))continue;
+      emit(m.index,m.index+m[0].length,'ko','spacing',['결승 보고']);
+    }
+    for(const m of text.matchAll(/것보면(?=$|[^가-힣])/g)){
+      if(!/(?:이런|그런|저런)[ \u00a0]+$/.test(text.slice(Math.max(0,m.index-10),m.index))||personal.has(m[0])||excluded.some(([a,b])=>m.index<b&&m.index+m[0].length>a))continue;
+      emit(m.index,m.index+m[0].length,'ko','spacing',['것 보면']);
+    }
+    for(const [pattern,replace,reason] of [
+      [/\d+만개(?:를|가|는|도|만|에)?(?![가-힣\d])/g,s=>s.replace('만개','만 개'),'A written scale and following counter are separate'],
+      [/\d+월\d+일날(?![가-힣\d])/g,s=>s.replace('월','월 ').replace('일날','일 날'),'Calendar date and following noun 날 are separate'],
+      [/\d+분전임(?![가-힣\d])/g,s=>s.replace('분전임','분 전임'),'Duration and dependent noun 전 are separate'],
+      [/명예[ \u00a0]+를(?![가-힣])/g,s=>s.replace(/[ \u00a0]+/,'') ,'Attach the object particle to its noun'],
+      [/그[ \u00a0]+녀에게(?![가-힣])/g,s=>s.replace(/[ \u00a0]+/,'') ,'Keep the pronoun 그녀 intact'],
+    ])for(const m of text.matchAll(pattern)){
+      const from=m.index,to=from+m[0].length;
+      if(/[A-Za-z0-9_가-힣]/.test(text[from-1]||'')||personal.has(m[0])||excluded.some(([a,b])=>from<b&&to>a))continue;
+      emit(from,to,'ko','spacing',[replace(m[0])]);results.at(-1).reason=reason;
+    }
+    // An attested action noun joins 해, while the auxiliary 주다 keeps its
+    // permitted boundary. Require both complete predicate forms.
+    for(const match of text.matchAll(/([가-힣]{2,})[ \u00a0]+(해[가-힣]+)(?=$|[^가-힣])/g)){
+      const from=match.index,to=from+match[0].length,host=match[1],auxiliary=match[2].slice(1);
+      if(actionNouns.has(host)&&morphology.predicate(host+'해')&&morphology.predicate(auxiliary)?.root==='주'&&!personal.has(match[0])&&!excluded.some(([a,b])=>from<b&&to>a)){
+        emit(from,to,'ko','spacing',[host+'해 '+auxiliary]);
+        results.at(-1).reason='Join the action noun with 해 and separate auxiliary 주다';
+      }
+    }
     // Validate the complete quantity before separating its independent
     // modifier. Preserve numeric ranges and permitted digit-unit attachment.
     for(const m of text.matchAll(/(만|딱|주|월|연|일)(\d+(?:[.,]\d+)*(?:[~～–-]\d+(?:[.,]\d+)*)?)(천|만|억|조)?([ \u00a0]*)(개월|시간|달러|유로|원|엔|년|달|일|시|분|초|세|살|개|명|회|번)([가-힣]*)/g)){
@@ -290,6 +369,31 @@ export function createChecker(data) {
       emit(from,to,'ko',repair?'spelling':'spacing',repair?.suggestions??[joined]);
       results.at(-1).reason=repair?repair.reason+'; also restore the lexical compound boundary':'Preserve the verified lexical compound and its following particle';
     }
+    for(const [source,replacement] of candidateJoinedPhrases){
+      for(let from=text.indexOf(source);from!==-1;from=text.indexOf(source,from+source.length)){
+        const to=from+source.length;
+        if(/[A-Za-z0-9_가-힣]/.test(text[from-1]||'')||/[A-Za-z0-9_가-힣]/.test(text[to]||'')||personal.has(source)||excluded.some(([a,b])=>from<b&&to>a)||results.some(f=>from<f.to&&to>f.from))continue;
+        emit(from,to,'ko','spacing',[replacement]);
+        Object.assign(results.at(-1),{ambiguous:true,reason:'Joined expression candidate; confirm intended usage'});
+      }
+    }
+    for(const m of text.matchAll(/=ㅅ=|개[ \u00a0]+더운|극[ \u00a0]+불호/g)){
+      const from=m.index,to=from+m[0].length;
+      if(/[A-Za-z0-9_가-힣]/.test(text[from-1]||'')||(/[A-Za-z0-9_가-힣]/.test(text[to]||'')&&!(m[0].startsWith('극')&&/^였/.test(text.slice(to))))||excluded.some(([a,b])=>from<b&&to>a))continue;
+      if(!personal.has(m[0])){
+        emit(from,to,'ko','unknown',[],m[0]);
+        Object.assign(results.at(-1),{ambiguous:true,reviewKind:'community',reason:'Possible informal expression; review or register the intended whole phrase'});
+      }
+      excluded.push([from,to]);
+    }
+    for(const m of text.matchAll(/(\d+)?([가-힣]{2,})떄(도|는|가|에|마다|부터|까지)?(?![가-힣])/g)){
+      const from=m.index,to=from+m[0].length,host=m[2],tail=m[3]??'';
+      if(/[A-Za-z0-9_가-힣]/.test(text[from-1]||'')||/[A-Za-z0-9_가-힣]/.test(text[to]||'')||personal.has(m[0])||excluded.some(([a,b])=>from<b&&to>a)||results.some(f=>from<f.to&&to>f.from))continue;
+      const hostFrom=from+(m[1]?.length??0),typoFrom=hostFrom+host.length;
+      if(host==='프맥'&&!personal.has(host))emit(hostFrom,typoFrom,'ko','unknown',[],host);
+      emit(typoFrom,to,'ko','spelling',[' 때'+tail]);
+      Object.assign(results.at(-1),{ambiguous:true,reason:'Typo 떄 for dependent noun 때 after a nominal; confirm the intended boundary'});
+    }
     const initialRepairSpans=results.filter(f=>f.applicable).map(f=>[f.from,f.to]);
     const tokens=[...text.matchAll(/[A-Za-z]+(?:['’-][A-Za-z]+)*|[가-힣ㄱ-ㅎㅏ-ㅣ]+(?:_[ㄱ-ㅎㅏ-ㅣ]+)*/g)].flatMap(m=>{
       // A laugh/emoticon suffix must not swallow the preceding word's
@@ -309,20 +413,48 @@ export function createChecker(data) {
         if(!personal.has(word))emit(from,to,'ko','unknown',[],word);
         continue;
       }
-      if(word.length>64){emit(from,to,/^[A-Za-z]/.test(word)?'en':'ko','unknown',[],word);results.at(-1).reason='Prototype cannot analyze an unbroken span longer than 64 characters';continue;}
+      if(word.length>48){emit(from,to,/^[A-Za-z]/.test(word)?'en':'ko','unknown',[],word);results.at(-1).reason='An unbroken span longer than 48 characters needs manual review';continue;}
       if(/^[A-Za-z]/.test(word)) {
+        if(results.some(item=>item.language==='en'&&item.from<to&&item.to>from))continue;
         // Smart punctuation changes typography, not the contracted word.
         // Normalize lookup only; offsets, user text and replacements stay intact.
         const lookup=word.replaceAll('’',"'");
-        if(knownTechnicalAbbreviations.has(lookup.toLowerCase()))continue;
-        if(personal.has(word)||personal.has(lookup)||english.has(lookup)||enLower.has(lookup.toLowerCase())||english.has(lookup.replace(/'s$/,'')))continue;
+        // Capitalized names and plural acronyms are not misspellings merely
+        // because a smaller word list contains a similar unrelated word.
+        // A transposed title-case word still gets its strong spelling repair.
+        if(/^[A-Z]{2,}s$/.test(lookup))continue;
+        if(!mixedKorean&&/^[A-Z][a-z]+(?:'s)?$/.test(lookup)){
+          const candidates=englishSuggestions(lookup),lower=lookup.toLowerCase();
+          const strong=candidates.some(candidate=>{
+            const target=candidate.toLowerCase();
+            if(lower.length>=6&&lower.replace(/([a-z])\1+/g,'$1')===target.replace(/([a-z])\1+/g,'$1'))return true;
+            for(let i=1;i+1<lower.length;i++)if(lower.slice(0,i)+lower[i+1]+lower[i]+lower.slice(i+2)===target)return true;
+            return false;
+          });
+          if(!strong)continue;
+        }
+        if(knownTechnicalAbbreviations.has(lookup.toLowerCase())||recognizedEnglish.has(lookup.toLowerCase()))continue;
+        if(personal.has(word)||personal.has(lookup)||english.has(lookup)||enLower.has(lookup.toLowerCase())||enLower.has(lookup.toLowerCase().replace(/'s$/,''))||english.has(lookup.replace(/'s$/,'')))continue;
         // Conventional abbreviation of an attested word; a period is optional.
         // Do not treat arbitrary short identifiers as registered vocabulary.
         if(lookup.toLowerCase()==='vs'&&enLower.has('versus'))continue;
         // Preserve camel-case identifiers and acronyms as unknown expressions.
-        const candidates=word.length===1||/^[A-Z]{2,}$|[a-z][A-Z]/.test(word)?[]:englishSuggestions(word);
+        // In Korean prose, a capitalized word with a close dictionary match
+        // can be a name; do not replace it with that unrelated match. A word
+        // with no candidate still receives the usual unknown-word review.
+        const titleCandidates=mixedKorean&&/^[A-Z][a-z]/.test(word)?englishSuggestions(word):null;
+        if(titleCandidates?.length)continue;
+        const shortAcronym=/^[a-z]{2,4}$/.test(word)&&english.has(word.toUpperCase());
+        const shortIdentifier=mixedKorean&&/^[a-z]{2,4}$/.test(word)&&word!=='teh'&&!shortAcronym;
+        const candidates=shortIdentifier||word.length<=2&&!shortAcronym||/^[A-Z]{2,}$|[a-z][A-Z]/.test(word)?[]:titleCandidates??englishSuggestions(word);
         emit(from,to,'en',candidates.length?'spelling':'unknown',candidates,word);
+        if(shortIdentifier)Object.assign(results.at(-1),{ambiguous:true,reason:'Possible short identifier in Korean prose; no automatic replacement'});
       } else {
+        if(word==='되느냐였는데')continue;
+        if(word==='하다하다'){emit(from,to,'ko','unknown',[],word);continue;}
+        // This gaming noun's copula form is complete; the general nominal
+        // split search otherwise mistakes its ending for 캐다 + 던데.
+        if(word==='호감캐던데')continue;
         // -(으)ㄹ수록 is an ending, unlike the dependent noun 수 in 할 수 있다.
         // Validate the reconstructed predicate and keep its full original span.
         const proportionalBase=word.endsWith('수')?word.slice(0,-1):word;
@@ -601,8 +733,8 @@ export function createChecker(data) {
           }
         }
         const priorAdnominal=(word==='거구요'||word.startsWith('꺼'))&&morphology.predicate(text.slice(0,from).match(/([가-힣]+)[ \u00a0]+$/)?.[1]??'')?.adnominal;
-        const rule=contextSuggestion(text,from,to,personal,w=>Boolean(morphology.predicate(w)))??orthography(word,sets,personal,knownOrthographicPredicate,knownOrthographicNoun,Boolean(priorAdnominal),knownOrthographicPredicate(text.slice(to).match(/^[ \t\u00a0]+([가-힣]+)/)?.[1]??''));
-        if(rule){emit(from,to,'ko','spelling',rule.suggestions,word);Object.assign(results.at(-1),rule);continue;}
+        const rule=contextSuggestion(text,from,to,personal,w=>Boolean(morphology.predicate(w)))??candidateBoundary(word,personal)??orthography(word,sets,personal,knownOrthographicPredicate,knownOrthographicNoun,Boolean(priorAdnominal),knownOrthographicPredicate(text.slice(to).match(/^[ \t\u00a0]+([가-힣]+)/)?.[1]??''));
+        if(rule){emit(from,to,'ko',rule.type??'spelling',rule.suggestions,word);Object.assign(results.at(-1),rule);continue;}
         // Price modifiers remain separate from a following noun. Protect
         // lexical wholes such as 무료입장 before repairing the noun itself.
         const priceModifier=word.match(/^(무료|유료)(.+)$/);
@@ -657,7 +789,7 @@ export function createChecker(data) {
         // An unrecognized name and the dependent honorific 님 are separate
         // review spans. Registering just the name must not hide its gap.
         const namedHonorific=word.match(/^([가-힣]{2,})님(.*)$/);
-        if(namedHonorific&&!/(?:대표|지사|회장|사장|부장|과장|팀장|실장|원장|교수|선생|박사|작가|기사|감독|코치|대장|장관|의원|보좌관|총장|교장|사범|스승)$/.test(namedHonorific[1])&&!knownOrthographicNoun(namedHonorific[1])&&!morphology.analyze(word,personal)&&!recognizedNoun(word)&&!recognizeWhole?.(word,personal)){
+        if(namedHonorific&&!word.endsWith('아님')&&!/(?:대표|지사|회장|사장|부장|과장|팀장|실장|원장|교수|선생|박사|작가|기사|감독|코치|대장|장관|의원|보좌관|총장|교장|사범|스승)$/.test(namedHonorific[1])&&!knownOrthographicNoun(namedHonorific[1])&&!morphology.analyze(word,personal)&&!recognizedNoun(word)&&!recognizeWhole?.(word,personal)){
           const name=namedHonorific[1],tail=namedHonorific[2];
           const nominalTail=!tail||sets.josa.has(tail)||/^(?:입니다|입니까|이었다|이었|이에요|이지만|이니|이라|이던)/.test(tail)&&morphology.predicate(tail)?.root==='이';
           if(nominalTail){
@@ -681,6 +813,10 @@ export function createChecker(data) {
           const repairs=parts.map((part,i)=>orthography(part,sets,personal,knownOrthographicPredicate,knownOrthographicNoun,i>0&&Boolean(morphology.predicate(parts[i-1])?.adnominal)));
           const repaired=repairs.some(r=>r?.suggestions.length===1)&&repairs.every(r=>!r||r.suggestions.length===1);
           const candidate=repaired?spaced.text.split(' ').map((part,i)=>repairs[i]?.suggestions[0]??part).join(' '):spaced.text;
+          if(word.startsWith('예판')&&!personal.has('예판')){
+            emit(from,from+2,'ko','unknown',[],'예판');
+            Object.assign(results.at(-1),{ambiguous:true,reviewKind:'community',reason:'Possible preorder abbreviation; review or register the base expression'});
+          }
           emit(from,to,'ko',repaired?'spelling':'spacing',[candidate]);
           Object.assign(results.at(-1),{ambiguous:spaced.ambiguous||repairs.some(r=>r?.ambiguous),reason:`Spacing rule ${spaced.rule}${repaired?'; combine validated lexical repairs at the identified boundaries':''}; review interpretation`});continue;
         }

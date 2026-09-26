@@ -1,6 +1,25 @@
 import { test, expect } from "./fixtures";
 
-for(const [expression,label,context] of [['으아아아아악','Community expression review'],['셀던','Unrecognized expression'],['스펙','Unrecognized expression','스펙대로'],['저렴이','Community expression review','저렴이로'],['이란전','Unrecognized expression','이란전에서'],['개빠르네요','Community expression review'],['떠들자요','Community expression review'],['개더워요','Community expression review'],['갤','Community expression review','갤 S25 울트라'],['넘','Community expression review','넘 강해서']])test(`personal expression registration persists without hiding a neighboring repair: ${expression}`,async({page})=>{
+test('English grammar suggestion applies and survives undo, redo and reload',async({page})=>{
+  await page.goto('/');
+  const body=page.getByRole('textbox',{name:'Document body',exact:true});
+  await body.fill('We can built it.');
+  const tool=page.getByRole('toolbar',{name:'Writing tools',exact:true}).getByRole('button',{name:'Check spelling',exact:true});
+  await tool.click();
+  const dialog=page.getByRole('dialog',{name:'Check spelling'});
+  await expect(dialog).toContainText('Grammar suggestion: can built');
+  await expect(dialog.getByRole('button',{name:'can build',exact:true})).toBeVisible();
+  await dialog.getByRole('button',{name:'Change',exact:true}).click();
+  await expect(dialog).toContainText('Spelling review complete.');
+  await dialog.getByRole('button',{name:'Close',exact:true}).click();
+  await expect(body).toHaveText('We can build it.');
+  await body.press('ControlOrMeta+z');await expect(body).toHaveText('We can built it.');
+  await body.press('ControlOrMeta+Shift+z');await expect(body).toHaveText('We can build it.');
+  await expect(page.getByRole('button',{name:'Save draft',exact:true})).toBeDisabled();
+  await page.reload();await expect(body).toHaveText('We can build it.');
+});
+
+for(const [expression,label,context] of [['으아아아아악','Community expression review'],['셀던','Unrecognized expression'],['저렴이','Community expression review','저렴이로'],['이란전','Unrecognized expression','이란전에서'],['개빠르네요','Community expression review'],['떠들자요','Community expression review'],['개더워요','Community expression review'],['갤','Community expression review','갤 S25 울트라'],['넘','Community expression review','넘 강해서']])test(`personal expression registration persists without hiding a neighboring repair: ${expression}`,async({page})=>{
   await page.goto('/');
   const body=page.getByRole('textbox',{name:'Document body',exact:true});
   await body.fill(`${context??expression}. 됬어요.`);
@@ -815,6 +834,28 @@ test("new noun and stem corrections apply through the Worker and survive reload"
   expect(errors).toEqual([]);
 });
 
+test("reviewed phrase boundaries apply through the Worker without altering an acronym", async ({ page }) => {
+  await page.goto("/");
+  const body = page.getByRole("textbox", { name: "Document body", exact: true });
+  await body.fill("기준자체가 sns짜증이 스팩에");
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  for (const suggestion of ["기준 자체가", "sns 짜증이", "스펙에"]) {
+    await expect(dialog.getByRole("button", { name: suggestion, exact: true })).toBeVisible();
+    await dialog.getByRole("button", { name: "Change", exact: true }).click();
+  }
+  await expect(dialog).toContainText("Spelling review complete.");
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(body).toHaveText("기준 자체가 sns 짜증이 스펙에");
+  await body.press("ControlOrMeta+z");
+  await expect(body).toHaveText("기준 자체가 sns 짜증이 스팩에");
+  await body.press("ControlOrMeta+Shift+z");
+  await expect(body).toHaveText("기준 자체가 sns 짜증이 스펙에");
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await page.reload();
+  await expect(body).toHaveText("기준 자체가 sns 짜증이 스펙에");
+});
+
 test("context suggestions require Change and survive save, reload and undo", async ({ page, browserName }) => {
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -865,7 +906,7 @@ test("Korean spelling applies only chosen words and persists personal exceptions
   await expect(dialog.getByRole("textbox", { name: "Replace with" })).toHaveValue("됐어요");
   await dialog.getByRole("button", { name: "됐어요", exact: true }).click();
   await expect(body).toHaveText("됬어요 맞춥법 실바나스");
-  await expect(dialog).toContainText("English grammar and context are not checked.");
+  await expect(dialog).toContainText("Korean spelling and English grammar coverage are limited; full context is not analyzed.");
   await dialog.getByRole("button", { name: "Change", exact: true }).click();
   await expect(body).toHaveText("됐어요 맞춥법 실바나스");
   await dialog.getByRole("button", { name: "Skip once" }).click();

@@ -35,13 +35,14 @@ export function communityExpression(text,from,to,personal,sets,predicate){
   }
   // 갈축 is a reviewed keyboard abbreviation, not a global standard-word
   // entry. Its 갈다/가다 + 축 fragments must not become an invented fix.
-  const match=word.match(/^(질게|모공|비추|컴|업글|저렴이|갈축)(.*)$/);
+  const match=word.match(/^(질게|모공|비추|컴|업글|저렴이|갈축|음감)(.*)$/);
   if(!match||personal.has(word)||personal.has(match[1]))return null;
   const [,base,tail]=match;
   const copula=tail&&predicate(tail)?.root==='이';
   if(tail&&!sets.josa.has(tail)&&!copula)return null;
   if(base==='질게')return /^[ \u00a0]+(?:게시판|게시글|질문|답변)(?:[가-힣]*)(?=$|[\s.,!?])/u.test(right)?base:null;
   if(base==='모공')return /^[ \u00a0]+(?:게시판|게시글|올라온|올린|올렸|썼|쓴|쓰는)(?:[가-힣]*)(?=$|[\s.,!?])/u.test(right)?base:null;
+  if(base==='음감')return /^[ \u00a0]+(?:위해|듣|음악|소리)(?:[가-힣]*)(?=$|[\s.,!?])/u.test(right)?base:null;
   // 비추는 is also a complete inflection of 비추다. A nominal copula
   // signals a different use, but an ordinary verb inflection stays intact.
   if(base==='비추'&&!copula&&predicate(word))return null;
@@ -49,13 +50,22 @@ export function communityExpression(text,from,to,personal,sets,predicate){
 }
 export function contextSuggestion(text,from,to,personal,predicate){
   const word=text.slice(from,to);
-  if(personal.has(word)||!['안되고','안되는','안된다','안됩니다','어떻해','현제','현제는','현제의','금새','문안한','낳으세요','낳으면','낳아서','낳았다','낳았어요'].includes(word))return null;
+  if(personal.has(word)||!['안되고','안되는','안된','안될거','안된다','안됩니다','어떻해','현제','현제는','현제의','금새','문안한','낳으세요','낳으면','낳아서','낳았다','낳았어요','타던가'].includes(word)&&!word.startsWith('자주'))return null;
   const left=text.slice(Math.max(0,from-48),from).split('\n').at(-1);
   const right=text.slice(to,to+48).split('\n')[0];
   // Do not interpret quoted spellings or dictionary discussions as assertions.
   if(/["'“‘「『]$/.test(left)||/^["'”’」』]/.test(right))return null;
   const next=right.match(/^[ \u00a0]+([가-힣]+)/)?.[1];
   const suggest=(replacement,reason)=>({suggestions:[replacement],ambiguous:true,reason});
+  if(word.startsWith('자주')&&/(?:^|[ \u00a0])(?:이걸|그걸|저걸|이것을|그것을|이 일을|그 일을)[ \u00a0]+$/.test(left)&&predicate(word.slice(2))){
+    return {...suggest('자주 '+word.slice(2),'Separate frequency adverb 자주 from 하다 when an explicit object precedes it'),type:'spacing'};
+  }
+  if(word==='타던가'&&/^[ \u00a0]*[,，]?[ \u00a0]*아니면(?:[ \u00a0]|$)/.test(right)){
+    return suggest('타든가','Context review: -든가 presents alternatives before 아니면; -던가 recalls a past event');
+  }
+  if((word.startsWith('안되')||word==='안된'||word==='안될거')&&/(?:^|[ \u00a0])(?:카드|할인|감당이)(?:[ \u00a0]+|$)/.test(left)){
+    return {...suggest(word==='안될거'?'안 될 거':'안 '+word.slice(1),'Context review: separate negative 안 when payment, discount, or capacity does not work; confirm the intended meaning'),type:'spacing'};
+  }
   if(word.startsWith('안되')&&/(?:^|[ \u00a0])거래가[ \u00a0]+$/.test(left)){
     return {...suggest('안 '+word.slice(1),'Context review: when a transaction does not take place, separate negative 안 from 되다; confirm the intended meaning'),type:'spacing'};
   }

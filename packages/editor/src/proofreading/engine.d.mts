@@ -1,6 +1,6 @@
 export type Finding = {
   from: number; to: number; original: string; language: "ko" | "en";
-  type: "spelling" | "spacing" | "unknown"; suggestions: string[];
+  type: "spelling" | "spacing" | "grammar" | "unknown"; suggestions: string[];
   base?: string; applicable: boolean; reason: string; ambiguous?: boolean;
   reviewKind?: "community";
 };

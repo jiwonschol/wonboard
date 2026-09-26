@@ -37,7 +37,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   for(const base of dridaNouns)roots.add(base+'드리');
   // -받다 attaches to these verified abstract hosts. A concrete object
   // (선물 받다) or a modified noun phrase remains a separate construction.
-  const batdaNouns=new Set(['축복','초대','구원','검수','교육','존경','미움','사랑','고통','눈총','인정','주목']);
+  const batdaNouns=new Set(['축복','초대','구원','검수','교육','존경','미움','사랑','고통','눈총','인정','주목','추천','놀림']);
   for(const base of batdaNouns)roots.add(base+'받');
   const final=s=>(s.charCodeAt(s.length-1)-0xac00)%28;
   const withFinal=(s,n)=>s.slice(0,-1)+String.fromCharCode(s.charCodeAt(s.length-1)-final(s)+n);

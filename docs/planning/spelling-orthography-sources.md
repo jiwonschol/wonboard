@@ -1,5 +1,9 @@
 # 표기 규칙 출처 / 2026-09-10
 
+## 스펙 표기
+
+[국립국어원 온라인가나다 306215](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=306215)는 영어 `spec`의 한글 표기를 `스펙`으로 안내한다. 공통 인식 목록에는 `스펙`을 두고 `스팩`은 수정 후보로 제안한다. 원문과 사전 정의를 배포 자료에 복제하지 않았다. 이미 검사 결과에 노출된 개발 자료의 점수는 독립 품질 증거가 아니다.
+
 ## 후속172 — 시간·위치 명사 뒤 쯤
 
 [국립국어원 쯤 결합 상담](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=324970&searchCondition=&searchKeyword=)을 다시 읽고, [지금쯤의 파생 설명](https://m.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=312870)도 확인했다. 기존 수량 범위와 제한된 시간·위치 명사에만 접미사 결합 인식을 적용했다. 전체 명사에 무조건 파생을 허용하지 않는다. 정의·예문을 배포 데이터에 복제하지 않았다. 개발 필수343/448·정상 오제안0/744는 독립 완료 증거가 아니다.
@@ -704,3 +708,13 @@ Luna 두 역할이 이뻐→예뻐를 필수 수정으로 제안한 것은 [국�
 - 새 DC 글에서 Luna 세 역할이 `-짜리`를 의존 명사라고 설명하며 띄우도록 제안했다. [한국어기초사전의 짜리 검색 본문](https://krdict.korean.go.kr/kor/dicMarinerSearch/search?mainSearchWord=%EC%A7%9C)은 이를 접사로 분류한다. 세 역할의 합의도 정답으로 간주하지 않는다. 허용 붙임 `껴줄`의 변경과 의도적인 구어체 변경은 비표준 철자 판정과 별도로 제품 보존 요구 위반으로 기록한다.
 
 위 자료는 규범 근거로 열람했다. 외부 정의·용례·사전 목록을 새 배포 자산으로 복사하거나 의존성을 추가하지 않았다. 전체 품질 판정과 현재 두 사전 payload의 라이선스 정책 검사는 별개다.
+
+## 실전 게시글 대조: 추천받다와 보조 용언
+
+[국립국어원 온라인가나다 325135](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=261&pageIndex=1&qna_seq=325135)는 피동의 접미사 `-받다`가 결합한 `추천받다`를 붙여 쓰도록 설명한다. `추천받고 싶습니다`의 첫 경계를 지키기 위해 이 한 어근을 기존의 제한된 파생 목록에 더했다.
+
+`사 놓은 거`는 보조 용언을 띄는 원칙을 따른다. [국립국어원 온라인가나다 314531](https://m.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=314531)은 이 구조에서 붙임도 허용한다고 설명하므로, `사놓은 거`를 오류로 세지 않는다. 기존 첫 판정의 좁은 단일 정답은 원문 그대로 보존하고, 비교 보고서에서 허용 대안으로 따로 감사한다.
+
+[국립국어원 교육 자료](https://www.korean.go.kr/common/download.do%3Bfront%3D052E464FB4F4D9E2EB12B90C4EBF3EC6?c_file_name=b29c6837-dee9-4f2a-918e-3f8edbb3c46a_0.pdf&file_path=reportData&o_file_name=%EC%84%B8%EC%A2%85%ED%95%9C%EA%B5%AD%EC%96%B4+2+%EA%B5%90%EC%9B%90%EC%9A%A9+%EC%A7%80%EC%B9%A8%EC%84%9C.pdf)는 이동 표현 `갔다 오다`를 별도 말로 제시한다. 이를 기존 완성 용언 두 개에 한정해 분리한다.
+
+실전 게시글에서 `놀림받지만`을 잘못 띄우라고 한 후보를 발견했다. [국립국어원 상담 사례](https://www.korean.go.kr/front/mcfaq/mcfaqView.do?mcfaq_seq=5869&mn_id=217&pageIndex=1)는 `놀림받다`를 접미사 결합으로 붙여 쓰도록 명시한다. 제한된 `-받다` 파생 목록에 `놀림`을 더해 전체 활용을 보존한다.

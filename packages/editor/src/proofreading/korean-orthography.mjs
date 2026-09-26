@@ -2,6 +2,13 @@
 // Sources and limits: docs/planning/spelling-orthography-sources.md.
 export function orthography(word,sets,personal,isPredicate,isKnownNoun=w=>sets.noun.has(w),precedingAdnominal=false,followingPredicate=false) {
   if(personal.has(word))return null;
+  // The past form of 하다 is 했-, including action-noun compounds. Restrict
+  // this repair to finite endings so 햇볕 and other lexical words stay intact.
+  const malformedPast=word.match(/^(.+)?햇(는데|어요|지만|고|다)$/);
+  if(malformedPast){
+    const corrected=(malformedPast[1]??'')+'했'+malformedPast[2];
+    if(isPredicate(corrected))return {suggestions:[corrected],reason:'Past 하다 inflects with 했, not 햇',ambiguous:false};
+  }
   // 높이다 is the attested causative; validate the complete repaired inflection.
   for(const [bad,good]of [['높히','높이'],['높혀','높여'],['높혔','높였'],['높힌','높인'],['높힐','높일']]){
     if(!word.startsWith(bad)||personal.has(bad)||personal.has('높히다'))continue;
@@ -113,7 +120,7 @@ export function orthography(word,sets,personal,isPredicate,isKnownNoun=w=>sets.n
     const number=personal.has('세네')?'세네':'서너';
     return {suggestions:[number+(approximate[1]?' '+approximate[1]:'')+approximate[2]],reason:'Standard quantity 서너; retain dialect if personally registered',ambiguous:true};
   }
-  const exact=new Map([['어짜피','어차피'],['웬지','왠지'],['꼼꼼이','꼼꼼히'],['뵈요','봬요'],['되요','돼요'],['구지','굳이'],['게의치','개의치']]);
+  const exact=new Map([['어짜피','어차피'],['웬지','왠지'],['꼼꼼이','꼼꼼히'],['뵈요','봬요'],['되요','돼요'],['구지','굳이'],['게의치','개의치'],['가기록','가기로'],['가계들을','가게들을'],['돋구는','돋우는'],['먹벅고','먹고'],['연습양','연습량'],['어떻하지','어떡하지'],['잇는데','있는데'],['깍아','깎아'],['안듬','안 듦'],['부캐엿고','부캐였고']]);
   if(word==='않되요')return {suggestions:['안 돼요'],reason:'Negative adverb 안 and 되어/돼 contraction',ambiguous:false};
   if(exact.has(word))return {suggestions:[exact.get(word)],reason:'Verified lexical spelling; see source registry',ambiguous:false};
   if(word.endsWith('할려고')){
@@ -199,7 +206,7 @@ export function orthography(word,sets,personal,isPredicate,isKnownNoun=w=>sets.n
 // predicate or particle replacements on an unrelated interior fragment.
 export function lexicalNounRepair(word,sets,personal,isPredicate){
   if(personal.has(word))return null;
-  const lexical=[['맞춥법','맞춤법'],['전세집','전셋집'],['몇일','며칠'],['설겆이','설거지'],['오랫만','오랜만'],['오랬동안','오랫동안'],['역활','역할'],['뒤치닥거리','뒤치다꺼리'],['환골탈퇴','환골탈태'],['메세지','메시지'],['제테크','재테크'],['헤택','혜택'],['데스크탑','데스크톱'],['라이센스','라이선스'],['런닝','러닝'],['머리속','머릿속'],['스크레치','스크래치'],['판넬','패널'],['컨텐츠','콘텐츠'],['엑세스','액세스'],['워크플로우','워크플로'],['마이그레션','마이그레이션'],['테트스','테스트'],['스폰지','스펀지'],['뒷통수','뒤통수'],['마찮가지','마찬가지'],['깨닳음','깨달음'],['플라스탁','플라스틱'],['셋팅','세팅'],['렌트카','렌터카']];
+  const lexical=[['맞춥법','맞춤법'],['전세집','전셋집'],['몇일','며칠'],['설겆이','설거지'],['오랫만','오랜만'],['오랬동안','오랫동안'],['역활','역할'],['뒤치닥거리','뒤치다꺼리'],['환골탈퇴','환골탈태'],['메세지','메시지'],['제테크','재테크'],['헤택','혜택'],['데스크탑','데스크톱'],['라이센스','라이선스'],['런닝','러닝'],['머리속','머릿속'],['스크레치','스크래치'],['판넬','패널'],['컨텐츠','콘텐츠'],['엑세스','액세스'],['워크플로우','워크플로'],['마이그레션','마이그레이션'],['테트스','테스트'],['스폰지','스펀지'],['뒷통수','뒤통수'],['마찮가지','마찬가지'],['깨닳음','깨달음'],['플라스탁','플라스틱'],['셋팅','세팅'],['렌트카','렌터카'],['연습양','연습량'],['스팩','스펙']];
   for(const [bad,good] of lexical)if(word.startsWith(bad)){
     const tail=word.slice(bad.length);
     // Compose the verified noun repair with a complete derived predicate.

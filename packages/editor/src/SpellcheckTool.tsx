@@ -132,13 +132,13 @@ function SpellingReview({ editor, locale, close }: { editor: Editor; locale: Loc
     <h2>{ko ? "맞춤법 검사" : "Check spelling"}</h2>
     <p className="spelling-instructions">{ko ? "추천을 선택하거나 직접 입력한 뒤 ‘바꾸기’를 누르세요. 선택한 표현만 본문에 적용합니다." : "Choose a suggestion or enter your own replacement, then press Change. Only that expression will change."}<br />
       <kbd>Enter</kbd> {ko ? "이번만 건너뛰기" : "Skip once"} · <kbd>Shift + Enter</kbd> {ko ? "바꾸고 다음으로" : "Change and continue"}</p>
-    <p className="spelling-coverage">{ko ? "한국어 철자·띄어쓰기 / 영어 철자 · 기기 안에서 처리" : "Korean spelling and spacing / English spelling · on this device"}<br />
-      {ko ? "개발 중인 검사입니다. 한국어 철자 검출은 아직 제한적이며, 영어 문법과 문맥은 검사하지 않습니다." : "Experimental checker. Korean spelling coverage is limited; English grammar and context are not checked."}</p>
+    <p className="spelling-coverage">{ko ? "한국어 철자·띄어쓰기 / 영어 철자·일부 문법 · 기기 안에서 처리" : "Korean spelling and spacing / English spelling and selected grammar · on this device"}<br />
+      {ko ? "개발 중인 검사입니다. 한국어 철자와 영어 문법의 범위가 제한적이며, 문맥 전체를 판단하지 않습니다." : "Experimental checker. Korean spelling and English grammar coverage are limited; full context is not analyzed."}</p>
     {error && <p role="alert">{error}</p>}
     {stale && <p role="alert">{ko ? "본문이 변경되었거나 입력 중입니다. 다시 검사하세요." : "Document changed or input is composing. Check again."}</p>}
     {stale && !error && <button type="button" onClick={() => check()}>{ko ? "다시 검사" : "Check again"}</button>}
     {error ? null : busy ? <p role="status">{ko ? "검사 중…" : "Checking…"}</p> : current ? <section>
-      <p>{current.reviewKind === "community" ? (ko ? "인터넷 표현 검토" : "Community expression review") : current.type === "unknown" ? (ko ? "사전에 없는 표현" : "Unrecognized expression") : current.type === "spacing" ? (ko ? "띄어쓰기 제안" : "Spacing suggestion") : (ko ? "철자 제안" : "Spelling suggestion")}: <strong>{current.original}</strong></p>
+      <p>{current.reviewKind === "community" ? (ko ? "인터넷 표현 검토" : "Community expression review") : current.type === "unknown" ? (ko ? "사전에 없는 표현" : "Unrecognized expression") : current.type === "spacing" ? (ko ? "띄어쓰기 제안" : "Spacing suggestion") : current.type === "grammar" ? (ko ? "문법 제안" : "Grammar suggestion") : (ko ? "철자 제안" : "Spelling suggestion")}: <strong>{current.original}</strong></p>
       {current.type !== "unknown" && <p className="spelling-reason">{ko ? "검토 이유: " : "Review reason: "}{reviewReason(current, ko)}</p>}
       {current.ambiguous && <p>{ko ? "문맥에 따라 원문도 맞을 수 있습니다." : "The original may be correct in context."}</p>}
       {current.original.length > 64 && <p>{ko ? "공백 없이 64자를 넘는 구간은 현재 분석 범위를 초과합니다. 오류 판정이 아닙니다." : "An unbroken span over 64 characters exceeds the current analysis limit. This is not an error verdict."}</p>}
@@ -146,7 +146,7 @@ function SpellingReview({ editor, locale, close }: { editor: Editor; locale: Loc
       <SpellingReplacement key={`${current.from}:${current.original}`} word={current.original} suggestions={current.suggestions}
         ko={ko} community={current.reviewKind === "community"} disabled={stale || saving || !!error} replace={replace}
         skipButton={skipButton} changeButton={changeButton} next={next} ignore={() => setIgnored(value => [...value, current.original])} />
-      {current.type !== "spacing" && <DictionaryEntry key={`dictionary:${current.from}:${current.original}`} initial={current.type === "unknown" ? current.base ?? current.original : current.original} ko={ko} disabled={stale || busy || saving || !!error} personal={personal} add={word => save("add", word)} />}
+      {(current.type === "unknown" || current.type === "spelling") && <DictionaryEntry key={`dictionary:${current.from}:${current.original}`} initial={current.type === "unknown" ? current.base ?? current.original : current.original} ko={ko} disabled={stale || busy || saving || !!error} personal={personal} add={word => save("add", word)} />}
     </section> : stale ? null : <p role="status" className="spelling-complete">{ko ? "철자 검사를 마쳤습니다. 추가 제안이 없더라도 띄어쓰기와 문맥은 직접 확인해 주세요." : "Spelling review complete. Even with no further suggestions, please review spacing and context yourself."}</p>}
     <details><summary>{ko ? "사용자 사전" : "Personal dictionary"} ({personal.length})</summary>
       <p>{ko ? "이 브라우저 또는 앱에 저장됩니다. 다른 기기와 동기화하지 않습니다. 기본 단어와 지원하는 조사 결합을 인식하며 주변 띄어쓰기는 계속 검사합니다. 영어 대소문자는 구별하고 곡선 아포스트로피는 같은 문자로 처리합니다." : "Saved in this browser or app, without device sync. Recognizes base words and supported Korean particles; surrounding spacing is still checked. English entries are case-sensitive; curly and straight apostrophes are equivalent."}</p>
@@ -198,6 +198,7 @@ function DictionaryEntry({ initial, ko, disabled, personal, add }: { initial: st
 function reviewReason(finding: Finding, ko: boolean) {
   if (!ko) return finding.reason === "Prototype lexical candidate; rule source not yet verified"
     ? "The spelling or inflection differs from a supported form. Confirm the suggested replacement." : finding.reason;
+  if (finding.type === "grammar") return "영어 문법의 제한된 패턴에서 찾은 후보입니다. 문맥에 맞는지 확인하세요.";
   if (finding.reason.startsWith("Calendar month")) return "월 뒤의 ‘말·초’는 앞말과 띄어 씁니다. 숫자와 월은 붙여 둡니다.";
   if (finding.reason.startsWith("Calendar year")) return "연도 뒤의 ‘말·초’는 앞말과 띄어 씁니다. 숫자와 년은 붙여 둡니다.";
   if (finding.reason.startsWith("Calendar date")) return "날짜 뒤의 ‘달·날’은 앞말과 띄어 씁니다. 표현은 그대로 둡니다.";

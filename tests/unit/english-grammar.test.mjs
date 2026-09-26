@@ -1,0 +1,106 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {check} from '../../scripts/spelling-prototype.mjs';
+
+test('English grammar candidates repair attested constructions without changing nearby normal prose',()=>{
+  for(const [source,target] of [
+    ['i am here','I'],['Its fun :D',"It's"],['We can built it','can build'],
+    ['We are a few hundreds','a few hundred'],
+    ['The project is cool, but what you will do with it?','what will you do'],
+    ['Do you have audience?','have an audience'],
+    ["projects who's primary contributors are AI",'whose primary'],
+    ["You can't trust it's account.",'its'],
+    ["Your going to be sorry.","You're going"],
+    ['It is loud because its summarizing noise.',"it's"],
+    ['Im back at work.',"I'm"],
+    ['I should have reigned in my emotions.','reined in'],
+    ['You sue Claude model in an IDE.','use Claude'],
+    ['I have such hook.','such a hook'],
+    ['You can bank couple of those.','bank a couple'],
+    ['I rather have this version.',"I'd rather"],
+    ['It wasnt on DOS.',"wasn't"],
+    ['It connects to a A/B switched CRT.','an A/B'],
+    ['We have a XP box.','an XP'],
+    ['They built it into chip.','into a chip'],
+    ['It is imminently more capable.','eminently'],
+    ['These special equipments are old.','equipment'],
+    ['It worked perfectly seamless with DOS.','seamlessly'],
+    ['Few years ago I saw one.','A few years ago'],
+    ['We discovered couple of machines.','discovered a couple of'],
+    ["There's a few car dealerships here.",'There are a few'],
+    ['Instruments that only runs on DOS.','Instruments that only run'],
+    ['thats not true',"that's"],
+    ['Theres a problem',"There's"],
+    ['They ate pushing the update.','They are'],
+    ['The effort was oaid for.','paid'],
+    ['A natual channel.','natural'],
+    ['The chinnese government','Chinese'],
+    ['They publish news everyday.','news every day'],
+    ['They would loose their minds.','lose their minds'],
+    ["I read an LLMs output.","an LLM's output"],
+    ["The AI's are doing this.",'AIs are'],
+    ['Most wars in history won by armies.','wars in history were won'],
+    ['There will be once case.','one case'],
+    ['How sophisticated to we need to be?','sophisticated do we'],
+    ['I am not devops person.','I am not a devops person'],
+    ['There were no firewall.','there was no firewall'],
+    ['How did they workout the answer?','did they work out'],
+    ["No its not.","No it's not"],
+    ['They got access into the system.','got access to'],
+    ['The box is a sandbox but agent can send requests.','but an agent'],
+    ['It happened around time of the event.','around the time of'],
+    ['If i consider this, it changes.','I'],
+    ['That is a dumping grounds.','a dumping ground'],
+    ["It let's me choose.",'It lets'],
+    ['These exceptions does not apply.','exceptions do'],
+    ['It happens most of time.','most of the time'],
+    ["It chased it's tail.",'its'],
+    ['The agent get tools.','The agent gets'],
+    ['Review it before and agent attempts the work.','before an agent'],
+    ['We tried using to generate diagrams.','tried using it to generate'],
+    ['It missed lots of important bit.','lots of important bits'],
+    ['I merged 10 PR yesterday.','10 PRs'],
+    ["It don't need plan mode.","it doesn't need"],
+    ['Read epic1 through is many epics as needed.','through as many'],
+    ['I found a implemention.','an implementation'],
+    ["LLM's exist today.",'LLMs'],
+    ['It ranks the the values.','the'],
+    ["It a paradox.","It's a"],
+    ["Its so cheap.","It's so"],
+    ['Tuning it make it narrow.','Tuning it makes'],
+    ['Should we worried about this?', 'Should we be worried'],
+    ['As i mentioned earlier.', 'I'],
+    ['The page loads millions of URL each day.', 'millions of URLs'],
+    ['He thinks he is a expert.', 'an expert'],
+    ['The service includes an "takeout" feature.', 'a "takeout'],
+  ])assert.ok(check(source).some(f=>f.type===(['paid','natural','Chinese'].includes(target)?'spelling':'grammar')&&f.suggestions.includes(target)),source);
+  for(const source of [
+    'I am here. We can build it.', 'I wonder what you will do next.',
+    'Its fun factor is high.', 'She has hundreds of users.',
+    'The girl who is primary on the team arrived.',
+    "It's important to protect its account. Your going to school helped.",
+    'She reigned in France. I have a couple of those.',
+    '`i can built` is a code sample.',
+    'Few years passed before I saw one.',
+    "There's a few minutes left.",
+    'She is imminently leaving. The reign of a king ended.',
+    'They shipped a few pieces of equipment.',
+    "I trust the AI's work. Everyday problems need solutions.",
+    'A physical workout is useful. They will work out the details.',
+    "It's a useful tool. Its tool use is restricted.",
+    'He has an absolute love of music. The grounds are large.',
+    "The LLM's output is useful. It's basically useless otherwise.",
+    'Should we be worried? I mentioned it. Two URLs were saved.',
+    'An expert built a takeout feature. The team finished the task.',
+  ])assert.equal(check(source).filter(f=>f.type==='grammar').length,0,source);
+});
+
+test('reviewed English words and names are recognized without granting arbitrary unknown words',()=>{
+  for(const word of ['minecraft','railgun','randomisation','etc','NDAs','cm','dxf','Pareto','decompiled','subfunctions','Voxile','non-technical','internet','runtime','schelling']){
+    assert.equal(check(word).some(f=>f.applicable),false,word);
+  }
+  assert.equal(check('custome languages').find(f=>f.original==='custome')?.suggestions[0],'custom');
+  assert.ok(check('recieve the file').some(f=>f.suggestions.includes('receive')));
+  assert.ok(check('quorkle').some(f=>f.type==='unknown'));
+  for(const source of ['Claude models','Norway','Stephen','Astra','LLMs','APIs','non-obvious','Re-stating'])assert.ok(!check(source).some(f=>f.applicable),source);
+});

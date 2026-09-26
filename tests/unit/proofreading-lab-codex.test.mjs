@@ -37,6 +37,7 @@ test('Luna request preserves isolated prompt and converts strict JSON schema',()
  assert.equal(body.schema.type,'object');assert.equal(body.schema.additionalProperties,false);
  assert.equal(body.schema.properties.findings.items.additionalProperties,false);
  assert(!JSON.stringify(body).includes('HIDDEN'));
+ assert.match(JSON.stringify(body),/영어 문법/);
 });
 test('Codex accepts completed JSON event stream and rejects missing usage, failed turns or tool use',()=>{
  const encode=x=>x.map(JSON.stringify).join('\n');

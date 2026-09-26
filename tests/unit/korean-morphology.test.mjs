@@ -473,7 +473,7 @@ test('compound English typos yield bounded candidates without replacing register
   }
 });
 test('pathological unbroken text reports an explicit analysis limitation',()=>{
-  const f=check('가'.repeat(10000));assert.equal(f.length,1);assert.match(f[0].reason,/64/);assert.equal(f[0].applicable,false);
+  const f=check('가'.repeat(10000));assert.equal(f.length,1);assert.match(f[0].reason,/48/);assert.equal(f[0].applicable,false);
 });
 
 test('verified spelling is checked independently of permissive morphology',()=>{

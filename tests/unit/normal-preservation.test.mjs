@@ -2,6 +2,54 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('live forum grammar repairs preserve complete Korean predicates and ordinary alternatives',()=>{
+  for(const [source,target] of [
+    ['추천 해줄','추천해 줄'],['추천 해줄래','추천해 줄래'],
+    ['이걸 자주한다고?','자주 한다고'],['검색햇는데','검색했는데'],
+    ['살라햇는데','살라 했는데'],['유튜브나블로그','유튜브나 블로그'],
+    ['글쓰는게','글 쓰는 게'],['팁좀','팁 좀'],
+    ['추천받고싶습니다','추천받고 싶습니다'],['갔다왔는데','갔다 왔는데'],
+    ['대층쓰는중','대충 쓰는 중'],['재미가없네용','재미가 없네용'],
+  ])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
+  for(const source of ['추천해 줄','추천해 줄래','이걸 자주 한다고?','검색했는데','살라 했는데','유튜브나 블로그','햇볕','글 쓰는 게','팁 좀','추천받고 싶습니다','갔다 왔는데','대충 쓰는 중','재미가 없네용','사놓은 거']){
+    assert.equal(check(source).some(f=>f.applicable),false,source);
+  }
+  assert.equal(check('자주한다고?').some(f=>f.applicable),false);
+  assert.equal(check('유튜브나블로그',['유튜브나블로그']).some(f=>f.applicable),false);
+});
+
+test('reviewed phrase corrections keep the accepted result and personal entries intact',()=>{
+  for(const [source,target] of [['기준자체가','기준 자체가'],['연습양이','연습량이'],['스팩에','스펙에'],['되느냐 였는데','되느냐였는데'],['sns짜증이','sns 짜증이']]){
+    assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
+    assert.equal(check(target).some(f=>f.applicable),false,target);
+  }
+  assert.equal(check('기준자체가',['기준자체가']).some(f=>f.applicable),false);
+  assert.equal(check('`기준자체가`').some(f=>f.applicable),false);
+  assert.ok(check('택시를 타던가, 아니면 걸어요').some(f=>f.suggestions.includes('타든가')));
+  assert.ok(!check('그때도 탔던가?').some(f=>f.suggestions.includes('탔든가')));
+  const device=check('14프맥떄도');
+  assert.ok(device.some(f=>f.original==='프맥'&&f.type==='unknown'));
+  assert.ok(device.some(f=>f.suggestions.includes(' 때도')));
+});
+
+test('informal expression review uses the complete phrase without hiding nearby spacing',()=>{
+  for(const [source,expression] of [['개 더운 날씨','개 더운'],['=ㅅ=','=ㅅ='],['극 불호였는데','극 불호'],['음감을 위해선','음감']]){
+    assert.ok(check(source).some(f=>f.type==='unknown'&&f.original===expression),source);
+  }
+  const preorder=check('예판이라는걸');
+  assert.ok(preorder.some(f=>f.type==='unknown'&&f.original==='예판'));
+  assert.ok(preorder.some(f=>f.suggestions.includes('예판이라는 걸')));
+  assert.ok(check('예판이라는걸',['예판']).some(f=>f.suggestions.includes('예판이라는 걸')));
+  for(const source of ['더운 날씨','불호였는데','개가 더운 날씨','음감을 계산하다'])assert.ok(!check(source).some(f=>f.reviewKind==='community'),source);
+});
+
+test('mixed Korean prose preserves Latin names while keeping longer English typos actionable',()=>{
+  assert.ok(!check('Tuya 기반 Zigbee 센서').some(f=>f.language==='en'));
+  assert.ok(check('kiro 로').some(f=>f.original==='kiro'&&f.type==='unknown'));
+  assert.ok(check('아이템을 recieve했어요').some(f=>f.suggestions.includes('receive')));
+  assert.ok(check('I will Recieve the item').some(f=>f.suggestions.includes('Receive')));
+});
+
 test('short unfamiliar expressions and finite fragments are reviewed without invented spaces',()=>{
   for(const word of ['멘탈','벤더','슬러갈로','오마주인가','모르겠다입니다']){
     assert.ok(!check(word).some(f=>f.applicable),word);
@@ -120,6 +168,8 @@ test('a reviewed community nominal keeps a separate copula gap repair',()=>{
   assert.ok(findings.some(f=>f.suggestions.includes('됐어요')));
   assert.ok(check('비추 입니다',['비추']).some(f=>f.suggestions.includes('비추입니다')));
   for(const source of ['비추입니다','빛을 비추는','그림자를 비추고'])assert.ok(!check(source).some(f=>f.applicable),source);
+  for(const source of ['호감캐던데','나히다','정답지에'])assert.ok(!check(source).some(f=>f.applicable),source);
+  assert.ok(check('부캐엿고').some(f=>f.suggestions.includes('부캐였고')));
 });
 
 test('demonstrative noun boundaries preserve lexical and short joined expressions',()=>{
@@ -223,18 +273,19 @@ test('jjaeryeoboda vowel repair requires a complete predicate and preserves pers
 });
 
 test('unknown nominal daero review identifies the registerable base',()=>{
-  for(const base of ['아즈휼','스펙']){
+  for(const base of ['아즈휼']){
     const finding=check(base+'대로').find(f=>f.type==='unknown');
     assert.equal(finding?.base,base);assert.equal(finding?.original,base);
     assert.ok(!check(base+'대로',[base]).some(f=>f.type==='unknown'));
     assert.ok(check(base+'대로 됬어요',[base]).some(f=>f.suggestions.includes('됐어요')));
   }
+  assert.ok(!check('스펙대로').some(f=>f.type==='unknown'));
   assert.ok(!check('말한 대로').some(f=>f.applicable));
 });
 
 test('shared computing nominals recognize particles without arbitrary hada stems',()=>{
-  for(const word of ['대시보드','플러그인','웹사이트']){
-    for(const tail of ['', '에서', word==='플러그인'?'을':'를', '입니다'])assert.ok(!check(word+tail).some(f=>f.language==='ko'),word+tail);
+  for(const word of ['대시보드','플러그인','웹사이트','스펙']){
+    for(const tail of ['', '에서', ['플러그인','스펙'].includes(word)?'을':'를', '입니다'])assert.ok(!check(word+tail).some(f=>f.language==='ko'),word+tail);
     assert.ok(check(word+'합니다').some(f=>f.type==='unknown'),word);
     assert.ok(check(word+'에서 됬어요').some(f=>f.suggestions.includes('됐어요')),word);
   }
@@ -392,7 +443,8 @@ test('season phrases retain the complete temporal noun hancheol',()=>{
 
 test('verified lexical repairs retain particles and respect personal entries',()=>{
   for(const [source,target]of [['스폰지','스펀지'],['스폰지를','스펀지를'],['스폰지입니다','스펀지입니다'],['뒷통수','뒤통수'],['뒷통수를','뒤통수를'],['마찮가지다','마찬가지다'],['마찮가지로','마찬가지로']])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
-  for(const source of ['스펀지','스펀지를','뒤통수','뒤통수를','마찬가지다','마찬가지로','스팩'])assert.ok(!check(source).some(f=>f.applicable),source);
+  for(const source of ['스펀지','스펀지를','뒤통수','뒤통수를','마찬가지다','마찬가지로','스펙'])assert.ok(!check(source).some(f=>f.applicable),source);
+  assert.ok(check('스팩').some(f=>f.suggestions.includes('스펙')));
   for(const word of ['스폰지','뒷통수','마찮가지']){
     assert.ok(!check(word+'를',[word]).some(f=>f.applicable),word);
     assert.ok(check(word+' 됬어요',[word]).some(f=>f.suggestions.includes('됐어요')),word);
@@ -1188,7 +1240,7 @@ test('shared supplemental device vocabulary takes particles without swallowing n
 });
 
 test('numeric units and separated particles preserve counters and full-duration adverbs',()=>{
-  for(const [source,target]of [['5만원','5만 원'],['3천달러','3천 달러'],['2만원대였어요','2만 원대였어요']])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
+  for(const [source,target]of [['5만원','5만 원'],['3천달러','3천 달러'],['2만원대였어요','2만 원대였어요'],['900만개를','900만 개를'],['7월10일날','7월 10일 날'],['7분전임','7분 전임']])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
   for(const source of ['50000원','침대 2개가 한 방에 있습니다.','시계 2 만 하루 사용기'])assert.equal(check(source).some(f=>f.applicable),false,source);
   assert.ok(check('USB 를 연결합니다.').some(f=>f.suggestions.includes('를')));
 });
@@ -1324,7 +1376,7 @@ test('invalid concatenated honorific endings cannot conceal a topic particle mis
 });
 
 test('abstract batda derivations preserve noun modifiers and dependent boundaries',()=>{
-  for(const source of ['축복받은','초대받습니다','구원받았어요','검수받고','많은 사랑 받으세요.','사랑을 받았어요.','선물 받았습니다.'])assert.deepEqual(check(source),[],source);
+  for(const source of ['축복받은','초대받습니다','구원받았어요','검수받고','놀림받지만','많은 사랑 받으세요.','사랑을 받았어요.','선물 받았습니다.'])assert.deepEqual(check(source),[],source);
   for(const [source,target]of [['교육 받았어요','교육받았어요'],['초대 받았습니다','초대받았습니다'],['검수받을때','검수받을 때'],['검수받아보고','검수받아 보고']])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
   assert.ok(check('아즈휼받다',['아즈휼']).length,'Personal nouns must not automatically license a derived verb');
   assert.ok(!check('아즈휼 받다',['아즈휼']).some(f=>f.applicable));
@@ -1356,4 +1408,26 @@ test('a long contracted connective does not prove mandatory auxiliary spacing',(
     assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
     assert.ok(!check(target).some(f=>f.applicable),target);
   }
+});
+
+test('long unbroken text remains reviewable without a speculative replacement',()=>{
+  const source='가나다라마바사아자차카타파하'.repeat(4);
+  const findings=check(source);
+  assert.equal(findings.length,1);
+  assert.equal(findings[0].original,source);
+  assert.equal(findings[0].type,'unknown');
+  assert.deepEqual(findings[0].suggestions,[]);
+});
+
+test('counted kinds and place names keep independent noun boundaries',()=>{
+  for(const [source,target]of [['두가지중에','두 가지 중에'],['베트남남자를','베트남 남자를'],['한국여자가','한국 여자가']]){
+    assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
+  }
+  for(const source of ['두 가지 중에','베트남 남자를','한국 여자가','한국인']){
+    assert.ok(!check(source).some(f=>f.applicable),source);
+  }
+});
+
+test('reviewed gaming slang does not become a different ordinary word',()=>{
+  for(const source of ['모루저가','샛기는','개빡세네'])assert.ok(!check(source).some(f=>f.applicable),source);
 });
