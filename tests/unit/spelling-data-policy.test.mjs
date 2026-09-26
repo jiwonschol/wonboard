@@ -46,6 +46,7 @@ import {mkdtempSync,writeFileSync,readFileSync,readdirSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomBytes} from 'node:crypto';
+import {gzipSync} from 'node:zlib';
 import {readReviewedAssets,reviewedAssets} from '../../scripts/check-spelling-data-policy.mjs';
 import {stageProofreadingBundle} from '../../scripts/stage-proofreading-bundle.mjs';
 
@@ -111,7 +112,7 @@ test('staging succeeds from the shared records and writes the verified bytes',as
   const manifest=JSON.parse(out['bundle-manifest.json']);
   assert.equal(manifest.sourceLexiconSha256,sha(tree[LEXICON]),'equals the reviewed hash');
   assert.deepEqual(manifest.licenses,['MIT','Apache-2.0']);
-  assert.ok(manifest.combinedGzipBytes<=2_000_000);
+  assert.equal(manifest.combinedGzipBytes,gzipSync(out['lexicon.json']).length+gzipSync(out['morphology.json']).length);
   const combined=JSON.parse(out['lexicon.json']);
   assert.deepEqual(combined.en,['a','b'],'the staged English list comes from the candidate');
   assert.deepEqual(combined.ko,{noun:['책']},'the reviewed Korean lists pass through unchanged');
@@ -135,13 +136,16 @@ test('a failed review stops before network acquisition and before any artifact w
   }
 });
 
-test('the combined gzip cap still stops before writing the bundle',async()=>{
+test('a reviewed bundle above the former size cap is staged and measured',async()=>{
   const big=Buffer.from(JSON.stringify({forms:[randomBytes(2_500_000).toString('base64')]})+'\n');
   const h=harness({tamper:{[MORPHOLOGY]:big}});
   const bigRecords=[records[0],{...records[1],sha256:sha(big)}];
-  await assert.rejects(stageProofreadingBundle({read:h.read,records:bigRecords,stageCandidate:h.stageCandidate}),/Combined data budget exceeded/);
-  assert.equal(h.calls(),1,'the cap needs the staged English list, so acquisition happens first');
-  assert.deepEqual(readdirSync(h.directory),['english-with-basics.json'],'no bundle artifact was written');
+  const result=await stageProofreadingBundle({read:h.read,records:bigRecords,stageCandidate:h.stageCandidate});
+  const out=written(h.directory);
+  assert.equal(h.calls(),1);
+  assert.deepEqual(out['morphology.json'],big);
+  assert.ok(result.combinedGzipBytes>2_000_000);
+  assert.equal(result.combinedGzipBytes,gzipSync(out['lexicon.json']).length+gzipSync(big).length);
 });
 
 test('the repository payloads stage with no second copy of the reviewed hashes',async()=>{
@@ -159,7 +163,7 @@ test('the repository payloads stage with no second copy of the reviewed hashes',
   const out=written(directory);
   assert.equal(sha(out['morphology.json']),morphology.sha256);
   for(const notice of morphology.notices)assert.equal(sha(out['MECAB-COPYING']),notice.sha256);
-  assert.ok(manifest.combinedGzipBytes<=2_000_000,`under the hard cap: ${manifest.combinedGzipBytes}`);
+  assert.equal(manifest.combinedGzipBytes,gzipSync(out['lexicon.json']).length+gzipSync(out['morphology.json']).length);
 });
 
 // ---------------------------------------------------------------------------

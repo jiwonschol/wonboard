@@ -23,7 +23,6 @@ sources.push(...english.sources);
 const payload=JSON.stringify({notice:'Modified by Wonboard: selected Open Korean Text lists (Apache-2.0), Wordnik wordlist (MIT), and original basic forms (MIT). Original licenses in third_party/spelling.',ko,en})+'\n';
 const gzipBytes=gzipSync(payload).length;
 const combinedGzipBytes=gzipBytes+gzipSync(await readFile('third_party/spelling/generated/morphology.json')).length;
-if(combinedGzipBytes>2_000_000)throw Error(`Data hard cap exceeded: ${combinedGzipBytes}`);
 await mkdir('third_party/spelling/generated',{recursive:true});
 await mkdir('third_party/spelling/wordnik',{recursive:true});
 await writeFile('third_party/spelling/wordnik/LICENSE',await readFile(english.directory+'/LICENSE'));

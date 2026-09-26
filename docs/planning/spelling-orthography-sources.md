@@ -296,7 +296,7 @@ Open Korean Text의 선택 리비전은 2024-03-12 README 수정이지만, 사�
 
 ### 수량·기술 어휘 후속 검토
 
-읽기 전용 대안 조사: [j5ng/et5-typos-corrector 모델 카드](https://huggingface.co/j5ng/et5-typos-corrector)는 Apache-2.0 표시와 ETRI-et5·모두의 말뭉치 기반을 명시한다. [파일 목록](https://huggingface.co/j5ng/et5-typos-corrector/tree/main)의 가중치는1.3GB이며 기존 Worker2MB 범위에 그대로 들어가지 않는다. 기반 모델의 연결 페이지는 이번 조회에서 오류여서 배포 권리 전체를 확인했다고 하지 않는다. 다운로드·실행·의존성 추가·원문 전송은 없었다. [PIXIE-Spell](https://huggingface.co/telepix/PIXIE-Spell-v1.5-0.6B)은 이름과 달리 검색 임베딩 모델이라 맞춤법 교정 대안으로 채택하지 않았다. 이 조사는 현 구현의 품질 통과나 모델 도입 결정이 아니다.
+읽기 전용 대안 조사: [j5ng/et5-typos-corrector 모델 카드](https://huggingface.co/j5ng/et5-typos-corrector)는 Apache-2.0 표시와 ETRI-et5·모두의 말뭉치 기반을 명시한다. [파일 목록](https://huggingface.co/j5ng/et5-typos-corrector/tree/main)의 가중치는1.3GB이며 조사 당시의 Worker2MB 범위에 그대로 들어가지 않았다. 2026-09-26에 고정 크기 상한을 폐기했지만, 이 모델의 배포 성능·권리 검증이나 도입 승인은 수행하지 않았다. 기반 모델의 연결 페이지는 이번 조회에서 오류여서 배포 권리 전체를 확인했다고 하지 않는다. 다운로드·실행·의존성 추가·원문 전송은 없었다. [PIXIE-Spell](https://huggingface.co/telepix/PIXIE-Spell-v1.5-0.6B)은 이름과 달리 검색 임베딩 모델이라 맞춤법 교정 대안으로 채택하지 않았다. 이 조사는 현 구현의 품질 통과나 모델 도입 결정이 아니다.
 
 주격 조사 뒤 있다/없다는 조사와 서술어의 경계를 유지한다. 지시어+일반 명사는 제품·방법·문제·내용·상황·경우로 한정한다. 모든 `저+명사`에 적용하면 저장소·저전력을 훼손하므로 일반화하지 않는다. 부사처럼 보이는 닉네임+서술격은 임의 분리 대신 미등록 검토를 유지한다. [던가/든가의 공식 설명](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=275630&searchCondition=&searchKeyword=)에 따라 어미 조각 `던가`를 독립 단어로 분리하지 않는다. 둘 중 맞는 표기를 모든 문맥에서 판정한다는 뜻은 아니다.
 
