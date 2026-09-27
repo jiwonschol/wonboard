@@ -945,6 +945,9 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     for(let i=1;i<word.length;i++){
       const left=word.slice(0,i),right=word.slice(i),host=noun(left,personal);
       const rightNoun=noun(right,personal);
+      // Admissions groups modify the separate lineup noun, retaining its
+      // particle instead of treating the entire phrase as an unknown name.
+      if(['가군','나군','다군'].includes(left)&&rightNoun?.base==='라인')return {text:left+' '+right,ambiguous:true,rule:'2'};
       // Bound demonstrative hosts: arbitrary 저 + noun would split 저전력
       // and 저장소, while arbitrary 이 + noun can be a compound or name.
       const demonstrativeHost=['이','그','저'].includes(left)&&['제품','방법','문제','내용','상황','경우'].includes(rightNoun?.base);

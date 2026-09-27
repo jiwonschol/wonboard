@@ -7,6 +7,25 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     if(findings.some(item=>item.from<to&&item.to>from))return;
     findings.push({from,to,original:text.slice(from,to),language:'en',type,suggestions:[suggestion],applicable:true,reason});
   };
+  for(const match of text.matchAll(/\b(?:from|with|of|at|to)\s+(it['’]s)\s+connection\b/gi)){
+    const from=match.index+match[0].indexOf(match[1]);
+    add(from,from+match[1].length,'its','The preposition introduces a possessed connection, not an it-is clause');
+  }
+  for(const match of text.matchAll(/\b(?:had|have|has)\s+to\s+(got)\b/g)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+3,'go','Have to takes the base infinitive go');
+  }
+  for(const match of text.matchAll(/\b(I|We|we|You|you|They|they) live here since (\d+ (?:years|months|weeks|days))\b/g)){
+    add(match.index,match.index+match[0].length,match[1]+' have lived here for '+match[2],'Continuing residence over a duration uses the perfect tense and for');
+  }
+  for(const match of text.matchAll(/\b(?:the|this|that|my|your|our|their)\s+(whol)(?=\s+(?:process|thing|day|week|time)\b)/g)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+4,'whole','The complete extent adjective is whole','spelling');
+  }
+  for(const match of text.matchAll(/(?:^|[.!?]\s+)([Tt]hankd)(?=\s*(?:[.!?]|$)|\s+for\b)/g)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,match[1][0]==='T'?'Thanks':'thanks','Restore the thanks expression in a standalone acknowledgement','spelling');
+  }
   for(const match of text.matchAll(/\b(?:I|we|you|they)['’]ve\s+(build)(?=\s+(?:a|an|the|this|that|my|your|our|their)\b)/gi)){
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'built','This perfect contraction takes the past participle built');
@@ -410,7 +429,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(?:get|got|gain|gained) access into\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/into$/i,'to'),'Access normally takes to in this construction');
   for(const match of text.matchAll(/\bbut agent\b(?=\s+(?:can|could|will|would|should|must|has|had|is|was)\b)/gi))add(match.index,match.index+match[0].length,match[0].replace(/agent$/i,'an agent'),'This singular count noun needs an article');
   for(const match of text.matchAll(/\baround time of\b/gi))add(match.index,match.index+match[0].length,'around the time of','This noun phrase needs the article the');
-  for(const match of text.matchAll(/\bi\b(?=\s+(?:consider|find|prompt)\b)/g))add(match.index,match.index+1,'I','Capitalize the first-person pronoun');
+  for(const match of text.matchAll(/\bi\b(?=\s+(?:consider|find|prompt|got|wait|send|doodle)\b)/g))add(match.index,match.index+1,'I','Capitalize the first-person pronoun');
   for(const match of text.matchAll(/\bin short time\b/gi))add(match.index,match.index+match[0].length,'in a short time','Singular count noun time needs an article here');
   for(const match of text.matchAll(/\b(?:use|need|spend|allocate|provide) marginal amount\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/ marginal amount$/i,' a marginal amount'),'A singular count noun needs an article');
   for(const match of text.matchAll(/\b(?:got|get|gets|getting) couple\b(?=\s+of\b)/gi))add(match.index,match.index+match[0].length,match[0].replace(/ couple$/i,' a couple'),'A couple of needs an article');
@@ -431,8 +450,8 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'has','This singular subject takes has');
   }
-  const doSupportForms=new Map([['has','have'],['uses','use'],['works','work'],['needs','need'],['wants','want'],['seems','seem'],['worked','work'],['came','come'],['went','go'],['made','make'],['took','take'],['broke','break']]);
-  for(const match of text.matchAll(/\b(do|does|did|don['’]?t|doesn['’]?t|didn['’]?t)\s+(?:(i|you|we|they|it|he|she|this|that)\s+)?(has|uses|works|needs|wants|seems|worked|came|went|made|took|broke)\b/gi)){
+  const doSupportForms=new Map([['tries','try'],['has','have'],['uses','use'],['works','work'],['needs','need'],['wants','want'],['seems','seem'],['worked','work'],['came','come'],['went','go'],['made','make'],['took','take'],['broke','break']]);
+  for(const match of text.matchAll(/\b(do|does|did|don['’]?t|doesn['’]?t|didn['’]?t)\s+(?:(i|you|we|they|it|he|she|this|that)\s+)?(has|uses|works|needs|wants|seems|tries|worked|came|went|made|took|broke)\b/gi)){
     const from=match[2]?match.index+match[0].lastIndexOf(match[3]):match.index;
     const base=doSupportForms.get(match[3].toLowerCase());
     add(from,match.index+match[0].length,match[2]?base:match[1]+' '+base,'Do-support takes the base form of the main verb');

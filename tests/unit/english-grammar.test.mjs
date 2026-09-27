@@ -3,6 +3,24 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('ordinary household clauses recover clear spelling and auxiliary errors',()=>{
+  for(const [text,original,target]of [
+    ["leaking from it's connection with the pipe","it's",'its'],
+    ['had to got to hospital','got','go'],
+    ['We live here since 10 years','We live here since 10 years','We have lived here for 10 years'],
+    ['the whol process','whol','whole'],
+    ['Laminate is new. Thankd','Thankd','Thanks'],
+    ['Does this tries to make a call','tries','try'],
+  ])assert.ok(check(text).some(f=>f.original===original&&f.suggestions[0]===target),text);
+  for(const text of ["it's connection that matters",'we have to go','we live here','the whole process','Thankd is a name'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.equal(check('`had to got`').some(f=>f.applicable),false);
+});
+
+test('first-person pronoun recovery covers complete ordinary verb contexts',()=>{
+  for(const text of ['i got this','i wait a week','i send a message','when i doodle'])assert.ok(check(text).some(f=>f.original==='i'&&f.suggestions[0]==='I'),text);
+  for(const text of ['i = 2','`i wait`'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('TeX commands and cron preserve identifiers while nearby prose is checked',()=>{
   const text=String.raw`cron jobs use \infty and \frac{recieve}{x}`;
   const findings=check(text);

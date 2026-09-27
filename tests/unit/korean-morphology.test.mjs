@@ -2,6 +2,12 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('informal titles stay whole while admissions group boundaries remain usable',()=>{
+  assert.equal(check('슨상님이').some(f=>f.applicable),false);
+  for(const [text,target]of [['가군라인과','가군 라인과'],['나군라인이','나군 라인이']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  assert.equal(check('엄마한테는').some(f=>f.applicable),false);
+});
+
 test('complete amuri adverb and prospective geoya phrases keep their boundaries',()=>{
   for(const [text,target]of [['아무리그래도','아무리 그래도'],['학원다닐거야','학원 다닐 거야']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['아무리 그래도','이거야','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
