@@ -34,6 +34,14 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(wouldnt|couldnt|shouldnt)\b(?=\s+(?:(?:really|ever|even|just)\s+)?(?:have|be|do|go|come|use|work|need|want|know|say|make|take|get|see|read|write)\b)/gi)){
     add(match.index,match.index+match[0].length,match[0].slice(0,-1)+"'t",'The negative modal contraction needs an apostrophe');
   }
+  for(const match of text.matchAll(/\b(?:I['’]m|I am)\s+(bit)\b(?=\s+(?:concerned|worried|confused|tired|scared|surprised|lost)\b)/g)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+3,'a bit','The degree phrase is a bit before this adjective');
+  }
+  for(const match of text.matchAll(/\b(?:rate|assess|review)\s+(it['’]s)\s+(?:work|output|results)\b/gi)){
+    const from=match.index+match[0].indexOf(match[1]);
+    add(from,from+match[1].length,'its','The object after this verb uses the possessive its');
+  }
   const permitsBaseVerb=from=>{
     const before=text.slice(Math.max(0,from-160),from);
     // An object followed by a bare infinitive and a mandative that-clause
@@ -55,7 +63,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\bi\b(?=\s+(?:(?:just|still|also|really|often|usually|sometimes|always|never|already|recently|now|first)\s+)?(?:am|was|have|had|will|would|can|could|should|may|might|must|think|thought|hope|hoped|hear|heard|feel|felt|want|wanted|need|needed|like|liked|do|did|don't|didn't|couldn't|wouldn't|shouldn't|can't|won't|haven't|hadn't|wasn't)\b)/g)){
     add(match.index,match.index+1,'I','English first-person pronoun is capitalized');
   }
-  for(const match of text.matchAll(/\bi\b(?=\s+(?:(?:just|still|also|really|often|usually|sometimes|always|never|already|recently|now|first)\s+)?(?:read|kept|look|comment|found|bought|put|knew|know|tried|try|mentioned|said|wrote|noticed|believe|believed|remember|remembered|reached|started|used|use|see|saw|get|got|work|worked)\b)/g)){
+  for(const match of text.matchAll(/\bi\b(?=\s+(?:(?:just|still|also|really|often|usually|sometimes|always|never|already|recently|now|first)\s+)?(?:decided|read|kept|look|comment|found|bought|put|knew|know|tried|try|mentioned|said|wrote|noticed|believe|believed|remember|remembered|reached|started|used|use|see|saw|get|got|work|worked)\b)/g)){
     add(match.index,match.index+1,'I','English first-person pronoun is capitalized');
   }
   for(const match of text.matchAll(/\b(?:can|could|should|would|will|may|might|must|do|did|does|am|was|were|have|had)\s+(i)\b/gi)){

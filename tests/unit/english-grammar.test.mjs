@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('possessive objects and degree phrases keep their clause meaning',()=>{
+  for(const [text,target]of [["rate it's work",'its'],['I’m bit concerned','a bit'],['i decided','I']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ["It's work that matters",'I bit the apple','synology photos'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('known regular inflections and explicitly linked project names keep their identity',()=>{
   for(const text of ['smartphones','gmail','clippy','composable','larkos https://github.com/Okerew/larkos'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('smartphones recieve').some(f=>f.suggestions[0]==='receive'));
@@ -18,7 +23,7 @@ test('joined letter labels are not articles and explicit count phrases retain th
 });
 
 test('close spelling candidates preserve more of the original prefix',()=>{
-  assert.equal(check('suger')[0].suggestions[0],'sugar');
+  for(const [text,target]of [['suger','sugar'],['colleg','college'],['subtley','subtly']])assert.equal(check(text)[0].suggestions[0],target);
 });
 
 test('bounded household clauses recover missing auxiliaries and contextual spellings',()=>{
