@@ -3,6 +3,15 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('close spelling candidates preserve more of the original prefix',()=>{
+  assert.equal(check('suger')[0].suggestions[0],'sugar');
+});
+
+test('bounded household clauses recover missing auxiliaries and contextual spellings',()=>{
+  for(const [text,target]of [['I a visiting a home','I am'],['panner tikka','paneer'],['made threw a coffee pot','through'],['the terms contains this part','contain']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['I threw a coffee pot','the panner is ready','the term contains this','I am visiting'])assert.equal(check(text).some(f=>f.type==='grammar'),false,text);
+});
+
 test('Latin accents retain the whole token while nearby ASCII typos are checked',()=>{
   for(const text of ["my fiancée's",'café','fiance\u0301e','élève']){
     assert.equal(check(text).some(f=>f.applicable),false,text);

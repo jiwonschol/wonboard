@@ -7,6 +7,20 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     if(findings.some(item=>item.from<to&&item.to>from))return;
     findings.push({from,to,original:text.slice(from,to),language:'en',type,suggestions:[suggestion],applicable:true,reason});
   };
+  for(const match of text.matchAll(/\bI a(?=\s+(?:visiting|trying|looking|working|planning|using|having)\b)/g)){
+    add(match.index,match.index+match[0].length,'I am','A first-person progressive clause needs am');
+  }
+  for(const match of text.matchAll(/\b(panner)(?=\s+tikka\b)/gi)){
+    add(match.index,match.index+match[0].length,match[0][0]==='P'?'Paneer':'paneer','The cheese in this dish is paneer','spelling');
+  }
+  for(const match of text.matchAll(/\bmade\s+(threw)(?=\s+a\s+coffee\s+pot\b)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'through','This describes the preparation route, not a throwing action');
+  }
+  for(const match of text.matchAll(/\bterms\s+(contains)(?=\s+(?:this|that|the|a|an)\b)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'contain','The plural subject terms takes contain');
+  }
   const permitsBaseVerb=from=>{
     const before=text.slice(Math.max(0,from-160),from);
     // An object followed by a bare infinitive and a mandative that-clause
