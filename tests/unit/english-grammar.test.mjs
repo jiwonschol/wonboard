@@ -3,6 +3,12 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('technical nouns, acronyms and names retain their identity in lowercase prose',()=>{
+  for(const text of ['serializer','serializers','ctypes','oss','india','clodex agents'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check("wev'e been getting").some(f=>f.suggestions[0]==="we've"));
+  assert.equal(check('weave been getting').some(f=>f.suggestions[0]==="we've"),false);
+});
+
 test('possessive objects and degree phrases keep their clause meaning',()=>{
   for(const [text,target]of [["rate it's work",'its'],['I’m bit concerned','a bit'],['i decided','I']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ["It's work that matters",'I bit the apple','synology photos'])assert.equal(check(text).some(f=>f.applicable),false,text);
