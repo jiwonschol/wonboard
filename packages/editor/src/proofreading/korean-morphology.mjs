@@ -1054,6 +1054,17 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       if(!best[end]||cost<best[end].cost)best[end]={cost,parts:[...best[start].parts,dep?.text??part],unknowns:[...best[start].unknowns,...(a?.unknown&&!dep?[a.base]:[])]};
     }
     const result=best.at(-1);
+    // Equally grammatical noun/verb boundaries can change the meaning
+    // (색 조정하다 / 색조 정하다). Segmentation cost cannot choose that intent.
+    if(result?.parts.length===2){
+      const [left,right]=result.parts;
+      if(knownNominal(left)&&predicate(right)&&left.length>=2){
+        for(let i=1;i<left.length;i++){
+          const other=predicate(word.slice(i));
+          if(knownNominal(word.slice(0,i))&&other?.root.endsWith('하')&&actionNouns.has(other.root.slice(0,-1)))return null;
+        }
+      }
+    }
     // A copula needs a nominal host. Two copula fragments cannot explain
     // an unknown name, and an imperative followed by a noun fragment is
     // not enough evidence for a missing internal space.
@@ -1157,7 +1168,10 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         // The dependent rule already established the boundary before 중.
         if(left?.kind==='noun'&&left.base===last&&actionNouns.has(first)&&next.startsWith(first+' ')&&noun(next.slice(first.length+1),personal)?.base==='중')return true;
         if(last==='출장'&&first==='수리'&&predicate(result.parts[i+2]??''))return true;
-        if(last==='현금'&&rightPredicate?.root==='처리하')return true;
+        if(['현금','환불'].includes(last)&&rightPredicate?.root==='처리하')return true;
+        if(last==='며칠'&&/^(?:전|후)(?:에|에는|부터|까지)?$/.test(first))return true;
+        if(last==='알람'&&right?.kind==='noun'&&right.base==='소리')return true;
+        if(part.endsWith(' 수')&&rightPredicate?.root==='있')return true;
         if(left?.kind==='noun'&&!left.copula&&left.base!==last&&
           /^(?:(?:에서|서|에게|께서|한테)(?:부터|까지)?(?:는|도|만)?|이|가|을|를|에|로|으로|랑|이랑|와|과|도|만|부터|까지)$/.test(last.slice(left.base.length))&&(rightPredicate||adverbs.has(first)||['정말','진짜','너무','아주','매우'].includes(first)))return true;
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&rightPredicate?.root==='받'&&!staticStateNouns.has(last)&&!actionNouns.has(last)&&!batdaNouns.has(last)&&!recognizeWhole?.(last+first,personal))return true;
@@ -1189,6 +1203,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(main&&last.endsWith('까')&&rightPredicate?.root==='보')return true;
         if(main&&last.endsWith('까')&&first==='말까'&&rightPredicate?.root==='말')return true;
         if(main&&/(?:기는|긴)$/.test(last)&&main.root===rightPredicate?.root)return true;
+        if(main&&/(?:기는|긴)$/.test(last)&&rightPredicate?.root==='하')return true;
         const negative=last.endsWith('진')?last.slice(0,-1)+'지':last.endsWith('치')?last.slice(0,-1)+'하지':last;
         if(negative.endsWith('지')&&predicate(negative)&&['않','말','못하'].includes(rightPredicate?.root))return true;
         if(main&&/[아어해]$/.test(last)&&rightPredicate?.root==='보이')return true;
