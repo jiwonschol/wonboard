@@ -19,7 +19,7 @@ test('whole recognized names and mimetic verbs precede speculative noun and adve
 });
 
 test('copula negative particles and recognized group names stay intact',()=>{
-  for(const text of ['고정적이지가','일반적이지가','과동아리도','천장등이'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const text of ['고정적이지가','일반적이지가','과동아리도','천장등이','용과같이 시리즈'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('잘본과목이').some(f=>f.suggestions[0]==='잘 본 과목이'));
 });
 

@@ -3,6 +3,12 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('foreign parenthetical names are reviewed without English word substitutions',()=>{
+  assert.equal(check('milk (leche de chocho), with my indian passport').some(f=>f.applicable),false);
+  assert.ok(check('milk (leche de chocho), recieve it').some(f=>f.suggestions[0]==='receive'));
+  assert.ok(check('(teh milk)').some(f=>f.suggestions[0]==='the'));
+});
+
 test('cultural words stay intact and explicit container and pronoun clauses are repaired',()=>{
   for(const text of ['perform umrah','pani puri','its nothing-to-lose attitude','go out if the fridge fails'])assert.equal(check(text).some(f=>f.applicable),false,text);
   for(const [text,target]of [["its something you can do","it's"],['pulled it out if the fridge','of'],['It it possible to make this','Is it'],['a lot of recipe for pork','recipes']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);

@@ -234,6 +234,9 @@ export function createChecker(data) {
     const spacingResults=new Map();
     let auxiliaryRepairEnd=0;
     const repositoryNames=[...text.matchAll(/https:\/\/github\.com\/[A-Za-z0-9_.-]+\/([A-Za-z0-9_.-]+)/g)].map(m=>m[1].toLowerCase());
+    // A parenthetical Romance-language name is not English edit-distance
+    // input. Keep the words reviewable and preserve the surrounding prose.
+    const foreignGlosses=[...text.matchAll(/\([a-z]+(?:\s+[a-z]+){0,2}\s+(?:de|del|du|des)\s+[a-z]+(?:\s+[a-z]+){0,2}\)/gi)].map(m=>[m.index,m.index+m[0].length]);
     const excluded=[...text.matchAll(/https?:\/\/[^\s]+|`[^`]*`|\b[A-Za-z0-9_-]+\.(?:md|txt|png|jpe?g|gif|webp|pdf|json|tsx?|jsx?|html|css|zip)\b|\b(?:Ctrl|Control|Alt|Option|Shift|Cmd|Command|Meta)(?:\+[A-Za-z0-9]+)+/g)].map(m=>[m.index,m.index+m[0].length]);
     // Bare hosts and email addresses are structured identifiers even without
     // a URL scheme. Protect the full span before grammar and token checking.
@@ -252,7 +255,7 @@ export function createChecker(data) {
       const quote=m[0].indexOf(m[1]);excluded.push([m.index+quote,m.index+m[0].length]);
     }
     for(const m of text.matchAll(/\bde facto\b/gi))excluded.push([m.index,m.index+m[0].length]);
-    results.push(...englishGrammar(text,excluded,personal));
+    results.push(...englishGrammar(text,[...excluded,...foreignGlosses],personal));
     const quotedEnds=new Set([...text.matchAll(/"[^"\n]+"|'[^'\n]+'|“[^”\n]+”|‘[^’\n]+’|「[^」\n]+」|『[^』\n]+』|\([^()\n]+\)|\[[^\[\]\n]+\]/g)].map(m=>m.index+m[0].length));
     function emit(from,to,language,type,suggestions,base) {results.push({from,to,original:text.slice(from,to),language,type,suggestions,base,applicable:suggestions.length>0,reason:type==='unknown'?'Not in the selected vocabulary':'Prototype lexical candidate; rule source not yet verified'});}
     // These boundaries require a complete preceding predicate or an explicit
@@ -458,6 +461,10 @@ export function createChecker(data) {
       if(word.length>48){emit(from,to,/^\p{Script=Latin}/u.test(word)?'en':'ko','unknown',[],word);results.at(-1).reason='An unbroken span longer than 48 characters needs manual review';continue;}
       if(/^\p{Script=Latin}/u.test(word)) {
         if(results.some(item=>item.language==='en'&&item.from<to&&item.to>from))continue;
+        if(foreignGlosses.some(([a,b])=>from>a&&to<b)){
+          if(!personal.has(word))emit(from,to,'en','unknown',[],word);
+          continue;
+        }
         // Smart punctuation changes typography, not the contracted word.
         // Normalize lookup only; offsets, user text and replacements stay intact.
         const lookup=word.replaceAll('’',"'");
