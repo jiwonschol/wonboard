@@ -4,6 +4,11 @@ import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 import {englishGrammar} from '../../packages/editor/src/proofreading/english-grammar.mjs';
 
+test('typing nouns and established internet names do not become nearby dictionary words',()=>{
+  for(const text of ['a touch typer','fast typers','ublock origin','a faang company'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('teh company').some(f=>f.suggestions[0]==='the'));
+});
+
 test('bare DOI identifiers retain their suffix while adjacent prose is checked',()=>{
   const text='DOI 10.5281/zenodo.17720830. i have read it.';
   assert.deepEqual(check(text).filter(f=>f.applicable).map(f=>[f.original,f.suggestions[0]]),[['i','I']]);
