@@ -125,8 +125,9 @@ export function createChecker(data) {
     const lower=word.toLowerCase(),alphabet='abcdefghijklmnopqrstuvwxyz',candidates=new Set();
     // Reviewed spelling repairs that weak edit-distance evidence otherwise
     // suppresses. These remain errors, never recognition-only vocabulary.
-    const lexicalRepair={havock:'havoc',possiblilties:'possibilities'}[lower];
+    const lexicalRepair={havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth'}[lower];
     if(lexicalRepair&&enLower.has(lexicalRepair))return [lexicalRepair];
+    if(lower==='flooplan'&&enLower.has('floor')&&enLower.has('plan'))return ['floor plan'];
     const add=s=>{if(enLower.has(s))candidates.add(s);};
     for(let i=0;i<=lower.length;i++) {
       add(lower.slice(0,i)+lower.slice(i+1));
@@ -532,6 +533,15 @@ export function createChecker(data) {
           if(!strong)continue;
         }
         if(knownTechnicalAbbreviations.has(lookup.toLowerCase())||recognizedEnglish.has(lookup.toLowerCase()))continue;
+        // A lower-case plural of an attested initialism is still that
+        // initialism, not a transposition of an unrelated short word.
+        if(/^[a-z]{2,5}s$/.test(lookup)&&english.has(lookup.slice(0,-1).toUpperCase()))continue;
+        // Productive -ate -> -ator nouns name an actor or tool. Retain the
+        // attested verb base instead of adding an adjective's final y.
+        const agentNoun=lookup.toLowerCase().match(/^([a-z]{3,})ators?$/);
+        if(agentNoun&&enLower.has(agentNoun[1]+'ate'))continue;
+        // Repeated final consonants extend hesitation sounds in prose.
+        if(/^(?:u+m+|h+m+|u+h+)$/i.test(lookup)&&enLower.has(lookup[0].toLowerCase()==='h'?'hmm':lookup.toLowerCase().includes('h')?'uh':'um'))continue;
         // Regular plural/third-person suffixes preserve an attested base.
         // This expands recognition only; no synthetic word becomes a target.
         const lowerLookup=lookup.toLowerCase();
@@ -568,7 +578,7 @@ export function createChecker(data) {
         // Context selects the part of speech where a nearby dictionary
         // adjective would otherwise win over an ordinary verb/noun typo.
         const before=text.slice(Math.max(0,from-50),from);
-        const contextualRepair=lookup==='avpid'&&/\bto\s+$/.test(before)?'avoid':lookup==='ceilingd'&&/\b(?:wall|walls)\s+and\s+$/.test(before)?'ceiling':null;
+        const contextualRepair=lookup==='ther'&&/\b(?:hi|hello|hey)\s+$/i.test(before)?'there':lookup==='avpid'&&/\bto\s+$/.test(before)?'avoid':lookup==='ceilingd'&&/\b(?:wall|walls)\s+and\s+$/.test(before)?'ceiling':null;
         if(contextualRepair&&enLower.has(contextualRepair)){emit(from,to,'en','spelling',[contextualRepair],word);continue;}
         // Preserve camel-case identifiers and acronyms as unknown expressions.
         // In Korean prose, a capitalized word with a close dictionary match

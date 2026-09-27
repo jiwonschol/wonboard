@@ -2,6 +2,21 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('quotation and obligation phrases retain complete predicates before dependent nouns',()=>{
+  for(const [text,target]of [['어디가야합니까','어디 가야 합니까'],['어디가야할까요','어디 가야 할까요'],['한다고할때','한다고 할 때'],['병원인가함','병원인가 함'],['지랄맞게변했음','지랄맞게 변했음']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['한다는','인가하다','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('whole lexical forms and supplementary particles do not generate damaging neighbors',()=>{
+  for(const text of ['난타전','선이수','답변드리겠습니다','이렇게까지','그렇게까지는','공보의마냥','하알라고'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('불편드려요').some(f=>f.suggestions[0]==='불편 드려요'));
+});
+
+test('contracted time and nested dependent nouns recover gaps without splitting particles',()=>{
+  for(const [text,target]of [['사용할땐','사용할 땐'],['쓰시는분중','쓰시는 분 중'],['둘중하나','둘 중 하나'],['사람들있어요','사람들 있어요'],['방법밖에없음','방법밖에 없음'],['춥게잤다고','춥게 잤다고']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['어떻게든','어떻게든지','그렇게까지는','때때로'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('lexical stems and conversational endings survive competing shorter fragments',()=>{
   for(const text of ['어마무시했네요','버벅거림','제품명이','살고 있는걸요','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
   for(const [text,target]of [['구경만할지','구경만 할지'],['안내해줘서','안내해 줘서'],['집가는데','집 가는데']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);

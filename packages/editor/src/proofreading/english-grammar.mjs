@@ -151,7 +151,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'recipes','The count noun is plural after a lot of');
   }
-  for(const match of text.matchAll(/\bI a(?=\s+(?:visiting|trying|looking|working|planning|using|having)\b)/g)){
+  for(const match of text.matchAll(/\bI (?:a|an)(?=\s+(?:visiting|trying|looking|working|planning|using|having|seeing)\b)/g)){
     add(match.index,match.index+match[0].length,'I am','A first-person progressive clause needs am');
   }
   for(const match of text.matchAll(/\b(panner)(?=\s+tikka\b)/gi)){
@@ -207,10 +207,10 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b[Ii]ve(?=\s+no\s+(?:idea|reason|doubt|intention|interest)\b)/g)){
     add(match.index,match.index+match[0].length,"I've",'The first-person have contraction before this negative noun phrase needs an apostrophe');
   }
-  for(const match of text.matchAll(/\bi\b(?=\s+(?:(?:just|still|also|really|often|usually|sometimes|always|never|already|recently|now|first)\s+)?(?:am|was|have|had|will|would|can|could|should|may|might|must|think|thought|hope|hoped|hear|heard|feel|felt|want|wanted|need|needed|like|liked|do|did|don't|didn't|couldn't|wouldn't|shouldn't|can't|won't|haven't|hadn't|wasn't)\b)/g)){
+  for(const match of text.matchAll(/\bi\b(?=\s+(?:(?:just|still|also|really|often|usually|sometimes|always|never|already|recently|now|first|ever)\s+)?(?:am|was|have|had|will|would|can|could|should|may|might|must|think|thought|hope|hoped|hear|heard|feel|felt|want|wanted|need|needed|like|liked|do|did|don't|didn't|couldn't|wouldn't|shouldn't|can't|won't|haven't|hadn't|wasn't)\b)/g)){
     add(match.index,match.index+1,'I','English first-person pronoun is capitalized');
   }
-  for(const match of text.matchAll(/\bi\b(?=\s+(?:(?:just|still|also|really|often|usually|sometimes|always|never|already|recently|now|first)\s+)?(?:decided|read|kept|look|comment|found|bought|put|knew|know|tried|try|mentioned|said|wrote|noticed|believe|believed|remember|remembered|reached|started|used|use|see|saw|get|got|work|worked|wiped)\b)/g)){
+  for(const match of text.matchAll(/\bi\b(?=\s+(?:(?:just|still|also|really|often|usually|sometimes|always|never|already|recently|now|first|ever)\s+)?(?:decided|read|kept|look|comment|found|bought|put|knew|know|tried|try|mentioned|said|wrote|noticed|believe|believed|remember|remembered|reached|started|used|use|see|saw|get|got|work|worked|wiped|killed|made|mean|sound|own|hit|installed|missed|buy)\b)/g)){
     add(match.index,match.index+1,'I','English first-person pronoun is capitalized');
   }
   for(const match of text.matchAll(/\b(?:can|could|should|would|will|may|might|must|do|did|does|am|was|were|have|had)\s+(i)\b/gi)){
@@ -239,7 +239,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\byour going(?=\s+to\s+be\b)/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='Y'?"You're going":"you're going",'Use you are before going to be');
   }
-  for(const match of text.matchAll(/\b[Ii]m\b(?=\s+(?:a|an|back|going|doing|using|building|split|sorry|sure|ready|glad|not|still|here|having|trying|looking|working|wondering)\b)/g)){
+  for(const match of text.matchAll(/\b[Ii]m\b(?=\s+(?:a|an|back|going|doing|using|building|creating|related|split|sorry|sure|ready|glad|not|still|here|having|trying|looking|Looking|working|wondering)\b)/g)){
     add(match.index,match.index+match[0].length,"I'm",'First-person contraction needs an apostrophe');
   }
   for(const match of text.matchAll(/\b[Ii]m\b(?=\s+(?:planning\s+to|planning\s+(?:a|an|the)|painting\s+(?:a|an|the)|replacing\s+(?:some|a|an|the|my|our)|keen\s+to|stuck\s+(?:between|with|in|on)|concerned\s+about|after\s+(?:some|a|an|the)|at\s+(?:a|an|the)|the\s+\d+(?:st|nd|rd|th)|new\s+(?:here|to|so))\b)/g)){
@@ -277,9 +277,9 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\bit['’]s(?=\s+own\s+[a-z]+\b)/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='I'?'Its':'its','Own modifies a possessed noun here');
   }
-  for(const match of text.matchAll(/\b(?:trying|try|tries|tried|want|wants|wanted|need|needs|needed)\s+to\s+(setup)\b/gi)){
+  for(const match of text.matchAll(/\b(?:(?:trying|try|tries|tried|want|wants|wanted|need|needs|needed|how)\s+to|asked\s+(?:me|you|us|them|Google)\s+to)\s+(setup|backup)\b/gi)){
     const from=match.index+match[0].lastIndexOf(match[1]);
-    add(from,from+match[1].length,'set up','The infinitive verb is set up; setup is a noun');
+    add(from,from+match[1].length,match[1].toLowerCase()==='backup'?'back up':'set up','The infinitive phrasal verb is written as two words');
   }
   for(const match of text.matchAll(/\b(?:have|has|had|need|needs|needed|want|wants|wanted)\s+to\s+(spent)\b/gi)){
     const from=match.index+match[0].lastIndexOf(match[1]);
@@ -292,7 +292,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(?:advices|softwares)\b/gi)){
     add(match.index,match.index+match[0].length,match[0].slice(0,-1),'This mass noun has no plural -s in ordinary prose');
   }
-  for(const match of text.matchAll(/\b(\d+)[ -]+(?:yrs?|years?)[ -]+old\b(?=\s+(?:son|daughter|child|kid|boy|girl|person|house|car|fridge|refrigerator|washer|computer|laptop|phone)\b)/gi)){
+  for(const match of text.matchAll(/\b(\d+)[ -]+(?:yrs?|years?)[ -]+old\b(?=\s+(?:son|daughter|child|kid|boy|girl|person|house|car|fridge|refrigerator|washer|computer|laptop|phone|boiler|conservatory)\b)/gi)){
     const replacement=match[1]+'-year-old';
     if(match[0]!==replacement)add(match.index,match.index+match[0].length,replacement,'An age modifier before a noun uses singular year and hyphens');
   }
@@ -431,7 +431,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   // Mass nouns can be modifiers in a software company or a feedback loop.
   // Only remove the article when this is the completed noun phrase.
-  for(const match of text.matchAll(/\b(?:a|an)\s+(?:(?:genuine|useful|helpful)\s+)?(?:feedback|advice|software|travel insurance)\b(?=\s*[,.;!?)]|$|\s+(?:on|about|for|from|to|that|which|in|with)\b)/gi)){
+  for(const match of text.matchAll(/\b(?:a|an)\s+(?:(?:genuine|useful|helpful)\s+)?(?:feedback|advice|software|spyware|travel insurance)\b(?=\s*[,.;!?)]|$|\s+(?:on|about|for|from|to|that|which|in|with)\b)/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/^(?:a|an)\s+/i,''),'This mass noun does not take an indefinite article');
   }
   for(const match of text.matchAll(/\bmuch\s+(?:false\s+)?(?:positives|negatives|errors|problems|issues|people|files|users)\b/gi)){
@@ -572,6 +572,63 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(?:hundreds|thousands|millions) of (?:URL|API|LLM)\b(?!s)/g))add(match.index,match.index+match[0].length,match[0]+'s','A plural quantity takes a plural count abbreviation');
   for(const match of text.matchAll(/\bthrough is many\b/gi))add(match.index,match.index+match[0].length,'through as many','As many forms the comparative quantity phrase');
   for(const match of text.matchAll(/\ba implemention\b/gi))add(match.index,match.index+match[0].length,'an implementation','Correct the noun and its preceding article');
+  // Initialisms use the spoken letter name rather than the first written
+  // letter. Restrict this to familiar initialisms with unambiguous readings.
+  for(const match of text.matchAll(/\b([Aa])\s+(AI|API|AMD|ML|LLM|MRI|HTML|HTTP|SSD|SSL|SDK)\b/g)){
+    if(match[1]==='A'&&/[\p{L}\p{N}]\s+$/u.test(text.slice(0,match.index)))continue;
+    add(match.index,match.index+match[1].length,match[1]==='A'?'An':'an','The initialism starts with a vowel sound');
+  }
+  for(const match of text.matchAll(/\b[Aa]n\s+(?:year|YC)\b/g))add(match.index,match.index+2,match[0][0]==='A'?'A':'a','This word or initialism starts with a consonant sound');
+  for(const match of text.matchAll(/\b(?:a|one)\s+(fortnights|weeks|months|years)\s+time\b/gi)){
+    const from=match.index+match[0].indexOf(match[1]);
+    add(from,from+match[1].length,match[1].slice(0,-1)+"'s",'A singular duration takes a singular possessive before time');
+  }
+  for(const match of text.matchAll(/\b(?:can|could|would|should|will|may|might|must)\s+(feedback)\b(?=\s+(?:observations|results|findings|comments|to)\b)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'feed back','The modal takes the phrasal verb feed back');
+  }
+  for(const match of text.matchAll(/\b(?:cant|cants)\b(?=\s+(?:go|figure|find|work|use|see|hear|understand|afford|remember|wait)\b)/gi))add(match.index,match.index+match[0].length,match[0][0]==='C'?"Can't":"can't",'The negative modal before this verb requires an apostrophe');
+  for(const match of text.matchAll(/\b(?:[Ww]hats)(?=\s+the\s+(?:legal|current|official|actual)\s+(?:status|position|reason|name)\b)/g))add(match.index,match.index+match[0].length,match[0][0]==='W'?"What's":"what's",'This question needs what is');
+  for(const match of text.matchAll(/\b[Ll]ets(?=\s+say\b)/g))add(match.index,match.index+match[0].length,match[0][0]==='L'?"Let's":"let's",'This invitation is the contraction let us');
+  for(const match of text.matchAll(/\blooking\s+(advice)\b(?=\s+(?:on|about|regarding|for|from)\b|[.!?,;:]|$)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'for advice','Looking takes for before the sought object');
+  }
+  for(const match of text.matchAll(/\b(?:have|has|had)\s+(their)\s+been\b/gi)){
+    const from=match.index+match[0].indexOf(match[1]);
+    add(from,from+match[1].length,'there','The existential perfect uses there, not possessive their');
+  }
+  for(const match of text.matchAll(/\b([Ii])\s+have\s+(have)(?=\s+(?:a|an|the|some|no)\b)/g)){
+    const from=match.index+match[0].lastIndexOf(match[2]);
+    add(from,from+match[2].length+1,'','The adjacent auxiliary is duplicated before a noun phrase');
+  }
+  for(const match of text.matchAll(/\b(around)\s+\1\b/gi))add(match.index,match.index+match[0].length,match[1],'The adjacent preposition is duplicated');
+  for(const match of text.matchAll(/\b(?:have|has|had|we['’]ve|I['’]ve)\s+(book)(?=\s+(?:walking tours|flights|tickets|hotels)\b)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'booked','The perfect auxiliary takes the participle booked');
+  }
+  for(const match of text.matchAll(/\b(?:in|for)\s+(same price)\b/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'the same price','Same in this price phrase needs a determiner');
+  }
+  for(const match of text.matchAll(/\b(?:am|is|was)\s+(fresh graduate)(?=\s+(?:working|looking|from|with|and|but)\b|[.!?,;:]|$)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'a '+match[1],'The singular count phrase fresh graduate needs an article');
+  }
+  for(const match of text.matchAll(/\b(?:with|without)\s+(separate answer)(?=\s+(?:to|for|from)\b|[.!?,;:]|$)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'a '+match[1],'This complete singular answer phrase needs an article');
+  }
+  for(const match of text.matchAll(/\b(?:survive|survives|survived|surviving|withstand|withstood)\s+(test of time)\b/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'the '+match[1],'The fixed expression is the test of time');
+  }
+  for(const match of text.matchAll(/\b(?:in)\s+(UK|USA)\b/g)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    if(/^\s+(?:law|English|schools|companies|cities|politics|history|markets|terms)\b/.test(text.slice(from+match[1].length)))continue;
+    if(!/^(?:\s*[,.;:!?)]|$|\s+(?:and|but|for|with|to|since|next|last|this)\b)/.test(text.slice(from+match[1].length)))continue;
+    add(from,from+match[1].length,'the '+match[1],'This country name takes the definite article as a complete location phrase');
+  }
   // Run broad article agreement after exact lexical repairs so a compound
   // correction can repair both the article and a misspelled head noun.
   for(const match of text.matchAll(/\b([Aa]) ([aeio][a-z]{2,})\b/g)){

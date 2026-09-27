@@ -54,3 +54,12 @@ test('versus abbreviation is recognized without accepting arbitrary short identi
   assert.ok(check('teh')[0].suggestions.includes('the'));
   assert.ok(createChecker({ko,en:['as','is']})('vs').length>0);
 });
+
+
+test('productive initialism plurals, actor nouns and hesitation sounds retain their meaning',()=>{
+  const check=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:['API','GPU','obfuscate','obfuscatory','um','uh','hmm','mumm','pais','there','tehr','enough','boiler','tasteless','behemoth','floor','plan','the']});
+  for(const word of ['apis','gpus','obfuscator','obfuscators','ummm','uhhh','hmmmm'])assert.equal(check(word).some(f=>f.applicable),false,word);
+  for(const [text,target]of [['hi ther.','there'],['enought time','enough'],['combi boioer','boiler'],['tasteledss food','tasteless'],['a behemonth','behemoth'],['the flooplan','floor plan'],['teh','the']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  assert.equal(check('obfuscatr').some(f=>f.type==='unknown'),true);
+  assert.equal(check('hi ther.',['ther']).some(f=>f.original==='ther'),false);
+});

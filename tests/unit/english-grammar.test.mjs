@@ -576,3 +576,17 @@ test('weak nearby words need stronger evidence than short or two-substitution di
   assert.equal(smallCheck('teh')[0]?.suggestions[0],'the');
   assert.equal(smallCheck('tommorow')[0]?.suggestions[0],'tomorrow');
 });
+
+
+test('historical prose restores bounded contractions, repeated words and function words',()=>{
+  for(const [text,target]of [['i ever made it','I'],['i own it','I'],['Im creating a tool',"I'm"],['Im Looking for ideas',"I'm"],['I an seeing it','I am'],['a AI tool','an'],['a ML team','an'],['an year','a'],['an YC company','a'],['how to setup','set up'],['asked Google to backup my photos','back up'],['a fortnights time',"fortnight's"],['could feedback observations','feed back'],['cant go',"can't"],['Whats the legal status?',"What's"],['Lets say',"Let's"],['looking advice','for advice'],['Have their been changes?','there'],['I have have an answer',''],['around around the door','around'],["we've book flights",'booked'],['for same price','the same price']])assert.ok(englishGrammar(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['Agent A AI model','a SQL query','a UK company','an API tool','want access to setup','their children have been here','looking advice up online','we have book covers','a spyware detector','cant is a word','the setup process']){
+    assert.equal(englishGrammar(text).length,0,text);
+  }
+});
+
+test('complete noun phrases recover articles while noun modifiers keep their structure',()=>{
+  for(const [text,target]of [['I am fresh graduate working here','a fresh graduate'],['with separate answer to each question','a separate answer'],['survived test of time','the test of time'],['here in UK.','the UK']])assert.ok(englishGrammar(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['we are fresh graduate recruiters','with separate answer sheets','will be default settings','in UK law','in UK schools'])assert.equal(englishGrammar(text).length,0,text);
+  const text='a AI tool';assert.equal(englishGrammar(text,[[0,text.length]]).length,0);assert.equal(englishGrammar(text,[],new Set(['a'])).length,0);
+});

@@ -35,7 +35,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   for(const [s,e,r]of data?.forms??[])if(e==='ETM'&&naeConnectives.has(r)&&s===r.slice(0,-1)+'낸')roots.add(r);
   // Attested suffix uses, not every noun + 드리다 (불편 드리다 differs).
   // Expand the stems so honorific, past and connective forms share the rules.
-  const dridaNouns=new Set(['감사','질문','부탁','말씀','문의','연락','송부','추천','요청','공유','축하']);
+  const dridaNouns=new Set(['감사','질문','답변','부탁','말씀','문의','연락','송부','추천','요청','공유','축하']);
   for(const base of dridaNouns)roots.add(base+'드리');
   // -받다 attaches to these verified abstract hosts. A concrete object
   // (선물 받다) or a modified noun phrase remains a separate construction.
@@ -244,7 +244,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     if(ending==='사오니')return batchim!==0&&batchim!==8;
     // Longer endings can include irregular allomorphs (나을까요 from 낫다).
     // Do not reject them merely by the first syllable of the surface ending.
-    if((batchim===0||batchim===8)&&!sDeletionPrefixes.has(prefix)&&!dAlternationPrefixes.has(prefix)&&/^(은$|을$|으)/.test(ending))return false;
+    if((batchim===0||batchim===8)&&!sDeletionPrefixes.has(prefix)&&!dAlternationPrefixes.has(prefix)&&/^(은$|을$|을라|으)/.test(ending))return false;
     if(batchim===8&&/^(는|니|시)/.test(ending))return false;
     return isEnding(ending);
   }
@@ -445,6 +445,10 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   const isNominalForm=s=>nominalForms.has(s)||s.endsWith('짐')&&Boolean(predicate(s)?.root.endsWith('지'))||s.endsWith('심')&&Boolean(predicate(s))||s.endsWith('기')&&Boolean(predicate(s))||s.endsWith('다기')&&Boolean(predicate(s.slice(0,-1)))||s.endsWith('음')&&s.length>1&&final(s.slice(0,-1))!==0&&Boolean(predicate(s));
   const approximationHosts=new Set(['사이','중간','끝','처음','지금','내일','어제','오늘','모레','이맘때','그맘때','저맘때','이때','그때','저때']);
   function noun(s,personal) {
+    // The colloquial comparison particle keeps its nominal host intact;
+    // it is distinct from the independent adverb 마냥.
+    const comparison=s.match(/^(.+)마냥(?:은|도|만)?$/);
+    if(comparison&&(knownNominal(comparison[1])||personal.has(comparison[1])))return {base:comparison[1],unknown:false};
     // Temporal 따라 is a supplementary particle, unlike the predicate in
     // 친구 따라. Keep attested temporal hosts joined before segmentation.
     const temporalFollow=s.match(/^(오늘|어제|그제|그저께|엊그제|요즘|이날|그날|이때|그때)따라(?:는|도|만|요)?$/);
@@ -562,6 +566,12 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     const n=noun(s,personal);if(n)return {...n,kind:'noun',cost:.8};
     const p=predicate(s);if(p)return {...p,kind:'predicate',cost:.8};
     if(adverbs.has(s))return {kind:'adverb',cost:1};
+    const indefiniteChoice=s.match(/^(.+게)(?:든|든지)$/);
+    if(indefiniteChoice){const host=predicate(indefiniteChoice[1]);if(host&&!host.adnominal)return {...host,kind:'predicate',cost:.8};}
+    // Supplementary particles can follow an inflected connective/adverb.
+    // Preserve 이렇게까지 rather than proposing a different ending.
+    const boundedEmphasis=s.match(/^(.+)(부터|까지)(?:는|도|만)?$/);
+    if(boundedEmphasis){const host=predicate(boundedEmphasis[1]);if(host&&!host.adnominal&&host.root!==boundedEmphasis[1])return {...host,kind:'predicate',cost:.8};}
     const emphasized=s.match(/^(.+)(도|만|은|는)$/);
     if(emphasized&&adverbs.has(emphasized[1])&&(!['은','는'].includes(emphasized[2])||emphasized[2]===(final(emphasized[1])===0?'는':'은')))return {kind:'adverb',cost:1};
     // Preserve a permitted auxiliary spelling; do not recommend optional spaces.
@@ -591,6 +601,11 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   };
   function dependent(s,contractions=true,personal=new Set()) {
     if(contractedDemonstrative(s))return null;
+    // 땐 contracts 때는 and retains the dependent-noun boundary.
+    const contractedTime=s.match(/^(.+)땐(.*)$/);
+    if(contractedTime&&(!contractedTime[2]||sets.josa.has(contractedTime[2]))&&predicate(contractedTime[1])?.adnominal)return {text:contractedTime[1]+' 땐'+contractedTime[2],ambiguous:false,rule:'42'};
+    const peopleAmong=s.match(/^(.+)분(들)?(중.*)$/);
+    if(peopleAmong&&predicate(peopleAmong[1])?.adnominal&&noun(peopleAmong[3],personal)?.base==='중')return {text:peopleAmong[1]+' 분'+(peopleAmong[2]??'')+' '+peopleAmong[3],ambiguous:true,rule:'42'};
     if(derivedNominal(s)||/^(?:이|그|저|요)건(?:데|데요|가요|지)$/.test(s))return null;
     // 텐데/테니 contract 터 + 이다. Require a prospective adnominal;
     // matching the syllables inside a name alone is not a boundary.
@@ -819,6 +834,16 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     if(word.startsWith('잘')&&predicate(word.slice(1))?.root==='되'&&(roots.has('잘되')||recognitionVerbRoots.has('잘되')))return null;
     const adverbBoundary=knownAdverbBoundary(word,personal);
     if(adverbBoundary)return adverbBoundary;
+    const choiceCount=word.match(/^(둘|셋|넷|다섯)(중)(하나.*)$/);
+    if(choiceCount&&noun(choiceCount[3],personal)?.base==='하나')return {text:choiceCount.slice(1).join(' '),ambiguous:false,rule:'42'};
+    const exclusiveAbsence=word.match(/^(.+밖에)(없.*)$/);
+    if(exclusiveAbsence&&noun(exclusiveAbsence[1],personal)&&predicate(exclusiveAbsence[2])?.root==='없')return {text:exclusiveAbsence[1]+' '+exclusiveAbsence[2],ambiguous:true,rule:'2'};
+    const pluralExistence=word.match(/^(.+들)(있.*)$/);
+    if(pluralExistence&&knownNominal(pluralExistence[1])&&predicate(pluralExistence[2])?.root==='있')return {text:pluralExistence[1]+' '+pluralExistence[2],ambiguous:true,rule:'2'};
+    for(let i=2;i<word.length;i++){
+      const left=word.slice(0,i),right=word.slice(i),main=predicate(left),tail=predicate(right);
+      if(left.endsWith('게')&&main&&tail&&tail.root!==right&&!/^(?:든|든지)$/.test(right)&&!['하','되','이'].includes(tail.root)&&!predicate(word)&&!recognizeWhole?.(word,personal))return {text:left+' '+right,ambiguous:true,rule:'2'};
+    }
     // A validated action noun cannot be the beginning of a duration noun
     // merely because its last syllable resembles 운 + 동안.
     if(word.length<=64)for(let i=2;i<word.length-2;i++){
@@ -904,6 +929,20 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     if(season&&noun(season[2],personal)?.base==='한철')return {text:season[1]+' '+season[2],ambiguous:true,rule:'2'};
     const calendar=word.match(/^(올해|지난해|금년|작년|내년|재작년|후년|금월|전월|익월)(초|말)(.*)$/);
     if(calendar&&(!calendar[3]||sets.josa.has(calendar[3])||predicate(calendar[3])?.root==='이'))return {text:calendar[1]+' '+calendar[2]+calendar[3],ambiguous:true,rule:'42'};
+    // Keep a complete obligation clause before noun/particle segmentation.
+    // 어디가 must not consume the first syllable of 가야 하다.
+    const whereObligation=word.match(/^(어디|여기|거기|저기)(가야)(.+)$/);
+    if(whereObligation&&['하','되'].includes(predicate(whereObligation[3])?.root))return {text:whereObligation.slice(1).join(' '),ambiguous:true,rule:'47'};
+    // Quotation endings precede 하다, including a following dependent noun.
+    // 고하다 is a separate homograph and cannot take the 고 from 한다고.
+    for(let i=2;i<word.length;i++){
+      const left=word.slice(0,i),right=word.slice(i);
+      const interrogativeCopula=left.endsWith('인가')&&knownNominal(left.slice(0,-2));
+      if(!interrogativeCopula&&(!/(?:다고|라고|자|까)$/.test(left)||!predicate(left)))continue;
+      if(predicate(right)?.root==='하')return {text:left+' '+right,ambiguous:true,rule:'2'};
+      const nested=dependent(right,true,personal);
+      if(nested&&predicate(nested.text.split(' ')[0])?.root==='하')return {...nested,text:left+' '+nested.text,ambiguous:true};
+    }
     const d=dependent(word,true,personal);
     if(d){
       const parts=d.text.split(' '),nested=parts.map(part=>auxiliaryBoundary(part,personal));
