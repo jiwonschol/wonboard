@@ -7,6 +7,29 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     if(findings.some(item=>item.from<to&&item.to>from))return;
     findings.push({from,to,original:text.slice(from,to),language:'en',type,suggestions:[suggestion],applicable:true,reason});
   };
+  for(const match of text.matchAll(/\b(?:I|we|you|they)['’]ve\s+(build)(?=\s+(?:a|an|the|this|that|my|your|our|their)\b)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'built','This perfect contraction takes the past participle built');
+  }
+  for(const match of text.matchAll(/\b(?:have|has|had)\s+(?:it|them)\s+(setup)\b/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'set up','The object complement is the participle set up');
+  }
+  for(const match of text.matchAll(/\b[Ii]ts(?=\s+(?:obvious|clear|evident|likely|unlikely|possible)\s+that\b)/g)){
+    add(match.index,match.index+match[0].length,match[0][0]==='I'?"It's":"it's",'This adjective clause requires it is');
+  }
+  for(const match of text.matchAll(/\b(?:I am|I['’]m|he is|she is|he['’]s|she['’]s)\s+(a)\s+\d{1,3}\s+years\s+old\b(?=\s+(?:trying|working|and|but|who)\b|[.,!?;:]|$)/gi)){
+    const from=match.index+match[0].indexOf(' '+match[1]+' ')+1;
+    add(from,from+2,'','A predicative years-old age does not take an indefinite article');
+  }
+  for(const match of text.matchAll(/\b[Ii]t seems\s+(me)(?=\s+that\b)/g)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+2,'to me','Seem takes to before its experiencer');
+  }
+  for(const match of text.matchAll(/\b(?:wrap|wrapping)\s+(?:my|your|his|her|our|their)\s+(?:mind|head)\s+(about)\b/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'around','The figurative construction is wrap one’s mind around');
+  }
   // Complete constructions with missing function words. Bound the following
   // head/verb so fragments, names and open noun modifiers stay reviewable.
   for(const match of text.matchAll(/\b(?:allow|allows|allowed|allowing)\s+(?:users|developers|people|us|me|them|you)\s+(disable|enable|access|create|change|select|use|edit|delete)\b/gi)){

@@ -3,6 +3,20 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('attested participles and complete clause repairs remain available',()=>{
+  assert.equal(check('I am a 23 years old car owner').some(f=>f.original==='a '),false);
+  for(const [text,original,target]of [
+    ['controling the light','controling','controlling'],
+    ["We've build a prototype",'build','built'],
+    ['have it setup','setup','set up'],
+    ['its obvious that this works','its',"it's"],
+    ['I am a 23 years old trying to learn','a ',''],
+    ['It seems me that this works','me','to me'],
+    ['wrap my mind about the tools','about','around'],
+  ])assert.ok(check(text).some(f=>f.original===original&&f.suggestions[0]===target),text);
+  for(const text of ['I have build scripts','its obvious features','diffing','vibing'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('reviewed names, identifiers and super compounds preserve their words',()=>{
   for(const text of ['marie curie','typst','args','superfun','superfast'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('superfun recieve').some(f=>f.suggestions[0]==='receive'));

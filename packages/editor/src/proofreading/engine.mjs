@@ -522,7 +522,10 @@ export function createChecker(data) {
         // is recognition only, not another edit-distance candidate source.
         if(lowerLookup.endsWith('ing')){
           const stem=lowerLookup.slice(0,-3),bases=[stem,stem+'e'];
-          if(bases.some(base=>base.length>=3&&(enLower.has(base)||recognizedEnglish.has(base))))continue;
+          // An attested doubled-consonant participle must still compete:
+          // recognizing control alone must not approve controling.
+          const doubledParticiple=stem+stem.at(-1)+'ing';
+          if(!enLower.has(doubledParticiple)&&bases.some(base=>base.length>=3&&(enLower.has(base)||recognizedEnglish.has(base))))continue;
         }
         // A matching repository link explicitly identifies this name. Keep
         // it reviewable rather than turning it into an unrelated dictionary word.
