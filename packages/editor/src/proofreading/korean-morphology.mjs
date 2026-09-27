@@ -249,6 +249,8 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   // personal dictionary. Bound retained entries while caching misses as well.
   const predicateCache=new Map();
   function predicate(s) {
+    // 이란 contracts 이라고 하는 and can modify a dependent noun.
+    if(s==='이란')return {root:'이',adnominal:true};
     if(predicateCache.has(s))return predicateCache.get(s);
     const result=analyzePredicate(s);
     if(predicateCache.size>=4096)predicateCache.clear();
@@ -561,7 +563,9 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       // Noun + comparison particle 만 is a different construction.
       if(p?.adnominal&&(aux?.root==='듯하'||final(left)===8&&['만하','뻔하'].includes(aux?.root)))return {kind:'predicate',cost:.8,root:p.root,adnominal:aux.adnominal};
       const contractedVowel=final(left)===0&&[6,9,14,10].includes(Math.floor((left.charCodeAt(left.length-1)-0xac00)%588/28));
-      if(p&&(connectiveForms.has(left)||/[아어해]$/.test(left)||contractedVowel)&&aux&&['주','보','내','드리','있','오','가','두','놓','버리'].includes(aux.root))return {kind:'predicate',cost:.8,root:p.root,adnominal:aux.adnominal};
+      // A detached copula allomorph (어) cannot serve as an independent
+      // main verb and invent an auxiliary phrase inside 주어주는지.
+      if(p&&p.root!=='이'&&(connectiveForms.has(left)||/[아어해]$/.test(left)||contractedVowel)&&aux&&['주','보','내','드리','있','오','가','두','놓','버리'].includes(aux.root))return {kind:'predicate',cost:.8,root:p.root,adnominal:aux.adnominal};
     }
     const u=unknown&&unknownNoun(s);return u?{...u,kind:'noun',cost:2.5}:null;
   }
@@ -1154,6 +1158,9 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         // not evidence for an independent clause after a bare noun.
         if(first.endsWith('거')&&predicate(first.slice(0,-1))?.adnominal)return false;
         if((left?.kind==='adverb'||adverbs.has(last)||last==='한번')&&(right?.kind==='adverb'||adverbs.has(first)||rightPredicate))return true;
+        // A case-marked nominal can intervene between a degree adverb
+        // and its predicate; its explicit particle establishes the gap.
+        if(['너무','정말','진짜','아주','매우'].includes(last)&&right?.kind==='noun'&&!right.unknown&&!right.copula&&/^(?:이|가|을|를)$/.test(first.slice(right.base.length)))return true;
         // A bare object may precede an adverb when the next segment contains
         // a complete predicate (견적 한번 봐주실 수). Require that clause.
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&last.length>=2&&(adverbs.has(first)||first==='한번')&&analyze(result.parts[i+2]?.split(' ')[0]??'',personal)?.kind==='predicate')return true;

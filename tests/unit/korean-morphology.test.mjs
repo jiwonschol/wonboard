@@ -2,6 +2,12 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('detached copulas cannot create auxiliary words inside a negative clause',()=>{
+  assert.equal(check('기회가안주어주는지').some(f=>f.suggestions.includes('기회가 안주 어주는지')),false);
+  for(const [text,target]of [['이란걸','이란 걸'],['너무화면을','너무 화면을']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['안주를','주어주는지','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('ambiguous nominal boundaries stay intact while complete required phrases remain reachable',()=>{
   for(const text of ['색조정했는데'])assert.equal(check(text).some(f=>f.applicable),false,text);
   for(const [text,target]of [['환불처리한다는','환불 처리한다는'],['끌수있긴합니다','끌 수 있긴 합니다'],['며칠전','며칠 전'],['알람소리에','알람 소리에']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
