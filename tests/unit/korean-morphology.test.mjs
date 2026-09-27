@@ -2,6 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('distributive suffixes stay attached and nominalized descriptions retain their boundary',()=>{
+  for(const text of ['가끔씩만','조금씩은','가끔씩도'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['내려놓기우당탕탕','내려놓기 우당탕탕'],['쓴다는가정하에','쓴다는 가정하에'],['몇번씩','몇 번씩']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
 test('weather predicates and irregular questions retain their meaning',()=>{
   for(const [text,target]of [['비온다고','비 온다고'],['눈온다','눈 온다'],['얼마나더울까요','얼마나 더울까요']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['더울까요','추울까요','유신시기','고민고민하다가','비오틴'])assert.equal(check(text).some(f=>f.applicable),false,text);

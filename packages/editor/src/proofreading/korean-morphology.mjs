@@ -792,6 +792,8 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       const lexical=(quantity[1]==='한'&&['번','잔','가지','쪽'].includes(quantity[2])&&tail!=='더'&&!tail.startsWith('씩'))||quantity[1]==='여러'&&quantity[2]==='분'||quantity[2]==='배'&&knownNominal(quantity[1]+quantity[2]);
       if(unitTail&&!lexical)return {text:quantity[1]+' '+quantity[2]+(tail==='더'?' 더':tail),ambiguous:true,rule:'43'};
     }
+    const distributedAdverb=word.match(/^(.{2,})씩(.*)$/);
+    if(distributedAdverb&&adverbs.has(distributedAdverb[1])&&(!distributedAdverb[2]||sets.josa.has(distributedAdverb[2])))return null;
     // Attested uses of the independent determiner 전 retain a boundary.
     // Restrict the head rather than splitting lexical 전- words or names.
     const wholeRange=word.match(/^전(세계|국민|매장|단계|주기)(.*)$/);
@@ -1116,6 +1118,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&last.length>=2&&(adverbs.has(first)||first==='한번')&&analyze(result.parts[i+2]?.split(' ')[0]??'',personal)?.kind==='predicate')return true;
         if(last===first&&predicate(last))return true;
         if(part.includes(' ')&&last==='줄'&&['알','모르'].includes(rightPredicate?.root))return true;
+        if(left?.nominal&&predicate(last)&&right?.kind==='adverb')return true;
         if(/^(?:누구나|아무나|누구든지|아무도)$/.test(last)&&rightPredicate)return true;
         if(['다른','어느','아무','모든','여러','무슨','온갖','이런','그런','저런'].includes(part)&&right?.kind==='noun')return true;
         // A nominal can modify a validated activity-in-progress phrase.
@@ -1135,6 +1138,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         const main=predicate(last)??(left?.kind==='predicate'?left:null);
         if(main&&last.endsWith('게')&&rightPredicate?.root==='주')return true;
         if(main?.adnominal&&rightPredicate?.root==='생각하')return true;
+        if(main?.adnominal&&/^(?:가정|조건|상황)하(?:에|에서|의)$/.test(first))return true;
         if(left?.kind==='noun'&&!left.unknown&&last.slice(left.base.length)==='이다'&&rightPredicate?.root==='보')return true;
         if(main&&last.endsWith('다')&&['보','하'].includes(rightPredicate?.root))return true;
         if(main&&last.endsWith('다')&&predicate(last.slice(0,-1))?.root===main.root&&rightPredicate)return true;
