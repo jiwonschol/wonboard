@@ -2,6 +2,16 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('dependent nouns preserve attached auxiliaries and required derived-verb boundaries',()=>{
+  for(const [text,target]of [['추천해주실수','추천해 주실 수'],['떼주는거임','떼주는 거임']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['추천해 주실 수','떼주는 거임','명시지로','갈아타볼까'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('concession, quantity and adjective clauses retain independently grounded boundaries',()=>{
+  for(const [text,target]of [['그렇다치고','그렇다 치고'],['농어촌받고','농어촌 받고'],['더럽게많아서','더럽게 많아서'],['한모금만','한 모금만']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['감동받아서','사랑받고','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('reported obligations retain the quotation ending and demonstrative i stays independent',()=>{
   assert.ok(check('기다려야한다고합니다').some(f=>f.suggestions[0]==='기다려야 한다고 합니다'));
   assert.equal(check('700W 이 사양으로').some(f=>f.applicable),false);

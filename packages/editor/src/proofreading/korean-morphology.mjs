@@ -22,6 +22,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   // XR roots are not all licensed to combine with 하다.
   const roots=new Set([...sets.verb,...sets.adjective,'말하','구하','그러','이러','유의미하','만하','듯하','뻔하','고민되','아니','받들','못하']);
   const recognitionVerbRoots=new Set(data?.recognitionVerbRoots??[]);
+  const staticStateNouns=new Set(data?.recognitionStaticStateNouns??[]);
   // Recover a lexical -하다 stem only when both regular adnominal forms
   // independently name that root in the supplied Apache morphology data.
   const suppliedForms=new Set((data?.forms??[]).map(([s,e,r])=>s+'\t'+e+'\t'+r));
@@ -210,7 +211,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   const isRecognizedNoun=s=>recognizedNouns.has(s)||recognitionParticles.some(p=>s.endsWith(p)&&recognizedNouns.has(s.slice(0,-p.length)));
   const derivedNominal=s=>/[적용별품풍]$/.test(s)&&s.length>2&&(sets.noun.has(s.slice(0,-1))||recognizedNouns.has(s.slice(0,-1))||s.endsWith('용')&&s.length>3&&s[s.length-2]==='자'&&actionNouns.has(s.slice(0,-2)));
   const demonstratives=new Set(['이것','그것','저것','요것','무엇','이곳','그곳','저곳']);
-  const quantityHosts=new Set(['하나','둘','셋','넷','다섯','여섯','일곱','여덟','아홉','열','스물','반','번째','개','장','번','군데','달','시간','조각','권','명','마리','살','쪽','줄','잔','병','봉지','그루','켤레','벌','세트','차례','개월','년','분','초','가지','폭','칸','날']);
+  const quantityHosts=new Set(['하나','둘','셋','넷','다섯','여섯','일곱','여덟','아홉','열','스물','반','번째','개','장','번','군데','달','시간','조각','권','명','마리','살','쪽','줄','잔','모금','병','봉지','그루','켤레','벌','세트','차례','개월','년','분','초','가지','폭','칸','날']);
   const repeatedActionNoun=s=>s.length>=3&&s.startsWith('재')&&!s.slice(1).startsWith('재')&&actionNouns.has(s.slice(1));
   const lexicalNominal=s=>sets.noun.has(s)||recognizedNouns.has(s)||repeatedActionNoun(s)||demonstratives.has(s)||derivedNominal(s);
   const knownNominal=s=>lexicalNominal(s)||s.endsWith('들')&&lexicalNominal(s.slice(0,-1));
@@ -641,10 +642,11 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         // 이때 + 는 is an existing noun with a particle, not 이 + 때는.
         const wholeNoun=tail?s.slice(0,-tail.length):s;
         if(sets.noun.has(wholeNoun)||recognizedNouns.has(wholeNoun))continue;
-        const host=predicate(left)??noun(left,personal);
+        const requiredAuxiliary=requiredAuxiliaryBoundary(left);
+        const host=predicate(left)??(requiredAuxiliary?predicate(requiredAuxiliary.text.split(' ').at(-1)):analyze(left,personal));
         if(dep==='거'&&left.length===1&&host?.root==='이')continue;
         if(dep==='거'&&predicate(s)&&!(left.endsWith('는')||final(left)===4||final(left)===8&&['','야'].includes(tail)))continue;
-        if(host?.adnominal||isNominalAdnominal(left,host,personal))return {text:left+' '+right,ambiguous:false,rule:'42'};
+        if(host?.adnominal||isNominalAdnominal(left,host,personal))return {text:(requiredAuxiliary?.text??left)+' '+right,ambiguous:Boolean(requiredAuxiliary),rule:'42'};
       }
     }
     // Surface -걸 is also an ending. Return a review candidate, not a certainty.
@@ -693,6 +695,28 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       const negative=negativeEnding&&!lexicalNegativeAdjective&&predicate(left)?.root!==left;
       const boundary=negative||/(?:야|야만)$/.test(left)&&['하','되'].includes(tail?.root)||left.endsWith('게')&&tail?.root==='되'||emphasis;
       if(boundary&&!right.startsWith('겠')&&(predicate(left)||analyze(left,personal)?.kind==='predicate'||emphasis&&(noun(left,personal)?.copula||emphasisHost)))return {text:(negative?(knownAdverbBoundary(left,personal)?.text??left):left)+' '+(nested?.text??right),ambiguous:true,rule:'47'};
+    }
+    return null;
+  }
+  function requiredAuxiliaryBoundary(word){
+    // Rule 47: require a known derived/compound main verb before proposing
+    // a mandatory auxiliary space. An unclassified long verb is review-only.
+    for(let i=3;i<word.length;i++){
+      const left=word.slice(0,i),right=word.slice(i),main=predicate(left),aux=predicate(right);
+      const auxiliaryRoot=aux?.root.endsWith('고프')?aux.root.slice(0,-2):aux?.root;
+      // 달라 also has a 다르다 homograph. A validated -어 main verb
+      // licenses the request reading here without changing standalone 달라.
+      const requesting=/^달라(?:고|는|며)?$/.test(right);
+      const prospectiveAux=main?.adnominal&&(aux?.root==='듯하'||final(left)===8&&['만하','뻔하'].includes(aux?.root));
+      const causative=main?.root.endsWith('시키')&&left===main.root.slice(0,-1)+'켜';
+      const contractedVowel=final(left)===0&&[6,9,14,10].includes(Math.floor((left.charCodeAt(left.length-1)-0xac00)%588/28));
+      if(main&&(prospectiveAux||(connectiveForms.has(left)||/(?:아|어|해|하여)$/.test(left)||contractedVowel||causative)&&aux&&(['주','보','내','드리','있','오','가','두','놓','버리'].includes(auxiliaryRoot)||requesting))){
+        // 떠먹이다 is a verified causative derivation. Its contracted
+        // 떠먹여 retains the mandatory boundary before a following auxiliary.
+        const derived=main.root==='떠먹이'||main.root.endsWith('하')&&knownNominal(main.root.slice(0,-1))||main.root.endsWith('드리')&&knownNominal(main.root.slice(0,-2))||main.root.endsWith('받')&&batdaNouns.has(main.root.slice(0,-1))||causative&&knownNominal(main.root.slice(0,-2));
+        const compound=['들어가','넘어가','돌아가','내려가','올라가','알아보','돌아보','들여다보'].includes(main.root);
+        return derived||compound?{text:left+' '+right,ambiguous:true,rule:'47'}:false;
+      }
     }
     return null;
   }
@@ -776,7 +800,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     if(allCount)return {text:allCount[1]+' 다'+(allCount[2]??''),ambiguous:true,rule:'2'};
     const repeatedCount=word.match(/^(또|다시)(한|두|세|네)번(.*)$/);
     if(repeatedCount&&(!repeatedCount[3]||sets.josa.has(repeatedCount[3])))return {text:repeatedCount[1]+' '+repeatedCount[2]+' 번'+repeatedCount[3],ambiguous:true,rule:'43'};
-    const quantity=word.match(/^(한두|두세|서너|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|스무|몇|여러)(번째|개|장|번|군데|달|시간|조각|권|명|사람|배|마리|살|쪽|줄|잔|병|봉지|방울|그루|켤레|벌|세트|차례|개월|년|분|초|가지|폭|칸|날)(.*)$/);
+    const quantity=word.match(/^(한두|두세|서너|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|스무|몇|여러)(번째|개|장|번|군데|달|시간|조각|권|명|사람|배|마리|살|쪽|줄|잔|모금|병|봉지|방울|그루|켤레|벌|세트|차례|개월|년|분|초|가지|폭|칸|날)(.*)$/);
     // A native numeral and duration unit may be joined, but the following
     // independent 정도 always has its own boundary.
     const durationDegree=quantity&&['달','시간','개월','년','분','초','날'].includes(quantity[2])&&quantity[3].match(/^정도(.*)$/);
@@ -904,25 +928,8 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     // The descriptive noun inventory includes the determiner 무슨. Its
     // nominal classification otherwise hides the boundary before a copula.
     if(word.startsWith('무슨')&&noun(word.slice(2),personal)?.copula)return {text:'무슨 '+word.slice(2),ambiguous:true,rule:'2'};
-    // Rule 47: require a known derived/compound main verb before proposing
-    // a mandatory auxiliary space. An unclassified long verb is review-only.
-    for(let i=3;i<word.length;i++){
-      const left=word.slice(0,i),right=word.slice(i),main=predicate(left),aux=predicate(right);
-      const auxiliaryRoot=aux?.root.endsWith('고프')?aux.root.slice(0,-2):aux?.root;
-      // 달라 also has a 다르다 homograph. A validated -어 main verb
-      // licenses the request reading here without changing standalone 달라.
-      const requesting=/^달라(?:고|는|며)?$/.test(right);
-      const prospectiveAux=main?.adnominal&&(aux?.root==='듯하'||final(left)===8&&['만하','뻔하'].includes(aux?.root));
-      const causative=main?.root.endsWith('시키')&&left===main.root.slice(0,-1)+'켜';
-      const contractedVowel=final(left)===0&&[6,9,14,10].includes(Math.floor((left.charCodeAt(left.length-1)-0xac00)%588/28));
-      if(main&&(prospectiveAux||(connectiveForms.has(left)||/(?:아|어|해|하여)$/.test(left)||contractedVowel||causative)&&aux&&(['주','보','내','드리','있','오','가','두','놓','버리'].includes(auxiliaryRoot)||requesting))){
-        // 떠먹이다 is a verified causative derivation. Its contracted
-        // 떠먹여 retains the mandatory boundary before a following auxiliary.
-        const derived=main.root==='떠먹이'||main.root.endsWith('하')&&knownNominal(main.root.slice(0,-1))||main.root.endsWith('드리')&&knownNominal(main.root.slice(0,-2))||main.root.endsWith('받')&&batdaNouns.has(main.root.slice(0,-1))||causative&&knownNominal(main.root.slice(0,-2));
-        const compound=['들어가','넘어가','돌아가','내려가','올라가','알아보','돌아보','들여다보'].includes(main.root);
-        return derived||compound?{text:left+' '+right,ambiguous:true,rule:'47'}:null;
-      }
-    }
+    const requiredAuxiliary=requiredAuxiliaryBoundary(word);
+    if(requiredAuxiliary!==null)return requiredAuxiliary||null;
     // Independent negative adverbs precede the predicate with a space.
     // Whole-word recognition above protects compounds such as 못생기다.
     if(/^(안|못)/.test(word)){
@@ -1136,6 +1143,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(last==='현금'&&rightPredicate?.root==='처리하')return true;
         if(left?.kind==='noun'&&!left.copula&&left.base!==last&&
           /^(?:(?:에서|서|에게|께서|한테)(?:부터|까지)?(?:는|도|만)?|이|가|을|를|에|로|으로|랑|이랑|와|과|도|만|부터|까지)$/.test(last.slice(left.base.length))&&(rightPredicate||adverbs.has(first)||['정말','진짜','너무','아주','매우'].includes(first)))return true;
+        if(left?.kind==='noun'&&!left.unknown&&left.base===last&&rightPredicate?.root==='받'&&!staticStateNouns.has(last)&&!actionNouns.has(last)&&!batdaNouns.has(last)&&!recognizeWhole?.(last+first,personal))return true;
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&rightPredicate?.root==='드리'&&!dridaNouns.has(last))return true;
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&(['있','없','아니'].includes(rightPredicate?.root)||first==='없이'))return true;
         // A bare nominal can be the omitted-case subject/object of a
@@ -1144,14 +1152,14 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&last.length>=2&&rightPredicate&&first!==rightPredicate.root&&!right?.nominal&&
           !['이','하','되','받','당하','드리'].includes(rightPredicate.root)&&(!rightPredicate.adnominal||next.includes(' ')))return true;
         const main=predicate(last)??(left?.kind==='predicate'?left:null);
-        if(main&&last.endsWith('게')&&rightPredicate?.root==='주')return true;
+        if(main&&last.endsWith('게')&&(rightPredicate?.root==='주'||sets.adjective.has(rightPredicate?.root))&&!recognizeWhole?.(last+first,personal))return true;
         if(main&&/(?:으러|러)$/.test(last)&&['가','오','다니'].includes(rightPredicate?.root))return true;
         if(main&&last.endsWith('단')&&right?.base==='말')return true;
         if(main?.adnominal&&rightPredicate?.root==='생각하')return true;
         if(part.includes(' ')&&adverbs.has(part.split(' ')[0])&&main?.adnominal&&right?.kind==='noun')return true;
         if(main?.adnominal&&/^(?:가정|조건|상황)하(?:에|에서|의)$/.test(first))return true;
         if(left?.kind==='noun'&&!left.unknown&&last.slice(left.base.length)==='이다'&&rightPredicate?.root==='보')return true;
-        if(main&&last.endsWith('다')&&['보','하'].includes(rightPredicate?.root))return true;
+        if(main&&last.endsWith('다')&&['보','하','치'].includes(rightPredicate?.root))return true;
         if(main&&last.endsWith('다')&&predicate(last.slice(0,-1))?.root===main.root&&rightPredicate)return true;
         if(main&&last.endsWith('나')&&!main.adnominal&&rightPredicate?.root==='하')return true;
         if(main&&/(?:야|야만)$/.test(last)&&['하','되'].includes(rightPredicate?.root))return true;
