@@ -2,6 +2,16 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('weather predicates and irregular questions retain their meaning',()=>{
+  for(const [text,target]of [['비온다고','비 온다고'],['눈온다','눈 온다'],['얼마나더울까요','얼마나 더울까요']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['더울까요','추울까요','유신시기','고민고민하다가','비오틴'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('manner adverbs and explicit monetary and quantity phrases keep their boundaries',()=>{
+  for(const [text,target]of [['짜게주잖아','짜게 주잖아'],['현금처리할','현금 처리할'],['한방울도','한 방울도']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['방울토마토','현금화','짜게'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('expressive repetitions preserve their runs and mimetic spelling',()=>{
   for(const text of ['똥'.repeat(26),'가나다'.repeat(4),'하하하하하'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('뻐끔뻐금').some(f=>f.suggestions[0]==='뻐끔뻐끔'));

@@ -109,6 +109,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       roubPrefixes.add(vowelAllomorph);
       add(withFinal(vowelAllomorph,4),root,true);
       add(withFinal(vowelAllomorph,8),root,true);
+      for(const tail of ['까','까요'])add(withFinal(vowelAllomorph,8)+tail,root);
       add(withFinal(vowelAllomorph,4)+'데',root);
       add(withFinal(vowelAllomorph,4)+'데요',root);
       nominalForms.add(withFinal(vowelAllomorph,16));
@@ -698,6 +699,12 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     // Repeated syllables and short mimetic units are expressive runs, not
     // evidence for dictionary-sized word boundaries.
     if(/^([가-힣]{1,4})\1{2,}$/.test(word))return null;
+    const repeatedActivity=word.match(/^([가-힣]{2,})\1(하.*)$/);
+    if(repeatedActivity&&knownNominal(repeatedActivity[1])&&predicate(repeatedActivity[1]+repeatedActivity[2]))return null;
+    for(const weather of ['비','눈','우박'])if(word.startsWith(weather)){
+      const tail=word.slice(weather.length),p=predicate(tail);
+      if(tail.length>=2&&['오','내리'].includes(p?.root)&&!predicate(word))return {text:weather+' '+tail,ambiguous:true,rule:'2'};
+    }
     const registered=personal.size?noun(word,personal):null;
     if(registered&&personal.has(registered.base)){
       // Registering a nominal licenses its copula, not a missing boundary
@@ -767,7 +774,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     if(allCount)return {text:allCount[1]+' 다'+(allCount[2]??''),ambiguous:true,rule:'2'};
     const repeatedCount=word.match(/^(또|다시)(한|두|세|네)번(.*)$/);
     if(repeatedCount&&(!repeatedCount[3]||sets.josa.has(repeatedCount[3])))return {text:repeatedCount[1]+' '+repeatedCount[2]+' 번'+repeatedCount[3],ambiguous:true,rule:'43'};
-    const quantity=word.match(/^(한두|두세|서너|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|스무|몇|여러)(번째|개|장|번|군데|달|시간|조각|권|명|사람|배|마리|살|쪽|줄|잔|병|봉지|그루|켤레|벌|세트|차례|개월|년|분|초|가지|폭|칸|날)(.*)$/);
+    const quantity=word.match(/^(한두|두세|서너|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|스무|몇|여러)(번째|개|장|번|군데|달|시간|조각|권|명|사람|배|마리|살|쪽|줄|잔|병|봉지|방울|그루|켤레|벌|세트|차례|개월|년|분|초|가지|폭|칸|날)(.*)$/);
     // A native numeral and duration unit may be joined, but the following
     // independent 정도 always has its own boundary.
     const durationDegree=quantity&&['달','시간','개월','년','분','초','날'].includes(quantity[2])&&quantity[3].match(/^정도(.*)$/);
@@ -965,6 +972,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     for(let i=1;i<word.length-1;i++){
       const left=word.slice(0,i),right=word.slice(i),host=noun(left,personal),activity=noun(right,personal);
       if(!host||host.base!==left||!activity?.nominal||!activity.base.endsWith('기'))continue;
+      if(i===1&&Array.from({length:word.length-2},(_,n)=>word.slice(0,n+2)).some(knownNominal))continue;
       const verb=predicate(activity.base);
       if(verb&&verb.root!==activity.base&&verb.root!=='이')return {text:left+' '+right,ambiguous:true,rule:'2'};
     }
@@ -1114,6 +1122,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         // The dependent rule already established the boundary before 중.
         if(left?.kind==='noun'&&left.base===last&&actionNouns.has(first)&&next.startsWith(first+' ')&&noun(next.slice(first.length+1),personal)?.base==='중')return true;
         if(last==='출장'&&first==='수리'&&predicate(result.parts[i+2]??''))return true;
+        if(last==='현금'&&rightPredicate?.root==='처리하')return true;
         if(left?.kind==='noun'&&!left.copula&&left.base!==last&&
           /^(?:(?:에서|서|에게|께서|한테)(?:부터|까지)?(?:는|도|만)?|이|가|을|를|에|로|으로|랑|이랑|와|과|도|만|부터|까지)$/.test(last.slice(left.base.length))&&(rightPredicate||adverbs.has(first)||['정말','진짜','너무','아주','매우'].includes(first)))return true;
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&rightPredicate?.root==='드리'&&!dridaNouns.has(last))return true;
@@ -1124,6 +1133,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&last.length>=2&&rightPredicate&&first!==rightPredicate.root&&!right?.nominal&&
           !['이','하','되','받','당하','드리'].includes(rightPredicate.root)&&(!rightPredicate.adnominal||next.includes(' ')))return true;
         const main=predicate(last)??(left?.kind==='predicate'?left:null);
+        if(main&&last.endsWith('게')&&rightPredicate?.root==='주')return true;
         if(main?.adnominal&&rightPredicate?.root==='생각하')return true;
         if(left?.kind==='noun'&&!left.unknown&&last.slice(left.base.length)==='이다'&&rightPredicate?.root==='보')return true;
         if(main&&last.endsWith('다')&&['보','하'].includes(rightPredicate?.root))return true;
