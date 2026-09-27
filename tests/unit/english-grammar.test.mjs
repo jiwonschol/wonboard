@@ -3,6 +3,21 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('first-person clauses and apostrophes work with intervening adverbs',()=>{
+  for(const [text,target]of [['i still use it','I'],['i bought milk','I'],['i just had lunch','I'],['Id like to learn',"I'd"],['I`m sorry',"I'm"],['it wont let me',"won't"],["it's own skills",'its'],['its broken.',"it's"]])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['its broken arm','as is their wont','`i bought`'])assert.equal(check(text).some(f=>f.type==='grammar'),false,text);
+});
+
+test('infinitives retain their grammatical construction',()=>{
+  for(const [text,target]of [['I am trying to setup a router','set up'],['I have to spent time','spend']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['access to setup','I used to write C apps',"I'm used to work",'We are used to write reports for the manager','I want to set up a router'])assert.equal(check(text).some(f=>f.type==='grammar'),false,text);
+});
+
+test('count expressions and mass nouns retain number and articles',()=>{
+  for(const [text,target]of [['I have had couple of bottles','had a couple'],['There has been a few posts','have'],['some advices','advice'],['many softwares','software'],['a 10 yrs old son','10-year-old']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['There has been a few-post increase','There has been a problem','my son is 10 years old','a 10-year-old son'])assert.equal(check(text).some(f=>f.type==='grammar'),false,text);
+});
+
 test('explicit foreign sayings keep their quoted language and common nouns survive',()=>{
   for(const text of ["In Tamil, there is a casual saying 'nee kodu potta avan rodu poduvan'.",'an influencer on linux','de facto components','agents with decispher'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check("In English, a phrase 'teh cat'.").some(f=>f.suggestions[0]==='the'));

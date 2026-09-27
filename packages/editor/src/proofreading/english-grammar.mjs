@@ -25,10 +25,10 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(?:ive|Ive)\b(?=\s+(?:been|had|got|seen|done|made|taken|found|heard|read|written|[a-z]+ed)\b)/g)){
     add(match.index,match.index+match[0].length,"I've",'A first-person perfect contraction before the participle needs I and an apostrophe');
   }
-  for(const match of text.matchAll(/\bi\b(?=\s+(?:am|was|have|had|will|would|can|could|should|may|might|must|think|thought|hope|hoped|hear|heard|feel|felt|want|wanted|need|needed|like|liked|do|did|don't|didn't|couldn't|wouldn't|shouldn't|can't|won't|haven't|hadn't|wasn't)\b)/g)){
+  for(const match of text.matchAll(/\bi\b(?=\s+(?:(?:just|still|also|really|often|usually|sometimes|always|never|already|recently|now)\s+)?(?:am|was|have|had|will|would|can|could|should|may|might|must|think|thought|hope|hoped|hear|heard|feel|felt|want|wanted|need|needed|like|liked|do|did|don't|didn't|couldn't|wouldn't|shouldn't|can't|won't|haven't|hadn't|wasn't)\b)/g)){
     add(match.index,match.index+1,'I','English first-person pronoun is capitalized');
   }
-  for(const match of text.matchAll(/\bi\b(?=\s+(?:knew|know|tried|try|mentioned|said|wrote|noticed|believe|believed|remember|remembered|reached|started|used|use|see|saw|get|got|work|worked)\b)/g)){
+  for(const match of text.matchAll(/\bi\b(?=\s+(?:(?:just|still|also|really|often|usually|sometimes|always|never|already|recently|now)\s+)?(?:found|bought|put|knew|know|tried|try|mentioned|said|wrote|noticed|believe|believed|remember|remembered|reached|started|used|use|see|saw|get|got|work|worked)\b)/g)){
     add(match.index,match.index+1,'I','English first-person pronoun is capitalized');
   }
   for(const match of text.matchAll(/\b(?:can|could|should|would|will|may|might|must|do|did|does|am|was|were|have|had)\s+(i)\b/gi)){
@@ -39,7 +39,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(?:Should|Could|Would|Can|Will) (?:we|they|you|I|he|she|it) (?:worried|concerned|prepared|ready)\b/g)){
     add(match.index,match.index+match[0].length,match[0].replace(/ (worried|concerned|prepared|ready)$/,' be $1'),'The modal needs be before this predicative adjective');
   }
-  for(const match of text.matchAll(/\b[Ii]ts\b(?=\s+(?:fun|fine|okay|ok|great|possible|impossible|necessary|available|ready)\b(?:\s*(?:[.!?]|[:;][)(DP]|$)))/g)){
+  for(const match of text.matchAll(/\b[Ii]ts\b(?=\s+(?:broken|fun|fine|okay|ok|great|possible|impossible|necessary|available|ready)\b(?:\s*(?:[.!?]|[:;][)(DP]|$)))/g)){
     add(match.index,match.index+match[0].length,match[0][0]==='I'?"It's":"it's",'The following adjective needs the contraction it is');
   }
   for(const match of text.matchAll(/\b[Ii]ts\b(?=\s+(?:a|an|been)\b)/g)){
@@ -62,6 +62,37 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   for(const match of text.matchAll(/\bcountry-side\b/gi)){
     add(match.index,match.index+match[0].length,match[0].replace('-',''),'Countryside is one lexical word');
+  }
+  for(const match of text.matchAll(/\bI`(?:m|d|ll|ve)\b/g)){
+    add(match.index,match.index+match[0].length,match[0].replace('`',"'"),'A contraction uses an apostrophe, not a grave accent');
+  }
+  for(const match of text.matchAll(/\bId\b(?=\s+(?:like|rather|prefer)\b)/g)){
+    add(match.index,match.index+2,"I'd",'I would needs an apostrophe before this preference verb');
+  }
+  for(const match of text.matchAll(/\bwont\b(?=\s+(?:(?:ever|even|really|just)\s+)?(?:let|allow|work|run|load|open|start|stop|be|have|do|go|come|use|show)\b)/gi)){
+    add(match.index,match.index+match[0].length,match[0][0]==='W'?"Won't":"won't",'The future negative before a verb needs an apostrophe');
+  }
+  for(const match of text.matchAll(/\bit['’]s(?=\s+own\s+[a-z]+\b)/gi)){
+    add(match.index,match.index+match[0].length,match[0][0]==='I'?'Its':'its','Own modifies a possessed noun here');
+  }
+  for(const match of text.matchAll(/\b(?:trying|try|tries|tried|want|wants|wanted|need|needs|needed)\s+to\s+(setup)\b/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'set up','The infinitive verb is set up; setup is a noun');
+  }
+  for(const match of text.matchAll(/\b(?:have|has|had|need|needs|needed|want|wants|wanted)\s+to\s+(spent)\b/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'spend','The infinitive takes the base verb spend');
+  }
+  for(const match of text.matchAll(/\b[Tt]here\s+(has)\s+been\s+(?:a few|several|many)\s+(?:posts|people|questions|problems|changes|days|years|cases)\b/g)){
+    const from=match.index+match[0].indexOf(match[1]);
+    add(from,from+3,'have','The following plural noun controls the agreement');
+  }
+  for(const match of text.matchAll(/\b(?:advices|softwares)\b/gi)){
+    add(match.index,match.index+match[0].length,match[0].slice(0,-1),'This mass noun has no plural -s in ordinary prose');
+  }
+  for(const match of text.matchAll(/\b(\d+)[ -]+(?:yrs?|years?)[ -]+old\b(?=\s+(?:son|daughter|child|kid|boy|girl|person|house|car|fridge|refrigerator|washer|computer|laptop|phone)\b)/gi)){
+    const replacement=match[1]+'-year-old';
+    if(match[0]!==replacement)add(match.index,match.index+match[0].length,replacement,'An age modifier before a noun uses singular year and hyphens');
   }
   const modalForms=new Map([['built','build'],['went','go'],['came','come'],['did','do'],['was','be'],['were','be'],['breaked','break'],['broke','break'],['broken','break']]);
   for(const match of text.matchAll(/\b(?:can|could|should|would|may|might|must|will)\s+(?:built|went|came|did|was|were|breaked|broke|broken)\b/gi)){
@@ -89,7 +120,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\bsuch (?:hook|tool|feature|problem|case|app|idea)\b(?=\s*[,.;!?]|\s+(?:and|but|that|which)\b)/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/\s+/, ' a '),'Such precedes an article before this singular count noun');
   }
-  for(const match of text.matchAll(/\b(?:bank|save|have|need|use) couple\b(?=\s+of\b)/gi)){
+  for(const match of text.matchAll(/\b(?:bank|save|have|had|need|use) couple\b(?=\s+of\b)/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/ couple$/i,' a couple'),'A couple of needs an article here');
   }
   for(const match of text.matchAll(/\b(?:get|need|want|provide|give|seek)\s+(more clarify)\b/gi)){
