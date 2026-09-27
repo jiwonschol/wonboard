@@ -151,7 +151,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\byour going(?=\s+to\s+be\b)/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='Y'?"You're going":"you're going",'Use you are before going to be');
   }
-  for(const match of text.matchAll(/\bIm\b(?=\s+(?:a|an|back|going|sorry|sure|ready|glad|not|still|here|having|trying|looking|working|wondering)\b)/g)){
+  for(const match of text.matchAll(/\b[Ii]m\b(?=\s+(?:a|an|back|going|doing|using|building|sorry|sure|ready|glad|not|still|here|having|trying|looking|working|wondering)\b)/g)){
     add(match.index,match.index+match[0].length,"I'm",'First-person contraction needs an apostrophe');
   }
   for(const match of text.matchAll(/\bcountry-side\b/gi)){

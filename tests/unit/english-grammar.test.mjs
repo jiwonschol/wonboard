@@ -3,6 +3,13 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('reviewed names, identifiers and super compounds preserve their words',()=>{
+  for(const text of ['marie curie','typst','args','superfun','superfast'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('superfun recieve').some(f=>f.suggestions[0]==='receive'));
+  assert.ok(check('im doing this').some(f=>f.suggestions[0]==="I'm"));
+  assert.equal(check('IM protocol').some(f=>f.applicable),false);
+});
+
 test('bounded missing function words repair ordinary questions and count phrases',()=>{
   for(const [text,original,target]of [
     ['allow users disable features','disable','to disable'],
