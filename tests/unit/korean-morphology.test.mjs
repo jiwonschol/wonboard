@@ -2,6 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('honorific suffixes and enumeration homographs preserve ordinary prose',()=>{
+  for(const text of ['요청드립니다','공유드립니다','스파, 철권 등등 합니다','붉은사막'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['한동한','한동안'],['옵션들인걸까요','옵션들인 걸까요'],['친구들인걸까요','친구들인 걸까요'],['감은있는데','감은 있는데'],['견적한번봐주실수있을까요','견적 한번 봐주실 수 있을까요'],['비싼가싶기도','비싼가 싶기도'],['좋다하긴했는데','좋다 하긴 했는데'],['이런말들이','이런 말들이']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
 test('degree nouns remain separate from hada while complete activity phrases gain boundaries',()=>{
   for(const text of ['어느 정도 하려고','이 정도 하면','10분 정도 하면'])assert.equal(check(text).some(f=>f.suggestions.some(s=>s.includes('정도하'))),false,text);
   for(const [text,target]of [['배송대기중','배송 대기 중'],['주문접수중','주문 접수 중'],['추가할생각입니다','추가할 생각입니다'],['확인할내용','확인할 내용'],['구매 하려고','구매하려고']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);

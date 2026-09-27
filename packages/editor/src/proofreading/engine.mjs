@@ -236,6 +236,11 @@ export function createChecker(data) {
     // a URL scheme. Protect the full span before grammar and token checking.
     for(const m of text.matchAll(/\b(?:[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+@)?(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,63}\b(?:\/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]*)?/g))excluded.push([m.index,m.index+m[0].length]);
     for(const m of text.matchAll(/\b(?=[A-Za-z0-9_]*[A-Za-z])(?=[A-Za-z0-9_]*[0-9_])[A-Za-z0-9_]+\b/g))excluded.push([m.index,m.index+m[0].length]);
+    // Relative request targets are structured identifiers, including query
+    // placeholders containing spaces. Do not change their path/key casing.
+    for(const m of text.matchAll(/(?:^|[\s(])\/[A-Za-z0-9._~/-]+\?[A-Za-z0-9_%-]+=(?:<[^>\n]*>|[^\s)]*)/g)){
+      const start=m.index+(m[0][0]==='/'?0:1);excluded.push([start,m.index+m[0].length]);
+    }
     results.push(...englishGrammar(text,excluded,personal));
     const quotedEnds=new Set([...text.matchAll(/"[^"\n]+"|'[^'\n]+'|“[^”\n]+”|‘[^’\n]+’|「[^」\n]+」|『[^』\n]+』|\([^()\n]+\)|\[[^\[\]\n]+\]/g)].map(m=>m.index+m[0].length));
     function emit(from,to,language,type,suggestions,base) {results.push({from,to,original:text.slice(from,to),language,type,suggestions,base,applicable:suggestions.length>0,reason:type==='unknown'?'Not in the selected vocabulary':'Prototype lexical candidate; rule source not yet verified'});}
@@ -673,7 +678,7 @@ export function createChecker(data) {
             // An action-noun homograph does not override a complete particle
             // phrase (제가) or an independent adverb (계속) before 하다.
             const host=morphology.analyze(preceding[1],personal);
-            const independentHost=preceding[1]==='정도'||sets.adverb.has(preceding[1])||host?.kind==='noun'&&host.base!==preceding[1]&&sets.josa.has(preceding[1].slice(host.base.length));
+            const independentHost=['정도','등등'].includes(preceding[1])||sets.adverb.has(preceding[1])||host?.kind==='noun'&&host.base!==preceding[1]&&sets.josa.has(preceding[1].slice(host.base.length));
             const beforeMatch=text.slice(0,start).match(/([가-힣]+)[ \u00a0]+$/);
             const before=beforeMatch?.[1];
             const modifier=before&&morphology.analyze(before,personal);

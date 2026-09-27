@@ -34,7 +34,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   for(const [s,e,r]of data?.forms??[])if(e==='ETM'&&naeConnectives.has(r)&&s===r.slice(0,-1)+'낸')roots.add(r);
   // Attested suffix uses, not every noun + 드리다 (불편 드리다 differs).
   // Expand the stems so honorific, past and connective forms share the rules.
-  const dridaNouns=new Set(['감사','질문','부탁','말씀','문의','연락','송부','추천']);
+  const dridaNouns=new Set(['감사','질문','부탁','말씀','문의','연락','송부','추천','요청','공유']);
   for(const base of dridaNouns)roots.add(base+'드리');
   // -받다 attaches to these verified abstract hosts. A concrete object
   // (선물 받다) or a modified noun phrase remains a separate construction.
@@ -557,7 +557,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     if(/[인일]$/.test(s)&&placeNames.has(s.slice(0,-1)))return true;
     if(analysis?.copula&&/[인일]$/.test(s))return true;
     if(!analysis?.base||!knownNominal(analysis.base)&&!personal.has(analysis.base))return false;
-    const tail=s.slice(analysis.base.length),copula=predicate(tail);
+    const nominalTail=s.slice(analysis.base.length),tail=nominalTail.startsWith('들')?nominalTail.slice(1):nominalTail,copula=predicate(tail);
     return ['인','일'].includes(tail)||copula?.root==='이'&&copula.adnominal;
   };
   function dependent(s,contractions=true,personal=new Set()) {
@@ -915,11 +915,11 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       const left=word.slice(0,i),right=word.slice(i),host=noun(left,personal),tail=predicate(right);
       if(host&&['에서','에게','께서'].includes(left.slice(host.base.length))&&tail&&tail.root!=='이')return {text:left+' '+(dependent(right,false,personal)?.text??right),ambiguous:true,rule:'2'};
     }
-    // Subject particles belong to the nominal before an existential predicate.
-    // A homographic 가다 analysis must not take the 가 from 사과가 있다.
-    for(let i=3;i<word.length;i++){
+    // Subject/topic particles belong to their host before an existential predicate.
+    // Keep nominal homographs available without splitting the particle.
+    for(let i=2;i<word.length;i++){
       const left=word.slice(0,i),host=noun(left,personal),right=word.slice(i),tail=predicate(right);
-      if(host&&['이','가'].includes(left.slice(host.base.length))&&['있','없'].includes(tail?.root))return {text:left+' '+right,ambiguous:true,rule:'2'};
+      if(host&&['이','가','은','는'].includes(left.slice(host.base.length))&&['있','없'].includes(tail?.root))return {text:left+' '+right,ambiguous:true,rule:'2'};
     }
     // A short unknown noun plus particle is a reviewable name, not split fodder.
     if(word.length<=4&&unknownNoun(word)?.base.length===2)return null;
@@ -1084,10 +1084,13 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(i===result.parts.length-1)return true;
         const next=result.parts[i+1],last=part.split(' ').at(-1),first=next.split(' ')[0];
         const left=analyze(last,personal,true),right=analyze(first,personal),rightPredicate=predicate(first)??(right?.kind==='predicate'?right:null);
-        if((left?.kind==='adverb'||adverbs.has(last))&&(right?.kind==='adverb'||adverbs.has(first)||rightPredicate))return true;
+        if((left?.kind==='adverb'||adverbs.has(last)||last==='한번')&&(right?.kind==='adverb'||adverbs.has(first)||rightPredicate))return true;
+        // A bare object may precede an adverb when the next segment contains
+        // a complete predicate (견적 한번 봐주실 수). Require that clause.
+        if(left?.kind==='noun'&&!left.unknown&&left.base===last&&last.length>=2&&(adverbs.has(first)||first==='한번')&&analyze(result.parts[i+2]?.split(' ')[0]??'',personal)?.kind==='predicate')return true;
         if(last===first&&predicate(last))return true;
         if(/^(?:누구나|아무나|누구든지|아무도)$/.test(last)&&rightPredicate)return true;
-        if(['다른','어느','아무','모든','여러','무슨','온갖'].includes(part)&&right?.kind==='noun')return true;
+        if(['다른','어느','아무','모든','여러','무슨','온갖','이런','그런','저런'].includes(part)&&right?.kind==='noun')return true;
         // A nominal can modify a validated activity-in-progress phrase.
         // The dependent rule already established the boundary before 중.
         if(left?.kind==='noun'&&left.base===last&&actionNouns.has(first)&&next.startsWith(first+' ')&&noun(next.slice(first.length+1),personal)?.base==='중')return true;
@@ -1101,9 +1104,10 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&last.length>=2&&rightPredicate&&first!==rightPredicate.root&&!right?.nominal&&
           !['이','하','되','받','당하','드리'].includes(rightPredicate.root)&&(!rightPredicate.adnominal||next.includes(' ')))return true;
         const main=predicate(last)??(left?.kind==='predicate'?left:null);
-        if(main&&last.endsWith('다')&&rightPredicate?.root==='보')return true;
+        if(main&&last.endsWith('다')&&['보','하'].includes(rightPredicate?.root))return true;
         if(main&&/(?:야|야만)$/.test(last)&&['하','되'].includes(rightPredicate?.root))return true;
-        if(main&&/(?:나|까)$/.test(last)&&rightPredicate?.root==='싶')return true;
+        if(main&&/(?:나|까|가)$/.test(last)&&rightPredicate?.root==='싶')return true;
+        if(main&&/(?:기는|긴)$/.test(last)&&main.root===rightPredicate?.root)return true;
         const negative=last.endsWith('진')?last.slice(0,-1)+'지':last.endsWith('치')?last.slice(0,-1)+'하지':last;
         if(negative.endsWith('지')&&predicate(negative)&&['않','말','못하'].includes(rightPredicate?.root))return true;
         if(main&&/[아어해]$/.test(last)&&rightPredicate?.root==='보이')return true;

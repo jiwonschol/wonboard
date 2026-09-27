@@ -3,6 +3,18 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('complete mass noun phrases and singular clauses retain grammatical context',()=>{
+  for(const [text,target]of [['I need a feedback.','feedback'],['Need a genuine advice.','genuine advice'],['much false positives','many'],['it just try to connect','tries'],['that i reached the end','I']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['a feedback loop','a software company','much false information','Does it just try to connect?','They demand that he often work late.'])assert.equal(check(text).some(f=>f.type==='grammar'),false,text);
+});
+
+test('relative request targets keep paths and query keys intact',()=>{
+  const text='replace /url?q=<encoded url> with /goto?url=<internal identifier>';
+  assert.equal(check(text).some(f=>f.applicable),false);
+  assert.equal(check('regex patterns').some(f=>f.applicable),false);
+  assert.ok(check('teh path').some(f=>f.suggestions[0]==='the'));
+});
+
 test('provider names before interface acronyms retain repeated letters',()=>{
   for(const text of ['a Taalas API','the Veera SDK','agentic coding on replit'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('a Taalas API').some(f=>f.original==='Taalas'&&f.type==='unknown'));
