@@ -4,8 +4,13 @@ import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 import {englishGrammar} from '../../packages/editor/src/proofreading/english-grammar.mjs';
 
+test('leasing-person typo and comma-separated list abbreviation keep their intended nouns',()=>{
+  for(const [text,target]of [['find a leasee for a domain','lessee'],['TerminalBench, SWE-bench, RepoBench, ect,','etc']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['a lease for a domain','ECT treatment','ect is a variable'])assert.equal(englishGrammar(text).length,0,text);
+});
+
 test('typing nouns and established internet names do not become nearby dictionary words',()=>{
-  for(const text of ['a touch typer','fast typers','ublock origin','a faang company','Android app modding'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const text of ['a touch typer','fast typers','ublock origin','a faang company','Android app modding','insta messages'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('teh company').some(f=>f.suggestions[0]==='the'));
 });
 

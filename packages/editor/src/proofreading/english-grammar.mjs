@@ -7,11 +7,16 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     if(findings.some(item=>item.from<to&&item.to>from))return;
     findings.push({from,to,original:text.slice(from,to),language:'en',type,suggestions:[suggestion],applicable:true,reason});
   };
+  for(const match of text.matchAll(/\b(?:a|the)\s+(leasee)(?=\s+(?:for|of)\s+(?:a|the)\s+(?:domain|property|flat|apartment|car)\b)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'lessee','The person holding the lease is the lessee','spelling');
+  }
   for(const match of text.matchAll(/\b[Ww]hats(?=\s+the\s+(?:cheapest|best|easiest|quickest|safest|fastest)\s+(?:way|option|route|method|choice)\b)/g)){
     add(match.index,match.index+match[0].length,match[0][0]==='W'?"What's":"what's",'This singular question uses the contraction what is');
   }
   for(const match of text.matchAll(/\bect\b(?=\s*[,.;:!?)]|$|\s+(?:is|are|was|were)\b)/g)){
-    if(!/\b(?:and|or)\s+(?:[a-z]+\s+){1,4}$/i.test(text.slice(Math.max(0,match.index-60),match.index)))continue;
+    const before=text.slice(Math.max(0,match.index-80),match.index);
+    if(!/\b(?:and|or)\s+(?:[a-z]+\s+){1,4}$/i.test(before)&&!/[A-Za-z][A-Za-z-]*,\s*[A-Za-z][A-Za-z-]*,\s*$/.test(before))continue;
     add(match.index,match.index+3,'etc','The abbreviation after a list is etc','spelling');
   }
   for(const match of text.matchAll(/\b(?:in|within|after)\s+(?:\d+|a few|several|two|three|four|five|six|seven|eight|nine|ten)\s+((?:days|weeks|months|years)\s+time)\b(?=\s*[,.;:!?)]|$|\s+(?:we|I|you|they|he|she|it|will|from)\b)/gi)){
