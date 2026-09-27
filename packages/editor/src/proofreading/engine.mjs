@@ -269,6 +269,9 @@ export function createChecker(data) {
     // TeX control words are identifiers, including when pasted without math
     // delimiters. Their arguments and surrounding prose remain checkable.
     for(const m of text.matchAll(/\\[A-Za-z]+/g))excluded.push([m.index,m.index+m[0].length]);
+    // Bare DOI names are identifiers even without a doi.org URL.
+    // Modern Crossref suffix syntax: crossref.org/blog/dois-and-matching-regular-expressions/.
+    for(const m of text.matchAll(/\b10\.\d{4,9}\/[-._;()/:A-Z0-9]+/gi))excluded.push([m.index,m.index+m[0].length]);
     // Bare hosts and email addresses are structured identifiers even without
     // a URL scheme. Protect the full span before grammar and token checking.
     for(const m of text.matchAll(/\b(?:[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+@)?(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,63}\b(?:\/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]*)?/g))excluded.push([m.index,m.index+m[0].length]);

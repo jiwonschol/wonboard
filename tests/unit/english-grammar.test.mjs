@@ -4,6 +4,13 @@ import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 import {englishGrammar} from '../../packages/editor/src/proofreading/english-grammar.mjs';
 
+test('bare DOI identifiers retain their suffix while adjacent prose is checked',()=>{
+  const text='DOI 10.5281/zenodo.17720830. i have read it.';
+  assert.deepEqual(check(text).filter(f=>f.applicable).map(f=>[f.original,f.suggestions[0]]),[['i','I']]);
+  assert.equal(check('10.12345/teh').length,0);
+  assert.ok(check('teh result').some(f=>f.suggestions[0]==='the'));
+});
+
 test('relative that does not imply a singular antecedent',()=>{
   for(const text of ["family forums that don't show on Google", "programs that don't work", "devices that dont run"])assert.equal(check(text).some(f=>f.suggestions[0].includes("doesn't")),false,text);
   for(const text of ["That don't work.","It don't work."])assert.ok(check(text).some(f=>f.suggestions[0]==="doesn't work"),text);
