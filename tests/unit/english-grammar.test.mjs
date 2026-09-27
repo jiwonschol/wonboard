@@ -3,6 +3,14 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('TeX commands and cron preserve identifiers while nearby prose is checked',()=>{
+  const text=String.raw`cron jobs use \infty and \frac{recieve}{x}`;
+  const findings=check(text);
+  assert.equal(findings.some(f=>['cron','infty','frac'].includes(f.original)&&f.applicable),false);
+  assert.ok(findings.some(f=>f.original==='recieve'&&f.suggestions[0]==='receive'));
+  assert.ok(check('cron recieve').some(f=>f.suggestions[0]==='receive'));
+});
+
 test('attested participles and complete clause repairs remain available',()=>{
   assert.equal(check('I am a 23 years old car owner').some(f=>f.original==='a '),false);
   for(const [text,original,target]of [

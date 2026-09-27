@@ -261,6 +261,9 @@ export function createChecker(data) {
     // input. Keep the words reviewable and preserve the surrounding prose.
     const foreignGlosses=[...text.matchAll(/\([a-z]+(?:\s+[a-z]+){0,2}\s+(?:de|del|du|des)\s+[a-z]+(?:\s+[a-z]+){0,2}\)/gi)].map(m=>[m.index,m.index+m[0].length]);
     const excluded=[...text.matchAll(/https?:\/\/[^\s]+|`[^`]*`|\b[A-Za-z0-9_-]+\.(?:md|txt|png|jpe?g|gif|webp|pdf|json|tsx?|jsx?|html|css|zip)\b|\b(?:Ctrl|Control|Alt|Option|Shift|Cmd|Command|Meta)(?:\+[A-Za-z0-9]+)+/g)].map(m=>[m.index,m.index+m[0].length]);
+    // TeX control words are identifiers, including when pasted without math
+    // delimiters. Their arguments and surrounding prose remain checkable.
+    for(const m of text.matchAll(/\\[A-Za-z]+/g))excluded.push([m.index,m.index+m[0].length]);
     // Bare hosts and email addresses are structured identifiers even without
     // a URL scheme. Protect the full span before grammar and token checking.
     for(const m of text.matchAll(/\b(?:[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+@)?(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,63}\b(?:\/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]*)?/g))excluded.push([m.index,m.index+m[0].length]);
