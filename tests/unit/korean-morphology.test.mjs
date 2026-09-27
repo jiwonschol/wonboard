@@ -2,6 +2,16 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('expressive repetitions preserve their runs and mimetic spelling',()=>{
+  for(const text of ['똥'.repeat(26),'가나다'.repeat(4),'하하하하하'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('뻐끔뻐금').some(f=>f.suggestions[0]==='뻐끔뻐끔'));
+});
+
+test('dependent cognition and alternative clauses retain their word boundaries',()=>{
+  for(const [text,target]of [['치는줄알았는데','치는 줄 알았는데'],['수입이다보니깐','수입이다 보니깐'],['볼까말까','볼까 말까'],['출장수리불렀는데','출장 수리 불렀는데'],['먹을생각하니','먹을 생각하니']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['생각하니','수입이다','수리비','뻐끔뻐끔'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('case-marked hosts and repeated counts retain required boundaries',()=>{
   for(const [text,target]of [['운이진짜','운이 진짜'],['빚까지내서','빚까지 내서'],['한번씩','한 번씩'],['또한번','또 한 번']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   assert.equal(check('일단 한번 해 보세요').some(f=>f.original==='한번'),false);

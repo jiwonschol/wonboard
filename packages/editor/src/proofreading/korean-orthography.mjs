@@ -3,6 +3,7 @@
 export function orthography(word,sets,personal,isPredicate,isKnownNoun=w=>sets.noun.has(w),precedingAdnominal=false,followingPredicate=false) {
   if(personal.has(word))return null;
   if(word==='한동한')return {suggestions:['한동안'],reason:'Restore the lexical duration noun 한동안 before considering internal spaces',ambiguous:true};
+  if(word==='뻐끔뻐금')return {suggestions:['뻐끔뻐끔'],reason:'Restore the repeated mimetic adverb without inventing an internal boundary',ambiguous:false};
   // The past form of 하다 is 했-, including action-noun compounds. Restrict
   // this repair to finite endings so 햇볕 and other lexical words stay intact.
   const malformedPast=word.match(/^(.+)?햇(는데|어요|어서|지만|고|다|던)$/);

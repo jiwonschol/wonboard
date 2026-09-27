@@ -695,6 +695,9 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   }
   function spacing(word,personal) {
     if(personal.has(word))return null;
+    // Repeated syllables and short mimetic units are expressive runs, not
+    // evidence for dictionary-sized word boundaries.
+    if(/^([가-힣]{1,4})\1{2,}$/.test(word))return null;
     const registered=personal.size?noun(word,personal):null;
     if(registered&&personal.has(registered.base)){
       // Registering a nominal licenses its copula, not a missing boundary
@@ -1104,11 +1107,13 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         // a complete predicate (견적 한번 봐주실 수). Require that clause.
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&last.length>=2&&(adverbs.has(first)||first==='한번')&&analyze(result.parts[i+2]?.split(' ')[0]??'',personal)?.kind==='predicate')return true;
         if(last===first&&predicate(last))return true;
+        if(part.includes(' ')&&last==='줄'&&['알','모르'].includes(rightPredicate?.root))return true;
         if(/^(?:누구나|아무나|누구든지|아무도)$/.test(last)&&rightPredicate)return true;
         if(['다른','어느','아무','모든','여러','무슨','온갖','이런','그런','저런'].includes(part)&&right?.kind==='noun')return true;
         // A nominal can modify a validated activity-in-progress phrase.
         // The dependent rule already established the boundary before 중.
         if(left?.kind==='noun'&&left.base===last&&actionNouns.has(first)&&next.startsWith(first+' ')&&noun(next.slice(first.length+1),personal)?.base==='중')return true;
+        if(last==='출장'&&first==='수리'&&predicate(result.parts[i+2]??''))return true;
         if(left?.kind==='noun'&&!left.copula&&left.base!==last&&
           /^(?:(?:에서|서|에게|께서|한테)(?:부터|까지)?(?:는|도|만)?|이|가|을|를|에|로|으로|랑|이랑|와|과|도|만|부터|까지)$/.test(last.slice(left.base.length))&&(rightPredicate||adverbs.has(first)||['정말','진짜','너무','아주','매우'].includes(first)))return true;
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&rightPredicate?.root==='드리'&&!dridaNouns.has(last))return true;
@@ -1119,12 +1124,15 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&last.length>=2&&rightPredicate&&first!==rightPredicate.root&&!right?.nominal&&
           !['이','하','되','받','당하','드리'].includes(rightPredicate.root)&&(!rightPredicate.adnominal||next.includes(' ')))return true;
         const main=predicate(last)??(left?.kind==='predicate'?left:null);
+        if(main?.adnominal&&rightPredicate?.root==='생각하')return true;
+        if(left?.kind==='noun'&&!left.unknown&&last.slice(left.base.length)==='이다'&&rightPredicate?.root==='보')return true;
         if(main&&last.endsWith('다')&&['보','하'].includes(rightPredicate?.root))return true;
         if(main&&last.endsWith('다')&&predicate(last.slice(0,-1))?.root===main.root&&rightPredicate)return true;
         if(main&&last.endsWith('나')&&!main.adnominal&&rightPredicate?.root==='하')return true;
         if(main&&/(?:야|야만)$/.test(last)&&['하','되'].includes(rightPredicate?.root))return true;
         if(main&&/(?:나|까|가)$/.test(last)&&rightPredicate?.root==='싶')return true;
         if(main&&last.endsWith('까')&&rightPredicate?.root==='보')return true;
+        if(main&&last.endsWith('까')&&first==='말까'&&rightPredicate?.root==='말')return true;
         if(main&&/(?:기는|긴)$/.test(last)&&main.root===rightPredicate?.root)return true;
         const negative=last.endsWith('진')?last.slice(0,-1)+'지':last.endsWith('치')?last.slice(0,-1)+'하지':last;
         if(negative.endsWith('지')&&predicate(negative)&&['않','말','못하'].includes(rightPredicate?.root))return true;
