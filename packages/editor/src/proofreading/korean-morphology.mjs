@@ -762,6 +762,8 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     // A cardinal followed by independent 다 still keeps its word boundary.
     const allCount=word.match(/^(둘|셋|넷|다섯|여섯|일곱|여덟|아홉|열)다(요|는|도|만)?$/);
     if(allCount)return {text:allCount[1]+' 다'+(allCount[2]??''),ambiguous:true,rule:'2'};
+    const repeatedCount=word.match(/^(또|다시)(한|두|세|네)번(.*)$/);
+    if(repeatedCount&&(!repeatedCount[3]||sets.josa.has(repeatedCount[3])))return {text:repeatedCount[1]+' '+repeatedCount[2]+' 번'+repeatedCount[3],ambiguous:true,rule:'43'};
     const quantity=word.match(/^(한두|두세|서너|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|스무|몇|여러)(번째|개|장|번|군데|달|시간|조각|권|명|사람|배|마리|살|쪽|줄|잔|병|봉지|그루|켤레|벌|세트|차례|개월|년|분|초|가지|폭|칸|날)(.*)$/);
     // A native numeral and duration unit may be joined, but the following
     // independent 정도 always has its own boundary.
@@ -777,7 +779,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       // 한번/한잔/한가지/한쪽 have lexical readings as well as quantities.
       // 한배 and 세배 also have nominal meanings independent of a multiplier.
       // Keep their ambiguity; other explicit numerals still need a unit gap.
-      const lexical=(quantity[1]==='한'&&['번','잔','가지','쪽'].includes(quantity[2])&&tail!=='더')||quantity[1]==='여러'&&quantity[2]==='분'||quantity[2]==='배'&&knownNominal(quantity[1]+quantity[2]);
+      const lexical=(quantity[1]==='한'&&['번','잔','가지','쪽'].includes(quantity[2])&&tail!=='더'&&!tail.startsWith('씩'))||quantity[1]==='여러'&&quantity[2]==='분'||quantity[2]==='배'&&knownNominal(quantity[1]+quantity[2]);
       if(unitTail&&!lexical)return {text:quantity[1]+' '+quantity[2]+(tail==='더'?' 더':tail),ambiguous:true,rule:'43'};
     }
     // Attested uses of the independent determiner 전 retain a boundary.
@@ -1108,7 +1110,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         // The dependent rule already established the boundary before 중.
         if(left?.kind==='noun'&&left.base===last&&actionNouns.has(first)&&next.startsWith(first+' ')&&noun(next.slice(first.length+1),personal)?.base==='중')return true;
         if(left?.kind==='noun'&&!left.copula&&left.base!==last&&
-          /^(?:(?:에서|서|에게|께서|한테)(?:부터|까지)?(?:는|도|만)?|이|가|을|를|에|로|으로|랑|이랑|와|과|도|만)$/.test(last.slice(left.base.length))&&rightPredicate)return true;
+          /^(?:(?:에서|서|에게|께서|한테)(?:부터|까지)?(?:는|도|만)?|이|가|을|를|에|로|으로|랑|이랑|와|과|도|만|부터|까지)$/.test(last.slice(left.base.length))&&(rightPredicate||adverbs.has(first)||['정말','진짜','너무','아주','매우'].includes(first)))return true;
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&rightPredicate?.root==='드리'&&!dridaNouns.has(last))return true;
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&(['있','없','아니'].includes(rightPredicate?.root)||first==='없이'))return true;
         // A bare nominal can be the omitted-case subject/object of a

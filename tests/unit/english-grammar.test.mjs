@@ -3,6 +3,12 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('common company abbreviation and lexical compound retain meaning',()=>{
+  assert.equal(check('a big corp.').some(f=>f.applicable),false);
+  assert.ok(check('a house in the country-side').some(f=>f.suggestions[0]==='countryside'));
+  assert.ok(check('i knew the answer').some(f=>f.suggestions[0]==='I'));
+});
+
 test('CSS resource functions and established computing words stay intact',()=>{
   for(const text of ['background: url("triangle.svg");','model params','hardcode the value'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('graudate student').some(f=>f.suggestions[0]==='graduate'));
