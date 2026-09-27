@@ -597,6 +597,8 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       const left=s.slice(0,-1);
       if(final(left)===8&&predicate(left)?.adnominal)return {text:left+' 순',ambiguous:true,rule:'42'};
     }
+    const possibleContraction=s.match(/^(.+)걸(수.*)$/);
+    if(contractions&&possibleContraction&&(!possibleContraction[2].slice(1)||sets.josa.has(possibleContraction[2].slice(1)))&&predicate(possibleContraction[1])?.adnominal)return {text:possibleContraction[1]+' 걸 '+possibleContraction[2],ambiguous:true,rule:'42'};
     // A complete dictionary word can happen to end in 수/때/걸.
     // Do not split 필수 or 이걸 merely because the prefix looks inflected.
     if(sets.noun.has(s)||recognizedNouns.has(s))return null;
@@ -785,6 +787,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     }
     if(quantity){
       const tail=quantity[3],suffix=tail.match(/^(째|쯤|간)(.*)$/);
+      if(tail.startsWith('씩')&&analyze(tail.slice(1),personal)?.kind==='predicate')return {text:quantity[1]+' '+quantity[2]+'씩 '+tail.slice(1),ambiguous:true,rule:'43'};
       const unitTail=!tail||sets.josa.has(tail)||tail==='더'||noun(quantity[2]+tail,personal)?.base===quantity[2]||suffix&&(!suffix[2]||sets.josa.has(suffix[2]));
       // 한번/한잔/한가지/한쪽 have lexical readings as well as quantities.
       // 한배 and 세배 also have nominal meanings independent of a multiplier.
@@ -853,7 +856,10 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       const main=predicate(left)??(analyze(left,personal)?.kind==='predicate'?analyze(left,personal):null);
       if(tail?.root==='하'&&/(?:려|려고|다고|라고|자|까)$/.test(left)&&main)return {text:left+' '+right,ambiguous:true,rule:'2'};
       if(tail?.root==='싶'&&left.endsWith('고')&&main)return {text:left+' '+right,ambiguous:true,rule:'47'};
+      if(left==='뭐라'&&tail?.root==='하')return {text:left+' '+right,ambiguous:true,rule:'2'};
     }
+    const reportedObligation=word.match(/^(.+야)(한다고|된다고)([가-힣]+)$/);
+    if(reportedObligation&&predicate(reportedObligation[1])&&predicate(reportedObligation[3])?.root==='하')return {text:reportedObligation.slice(1).join(' '),ambiguous:true,rule:'2'};
     // These are grammatical boundaries, not arbitrary noun segmentation.
     // Whole-word and personal recognition above still protects compounds.
     const occasion=word.match(/^(.{2,}?)시([가-힣]*)$/);
@@ -1156,6 +1162,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         const negative=last.endsWith('진')?last.slice(0,-1)+'지':last.endsWith('치')?last.slice(0,-1)+'하지':last;
         if(negative.endsWith('지')&&predicate(negative)&&['않','말','못하'].includes(rightPredicate?.root))return true;
         if(main&&/[아어해]$/.test(last)&&rightPredicate?.root==='보이')return true;
+        if(main&&!main.adnominal&&(connectiveForms.has(last)||/[아어해져]$/.test(last))&&rightPredicate?.root==='나오')return true;
         if(predicate(last)&&!predicate(last).adnominal&&(connectiveForms.has(last)||/[아어해]$/.test(last))&&['오','가','보','주','드리','두','놓','버리','내'].includes(rightPredicate?.root))return true;
         return Boolean(predicate(last)&&/(?:고|서|면|다가)$/.test(last)&&rightPredicate);
       });

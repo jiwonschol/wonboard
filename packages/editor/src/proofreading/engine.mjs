@@ -613,7 +613,11 @@ export function createChecker(data) {
         }
         // A particle belongs outside the quoted/code/URL span. Change only
         // the following gap so protected text and a name review stay intact.
-        if(unambiguousParticles.has(word)||['에','을','를','은','는','이','가','와','과','도','만','의','라고','이라는','라는'].includes(word)){
+        const demonstrativeI=word==='이'&&(()=>{
+          const next=text.slice(to).match(/^[ \u00a0]+([가-힣]+)/)?.[1];
+          return next&&(knownOrthographicNoun(next)||morphology.analyze(next,personal)?.kind==='noun');
+        })();
+        if(!demonstrativeI&&(unambiguousParticles.has(word)||['에','을','를','은','는','이','가','와','과','도','만','의','라고','이라는','라는'].includes(word))){
           const gap=text.slice(0,from).match(/[ \u00a0]+$/);
           const end=gap?from-gap[0].length:-1;
           if(gap&&(end===0&&boundary.afterProtected||quotedEnds.has(end)||excluded.some(([,b])=>b===end))){
@@ -759,7 +763,7 @@ export function createChecker(data) {
           }
         }
         const fullDuration=word==='만'&&/^[ \u00a0]+(?:하루|이틀|사흘|나흘|한|두|세|네|\d)/.test(text.slice(to));
-        if(!fullDuration&&(copulaBoundary||unambiguousParticles.has(word)||['에','을','를','은','는','이','가','와','과','도','만','의','라고','라는'].includes(word))){
+        if(!fullDuration&&!demonstrativeI&&(copulaBoundary||unambiguousParticles.has(word)||['에','을','를','은','는','이','가','와','과','도','만','의','라고','라는'].includes(word))){
           const jamo=text.slice(0,from).match(/([ㄱ-ㅎㅏ-ㅣ]+(?:_[ㄱ-ㅎㅏ-ㅣ]+)*)([ \u00a0]+)$/);
           const standaloneJamo=jamo&&jamo[1].length>=2&&!/[A-Za-z0-9_가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text[from-jamo[0].length-1]||'');
           const preceding=text.slice(0,from).match(/([A-Za-z0-9](?:[A-Za-z0-9._+-]*[A-Za-z0-9])?)([ \u00a0]+)$/)??(standaloneJamo?jamo:null);

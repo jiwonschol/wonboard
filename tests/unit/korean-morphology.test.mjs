@@ -2,6 +2,17 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('reported obligations retain the quotation ending and demonstrative i stays independent',()=>{
+  assert.ok(check('기다려야한다고합니다').some(f=>f.suggestions[0]==='기다려야 한다고 합니다'));
+  assert.equal(check('700W 이 사양으로').some(f=>f.applicable),false);
+  assert.ok(check('PC 가 좋아요').some(f=>f.suggestions[0]==='가'));
+});
+
+test('distributive counts, contracted possibilities and outward motion keep grammatical gaps',()=>{
+  for(const [text,target]of [['한번씩해보세요','한 번씩 해보세요'],['그런걸수도','그런 걸 수도'],['뭐라하는','뭐라 하는'],['쏟아져나와요','쏟아져 나와요']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['벌렁거려요','가끔씩만','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('whole recognized names and mimetic verbs precede speculative noun and adverb gaps',()=>{
   for(const text of ['제미나이도','제미나이만','벌렁거려요','벌렁거렸다'])assert.equal(check(text).some(f=>f.applicable),false,text);
   for(const [text,target]of [['많이보이네요','많이 보이네요'],['빨리마무리하고','빨리 마무리하고']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
