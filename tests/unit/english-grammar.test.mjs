@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
+import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
 test('first-person contractions preserve their word and use participle context',()=>{
   for(const [text,target] of [["i'd picked it","I'd"],["i'll go","I'll"],['ive been working',"I've"],['Im having trouble',"I'm"]]){
@@ -233,4 +234,43 @@ test('English predicate context distinguishes its and setup from valid noun phra
   for(const source of ['She setup the server every day.','She setup the server yesterday.']){
     assert.equal(check(source).some(f=>f.suggestions.includes('set up')),false,source);
   }
+});
+
+test('bare domains, email addresses and identifiers protect only their own spans',()=>{
+  const source='recieve at scratch.mit.edu then recieve from didnt+recieve@exampl.net; didnt_count is a key.';
+  const findings=check(source).filter(f=>f.applicable);
+  assert.deepEqual(findings.map(f=>f.original),['recieve','recieve']);
+  assert.ok(findings.every(f=>f.suggestions[0]==='receive'));
+});
+
+test('productive English prefixes retain known bases without accepting misspelled bases',()=>{
+  for(const source of ['unspaced text','micropip','nonspatial','precompiled','co-parenting','gemini','todo lists']){
+    assert.equal(check(source).some(f=>f.applicable),false,source);
+  }
+  assert.equal(check('re-recieve')[0]?.type,'unknown');
+  for(const [source,target] of [['tommorow','tomorrow'],['accomodation','accommodation'],['definitly','definitely'],['custome','custom']]){
+    assert.equal(check(source)[0]?.suggestions[0],target,source);
+  }
+});
+
+test('an explicit cultural gloss preserves the unfamiliar term and nearby typo checks',()=>{
+  const source='My nani (maternal grandmother) will recieve the file.';
+  assert.deepEqual(check(source).find(f=>f.original==='nani')?.suggestions,[]);
+  assert.equal(check(source).find(f=>f.original==='recieve')?.suggestions[0],'receive');
+  assert.equal(check('Please recieve (the file).').find(f=>f.original==='recieve')?.suggestions[0],'receive');
+});
+
+test('missing negative apostrophes need verb context and never become unrelated dictionary words',()=>{
+  for(const [source,target] of [['I didnt read it.',"didn't"],['They didnt really want it.',"didn't"],['Didnt she see it?',"Didn't"]]){
+    assert.equal(check(source).find(f=>f.original.toLowerCase()==='didnt')?.suggestions[0],target,source);
+  }
+  assert.deepEqual(check('didnt')[0]?.suggestions,[]);
+  assert.equal(check('didnt_count').some(f=>f.applicable),false);
+});
+
+test('weak nearby words need stronger evidence than short or two-substitution distance alone',()=>{
+  const smallCheck=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:['microbic','cat','eth','the','tomorrow','tommyrot']});
+  for(const source of ['micropip','cato'])assert.deepEqual(smallCheck(source)[0]?.suggestions,[],source);
+  assert.equal(smallCheck('teh')[0]?.suggestions[0],'the');
+  assert.equal(smallCheck('tommorow')[0]?.suggestions[0],'tomorrow');
 });

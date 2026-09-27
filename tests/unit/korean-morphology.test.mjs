@@ -10,10 +10,10 @@ test('colloquial particles, vowel copulas and connective deut keep their interna
 });
 
 test('unrelated dictionary fragments cannot justify new internal boundaries',()=>{
-  for(const text of ['클래스입니다','걸걸중상','제친구들','볼매시네','딸기코아빠','증상나타남','맞춰져있다보니']){
+  for(const text of ['클래스입니다','걸걸중상','볼매시네','딸기코아빠','증상나타남','맞춰져있다보니']){
     assert.equal(check(text).some(f=>f.suggestions.length),false,text);
   }
-  for(const [text,target] of [['문서를저장하고','문서를 저장하고'],['아는애랑','아는 애랑'],['개념없는','개념 없는'],['가능한가봅니다','가능한가 봅니다'],['필요한가봐요','필요한가 봐요']]){
+  for(const [text,target] of [['제친구들','제 친구들'],['문서를저장하고','문서를 저장하고'],['아는애랑','아는 애랑'],['개념없는','개념 없는'],['가능한가봅니다','가능한가 봅니다'],['필요한가봐요','필요한가 봐요']]){
     assert.ok(check(text).some(f=>f.suggestions.includes(target)),text);
   }
 });
@@ -22,6 +22,27 @@ test('a possible name before a personal title is reviewed without a speculative 
   const text='미친국어 선생님 강의';
   assert.equal(check(text).some(f=>f.original==='미친국어'&&f.suggestions.length),false);
   assert.equal(check(text,['미친국어']).some(f=>f.original==='미친국어'),false);
+});
+
+test('dependent nouns keep particles after completed predicate inflections',()=>{
+  for(const [source,target]of [['했을때','했을 때'],['나올수도','나올 수도'],['느껴본적도','느껴본 적도'],['맞출겸','맞출 겸'],['되신걸까','되신 걸까'],['이러는거냐','이러는 거냐']]){
+    assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
+  }
+  for(const text of ['수도','적도','필수','이걸'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('validated clauses survive conservative segmentation without accepting arbitrary fragments',()=>{
+  for(const [source,target]of [['점심먹으러','점심 먹으러'],['병원갔더니','병원 갔더니'],['걷다보니','걷다 보니'],['해야하나싶은데','해야 하나 싶은데'],['죽어버리고싶네','죽어버리고 싶네'],['만들어볼까하는데','만들어볼까 하는데']]){
+    assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
+  }
+  for(const text of ['감동받아서','배송체크해준대여','경제관념챙겨야하는데'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('negative contractions and a duration followed by 동안 keep grammatical boundaries',()=>{
+  for(const [source,target]of [['하진않고','하진 않고'],['심상치않아보임','심상치 않아 보임'],['한시간동안','한 시간 동안'],['몇달동안','몇 달 동안']]){
+    assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
+    assert.deepEqual(check(source,[source]),[]);
+  }
 });
 
 test('particle typo composes a unique noun boundary without altering registered names',()=>{
@@ -211,7 +232,7 @@ test('attested nae stems expand beyond individual source surfaces',()=>{
 });
 
 test('unverified noun similarity stays review-only and keeps personal exceptions',()=>{
-  for(const word of ['제미나이','연애인이','티이어를']){
+  for(const word of ['아즈휘','연애인이','티이어를']){
     const findings=check(word);
     assert.ok(findings.some(f=>f.type==='unknown'&&!f.applicable),word);
     assert.deepEqual(check(word,[word]),[]);
@@ -229,7 +250,7 @@ test('known nominal plus particle stays attached before a copula',()=>{
   assert.equal(morphology.analyze('언제아즈휼인가',new Set()),null);
   assert.ok(morphology.analyze('아즈휼부터인가',new Set(['아즈휼'])));
   assert.ok(check('연애인이').some(f=>f.type==='unknown'));
-  assert.ok(check('제미나이를').some(f=>f.type==='unknown'));
+  assert.ok(check('아즈휘를').some(f=>f.type==='unknown'));
 });
 
 test('attested roup adjectives retain irregular inflection without internal noun splits',()=>{
@@ -260,7 +281,7 @@ test('attested meaningful adjective uses ordinary inflection without internal no
 });
 
 test('unknown name repairs cannot shift the identified particle boundary',()=>{
-  for(const [source,base]of [['아스트라도','아스트라'],['제미나이를','제미나이']]){
+  for(const [source,base]of [['아스트라도','아스트라'],['아즈휘를','아즈휘']]){
     const findings=check(source);
     assert.equal(findings.length,1);
     assert.equal(findings[0].type,'unknown');
@@ -565,7 +586,7 @@ test('contracted demonstratives are preserved rather than expanded or respelled'
 });
 
 test('predicate boundaries do not use free-standing fragments as pre-endings',()=>{
-  for(const [source,target] of [['질문이있으면','질문이 있으면'],['문서를저장하고','문서를 저장하고'],['비가오면','비가 오면'],['할일이','할 일이'],['누구나할','누구나 할']])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
+  for(const [source,target] of [['질문이있으면','질문이 있으면'],['제친구들','제 친구들'],['문서를저장하고','문서를 저장하고'],['비가오면','비가 오면'],['할일이','할 일이'],['누구나할','누구나 할']])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
   for(const source of ['말해요','말했어요','질문이 있으면 말해요.'])assert.equal(check(source).filter(f=>f.suggestions.length).length,0,source);
 });
 

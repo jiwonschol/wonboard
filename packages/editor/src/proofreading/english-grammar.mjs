@@ -105,6 +105,9 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\bwasnt\b/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='W'?"Wasn't":"wasn't",'The contraction of was not needs an apostrophe');
   }
+  for(const match of text.matchAll(/\bdidnt\b(?=\s+(?:(?:really|ever|even|quite|actually|just)\s+)?(?:read|write|do|have|know|think|want|need|like|see|hear|feel|go|come|get|take|make|work|use|try|find|mean|say|expect|understand|believe|notice|remember)\b|\s+(?:I|you|we|they|he|she|it)\b)/gi)){
+    add(match.index,match.index+match[0].length,match[0][0]==='D'?"Didn't":"didn't",'The negative auxiliary before a verb or question subject needs an apostrophe');
+  }
   for(const match of text.matchAll(/\b(?:a A\/B|a XP)\b/g)){
     add(match.index,match.index+match[0].length,'an '+match[0].slice(2),'These initialisms begin with a vowel sound');
   }

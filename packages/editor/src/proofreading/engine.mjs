@@ -117,7 +117,7 @@ export function createChecker(data) {
   function englishSuggestions(word) {
     // Apostrophes encode contractions/possessives. Lexical edit distance
     // must not remove them to invent an unrelated dictionary word.
-    if(word.includes("'"))return [];
+    if(word.includes("'")||/^(?:didnt|isnt|hasnt|havent|hadnt|couldnt|wouldnt|shouldnt)$/i.test(word))return [];
     // Prefer an attested acronym's casing over a different nearby word.
     // This does not register unknown abbreviations as correct vocabulary.
     if(/^[a-z]{2,}$/.test(word)&&english.has(word.toUpperCase()))return [word.toUpperCase()];
@@ -128,8 +128,9 @@ export function createChecker(data) {
       if(i+1<lower.length)add(lower.slice(0,i)+lower[i+1]+lower[i]+lower.slice(i+2));
       for(const c of alphabet){add(lower.slice(0,i)+c+lower.slice(i));if(i<lower.length)add(lower.slice(0,i)+c+lower.slice(i+1));}
     }
-    // Recover compound typos only when a one-edit candidate does not exist.
-    // Keep the search bounded and preserve the initial letter for names.
+    // Two edits need evidence of misplaced/doubled letters, not just a nearby
+    // dictionary entry. This preserves repairs such as tommorow -> tomorrow
+    // without replacing an unfamiliar package name with an unrelated word.
     if(!candidates.size&&lower.length>=6&&lower.length<=32&&/^[a-z]+$/.test(lower)){
       const distanceTwo=(a,b)=>{
         let previous=Array.from({length:b.length+1},(_,i)=>i),before;
@@ -146,7 +147,9 @@ export function createChecker(data) {
         return previous[b.length]<=2;
       };
       for(let length=lower.length-2;length<=lower.length+2;length++)for(const candidate of englishByLength.get(lower.slice(0,3)+':'+length)||[]){
-        if(candidate[0]===lower[0]&&distanceTwo(lower,candidate))candidates.add(candidate);
+        const sameLetters=lower.split('').sort().join('')===candidate.split('').sort().join('');
+        const sameSequence=lower.replace(/([a-z])\1+/g,'$1')===candidate.replace(/([a-z])\1+/g,'$1');
+        if((sameLetters||sameSequence)&&distanceTwo(lower,candidate))candidates.add(candidate);
       }
     }
     const transpositions=new Set(),doubled=new Set();
@@ -161,7 +164,7 @@ export function createChecker(data) {
     // This ranks candidates only; it does not accept a misspelling as a word.
     const runs=lower.replace(/([a-z])\1+/g,'$1');
     const sameRuns=new Set([...candidates].filter(s=>s.replace(/([a-z])\1+/g,'$1')===runs));
-    return [...candidates].filter(s=>lower.length<4||s[0]===lower[0]||!(/^[A-Z]/.test(word))&&transpositions.has(s)).sort((a,b)=>Number(transpositions.has(b))-Number(transpositions.has(a))||Number(doubled.has(b))-Number(doubled.has(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
+    return [...candidates].filter(s=>(lower.length>=5||transpositions.has(s))&&(s[0]===lower[0]||!(/^[A-Z]/.test(word))&&transpositions.has(s))).sort((a,b)=>Number(transpositions.has(b))-Number(transpositions.has(a))||Number(b[0]===lower[0])-Number(a[0]===lower[0])||Number(doubled.has(b))-Number(doubled.has(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
   }
   function formalEndingCandidate(word) {
     // Recover a mistyped ㅁ in the formal -ㅂ니다 ending only when the
@@ -229,6 +232,10 @@ export function createChecker(data) {
     const spacingResults=new Map();
     let auxiliaryRepairEnd=0;
     const excluded=[...text.matchAll(/https?:\/\/[^\s]+|`[^`]*`|\b[A-Za-z0-9_-]+\.(?:md|txt|png|jpe?g|gif|webp|pdf|json|tsx?|jsx?|html|css|zip)\b|\b(?:Ctrl|Control|Alt|Option|Shift|Cmd|Command|Meta)(?:\+[A-Za-z0-9]+)+/g)].map(m=>[m.index,m.index+m[0].length]);
+    // Bare hosts and email addresses are structured identifiers even without
+    // a URL scheme. Protect the full span before grammar and token checking.
+    for(const m of text.matchAll(/\b(?:[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+@)?(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,63}\b(?:\/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]*)?/g))excluded.push([m.index,m.index+m[0].length]);
+    for(const m of text.matchAll(/\b(?=[A-Za-z0-9_]*[A-Za-z])(?=[A-Za-z0-9_]*[0-9_])[A-Za-z0-9_]+\b/g))excluded.push([m.index,m.index+m[0].length]);
     results.push(...englishGrammar(text,excluded,personal));
     const quotedEnds=new Set([...text.matchAll(/"[^"\n]+"|'[^'\n]+'|“[^”\n]+”|‘[^’\n]+’|「[^」\n]+」|『[^』\n]+』|\([^()\n]+\)|\[[^\[\]\n]+\]/g)].map(m=>m.index+m[0].length));
     function emit(from,to,language,type,suggestions,base) {results.push({from,to,original:text.slice(from,to),language,type,suggestions,base,applicable:suggestions.length>0,reason:type==='unknown'?'Not in the selected vocabulary':'Prototype lexical candidate; rule source not yet verified'});}
@@ -453,14 +460,18 @@ export function createChecker(data) {
           if(!strong)continue;
         }
         if(knownTechnicalAbbreviations.has(lookup.toLowerCase())||recognizedEnglish.has(lookup.toLowerCase()))continue;
-        // Re- can form a valid hyphenated compound when the base is known.
-        // An unknown base still goes through the normal review path.
-        const reCompound=lookup.match(/^re-([a-z]+)$/i);
-        if(reCompound&&enLower.has(reCompound[1].toLowerCase()))continue;
+        // Productive prefixes preserve a known whole base, including its
+        // inflection. They recognize words without creating correction targets.
+        const prefixed=lookup.match(/^(?:un|non|re|micro|multi|co|pre|post)-?([a-z]{3,})$/i);
+        if(prefixed&&(enLower.has(prefixed[1].toLowerCase())||recognizedEnglish.has(prefixed[1].toLowerCase())))continue;
         if(personal.has(word)||personal.has(lookup)||english.has(lookup)||enLower.has(lookup.toLowerCase())||enLower.has(lookup.toLowerCase().replace(/'s$/,''))||english.has(lookup.replace(/'s$/,'')))continue;
         // Conventional abbreviation of an attested word; a period is optional.
         // Do not treat arbitrary short identifiers as registered vocabulary.
         if(lookup.toLowerCase()==='vs'&&enLower.has('versus'))continue;
+        // An unfamiliar kinship/cultural term with an explicit parenthetical
+        // gloss is intentional vocabulary, not evidence for a letter swap.
+        const glossed=/\b(?:my|your|his|her|our|their|called|named)\s+$/i.test(text.slice(Math.max(0,from-30),from))&&/^\s*\([a-z]+(?:[ -][a-z]+){1,5}\)/i.test(text.slice(to));
+        if(glossed){emit(from,to,'en','unknown',[],word);continue;}
         // Preserve camel-case identifiers and acronyms as unknown expressions.
         // In Korean prose, a capitalized word with a close dictionary match
         // can be a name; do not replace it with that unrelated match. A word
