@@ -697,6 +697,22 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     if(!tail||tail.root===rest||knownNominal(word)||predicate(word)||recognizeWhole?.(word,personal))return null;
     return {text:'잘 '+rest,ambiguous:true,rule:'2'};
   }
+  function negativeBoundary(word,personal){
+    if(!word.startsWith('안')||personal.has(word))return null;
+    const rest=word.slice(1),tail=predicate(rest)??analyze(rest,personal);
+    if(!tail?.root||tail.root==='이')return null;
+    if(tail.root==='하'||!isRecognizedNoun(word)&&!predicate(word)&&!noun(word,personal)&&!recognizeWhole?.(word,personal))return {text:'안 '+rest,ambiguous:true,rule:'2'};
+    return null;
+  }
+  function quotedHadaBoundary(word){
+    for(let i=3;i<word.length;i++){
+      const left=word.slice(0,i),right=word.slice(i);
+      if(!/(?:다고|라고|자고)$/.test(left)||predicate(right)?.root!=='하')continue;
+      const auxiliary=requiredAuxiliaryBoundary(left);
+      if(predicate(left)||auxiliary)return {text:(auxiliary?.text??left)+' '+right,ambiguous:true,rule:'2'};
+    }
+    return null;
+  }
   function auxiliaryBoundary(word,personal){
     if(personal.has(word))return null;
     for(let i=2;i<word.length;i++){
@@ -762,10 +778,9 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     // Descriptive lexical entries can contain joined 안 하다 forms.
     // This negative construction has a boundary even when a whole-form
     // analysis exists. Do not generalize to lexical 안되다 or 못하다.
+    const negative=negativeBoundary(word,personal);if(negative)return negative;
     if(word.startsWith('안')){
-      const rest=word.slice(1),tail=predicate(rest);
-      if(tail?.root==='하')return {text:'안 '+rest,ambiguous:true,rule:'2'};
-      if(tail&&!isRecognizedNoun(word)&&!predicate(word)&&!noun(word,personal)&&!recognizeWhole?.(word,personal))return {text:'안 '+rest,ambiguous:true,rule:'2'};
+      const rest=word.slice(1);
       for(const main of ['해','하여'])if(rest.startsWith(main)&&predicate(rest.slice(main.length))?.root==='보')return {text:'안 '+rest,ambiguous:true,rule:'2/47'};
     }
     // 얼마 나오다 and 얼마나 오다 are distinct valid readings. The token
@@ -867,6 +882,11 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       return {...d,text:parts.map((part,i)=>nested[i]?.text??part).join(' '),ambiguous:d.ambiguous||nested.some(Boolean)};
     }
     const auxiliary=auxiliaryBoundary(word,personal);if(auxiliary)return auxiliary;
+    const quoted=quotedHadaBoundary(word);if(quoted)return quoted;
+    // Preserve a complete nominalized verb before emphatic 만 + 하다;
+    // 기만하다 is a different word and must not consume its final -기.
+    const nominalEmphasis=word.match(/^(.+기)만(.+)$/);
+    if(nominalEmphasis&&isNominalForm(nominalEmphasis[1])&&predicate(nominalEmphasis[2])?.root==='하')return {text:nominalEmphasis[1]+'만 '+nominalEmphasis[2],ambiguous:true,rule:'2'};
     // The interrogative + 보다 boundary precedes descriptive joined forms.
     for(let i=2;i<word.length;i++){
       const left=word.slice(0,i),right=word.slice(i);
@@ -1050,7 +1070,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     const best=Array(word.length+1).fill(null);best[0]={cost:0,parts:[],unknowns:[]};
     for(let end=1;end<=word.length;end++)for(let start=Math.max(0,end-24);start<end;start++) {
       if(!best[start])continue;
-      const part=word.slice(start,end),a=analyze(part,personal,true),dep=knownAdverbBoundary(part,personal)??dependent(part,false,personal);
+      const part=word.slice(start,end),a=analyze(part,personal,true),dep=negativeBoundary(part,personal)??quotedHadaBoundary(part)??knownAdverbBoundary(part,personal)??dependent(part,false,personal);
       if(!a&&!dep)continue;
       if(start===0&&end===word.length&&a?.unknown)continue;
       if(part.length===1&&!['수','것','걸','때','뿐','후','전','뒤','번','시','개','장','한','두','세','네','할','더'].includes(part))continue;
@@ -1180,7 +1200,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(last==='알람'&&right?.kind==='noun'&&right.base==='소리')return true;
         if(part.endsWith(' 수')&&rightPredicate?.root==='있')return true;
         if(left?.kind==='noun'&&!left.copula&&left.base!==last&&
-          /^(?:(?:에서|서|에게|께서|한테)(?:부터|까지)?(?:는|도|만)?|이|가|을|를|에|로|으로|랑|이랑|와|과|도|만|부터|까지)$/.test(last.slice(left.base.length))&&(rightPredicate||adverbs.has(first)||['정말','진짜','너무','아주','매우'].includes(first)))return true;
+          /^(?:(?:에서|서|에게|께서|한테)(?:부터|까지)?(?:는|도|만)?|이|가|을|를|에|로|으로|랑|이랑|와|과|도|만|나|이나|부터|까지)$/.test(last.slice(left.base.length))&&(rightPredicate||adverbs.has(first)||['정말','진짜','너무','아주','매우'].includes(first)))return true;
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&rightPredicate?.root==='받'&&!staticStateNouns.has(last)&&!actionNouns.has(last)&&!batdaNouns.has(last)&&!recognizeWhole?.(last+first,personal))return true;
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&rightPredicate?.root==='드리'&&!dridaNouns.has(last))return true;
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&(['있','없','아니'].includes(rightPredicate?.root)||first==='없이'))return true;
@@ -1204,6 +1224,9 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(left?.kind==='noun'&&!left.unknown&&last.slice(left.base.length)==='이다'&&rightPredicate?.root==='보')return true;
         if(main&&last.endsWith('다')&&['보','하','치'].includes(rightPredicate?.root))return true;
         if(main&&last.endsWith('다')&&predicate(last.slice(0,-1))?.root===main.root&&rightPredicate)return true;
+        // Past -았다/-었다 can introduce alternating actions. Its tense
+        // stem lives in the inflection prefix inventory, not predicate().
+        if(main&&last.endsWith('다')&&prefixes.get(last.slice(0,-1))===main.root&&rightPredicate)return true;
         if(main&&last.endsWith('나')&&!main.adnominal&&rightPredicate?.root==='하')return true;
         if(main&&/(?:야|야만)$/.test(last)&&['하','되'].includes(rightPredicate?.root))return true;
         if(main&&/(?:나|까|가)$/.test(last)&&rightPredicate?.root==='싶')return true;
