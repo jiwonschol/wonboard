@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('compound hyphens and computing words preserve their identity',()=>{
+  for(const text of ['a to-do list','I uninstalled Pi-hole.','control diff inline'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('models are increasingly stucking in thought').some(f=>f.suggestions[0]==='stuck'));
+});
+
 test('relative that preserves agreement with its plural antecedent',()=>{
   for(const text of ['a multitude of concepts that have been created','The tools that have changed','devices that usually have batteries'])assert.equal(check(text).some(f=>f.suggestions[0]==='has'),false,text);
   assert.ok(check('That have changed.').some(f=>f.suggestions[0]==='has'));

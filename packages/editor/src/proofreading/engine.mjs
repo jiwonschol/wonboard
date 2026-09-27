@@ -116,8 +116,9 @@ export function createChecker(data) {
   }
   function englishSuggestions(word) {
     // Apostrophes encode contractions/possessives. Lexical edit distance
-    // must not remove them to invent an unrelated dictionary word.
-    if(word.includes("'")||/^(?:didnt|isnt|hasnt|havent|hadnt|couldnt|wouldnt|shouldnt)$/i.test(word))return [];
+    // must not remove them to invent an unrelated dictionary word. Hyphens
+    // likewise carry compound/name boundaries, not replaceable letters.
+    if(/['-]/.test(word)||/^(?:didnt|isnt|hasnt|havent|hadnt|couldnt|wouldnt|shouldnt)$/i.test(word))return [];
     // Prefer an attested acronym's casing over a different nearby word.
     // This does not register unknown abbreviations as correct vocabulary.
     if(/^[a-z]{2,}$/.test(word)&&english.has(word.toUpperCase()))return [word.toUpperCase()];

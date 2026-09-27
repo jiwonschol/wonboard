@@ -587,7 +587,10 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     if(lexical?.root.endsWith('듯하')&&roots.has(lexical.root))return null;
     // Connective -듯(이) attaches to a stem. A stem's homographic
     // adnominal analysis does not turn that ending into a dependent noun.
-    if(/듯이?$/.test(s)&&lexical&&!lexical.adnominal)return null;
+    if(/듯이?$/.test(s)&&lexical&&!lexical.adnominal){
+      const host=s.replace(/듯이?$/,'');
+      if(host===lexical.root||!predicate(host)?.adnominal)return null;
+    }
     // 순 contracts the dependent noun 수 plus topic particle 는.
     if(contractions&&s.endsWith('순')){
       const left=s.slice(0,-1);
@@ -712,6 +715,9 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     // 얼마 나오다 and 얼마나 오다 are distinct valid readings. The token
     // alone cannot select the boundary without changing a price question.
     if(word.startsWith('얼마나')&&predicate(word.slice(2))?.root==='나오'&&predicate(word.slice(3))?.root==='오')return null;
+    // 잘되다 has the same inflection as 되다, including reported endings
+    // absent from the whole-compound inventory (잘된답니다).
+    if(word.startsWith('잘')&&predicate(word.slice(1))?.root==='되'&&(roots.has('잘되')||recognitionVerbRoots.has('잘되')))return null;
     const adverbBoundary=knownAdverbBoundary(word,personal);
     if(adverbBoundary)return adverbBoundary;
     // A validated action noun cannot be the beginning of a duration noun
@@ -1088,6 +1094,9 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(i===result.parts.length-1)return true;
         const next=result.parts[i+1],last=part.split(' ').at(-1),first=next.split(' ')[0];
         const left=analyze(last,personal,true),right=analyze(first,personal),rightPredicate=predicate(first)??(right?.kind==='predicate'?right:null);
+        // A prospective form followed by 거 is still a dependent phrase,
+        // not evidence for an independent clause after a bare noun.
+        if(first.endsWith('거')&&predicate(first.slice(0,-1))?.adnominal)return false;
         if((left?.kind==='adverb'||adverbs.has(last)||last==='한번')&&(right?.kind==='adverb'||adverbs.has(first)||rightPredicate))return true;
         // A bare object may precede an adverb when the next segment contains
         // a complete predicate (견적 한번 봐주실 수). Require that clause.

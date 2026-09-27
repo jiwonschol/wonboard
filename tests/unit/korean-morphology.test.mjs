@@ -2,6 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('adnominal 듯이 remains distinct from a stem ending',()=>{
+  assert.ok(check('미친듯이 노력했다').some(f=>f.suggestions[0]==='미친 듯이'));
+  for(const text of ['먹듯이','날듯이','인식이 잘된답니다','서성한 라인알거 같음'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('subject particles and ambiguous amount questions preserve their meaning',()=>{
   for(const [text,target]of [['전화가옴','전화가 옴'],['소포가옴','소포가 옴'],['새로나왔나해서','새로 나왔나 해서'],['안가봣는데','안 가봤는데']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   assert.equal(check('얼마나오나요').some(f=>f.applicable),false);

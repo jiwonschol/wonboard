@@ -15,6 +15,10 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
       || /\b(?:suggest(?:s|ed)?|recommend(?:s|ed)?|request(?:s|ed)?|demand(?:s|ed)?|insist(?:s|ed)?|propos(?:e|es|ed))\s+(?:that\s+)?$/i.test(before)
       || /\b(?:suggestion|recommendation|request|demand|requirement|important|essential|necessary|vital)\s+that\s+$/i.test(before);
   };
+  for(const match of text.matchAll(/\b(?:am|is|are|was|were|be|been)\s+(?:(?:increasingly|still|always|completely)\s+)?(stucking)\b/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'stuck','Be takes the participle stuck, not an invented -ing form');
+  }
   for(const match of text.matchAll(/\bi['’](?:m|d|ll|ve)\b/g)){
     add(match.index,match.index+match[0].length,'I'+match[0].slice(1),'Capitalize the first-person contraction without replacing its word');
   }
