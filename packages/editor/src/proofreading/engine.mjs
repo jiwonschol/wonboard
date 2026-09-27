@@ -171,7 +171,21 @@ export function createChecker(data) {
     // common grammatical target; longer spelling evidence is unchanged.
     const shortTargets=new Set(['the','and','for','you','are','was','not','but','our','his','her','him','she','has','had','can','may','any','all','who','how','why','its']);
     if(lower.length===3)for(const candidate of candidates)if(!shortTargets.has(candidate))candidates.delete(candidate);
-    return [...candidates].filter(s=>(lower.length>=5||transpositions.has(s))&&(s[0]===lower[0]||!(/^[A-Z]/.test(word))&&transpositions.has(s))).sort((a,b)=>Number(transpositions.has(b))-Number(transpositions.has(a))||Number(b[0]===lower[0])-Number(a[0]===lower[0])||Number(doubled.has(b))-Number(doubled.has(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||sharedPrefix(b)-sharedPrefix(a)||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
+    // Consonant replacement is weak evidence for an unknown word: it turns
+    // names and technical terms into unrelated valid words. Keep letter-order,
+    // vowel and omission evidence, while leaving other spans for review.
+    const spellingEvidence=s=>{
+      if(transpositions.has(s)||sameRuns.has(s))return true;
+      // Stable spelling on both sides supports an internal typo without
+      // admitting short neighbors such as muslim/muslin or clojure/closure.
+      let suffix=0;while(suffix<Math.min(lower.length,s.length)&&lower.at(-1-suffix)===s.at(-1-suffix))suffix++;
+      if(sharedPrefix(s)>=2&&suffix>=4)return true;
+      if(lower.length===s.length)return lower.replace(/[aeiou]/g,'')===s.replace(/[aeiou]/g,'');
+      if(s.length===lower.length+1)return true;
+      if(lower.length===s.length+1){let i=0;while(lower[i]===s[i]&&i<s.length)i++;return /[aeiou]/.test(lower[i]);}
+      return false;
+    };
+    return [...candidates].filter(s=>spellingEvidence(s)&&(lower.length>=5||transpositions.has(s))&&(s[0]===lower[0]||!(/^[A-Z]/.test(word))&&transpositions.has(s))).sort((a,b)=>Number(transpositions.has(b))-Number(transpositions.has(a))||Number(b[0]===lower[0])-Number(a[0]===lower[0])||Number(doubled.has(b))-Number(doubled.has(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||sharedPrefix(b)-sharedPrefix(a)||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
   }
   function formalEndingCandidate(word) {
     // Recover a mistyped ㅁ in the formal -ㅂ니다 ending only when the
@@ -501,6 +515,12 @@ export function createChecker(data) {
         const lowerLookup=lookup.toLowerCase();
         const inflectionBase=/[sxz]es$|(?:ch|sh)es$/.test(lowerLookup)?lowerLookup.slice(0,-2):/[^aeiou]ies$/.test(lowerLookup)?lowerLookup.slice(0,-3)+'y':/[^s]s$/.test(lowerLookup)?lowerLookup.slice(0,-1):null;
         if(inflectionBase&&inflectionBase.length>=3&&(enLower.has(inflectionBase)||recognizedEnglish.has(inflectionBase)))continue;
+        // Regular participles retain a known base (diffing, vibing). This
+        // is recognition only, not another edit-distance candidate source.
+        if(lowerLookup.endsWith('ing')){
+          const stem=lowerLookup.slice(0,-3),bases=[stem,stem+'e'];
+          if(bases.some(base=>base.length>=3&&(enLower.has(base)||recognizedEnglish.has(base))))continue;
+        }
         // A matching repository link explicitly identifies this name. Keep
         // it reviewable rather than turning it into an unrelated dictionary word.
         if(repositoryNames.includes(lowerLookup)){emit(from,to,'en','unknown',[],word);continue;}
@@ -896,7 +916,7 @@ export function createChecker(data) {
           if(recognizedCompound&&morphology.analyze(word,new Set([compound]))?.kind==='noun')continue;
         }
         const namedHonorific=word.match(/^([가-힣]{2,})님(.*)$/);
-        if(namedHonorific&&!word.endsWith('아님')&&!/(?:대표|지사|회장|사장|부장|과장|팀장|실장|원장|교수|선생|박사|작가|기사|감독|코치|대장|장관|의원|보좌관|총장|교장|사범|스승)$/.test(namedHonorific[1])&&!knownOrthographicNoun(namedHonorific[1])&&!morphology.analyze(word,personal)&&!recognizedNoun(word)&&!recognizeWhole?.(word,personal)){
+        if(namedHonorific&&!word.endsWith('아님')&&!/(?:대표|지사|회장|사장|부장|과장|팀장|실장|원장|교수|선생|박사|작가|기사|감독|코치|대장|장관|의원|보좌관|총장|교장|사범|스승)$/.test(namedHonorific[1])&&!knownOrthographicNoun(namedHonorific[1])&&!(namedHonorific[1].endsWith('들')&&knownOrthographicNoun(namedHonorific[1].slice(0,-1)))&&!morphology.analyze(word,personal)&&!recognizedNoun(word)&&!recognizeWhole?.(word,personal)){
           const name=namedHonorific[1],tail=namedHonorific[2];
           const nominalTail=!tail||sets.josa.has(tail)||/^(?:입니다|입니까|이었다|이었|이에요|이지만|이니|이라|이던)/.test(tail)&&morphology.predicate(tail)?.root==='이';
           if(nominalTail){

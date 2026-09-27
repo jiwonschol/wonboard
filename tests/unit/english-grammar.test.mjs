@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('unfamiliar consonant neighbors stay reviewable while attested participles survive',()=>{
+  for(const text of ['somfy','lally','proxify','graphene','clojure','booch','larman','muslim','diffing','vibing'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['writting','writing'],['remeber','remember'],['suger','sugar'],['recieve','receive'],['anegdote','anecdote'],['sudpanel','subpanel'],['dimentions','dimensions'],['nothwithstanding','notwithstanding'],['ecoysystem','ecosystem'],['immigrantion','immigration']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
 test('short unknown strings need a grammatical target rather than a rare swapped word',()=>{
   for(const text of ['des','sto','espagnole sauce','foie gras'])assert.equal(check(text).some(f=>f.applicable),false,text);
   for(const [text,target]of [['teh','the'],['adn','and']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);

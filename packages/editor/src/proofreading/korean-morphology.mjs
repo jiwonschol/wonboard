@@ -725,6 +725,8 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     // Repeated syllables and short mimetic units are expressive runs, not
     // evidence for dictionary-sized word boundaries.
     if(/^([가-힣]{1,4})\1{2,}$/.test(word))return null;
+    // Informal intensifier 개- keeps the complete following predicate intact.
+    if(word.startsWith('개')&&predicate(word.slice(1))?.root.length>=2)return null;
     const repeatedActivity=word.match(/^([가-힣]{2,})\1(하.*)$/);
     if(repeatedActivity&&knownNominal(repeatedActivity[1])&&predicate(repeatedActivity[1]+repeatedActivity[2]))return null;
     for(const weather of ['비','눈','우박'])if(word.startsWith(weather)){
@@ -916,6 +918,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       if(host&&['절대','계속','다시'].includes(right))return {text:left+' '+right,ambiguous:true,rule:'2'};
       const tail=predicate(right);
       const independentAdverb=sets.adverb.has(left)||left.length===2&&left[0]===left[1]&&adverbs.has(left);
+      if(independentAdverb&&left.endsWith('히')&&right==='진')return null;
       if(left.length>=2&&independentAdverb&&!right.startsWith(left)&&tail&&!['하','이','되','시키'].includes(tail.root)&&!predicate(left)&&!recognizeWhole?.(word,personal))return {text:left+' '+right,ambiguous:true,rule:'2'};
     }
     // Degree adverb 많이 is a separate word before 하다. The generic
@@ -1152,6 +1155,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&last.length>=2&&rightPredicate&&first!==rightPredicate.root&&!right?.nominal&&
           !['이','하','되','받','당하','드리'].includes(rightPredicate.root)&&(!rightPredicate.adnominal||next.includes(' ')))return true;
         const main=predicate(last)??(left?.kind==='predicate'?left:null);
+        if(main&&last.endsWith('도')&&rightPredicate?.root==='되')return true;
         if(main&&last.endsWith('게')&&(rightPredicate?.root==='주'||sets.adjective.has(rightPredicate?.root))&&!recognizeWhole?.(last+first,personal))return true;
         if(main&&/(?:으러|러)$/.test(last)&&['가','오','다니'].includes(rightPredicate?.root))return true;
         if(main&&last.endsWith('단')&&right?.base==='말')return true;

@@ -2,6 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('community intensifiers, university names and plural kinship terms keep their boundaries',()=>{
+  for(const text of ['아주대를','개웃기네','형들님','명확히진'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('영입해도되지만').some(f=>f.suggestions[0]==='영입해도 되지만'));
+});
+
 test('dependent nouns preserve attached auxiliaries and required derived-verb boundaries',()=>{
   for(const [text,target]of [['추천해주실수','추천해 주실 수'],['떼주는거임','떼주는 거임']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['추천해 주실 수','떼주는 거임','명시지로','갈아타볼까'])assert.equal(check(text).some(f=>f.applicable),false,text);
