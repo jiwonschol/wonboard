@@ -2,6 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('complete amuri adverb and prospective geoya phrases keep their boundaries',()=>{
+  for(const [text,target]of [['아무리그래도','아무리 그래도'],['학원다닐거야','학원 다닐 거야']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['아무리 그래도','이거야','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('generated spellings and auxiliary chains retain valid orthography and stem boundaries',()=>{
   for(const [text,target]of [['됫어','됐어'],['공부해보고싶네','공부해 보고 싶네'],['빌려달라해놓고','빌려 달라 해놓고'],['헷갈리게해서','헷갈리게 해서']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['숭숭세단','된찌','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);

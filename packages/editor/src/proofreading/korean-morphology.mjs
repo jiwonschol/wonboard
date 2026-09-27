@@ -667,7 +667,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     }
     // Prospective -ㄹ걸 can be a complete regret/guess ending. A lexical
     // predicate analysis does not justify replacing it with a dependent noun.
-    for(const dep of ['거심','건데','건가','건가요','건지','걸까','걸까요','거냐','거냐고','거긴','거예요','거였어요','겁니다','거라','거라고','거라는','거죠','것인데','것입니다','것을','것이','것은','것도','것만','것으로','걸로','걸로는','걸로도','일이','일을','일은','적이','적을','적은','것','걸','거','게','건','수','때','뿐','적']) {
+    for(const dep of ['거심','건데','건가','건가요','건지','걸까','걸까요','거냐','거냐고','거긴','거야','거예요','거였어요','겁니다','거라','거라고','거라는','거죠','것인데','것입니다','것을','것이','것은','것도','것만','것으로','걸로','걸로는','걸로도','일이','일을','일은','적이','적을','적은','것','걸','거','게','건','수','때','뿐','적']) {
       if(!s.endsWith(dep))continue;
       const left=s.slice(0,-dep.length),analysis=predicate(left)??analyze(left,personal);
       if(dep==='뿐'&&isPronoun(left))continue;
@@ -689,7 +689,14 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   // The descriptive verb inventory joins 잘 + 알려지다. Confirm the tail
   // with the inflector instead of splitting every verb beginning with 잘.
   function knownAdverbBoundary(word,personal) {
-    if(personal.has(word)||!word.startsWith('잘'))return null;
+    if(personal.has(word))return null;
+    // Preserve the complete adverb 아무리 before the following clause;
+    // 아무 + 리그 must not steal its final syllable in 아무리그래도.
+    if(word.startsWith('아무리')){
+      const rest=word.slice(3),tail=predicate(rest);
+      if((tail&&tail.root!==rest||adverbs.has(rest))&&!knownNominal(word)&&!recognizeWhole?.(word,personal))return {text:'아무리 '+rest,ambiguous:true,rule:'2'};
+    }
+    if(!word.startsWith('잘'))return null;
     const rest=word.slice(1),tail=predicate(rest);
     // Productive -어지다 analysis can retain the underlying 알리 root.
     if(word.startsWith('잘알려')&&['알려지','알리'].includes(tail?.root))return {text:'잘 '+rest,ambiguous:false,rule:'2'};
