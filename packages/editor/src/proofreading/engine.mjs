@@ -233,6 +233,7 @@ export function createChecker(data) {
     // Reuse it for repeated words; context rules and offsets stay per occurrence.
     const spacingResults=new Map();
     let auxiliaryRepairEnd=0;
+    const repositoryNames=[...text.matchAll(/https:\/\/github\.com\/[A-Za-z0-9_.-]+\/([A-Za-z0-9_.-]+)/g)].map(m=>m[1].toLowerCase());
     const excluded=[...text.matchAll(/https?:\/\/[^\s]+|`[^`]*`|\b[A-Za-z0-9_-]+\.(?:md|txt|png|jpe?g|gif|webp|pdf|json|tsx?|jsx?|html|css|zip)\b|\b(?:Ctrl|Control|Alt|Option|Shift|Cmd|Command|Meta)(?:\+[A-Za-z0-9]+)+/g)].map(m=>[m.index,m.index+m[0].length]);
     // Bare hosts and email addresses are structured identifiers even without
     // a URL scheme. Protect the full span before grammar and token checking.
@@ -483,6 +484,15 @@ export function createChecker(data) {
           if(!strong)continue;
         }
         if(knownTechnicalAbbreviations.has(lookup.toLowerCase())||recognizedEnglish.has(lookup.toLowerCase()))continue;
+        // Regular plural/third-person suffixes preserve an attested base.
+        // This expands recognition only; no synthetic word becomes a target.
+        const lowerLookup=lookup.toLowerCase();
+        const inflectionBase=/[sxz]es$|(?:ch|sh)es$/.test(lowerLookup)?lowerLookup.slice(0,-2):/[^aeiou]ies$/.test(lowerLookup)?lowerLookup.slice(0,-3)+'y':/[^s]s$/.test(lowerLookup)?lowerLookup.slice(0,-1):null;
+        if(inflectionBase&&inflectionBase.length>=3&&(enLower.has(inflectionBase)||recognizedEnglish.has(inflectionBase)))continue;
+        // A matching repository link explicitly identifies this name. Keep
+        // it reviewable rather than turning it into an unrelated dictionary word.
+        if(repositoryNames.includes(lowerLookup)){emit(from,to,'en','unknown',[],word);continue;}
+
         // Productive prefixes preserve a known whole base, including its
         // inflection. They recognize words without creating correction targets.
         const prefixed=lookup.match(/^(?:un|non|re|micro|multi|co|pre|post|sub)-?([a-z]{3,})$/i);

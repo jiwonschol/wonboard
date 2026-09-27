@@ -3,6 +3,15 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('known regular inflections and explicitly linked project names keep their identity',()=>{
+  for(const text of ['smartphones','gmail','clippy','composable','larkos https://github.com/Okerew/larkos'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('smartphones recieve').some(f=>f.suggestions[0]==='receive'));
+});
+
+test('first-person actions and negative modals retain their words',()=>{
+  for(const [text,target]of [['i kept updating','I'],['i first read','I'],['i comment here','I'],['i look at it','I'],['wouldnt have',"wouldn't"],['couldnt work',"couldn't"]])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
 test('joined letter labels are not articles and explicit count phrases retain their grammar',()=>{
   for(const text of ['Q&A indicates the answer','A/B equipment','Those where the door opens'])assert.equal(check(text).some(f=>f.type==='grammar'),false,text);
   for(const [text,target]of [['upto 46C','up to'],['a two power strips','two power strips'],['Those where the plastic kind and more','were'],['A apple','An apple']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
