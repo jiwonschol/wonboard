@@ -244,6 +244,12 @@ export function createChecker(data) {
     }
     // CSS URL functions carry code identifiers and resource paths together.
     for(const m of text.matchAll(/\burl\(\s*(?:"[^"]*"|'[^']*'|[^\s)]*)\s*\)/gi))excluded.push([m.index,m.index+m[0].length]);
+    // Explicitly introduced foreign sayings retain their quoted spelling.
+    // Ordinary English quotations remain eligible for spelling checks.
+    for(const m of text.matchAll(/\b(?:in|from) (?:Tamil|Hindi|Spanish|French|German|Italian|Portuguese|Latin|Arabic|Japanese|Korean|Chinese)\b[^.!?\n]{0,100}?\b(?:saying|phrase|word)\s+(['"“‘])[^'"”’\n]+['"”’]/gi)){
+      const quote=m[0].indexOf(m[1]);excluded.push([m.index+quote,m.index+m[0].length]);
+    }
+    for(const m of text.matchAll(/\bde facto\b/gi))excluded.push([m.index,m.index+m[0].length]);
     results.push(...englishGrammar(text,excluded,personal));
     const quotedEnds=new Set([...text.matchAll(/"[^"\n]+"|'[^'\n]+'|“[^”\n]+”|‘[^’\n]+’|「[^」\n]+」|『[^』\n]+』|\([^()\n]+\)|\[[^\[\]\n]+\]/g)].map(m=>m.index+m[0].length));
     function emit(from,to,language,type,suggestions,base) {results.push({from,to,original:text.slice(from,to),language,type,suggestions,base,applicable:suggestions.length>0,reason:type==='unknown'?'Not in the selected vocabulary':'Prototype lexical candidate; rule source not yet verified'});}

@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('explicit foreign sayings keep their quoted language and common nouns survive',()=>{
+  for(const text of ["In Tamil, there is a casual saying 'nee kodu potta avan rodu poduvan'.",'an influencer on linux','de facto components','agents with decispher'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check("In English, a phrase 'teh cat'.").some(f=>f.suggestions[0]==='the'));
+});
+
 test('common company abbreviation and lexical compound retain meaning',()=>{
   assert.equal(check('a big corp.').some(f=>f.applicable),false);
   assert.ok(check('a house in the country-side').some(f=>f.suggestions[0]==='countryside'));
