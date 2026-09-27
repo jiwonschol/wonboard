@@ -233,7 +233,12 @@ export function createChecker(data) {
       }
       if(code<0xac00||code>0xd7a3||(code-0xac00)%28!==19)continue;
       const candidate=word.slice(0,i)+String.fromCharCode(code+1)+word.slice(i+1);
-      if(morphology.predicate(candidate))suggestions.push(candidate);
+      if(morphology.predicate(candidate)){
+        // Morphological acceptance also includes nonstandard forms such
+        // as 됬어. A generated candidate still needs orthographic repair.
+        const repair=orthography(candidate,sets,noPersonalWords,knownOrthographicPredicate,knownOrthographicNoun);
+        suggestions.push(repair?.suggestions.length===1?repair.suggestions[0]:candidate);
+      }
       else {
         // Compose explicit negative-adverb or verified -게 되다 boundaries,
         // not an arbitrary segmentation containing unknown pieces.

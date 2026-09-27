@@ -717,6 +717,10 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     if(personal.has(word))return null;
     for(let i=2;i<word.length;i++){
       const left=word.slice(0,i),right=word.slice(i);
+      if(left.endsWith('고')&&predicate(right)?.root==='싶'){
+        const main=requiredAuxiliaryBoundary(left);
+        if(main)return {text:main.text+' '+right,ambiguous:true,rule:'47'};
+      }
       const nested=/(?:야|게|지|기는|기도|기나|긴)$/.test(left)?dependent(right,true,personal):null;
       const tail=predicate(nested?.text.split(' ')[0]??right);
       const emphasis=/(?:기는|기도|기나|긴)$/.test(left)&&tail?.root==='하'&&!predicate(word);
@@ -956,6 +960,9 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       if(host&&['절대','계속','다시'].includes(right))return {text:left+' '+right,ambiguous:true,rule:'2'};
       const tail=predicate(right);
       const independentAdverb=sets.adverb.has(left)||left.length===2&&left[0]===left[1]&&adverbs.has(left);
+      // Repeated mimetic syllables and a recognized noun can belong to
+      // one informal name. The noun's verbal homograph cannot prove a gap.
+      if(left.length===2&&left[0]===left[1]&&independentAdverb&&isRecognizedNoun(right))return null;
       if(independentAdverb&&left.endsWith('히')&&right==='진')return null;
       if(left.length>=2&&independentAdverb&&!right.startsWith(left)&&tail&&!['하','이','되','시키'].includes(tail.root)&&!predicate(left)&&!recognizeWhole?.(word,personal))return {text:left+' '+right,ambiguous:true,rule:'2'};
     }
@@ -1215,7 +1222,9 @@ export function createMorphology(sets,data,recognizeWhole=null) {
           !['이','하','되','받','당하','드리'].includes(rightPredicate.root)&&(!rightPredicate.adnominal||next.includes(' ')))return true;
         const main=predicate(last)??(left?.kind==='predicate'?left:null);
         if(main&&last.endsWith('도')&&rightPredicate?.root==='되')return true;
-        if(main&&last.endsWith('게')&&(rightPredicate?.root==='주'||sets.adjective.has(rightPredicate?.root))&&!recognizeWhole?.(last+first,personal))return true;
+        if(main&&last.endsWith('게')&&(['주','하'].includes(rightPredicate?.root)||sets.adjective.has(rightPredicate?.root))&&!recognizeWhole?.(last+first,personal))return true;
+        if(last==='달라'&&(rightPredicate?.root==='하'||right?.root==='하'))return true;
+        if(main&&(connectiveForms.has(last)||/[아어해]$/.test(last))&&first==='달라')return true;
         if(main&&/(?:으러|러)$/.test(last)&&['가','오','다니'].includes(rightPredicate?.root))return true;
         if(main&&last.endsWith('단')&&right?.base==='말')return true;
         if(main?.adnominal&&rightPredicate?.root==='생각하')return true;

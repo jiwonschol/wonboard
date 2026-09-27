@@ -2,6 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('generated spellings and auxiliary chains retain valid orthography and stem boundaries',()=>{
+  for(const [text,target]of [['됫어','됐어'],['공부해보고싶네','공부해 보고 싶네'],['빌려달라해놓고','빌려 달라 해놓고'],['헷갈리게해서','헷갈리게 해서']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['숭숭세단','된찌','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('negative and nominalized clauses keep complete predicate boundaries',()=>{
   for(const [text,target]of [['환불해달라고하니까','환불해 달라고 하니까'],['적금넣었다고하더군요','적금 넣었다고 하더군요'],['나가기만한다고','나가기만 한다고'],['얼마안걸리잖아','얼마 안 걸리잖아'],['공부나처하지','공부나 처하지'],['나갔다들어왔다','나갔다 들어왔다']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['된찌','된찌랑','안주를','기만한다고','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
