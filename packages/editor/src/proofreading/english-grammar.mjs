@@ -7,6 +7,48 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     if(findings.some(item=>item.from<to&&item.to>from))return;
     findings.push({from,to,original:text.slice(from,to),language:'en',type,suggestions:[suggestion],applicable:true,reason});
   };
+  // Complete constructions with missing function words. Bound the following
+  // head/verb so fragments, names and open noun modifiers stay reviewable.
+  for(const match of text.matchAll(/\b(?:allow|allows|allowed|allowing)\s+(?:users|developers|people|us|me|them|you)\s+(disable|enable|access|create|change|select|use|edit|delete)\b/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'to '+match[1],'Allow takes a to-infinitive after its object');
+  }
+  for(const match of text.matchAll(/\b(?:I am|I['’]m|you are|you['’]re|we are|we['’]re)\s+(doing)\s+(?:a|the)\s+(?:right|wrong|good|bad)\s+choice\b/gi)){
+    const from=match.index+match[0].indexOf(match[1]);
+    add(from,from+match[1].length,'making','The decision construction uses make a choice');
+  }
+  for(const match of text.matchAll(/\b(?:there is|there was|there['’]s)\s+(small|large|significant|tiny)\s+amount\s+of\b/gi)){
+    const from=match.index+match[0].indexOf(match[1]);
+    add(from,from+match[1].length,'a '+match[1],'This singular amount phrase needs a determiner');
+  }
+  for(const match of text.matchAll(/\b(?:it is|it was|it['’]s|that is|that['’]s)\s+quite\s+(old|interesting|important|unusual)\s+(?:project|house|idea|problem)\b(?=\s+(?:that|which|with|from|for|to)\b|\s*[-,.;:!?)]|$)/gi)){
+    const from=match.index+match[0].indexOf(match[1]);
+    add(from,from+match[1].length,'an '+match[1],'Quite an adjective plus a singular count head needs an article');
+  }
+  for(const match of text.matchAll(/\b(?:for|of|with|introduce|introduced|develop|developed)\s+(new type)\s+of\b/gi)){
+    const from=match.index+match[0].indexOf(match[1]);
+    add(from,from+match[1].length,'a '+match[1],'A new type of is a singular count phrase');
+  }
+  for(const match of text.matchAll(/\b(thousands|hundreds|millions|billions)\s+(?=(?:test cases|users|people|posts|files|requests|dollars|years)\b)/gi)){
+    add(match.index,match.index+match[1].length,match[1]+' of','This plural quantity requires of before the counted noun');
+  }
+  for(const match of text.matchAll(/\btoo much\s+(an?)\s+(?:angle|problem|issue|risk|burden|effort)\b/gi)){
+    const from=match.index+match[0].indexOf(match[1],8);
+    add(from,from+match[1].length,'of '+match[1],'Too much of takes this indefinite noun phrase');
+  }
+  for(const match of text.matchAll(/\bof any\s+(beneficial)\s+to\b/gi)){
+    const from=match.index+match[0].indexOf(match[1]);
+    add(from,from+match[1].length,'benefit','The preposition of requires the noun benefit in this construction');
+  }
+  for(const match of text.matchAll(/\b[Tt]here\s+(exists)\s+(?:(?:purely|pure|technical|several|many|different|other|possible)\s+){0,3}(?:solutions|options|ways|problems|examples)\b(?=\s+(?:that|which|to|for|in|on|with|like|and|but)\b|[.,;:!?]|$)/g)){
+    const from=match.index+match[0].indexOf(match[1]);
+    add(from,from+match[1].length,'exist','The plural head controls existential agreement');
+  }
+  for(const match of text.matchAll(/\b(?:AI |software |developer )?tooling\s+(are)\s+(?:making|becoming|getting)\b/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    if(/\b(?:and|or)\s+$/i.test(text.slice(Math.max(0,match.index-20),match.index)))continue;
+    add(from,from+match[1].length,'is','Tooling is a singular mass noun in this clause');
+  }
   for(const match of text.matchAll(/\bwev['’]e(?=\s+(?:been|had|got|seen|done|made|taken|found|heard|read|written|[a-z]+ed)\b)/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='W'?"We've":"we've",'Keep the perfect contraction and move its misplaced apostrophe','spelling');
   }
@@ -109,7 +151,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\byour going(?=\s+to\s+be\b)/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='Y'?"You're going":"you're going",'Use you are before going to be');
   }
-  for(const match of text.matchAll(/\bIm\b(?=\s+(?:back|going|sorry|sure|ready|glad|not|still|here|having|trying|looking|working|wondering)\b)/g)){
+  for(const match of text.matchAll(/\bIm\b(?=\s+(?:a|an|back|going|sorry|sure|ready|glad|not|still|here|having|trying|looking|working|wondering)\b)/g)){
     add(match.index,match.index+match[0].length,"I'm",'First-person contraction needs an apostrophe');
   }
   for(const match of text.matchAll(/\bcountry-side\b/gi)){

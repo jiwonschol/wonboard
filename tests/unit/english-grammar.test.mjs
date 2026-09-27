@@ -3,6 +3,27 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('bounded missing function words repair ordinary questions and count phrases',()=>{
+  for(const [text,original,target]of [
+    ['allow users disable features','disable','to disable'],
+    ['I am doing a right choice','doing','making'],
+    ['There is small amount of loose stitching','small','a small'],
+    ['it is quite old project - our goal','old','an old'],
+    ['foundations for new type of medical device','new type','a new type'],
+    ['thousands test cases','thousands','thousands of'],
+    ['too much an angle','an','of an'],
+    ['of any beneficial to add','beneficial','benefit'],
+    ['There exists pure technical solutions like this','exists','exist'],
+    ['AI tooling are making engineers productive','are','is'],
+    ['Im a junior developer','Im',"I'm"],
+  ])assert.ok(check(text).some(f=>f.original===original&&f.suggestions[0]===target),text);
+});
+
+test('complete function-word constructions and coordinated subjects stay unchanged',()=>{
+  for(const text of ['allow users to disable features','There is a small amount of loose stitching','it is quite an old project','foundations for a new type of device','thousands of test cases','too much of an angle','of any beneficial effect','There exists a technical solution','models and AI tooling are making progress','There exists technical solutions company','gamified learning'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.equal(check('`allow users disable features`').some(f=>f.applicable),false);
+});
+
 test('unfamiliar consonant neighbors stay reviewable while attested participles survive',()=>{
   for(const text of ['somfy','lally','proxify','graphene','clojure','booch','larman','muslim','diffing','vibing'])assert.equal(check(text).some(f=>f.applicable),false,text);
   for(const [text,target]of [['writting','writing'],['remeber','remember'],['suger','sugar'],['recieve','receive'],['anegdote','anecdote'],['sudpanel','subpanel'],['dimentions','dimensions'],['nothwithstanding','notwithstanding'],['ecoysystem','ecosystem'],['immigrantion','immigration']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
