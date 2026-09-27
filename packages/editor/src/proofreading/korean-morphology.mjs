@@ -20,7 +20,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   // unrestricted one-syllable noun + 하 would also invent 나하다.
   // Independently verified lexical stem missing from the selected subset.
   // XR roots are not all licensed to combine with 하다.
-  const roots=new Set([...sets.verb,...sets.adjective,'말하','구하','그러','이러','유의미하','만하','듯하','뻔하','고민되','아니','받들','못하']);
+  const roots=new Set([...sets.verb,...sets.adjective,'말하','구하','그러','이러','유의미하','만하','듯하','뻔하','고민되','아니','받들','못하','잘하']);
   const recognitionVerbRoots=new Set(data?.recognitionVerbRoots??[]);
   const staticStateNouns=new Set(data?.recognitionStaticStateNouns??[]);
   // Recover a lexical -하다 stem only when both regular adnominal forms
@@ -35,7 +35,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   for(const [s,e,r]of data?.forms??[])if(e==='ETM'&&naeConnectives.has(r)&&s===r.slice(0,-1)+'낸')roots.add(r);
   // Attested suffix uses, not every noun + 드리다 (불편 드리다 differs).
   // Expand the stems so honorific, past and connective forms share the rules.
-  const dridaNouns=new Set(['감사','질문','부탁','말씀','문의','연락','송부','추천','요청','공유']);
+  const dridaNouns=new Set(['감사','질문','부탁','말씀','문의','연락','송부','추천','요청','공유','축하']);
   for(const base of dridaNouns)roots.add(base+'드리');
   // -받다 attaches to these verified abstract hosts. A concrete object
   // (선물 받다) or a modified noun phrase remains a separate construction.
@@ -220,7 +220,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     // never a freely concatenated -시은/-시을. The descriptive ending
     // inventory otherwise invents a predicate reading for 도시은.
     if(/^(?:시|으시)(?:은|을|으)/.test(s))return false;
-    if(['잖아','잖아요','잖니'].includes(s))return true;
+    if(['잖아','잖아요','잖니','자고'].includes(s))return true;
     // Sentence-final 요 can follow these endings; do not make every ending
     // freely combinable with 요 (e.g. an adnominal form or -다).
     if(/(?:는데|은데|던데|거든|니까|지|고|서)요$/.test(s))s=s.slice(0,-1);
@@ -256,6 +256,12 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     return result;
   }
   function analyzePredicate(s) {
+    // Verified 잘하다/잘되다 compounds share the complete inflection of
+    // their final verb, including endings absent from the small form list.
+    if(s.startsWith('잘')){
+      const tail=predicate(s.slice(1));
+      if(tail&&['하','되'].includes(tail.root)&&(roots.has('잘'+tail.root)||recognitionVerbRoots.has('잘'+tail.root)))return {...tail,root:'잘'+tail.root};
+    }
     // The contracted 건들- stem keeps consonant-led endings. Do not
     // invent vowel forms such as 건들어 from a fully productive new root.
     if(s.startsWith('건들')&&/^(?:지|고|게|다|더|자|겠|면|며)/.test(s.slice(2))){
@@ -655,13 +661,15 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(host?.adnominal||isNominalAdnominal(left,host,personal))return {text:(requiredAuxiliary?.text??left)+' '+right,ambiguous:Boolean(requiredAuxiliary),rule:'42'};
       }
     }
-    // Surface -걸 is also an ending. Return a review candidate, not a certainty.
+    // Prospective -ㄹ걸 can be a complete regret/guess ending. A lexical
+    // predicate analysis does not justify replacing it with a dependent noun.
     for(const dep of ['거심','건데','건가','건가요','건지','걸까','걸까요','거냐','거냐고','거긴','거예요','거였어요','겁니다','거라','거라고','거라는','거죠','것인데','것입니다','것을','것이','것은','것도','것만','것으로','걸로','걸로는','걸로도','일이','일을','일은','적이','적을','적은','것','걸','거','게','건','수','때','뿐','적']) {
       if(!s.endsWith(dep))continue;
       const left=s.slice(0,-dep.length),analysis=predicate(left)??analyze(left,personal);
       if(dep==='뿐'&&isPronoun(left))continue;
       const nominalAdnominal=isNominalAdnominal(left,analysis,personal)||/^중[인일]$/.test(left)||left.endsWith('라는')&&knownNominal(left.slice(0,-2));
       const p=nominalAdnominal?{...analysis,adnominal:true}:analysis;
+      if(dep==='걸'&&p?.adnominal&&final(left)===8&&predicate(s))continue;
       if(left.length===1&&p?.root==='이'&&/^(?:거|건|걸)/.test(dep))continue;
       // 게/건 also occur in verb endings; 이게 is a demonstrative contraction.
       // The descriptive inventory also accepts 하는게/가능한거. A present
@@ -1155,6 +1163,10 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&rightPredicate?.root==='받'&&!staticStateNouns.has(last)&&!actionNouns.has(last)&&!batdaNouns.has(last)&&!recognizeWhole?.(last+first,personal))return true;
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&rightPredicate?.root==='드리'&&!dridaNouns.has(last))return true;
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&(['있','없','아니'].includes(rightPredicate?.root)||first==='없이'))return true;
+        if(left?.kind==='noun'&&!left.unknown&&last.slice(left.base.length)==='뿐만'&&rightPredicate?.root==='아니')return true;
+        // A complete 가기 전/후 phrase already supplies its internal gap.
+        // The preceding destination noun remains separate from 가다.
+        if(left?.kind==='noun'&&!left.unknown&&left.base===last&&last.length>=2&&first==='가기'&&rightPredicate?.root==='가'&&/^가기 (?:전|후)(?:에|에는|까지)?$/.test(next))return true;
         // A bare nominal can be the omitted-case subject/object of a
         // complete predicate (점심 먹으러, 결과 나오면). Bare stems,
         // nominalizations and productive nominal suffixes are not clauses.

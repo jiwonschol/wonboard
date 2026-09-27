@@ -2,6 +2,12 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('complete verbs and college nouns keep lexical and quotation boundaries',()=>{
+  for(const text of ['축하드려요','자연대','자연대에서','줄이자고','진작 잘할걸','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['늙다리뿐만아니라','늙다리뿐만 아니라'],['학과가기전','학과 가기 전']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  assert.ok(check('불편드려요').some(f=>f.suggestions[0]==='불편 드려요'));
+});
+
 test('contracted consonant stems and informal dependent endings retain their boundaries',()=>{
   for(const [text,target]of [['건들지마','건들지 마'],['떨어지는거심','떨어지는 거심']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['건들지 마','건들고','엄마한테는','거심'])assert.equal(check(text).some(f=>f.applicable),false,text);
