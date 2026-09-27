@@ -2,6 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('temporal ttara particles and product names remain whole words',()=>{
+  for(const text of ['오늘따라','요즘따라','그날따라','이때따라','바이퍼','바이퍼를','바이퍼는'])assert.equal(check(text).some(f=>f.suggestions.length),false,text);
+  assert.ok(check('친구따라').some(f=>f.suggestions.includes('친구 따라')));
+});
+
 test('colloquial particles, vowel copulas and connective deut keep their internal spelling',()=>{
   for(const text of ['엄마한테는','아빠한테도','친구한테서','수급자거든요','참가자거든요','샤워하듯','이야기하듯']){
     assert.equal(check(text).some(f=>f.suggestions.length),false,text);

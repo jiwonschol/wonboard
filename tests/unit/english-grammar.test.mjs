@@ -3,6 +3,14 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('prepositional gerunds and singular count nouns retain their surrounding meaning',()=>{
+  for(const [text,target]of [['I look forward to write code.','writing'],['She looks forward to hear it.','hearing'],["I'm newbie here.",'a newbie'],['an new browser tab','a new'],["i couldn't use it.",'I'],["What's your favorite parts of Cocoa?",'What are']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['I look forward to work.','I look forward to travel.','I look forward to play.','I am newbie friendly.',"What's your favorite parts store?"]){
+    assert.equal(check(text).some(f=>f.type==='grammar'),false,text);
+  }
+  assert.equal(check('`I look forward to write code.`').some(f=>f.applicable),false);
+});
+
 test('first-person contractions preserve their word and use participle context',()=>{
   for(const [text,target] of [["i'd picked it","I'd"],["i'll go","I'll"],['ive been working',"I've"],['Im having trouble',"I'm"]]){
     const finding=check(text).find(f=>f.from===0);

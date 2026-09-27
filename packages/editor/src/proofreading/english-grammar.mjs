@@ -21,7 +21,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(?:ive|Ive)\b(?=\s+(?:been|had|got|seen|done|made|taken|found|heard|read|written|[a-z]+ed)\b)/g)){
     add(match.index,match.index+match[0].length,"I've",'A first-person perfect contraction before the participle needs I and an apostrophe');
   }
-  for(const match of text.matchAll(/\bi\b(?=\s+(?:am|was|have|had|will|would|can|could|should|may|might|must|think|thought|hope|hoped|hear|heard|feel|felt|want|wanted|need|needed|like|liked|do|did|don't|didn't)\b)/g)){
+  for(const match of text.matchAll(/\bi\b(?=\s+(?:am|was|have|had|will|would|can|could|should|may|might|must|think|thought|hope|hoped|hear|heard|feel|felt|want|wanted|need|needed|like|liked|do|did|don't|didn't|couldn't|wouldn't|shouldn't|can't|won't|haven't|hadn't|wasn't)\b)/g)){
     add(match.index,match.index+1,'I','English first-person pronoun is capitalized');
   }
   for(const match of text.matchAll(/\bi\b(?=\s+(?:mentioned|said|wrote|noticed|believe|believed|remember|remembered)\b)/g)){
@@ -114,8 +114,24 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\ba expert\b/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/\ba /i,'an '),'Expert begins with a vowel sound');
   }
-  for(const match of text.matchAll(/\ban (["“‘']?)(takeout|tool|test|time|team|thread|task)\b/gi)){
+  for(const match of text.matchAll(/\ban (["“‘']?)(takeout|tool|test|time|team|thread|task|new)\b/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/\ban /i,'a '),'This noun begins with a consonant sound');
+  }
+  // Forward to is prepositional here. Avoid noun homographs such as work,
+  // play and travel, which are already valid after this expression.
+  const anticipatedActions=new Map([['write','writing'],['see','seeing'],['hear','hearing'],['meet','meeting'],['try','trying']]);
+  for(const match of text.matchAll(/\blook(?:s|ed|ing)? forward to\s+(write|see|hear|meet|try)\b/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,anticipatedActions.get(match[1].toLowerCase()),'The preposition in look forward to takes a gerund');
+  }
+  for(const match of text.matchAll(/\b(?:I am|I['’]m|you are|you['’]re|he is|he['’]s|she is|she['’]s)\s+(newbie)\b(?=\s+(?:here|at|in|to)\b|[.,!?;:]|$)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'a '+match[1],'This singular count noun needs an article');
+  }
+  // Require a completed plural head, not a modifier in parts store.
+  for(const match of text.matchAll(/\b([Ww])hat['’]s\s+(?:your|their|our)\s+favou?rite\s+(?:parts|books|games|tools|features|things|ways)\b(?=\s+of\b|\s*[?!]|$)/g)){
+    const length=match[0].indexOf(' ');
+    add(match.index,match.index+length,match[1]+'hat are','The plural subject in this question takes are');
   }
   // A small set of unambiguously singular count heads avoids treating mass
   // nouns or open compound modifiers as missing an indefinite article.

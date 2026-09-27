@@ -419,6 +419,10 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   const isNominalForm=s=>nominalForms.has(s)||s.endsWith('짐')&&Boolean(predicate(s)?.root.endsWith('지'))||s.endsWith('심')&&Boolean(predicate(s))||s.endsWith('기')&&Boolean(predicate(s))||s.endsWith('다기')&&Boolean(predicate(s.slice(0,-1)))||s.endsWith('음')&&s.length>1&&final(s.slice(0,-1))!==0&&Boolean(predicate(s));
   const approximationHosts=new Set(['사이','중간','끝','처음','지금','내일','어제','오늘','모레','이맘때','그맘때','저맘때','이때','그때','저때']);
   function noun(s,personal) {
+    // Temporal 따라 is a supplementary particle, unlike the predicate in
+    // 친구 따라. Keep attested temporal hosts joined before segmentation.
+    const temporalFollow=s.match(/^(오늘|어제|그제|그저께|엊그제|요즘|이날|그날|이때|그때)따라(?:는|도|만|요)?$/);
+    if(temporalFollow)return {base:temporalFollow[1],unknown:false};
     // Productive colloquial case particles retain their supplementary tail.
     // An omitted combined entry must not turn 한테는 into 한 + 테는.
     for(let i=1;i<s.length;i++)if(/^(?:한테|에게|께)(?:서)?(?:는|도|만|까지|부터)?$/.test(s.slice(i))&&
