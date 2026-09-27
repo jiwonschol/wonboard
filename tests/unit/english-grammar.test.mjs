@@ -16,7 +16,7 @@ test('relative request targets keep paths and query keys intact',()=>{
 });
 
 test('provider names before interface acronyms retain repeated letters',()=>{
-  for(const text of ['a Taalas API','the Veera SDK','agentic coding on replit'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const text of ['a Taalas API','the Veera SDK','agentic coding on replit','Marsa Alam','on Qantas','a Taalas service'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('a Taalas API').some(f=>f.original==='Taalas'&&f.type==='unknown'));
   assert.ok(check('Excelllent example').some(f=>f.suggestions[0]==='Excellent'));
   assert.equal(check('a Taalas API',['Taalas']).some(f=>f.original==='Taalas'),false);

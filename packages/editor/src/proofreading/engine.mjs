@@ -452,7 +452,8 @@ export function createChecker(data) {
         const lookup=word.replaceAll('’',"'");
         // Capitalized names and plural acronyms are not misspellings merely
         // because a smaller word list contains a similar unrelated word.
-        // A transposed title-case word still gets its strong spelling repair.
+        // A letter swap can also make a different name; only an excessive
+        // repeated letter retains a narrow spelling candidate here.
         if(/^[A-Z]{2,}s$/.test(lookup))continue;
         // A capitalized provider before an interface acronym is a possible
         // name even when deleting a repeated letter yields a dictionary word.
@@ -464,8 +465,9 @@ export function createChecker(data) {
           const candidates=englishSuggestions(lookup),lower=lookup.toLowerCase();
           const strong=candidates.some(candidate=>{
             const target=candidate.toLowerCase();
-            if(lower.length>=6&&lower.replace(/([a-z])\1+/g,'$1')===target.replace(/([a-z])\1+/g,'$1'))return true;
-            for(let i=1;i+1<lower.length;i++)if(lower.slice(0,i)+lower[i+1]+lower[i]+lower.slice(i+2)===target)return true;
+            // Preserve the attested -ceive spelling repair after c.
+            if(/^(?:re|de|per|con)cieve(?:d|s)?$/.test(lower)&&lower.replace('cie','cei')===target)return true;
+            if(lower.length>=6&&/([a-z])\1{2,}/.test(lower)&&lower.replace(/([a-z])\1+/g,'$1')===target.replace(/([a-z])\1+/g,'$1'))return true;
             return false;
           });
           if(!strong)continue;

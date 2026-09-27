@@ -982,7 +982,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       // Short prospective forms also occur inside names. Require a longer
       // complete predicate and a multi-syllable nominal for that boundary.
       const prospective=left.length>=3&&modifier?.root.length>=2&&final(left)===8&&nominal?.base.length>=2;
-      if(modifier?.adnominal&&(sets.adjective.has(modifier.root)&&final(left)===4||/[는은]$/.test(left)||left.length>=2&&final(left)===4&&modifier.root!=='이'&&nominal?.base.length>=2||prospective)&&!knownNominal(left)&&nominal&&!nominal.nominal)return {text:left+' '+right,ambiguous:true,rule:'2'};
+      if(modifier?.adnominal&&(sets.adjective.has(modifier.root)&&final(left)===4||/[는은]$/.test(left)||left.length>=2&&final(left)===4&&modifier.root!=='이'&&(nominal?.base.length>=2||['글','말','집','책','일'].includes(nominal?.base))||prospective)&&!knownNominal(left)&&nominal&&!nominal.nominal)return {text:left+' '+right,ambiguous:true,rule:'2'};
     }
     // An adverb can be used as a nickname before the copula. Keep the whole
     // unknown nominal for review; its internal fragments do not prove a gap.
@@ -1107,6 +1107,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(main&&last.endsWith('다')&&['보','하'].includes(rightPredicate?.root))return true;
         if(main&&/(?:야|야만)$/.test(last)&&['하','되'].includes(rightPredicate?.root))return true;
         if(main&&/(?:나|까|가)$/.test(last)&&rightPredicate?.root==='싶')return true;
+        if(main&&last.endsWith('까')&&rightPredicate?.root==='보')return true;
         if(main&&/(?:기는|긴)$/.test(last)&&main.root===rightPredicate?.root)return true;
         const negative=last.endsWith('진')?last.slice(0,-1)+'지':last.endsWith('치')?last.slice(0,-1)+'하지':last;
         if(negative.endsWith('지')&&predicate(negative)&&['않','말','못하'].includes(rightPredicate?.root))return true;
