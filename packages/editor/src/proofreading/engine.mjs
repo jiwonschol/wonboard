@@ -150,7 +150,8 @@ export function createChecker(data) {
       for(let length=lower.length-2;length<=lower.length+2;length++)for(const candidate of englishByLength.get(lower.slice(0,3)+':'+length)||[]){
         const sameLetters=lower.split('').sort().join('')===candidate.split('').sort().join('');
         const sameSequence=lower.replace(/([a-z])\1+/g,'$1')===candidate.replace(/([a-z])\1+/g,'$1');
-        if((sameLetters||sameSequence)&&distanceTwo(lower,candidate))candidates.add(candidate);
+        const sameConsonants=lower.slice(-3)===candidate.slice(-3)&&lower.replace(/[aeiou]/g,'')===candidate.replace(/[aeiou]/g,'');
+        if((sameLetters||sameSequence||sameConsonants)&&distanceTwo(lower,candidate))candidates.add(candidate);
       }
     }
     const transpositions=new Set(),doubled=new Set();

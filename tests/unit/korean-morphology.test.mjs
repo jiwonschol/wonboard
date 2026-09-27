@@ -2,6 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('contracted consonant stems and informal dependent endings retain their boundaries',()=>{
+  for(const [text,target]of [['건들지마','건들지 마'],['떨어지는거심','떨어지는 거심']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['건들지 마','건들고','엄마한테는','거심'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('community intensifiers, university names and plural kinship terms keep their boundaries',()=>{
   for(const text of ['아주대를','개웃기네','형들님','명확히진'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('영입해도되지만').some(f=>f.suggestions[0]==='영입해도 되지만'));

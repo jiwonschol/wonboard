@@ -256,6 +256,12 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     return result;
   }
   function analyzePredicate(s) {
+    // The contracted 건들- stem keeps consonant-led endings. Do not
+    // invent vowel forms such as 건들어 from a fully productive new root.
+    if(s.startsWith('건들')&&/^(?:지|고|게|다|더|자|겠|면|며)/.test(s.slice(2))){
+      const full=predicate('건드리'+s.slice(2));
+      if(full)return {...full,root:'건들'};
+    }
     if(s==='아님')return {root:'아니',adnominal:false};
     // Some supplied surface records mark 했을 as a plain ending. The
     // past stem plus -을 is still adnominal before 때/수/것.
@@ -650,7 +656,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       }
     }
     // Surface -걸 is also an ending. Return a review candidate, not a certainty.
-    for(const dep of ['건데','건가','건가요','건지','걸까','걸까요','거냐','거냐고','거긴','거예요','거였어요','겁니다','거라','거라고','거라는','거죠','것인데','것입니다','것을','것이','것은','것도','것만','것으로','걸로','걸로는','걸로도','일이','일을','일은','적이','적을','적은','것','걸','거','게','건','수','때','뿐','적']) {
+    for(const dep of ['거심','건데','건가','건가요','건지','걸까','걸까요','거냐','거냐고','거긴','거예요','거였어요','겁니다','거라','거라고','거라는','거죠','것인데','것입니다','것을','것이','것은','것도','것만','것으로','걸로','걸로는','걸로도','일이','일을','일은','적이','적을','적은','것','걸','거','게','건','수','때','뿐','적']) {
       if(!s.endsWith(dep))continue;
       const left=s.slice(0,-dep.length),analysis=predicate(left)??analyze(left,personal);
       if(dep==='뿐'&&isPronoun(left))continue;

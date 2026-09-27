@@ -46,7 +46,7 @@ test('complete function-word constructions and coordinated subjects stay unchang
 });
 
 test('unfamiliar consonant neighbors stay reviewable while attested participles survive',()=>{
-  for(const text of ['somfy','lally','proxify','graphene','clojure','booch','larman','muslim','diffing','vibing'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const text of ['monoflo','propostas','somfy','lally','proxify','graphene','clojure','booch','larman','muslim','diffing','vibing'])assert.equal(check(text).some(f=>f.applicable),false,text);
   for(const [text,target]of [['writting','writing'],['remeber','remember'],['suger','sugar'],['recieve','receive'],['anegdote','anecdote'],['sudpanel','subpanel'],['dimentions','dimensions'],['nothwithstanding','notwithstanding'],['ecoysystem','ecosystem'],['immigrantion','immigration']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
 });
 
@@ -92,7 +92,7 @@ test('joined letter labels are not articles and explicit count phrases retain th
 });
 
 test('close spelling candidates preserve more of the original prefix',()=>{
-  for(const [text,target]of [['suger','sugar'],['colleg','college'],['subtley','subtly'],['continous','continuous']])assert.equal(check(text)[0].suggestions[0],target);
+  for(const [text,target]of [['suger','sugar'],['colleg','college'],['subtley','subtly'],['continous','continuous'],['unbereable','unbearable']])assert.equal(check(text)[0].suggestions[0],target);
 });
 
 test('bounded household clauses recover missing auxiliaries and contextual spellings',()=>{
