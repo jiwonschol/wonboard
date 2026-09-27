@@ -7,6 +7,14 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     if(findings.some(item=>item.from<to&&item.to>from))return;
     findings.push({from,to,original:text.slice(from,to),language:'en',type,suggestions:[suggestion],applicable:true,reason});
   };
+  const permitsBaseVerb=from=>{
+    const before=text.slice(Math.max(0,from-160),from);
+    // An object followed by a bare infinitive and a mandative that-clause
+    // both legitimately use the base form after a singular pronoun.
+    return /\b(?:do|does|did|don['’]t|doesn['’]t|didn['’]t|can|could|may|might|must|should|would|will|shall|let|lets|make|makes|made|help|helps|helped|see|sees|saw|watch|watched|hear|heard|feel|felt|want|wants|wanted|need|needs|needed|expect|expects|expected|have|has|had|is|are|was|were|[a-z]+ing)\s*$/i.test(before)
+      || /\b(?:suggest(?:s|ed)?|recommend(?:s|ed)?|request(?:s|ed)?|demand(?:s|ed)?|insist(?:s|ed)?|propos(?:e|es|ed))\s+(?:that\s+)?$/i.test(before)
+      || /\b(?:suggestion|recommendation|request|demand|requirement|important|essential|necessary|vital)\s+that\s+$/i.test(before);
+  };
   for(const match of text.matchAll(/\bi\b(?=\s+(?:am|was|have|had|will|would|can|could|should|may|might|must|think|thought|hope|hoped|hear|heard|feel|felt|want|wanted|need|needed|like|liked|do|did|don't|didn't)\b)/g)){
     add(match.index,match.index+1,'I','English first-person pronoun is capitalized');
   }
@@ -21,7 +29,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(?:Should|Could|Would|Can|Will) (?:we|they|you|I|he|she|it) (?:worried|concerned|prepared|ready)\b/g)){
     add(match.index,match.index+match[0].length,match[0].replace(/ (worried|concerned|prepared|ready)$/,' be $1'),'The modal needs be before this predicative adjective');
   }
-  for(const match of text.matchAll(/\b[Ii]ts\b(?=\s+(?:fun|fine|okay|ok|great)\b(?:\s*(?:[.!?]|[:;][)(DP]|$)))/g)){
+  for(const match of text.matchAll(/\b[Ii]ts\b(?=\s+(?:fun|fine|okay|ok|great|possible|impossible|necessary|available|ready)\b(?:\s*(?:[.!?]|[:;][)(DP]|$)))/g)){
     add(match.index,match.index+match[0].length,match[0][0]==='I'?"It's":"it's",'The following adjective needs the contraction it is');
   }
   for(const match of text.matchAll(/\b[Ii]ts\b(?=\s+(?:a|an|been)\b)/g)){
@@ -145,14 +153,13 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b([Ww]e|[Tt]hey|[Yy]ou)\s+was\b/g)){
     add(match.index,match.index+match[0].length,match[1]+' were','This plural or second-person subject takes were');
   }
-  const pluralSubjectVerbs=new Map([['seems','seem'],['works','work'],['needs','need'],['uses','use'],['wants','want'],['has','have'],['does','do'],['goes','go'],['makes','make'],['takes','take'],['runs','run'],['opens','open'],['switches','switch']]);
-  for(const match of text.matchAll(/\b([Tt]hey|[Ww]e|[Yy]ou)\s+(seems|works|needs|uses|wants|has|does|goes|makes|takes|runs|opens|switches)\b/g)){
-    add(match.index,match.index+match[0].length,match[1]+' '+pluralSubjectVerbs.get(match[2]),'This subject takes the uninflected present-tense verb');
+  const pluralSubjectVerbs=new Map([['seems','seem'],['works','work'],['needs','need'],['uses','use'],['wants','want'],['has','have'],['does','do'],['goes','go'],['makes','make'],['takes','take'],['runs','run'],['opens','open'],['switches','switch'],['connects','connect']]);
+  for(const match of text.matchAll(/\b([Tt]hey|[Ww]e|[Yy]ou|[Ii])\s+(seems|works|needs|uses|wants|has|does|goes|makes|takes|runs|opens|switches|connects)\b/g)){
+    add(match.index,match.index+match[0].length,(match[1]==='i'?'I':match[1])+' '+pluralSubjectVerbs.get(match[2]),'This subject takes the uninflected present-tense verb');
   }
   const singularSubjectVerbs=new Map([['switch','switches'],['work','works'],['need','needs'],['use','uses'],['want','wants'],['make','makes'],['take','takes'],['run','runs'],['open','opens'],['close','closes'],['show','shows'],['respond','responds'],['seem','seems'],['start','starts'],['stop','stops']]);
   for(const match of text.matchAll(/\b([Ii]t|[Hh]e|[Ss]he)\s+(switch|work|need|use|want|make|take|run|open|close|show|respond|seem|start|stop)(?:\s+(on|off|out|up|down))?\b/g)){
-    const before=text.slice(Math.max(0,match.index-32),match.index);
-    if(/\b(?:do|does|did|don['’]t|doesn['’]t|didn['’]t|can|could|may|might|must|should|would|will|shall|let|lets|make|makes|made|help|helps|helped|see|sees|saw|watch|watched|hear|heard|feel|felt|want|wants|wanted|need|needs|needed|expect|expects|expected|[a-z]+ing)\s*$/i.test(before))continue;
+    if(permitsBaseVerb(match.index))continue;
     add(match.index,match.index+match[0].length,match[1]+' '+singularSubjectVerbs.get(match[2])+(match[3]?' '+match[3]:''),'This singular subject takes a third-person singular verb');
   }
   for(const match of text.matchAll(/(?:^|[.!?]\s+)[Aa]ll the (?:steps|tasks|issues|files|changes|tests|features)(?:\s+(?:of|in|for|on|with)\s+(?:(?:[a-z]+)\s+){0,8}[a-z]+)?\s+(has been)\b/gim)){
@@ -224,9 +231,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     add(from,from+match[2].length,singularVerbs.get(match[2].toLowerCase()),'This singular subject takes a third-person singular verb');
   }
   for(const match of text.matchAll(/\b(?:it|he|she|this|that)\s+(?:(?:itself|himself|herself)\s+)?(?:(?:only|still|also|already|usually|always|often|sometimes|never)\s+)?(have)\b/gi)){
-    // In questions and after modals the auxiliary already carries agreement.
-    const before=text.slice(Math.max(0,match.index-24),match.index);
-    if(/\b(?:do|does|did|can|could|may|might|must|should|would|will|shall|have|has|had|is|are|was|were)\s*$/i.test(before))continue;
+    if(permitsBaseVerb(match.index))continue;
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'has','This singular subject takes has');
   }
@@ -239,6 +244,15 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(?:[Dd]o|[Dd]oes|[Dd]id)\s+(?:[A-Z][A-Z0-9]{1,}(?:\s+[A-Z][A-Z0-9]{1,}){0,2}|[A-Z][a-z]+|(?:the|a|an|my|our|your|his|her|their|this|that)\s+[a-z]+)\s+(?:(?:really|ever|also|still|only|always|often)\s+)?(has|uses|works|needs|wants|seems)\b/g)){
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,doSupportForms.get(match[1]),'Do-support takes the base form of the main verb');
+  }
+  // Restrict setup to a pronoun-led clause: the noun and noun modifier are
+  // valid in phrases such as my setup, the setup process, and go to setup.
+  for(const match of text.matchAll(/(?:^|[.!?]\s+|\b(?:then|and|but|because|when|if)\s+)(I|you|we|they|he|she|it)\s+(?:(can|could|will|would|should|must|may|might|have|has|had|just|already)\s+)?(setup)\b/gi)){
+    // Bare singular subjects leave tense unresolved: she sets up today,
+    // but she set up yesterday. An auxiliary makes set up unambiguous.
+    if(/^(?:he|she|it)$/i.test(match[1])&&(!match[2]||/^(?:just|already)$/i.test(match[2])))continue;
+    const from=match.index+match[0].lastIndexOf(match[3]);
+    add(from,from+match[3].length,'set up','Set up is the verb; setup is a noun or noun modifier');
   }
   const irregularParticiples=new Map([['went','gone'],['came','come'],['saw','seen'],['wrote','written'],['took','taken'],['broke','broken'],['ran','run'],['did','done'],['ate','eaten'],['spoke','spoken'],['knew','known'],['drank','drunk'],['gave','given']]);
   for(const match of text.matchAll(/\b(have|has|had|haven['’]t|hasn['’]t|hadn['’]t)\s+(went|came|saw|wrote|took|broke|ran|did|ate|spoke|knew|drank|gave)\b/gi)){

@@ -962,6 +962,11 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     // not enough evidence for a missing internal space.
     if(result?.parts.length===2){
       const [left,right]=result.parts,a=analyze(left,personal,true),b=analyze(right,personal,true);
+      // A connective followed by a pronoun can occur inside a name plus
+      // particle (모아나를 -> 모아 + 나를). Neither fragment establishes
+      // a missing boundary; retain the unknown nominal for review.
+      const connective=predicate(left);
+      if(connective&&!connective.adnominal&&b?.kind==='noun'&&pronouns.has(b.base)&&unknownNoun(word))return null;
       // A standalone particle is not a new word after a possible verb ending.
       if(sets.josa.has(right)&&predicate(right)?.root==='이')return null;
       if(a?.kind==='predicate'&&!a.adnominal&&!connectiveForms.has(left)&&

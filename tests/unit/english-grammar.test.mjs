@@ -178,3 +178,43 @@ test('reviewed English words and names are recognized without granting arbitrary
   for(const source of ['Claude models','Norway','Stephen','Astra','LLMs','APIs','non-obvious','Re-stating'])assert.ok(!check(source).some(f=>f.applicable),source);
   assert.equal(check('re-recieve')[0]?.type,'unknown');
 });
+
+test('English agreement repairs first-person predicates and preserves licensed base forms',()=>{
+  for(const [source,target] of [
+    ['If i connects to the network, it fails.','I connect'],
+    ['I has a spare cable.','I have'],
+    ['They connects two devices.','They connect'],
+    ['She work at home.','She works'],
+    ['It still have a chance.','has'],
+  ])assert.ok(check(source).some(f=>f.type==='grammar'&&f.suggestions.includes(target)),source);
+  for(const source of [
+    'Let it have a chance. Make it have the same color.',
+    "Don't let it have access. I watched it have trouble.",
+    'I suggest that she work at home. We recommend he have a spare cable.',
+    'I insisted that he have a chance. They requested that she open the door.',
+    'It is essential that it have enough space. The requirement that it work remains.',
+    'Can she herself have a chance? Does it still have a chance?',
+  ])assert.equal(check(source).filter(f=>f.type==='grammar').length,0,source);
+});
+
+test('English predicate context distinguishes its and setup from valid noun phrases',()=>{
+  for(const [source,target] of [
+    ["If its possible.","it's"],
+    ["Its available.","It's"],
+    ['Then I setup the server.','set up'],
+    ['We have setup the server.','set up'],
+    ['She has setup the server.','set up'],
+    ['I will setup the server.','set up'],
+  ])assert.ok(check(source).some(f=>f.type==='grammar'&&f.suggestions.includes(target)),source);
+  for(const source of [
+    'Its possible uses are varied. Its available space is limited.',
+    'Its ready meals are popular. If it is possible, call me.',
+    'My setup works. The setup process is quick. Go to setup.',
+    'The I setup is ready. We set up the server. I need a setup guide.',
+  ])assert.equal(check(source).filter(f=>f.type==='grammar').length,0,source);
+  // Tense is unresolved after a bare singular subject, so do not offer a
+  // partial repair that leaves present-tense subject agreement wrong.
+  for(const source of ['She setup the server every day.','She setup the server yesterday.']){
+    assert.equal(check(source).some(f=>f.suggestions.includes('set up')),false,source);
+  }
+});

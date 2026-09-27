@@ -4,12 +4,12 @@ export function orthography(word,sets,personal,isPredicate,isKnownNoun=w=>sets.n
   if(personal.has(word))return null;
   // The past form of 하다 is 했-, including action-noun compounds. Restrict
   // this repair to finite endings so 햇볕 and other lexical words stay intact.
-  const malformedPast=word.match(/^(.+)?햇(는데|어요|지만|고|다|던)$/);
+  const malformedPast=word.match(/^(.+)?햇(는데|어요|어서|지만|고|다|던)$/);
   if(malformedPast){
     const corrected=(malformedPast[1]??'')+'했'+malformedPast[2];
     if(isPredicate(corrected))return {suggestions:[corrected],reason:'Past 하다 inflects with 했, not 햇',ambiguous:false};
   }
-  const missingPastConsonant=word.match(/^(.+)엇(는데|어요|지만|고|다|던)$/);
+  const missingPastConsonant=word.match(/^(.+)엇(는데|어요|어서|지만|고|다|던)$/);
   if(missingPastConsonant){
     const corrected=missingPastConsonant[1]+'었'+missingPastConsonant[2];
     if(isPredicate(corrected))return {suggestions:[corrected],reason:'Past -었- uses a doubled final consonant on a validated predicate',ambiguous:false};
@@ -167,6 +167,14 @@ export function orthography(word,sets,personal,isPredicate,isKnownNoun=w=>sets.n
   if(word.endsWith('돼고')){
     const corrected=word.slice(0,-2)+'되고';
     if(isPredicate(corrected))return {suggestions:word==='안돼고'?['안 되고',corrected]:[corrected],reason:'The connective -고 attaches to 되-, not 돼-',ambiguous:word==='안돼고'};
+  }
+  // Honorific -시- attaches to 되-, before the connective -어 contracts.
+  // Restrict this to complete honorific endings: 돼라/돼도 are valid,
+  // and the noun 돼지 must not become a 되다 inflection.
+  const contractedHonorific=word.match(/^(.*?)돼(세요|시(?:다|고|면|니|니까|는|는데)|십(?:니다|니까|시오))$/);
+  if(contractedHonorific&&!isKnownNoun(word)){
+    const corrected=contractedHonorific[1]+'되'+contractedHonorific[2];
+    if(isPredicate(corrected))return {suggestions:[corrected],reason:'Honorific -시- attaches to 되-, not the connective contraction 돼-',ambiguous:false};
   }
   const uncertain=word.match(/^(.+)(?:런지|른지)(요)?$/);
   if(uncertain&&uncertain[1].endsWith('야할')&&isPredicate(uncertain[1].slice(0,-1)))return {suggestions:[uncertain[1].slice(0,-1)+' 할는지'+(uncertain[2]??'')],reason:'Standard -ㄹ는지 plus the -야 하다 boundary; confirm intended meaning',ambiguous:true};

@@ -825,7 +825,8 @@ export function createChecker(data) {
           const compound=compoundWithHonorific[1];
           let recognizedCompound=false;
           for(let i=1;i<compound.length-1;i++)if(sets.noun.has(compound.slice(0,i))&&sets.noun.has(compound.slice(i))){recognizedCompound=true;break;}
-          if(recognizedCompound)continue;
+          // Recognizing the title must not hide an arbitrary following span.
+          if(recognizedCompound&&morphology.analyze(word,new Set([compound]))?.kind==='noun')continue;
         }
         const namedHonorific=word.match(/^([가-힣]{2,})님(.*)$/);
         if(namedHonorific&&!word.endsWith('아님')&&!/(?:대표|지사|회장|사장|부장|과장|팀장|실장|원장|교수|선생|박사|작가|기사|감독|코치|대장|장관|의원|보좌관|총장|교장|사범|스승)$/.test(namedHonorific[1])&&!knownOrthographicNoun(namedHonorific[1])&&!morphology.analyze(word,personal)&&!recognizedNoun(word)&&!recognizeWhole?.(word,personal)){

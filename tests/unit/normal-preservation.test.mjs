@@ -2,6 +2,14 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('compound honorific recognition validates the complete trailing expression',()=>{
+  for(const text of ['담임선생님','담임선생님께서','담임선생님께서도','담임선생님들','담임선생님들이','담임선생님입니다'])assert.deepEqual(check(text),[],text);
+  const text='담임선생님엉뚱꼬리';
+  assert.ok(check(text).some(f=>f.type==='unknown'&&f.original===text));
+  assert.deepEqual(check(text,[text]),[]);
+  assert.deepEqual(check('`'+text+'`'),[]);
+});
+
 test('live forum grammar repairs preserve complete Korean predicates and ordinary alternatives',()=>{
   for(const [source,target] of [
     ['추천 해줄','추천해 줄'],['추천 해줄래','추천해 줄래'],

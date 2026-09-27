@@ -32,8 +32,29 @@ test('past ending repairs combine with word boundaries and leave unrelated nouns
   for(const [source,target] of [
     ['불안햇던','불안했던'],['싶엇다','싶었다'],['살고싶엇다','살고 싶었다'],
     ['메론은','멜론은'],['통채로','통째로'],['안돼고','안 되고'],
+    ['햇어서','했어서'],['좋아햇어서','좋아했어서'],['먹엇어서','먹었어서'],
   ])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
   for(const text of ['햇볕','햇빛','멜론은','통째로','안 되고','되고'])assert.deepEqual(check(text),[],text);
+});
+
+test('honorific doeda repair validates the whole predicate and preserves connective forms',()=>{
+  for(const [source,target]of [['돼세요','되세요'],['돼시면','되시면'],['돼십니다','되십니다'],['등록돼세요','등록되세요']]){
+    const text='😀 '+source,finding=check(text).find(f=>f.original===source);
+    assert.deepEqual(finding?.suggestions,[target],source);
+    assert.equal(text.slice(finding.from,finding.to),source);
+    assert.deepEqual(check(text,[source]),[]);
+  }
+  for(const text of ['되세요','되시면','되십니다','돼라','돼도','돼요','돼서','돼지','돼지는','`돼세요`'])assert.deepEqual(check(text),[],text);
+  assert.equal(check('아즈휼돼세요').some(f=>f.reason.startsWith('Honorific -시-')),false);
+});
+
+test('a connective and pronoun homograph do not split an unknown name plus particle',()=>{
+  for(const text of ['모아나를','모아나는','모아나에게']){
+    assert.equal(check(text).some(f=>f.applicable),false,text);
+    assert.deepEqual(check(text,['모아나']),[]);
+  }
+  assert.deepEqual(check('모아 나를 도와줘요.'),[]);
+  assert.ok(check('모아서보내요').some(f=>f.suggestions.includes('모아서 보내요')));
 });
 
 test('ro particle allomorphs preserve known nouns without licensing arbitrary endings',()=>{

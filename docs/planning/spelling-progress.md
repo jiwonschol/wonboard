@@ -3092,3 +3092,32 @@ Luna 회귀 시험의 격리가 깨져 있었다. `tests/unit/proofreading-lab-c
 ## 2026-09-26 #6 어휘 자산의 고정 크기 제한 폐지
 
 지원 결정에 따라 1MB 목표와 2MB 생성 중단선을 제거했다. `build-spelling-data.mjs`, `build-korean-morphology-data.mjs`, `stage-proofreading-bundle.mjs`는 기존 원본·gzip 크기 기록과 출처·라이선스 검증을 유지한다. 2MB를 넘는 검토 완료 fixture도 크기를 기록하며 생성되는 시험을 포함해 데이터 정책 Node 시험 12개, 타입 검사, Sites·데스크톱 빌드가 통과했다. 최종 두 빌드의 `review.worker-DhbmD8Sn.js`는 원본 6,614,846바이트, gzip 1,852,000바이트, SHA-256 `9bc6ac53352de1516744bcea31ef944db5d6423a00b7db2f6d5c88b25cfd0de0`으로 기존 빌드와 바이트가 같다. 이번 변경은 검사 데이터·엔진을 바꾸지 않았으므로 새 데이터가 추가됐을 때의 첫 검사 시간·메모리·품질 통과 증거는 아니다. 그때는 issue #6 §8의 실제 실행 성능과 독립 품질 기준을 다시 측정한다.
+
+## 2026-09-27 복구 브랜치의 한영 교정 보완과 새 출처 첫 평가
+
+`681e2a9`의 커밋 5개를 `codex/spellcheck-resume-20260927`로 이어받았다. 기존 사용자 변경 `docs/.DS_Store`, 원 작업 폴더, 원문 자료를 보존했다. 한국어 `돼세요` 계열과 과거 표기의 `-어서` 연결을 보완하고, 미등록 이름을 용언+대명사로 잘못 나누는 경로를 제한했다. `담임선생님`처럼 인정한 호칭 뒤 임의 문자열을 전부 정상 처리하던 경로는 기존 명사 분석으로 전체 조합을 확인하도록 고쳤다. 복수·겹조사·서술격은 계속 인식한다.
+
+영어는 I 주어의 수일치, 문장 끝 its의 술어 문맥, setup 동사 표기를 좁게 보완했다. 사역·지각 동사 뒤 원형과 요구/제안의 that절 원형에 대한 오교정을 막았다. bare 단수 주어의 setup은 과거/현재를 확정할 수 없어 새 교정에서 제외한다. 근거: [국립국어원 되다 활용](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=27&pageIndex=1&qna_seq=326478), Cambridge의 [let](https://dictionary.cambridge.org/grammar/british-grammar/let), [suggest](https://dictionary.cambridge.org/grammar/british-grammar/suggest), [set up](https://dictionary.cambridge.org/dictionary/english/set-up).
+
+이미 노출된 round4 자료의 정확 범위·첫 후보는 한국어 3/12→4/12, 영어 7/16→9/16이며 정상문 각 7/11행의 수정 오제안은 변경 전후 0이다. 개발 재실행 수치이고 독립 평가가 아니다. 한국어 기존 fixture 140행은 출력 동일, 공개 개발문장 311개에서는 과거 교정 추가와 이름 오제안 제거 각 1건만 바뀌었다. 상세 입력·예측·비교는 Git 제외 `local-corpora/resume-2026-09-27/`에 있다.
+
+검사기 코드와 기존 예측을 읽지 않은 수집자가 국립국어원·ELL Stack Exchange·WordReference 원문 13개에서 24문장을 판정했다. 기존 수집 URL 중복은 0이지만 흔한 교육 예문의 유형/문구 중복은 배제하지 못한다. 각 언어 정상 6개·오류 6개인 목적 표본이며 대표성이 없다. 모델 학습 데이터와의 독립성이나 최종 200/200 게이트를 증명하지 않는다. 검사기 11개 파일 SHA를 고정한 뒤, 입력 SHA-256 `dcc76df604aabbfe0b65a83c5b0da66d1965f9507b3fccd06f4680dbbf0a3cf7`의 모든 범위를 확인하고 처음 실행했다. 결과를 본 뒤 코드나 정답을 바꾸지 않았다.
+
+`node local-corpora/resume-2026-09-27/run-fresh.mjs`는 저장소 `scripts/eval-spelling.mjs`의 `evaluate`를 호출하고 예측/채점을 최초 파일로만 저장한다. 분모는 채점기의 최소 문자 편집 이벤트이며 오류 표현 수와 다르다. 표준출력:
+
+```text
+Scorer: scripts/eval-spelling.mjs evaluate; source-disjoint first execution, educational convenience sample, not final qualification.
+set | cases | detection | top1 | top3 | exact sentences | false-recommendation cases | wrong suggestions | unknown notices
+fresh/ko/spelling | 3 | 4/10 | 4/10 | 4/10 | 1/3 | 0 | 0 | 0
+fresh/ko/spacing | 3 | 6/6 | 6/6 | 6/6 | 3/3 | 0 | 0 | 0
+fresh/ko/normal | 6 | 0/0 | 0/0 | 0/0 | 6/6 | 0 | 0 | 1
+fresh/en/grammar | 5 | 1/6 | 1/6 | 1/6 | 1/5 | 0 | 0 | 0
+fresh/en/spelling | 1 | 1/1 | 1/1 | 1/1 | 1/1 | 0 | 0 | 1
+fresh/en/normal | 6 | 0/0 | 0/0 | 0/0 | 6/6 | 0 | 0 | 0
+```
+
+새 출처 오류문장 전체 일치는 한국어 4/6, 영어 2/6이다. 정상문은 각각 6/6 보존했지만 한국어 1행의 미등록 안내가 남는다. 표본이 작고 정상 문장도 쉬운 Q&A 예문이므로 일반 오제안률 0%라고 해석하지 않는다. 첫 결과와 실패 전문은 `fresh-first-predictions.json`, `fresh-first-evaluation.json`, `fresh-first-evaluation.txt`에 보존한다. 기존 자체 200사례도 `node scripts/eval-spelling.mjs --engine scripts/spelling-prototype.mjs`로 실행했고 `Independent evaluation: false` 출력 및 기존 미달을 `standard-evaluation.txt`에 남겼다.
+
+검증 명령과 결과: `node scripts/check-spelling-data-policy.mjs` 통과, `./node_modules/.bin/tsc --noEmit` 종료 0, `./node_modules/.bin/vitest run` 241/241, `node scripts/test-node-units.mjs` 385/385. `vite build --mode sites`, `vite build --config vite.sites-worker.config.ts`, `node scripts/build-desktop.mjs` 모두 종료 0. `WONBOARD_TEST_CHANNEL=chrome ./node_modules/.bin/playwright test tests/e2e/spelling.spec.ts --project=chromium --max-failures=3`은 137/137 통과(4.4분). 첫 샌드박스 시도는 Chrome이 SIGABRT로 종료되어 중단했고, 권한을 받아 임시 프로필로 실행한 결과만 UI 통과로 기록한다. 로그는 위 비공개 폴더에 보존했다.
+
+95% 목표와 전체 완료 게이트는 미달이다. 실제 설치 앱 교체·Windows·OS 한글 IME·최종 Worker 성능 재측정은 이번 차수에 수행하지 않았다. 테스트/빌드 통과를 그 증거로 대신하지 않는다. 새 의존성이나 모델을 설치하지 않았으며 원격 쓰기·PR·배포도 수행하지 않았다. 문맥 모델 격리 비교의 구체적 범위는 `proofreading-method-decision-2026-09-13.md`의 현재 제안에 있다. 기존 실행 승인은 새 런타임/모델 다운로드까지 포함하지 않으므로 그 범위는 승인 전이다.
