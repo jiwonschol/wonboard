@@ -706,8 +706,12 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     if(word.startsWith('안')){
       const rest=word.slice(1),tail=predicate(rest);
       if(tail?.root==='하')return {text:'안 '+rest,ambiguous:true,rule:'2'};
+      if(tail&&!isRecognizedNoun(word)&&!predicate(word)&&!noun(word,personal)&&!recognizeWhole?.(word,personal))return {text:'안 '+rest,ambiguous:true,rule:'2'};
       for(const main of ['해','하여'])if(rest.startsWith(main)&&predicate(rest.slice(main.length))?.root==='보')return {text:'안 '+rest,ambiguous:true,rule:'2/47'};
     }
+    // 얼마 나오다 and 얼마나 오다 are distinct valid readings. The token
+    // alone cannot select the boundary without changing a price question.
+    if(word.startsWith('얼마나')&&predicate(word.slice(2))?.root==='나오'&&predicate(word.slice(3))?.root==='오')return null;
     const adverbBoundary=knownAdverbBoundary(word,personal);
     if(adverbBoundary)return adverbBoundary;
     // A validated action noun cannot be the beginning of a duration noun
@@ -919,7 +923,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     // Keep nominal homographs available without splitting the particle.
     for(let i=2;i<word.length;i++){
       const left=word.slice(0,i),host=noun(left,personal),right=word.slice(i),tail=predicate(right);
-      if(host&&['이','가','은','는'].includes(left.slice(host.base.length))&&['있','없'].includes(tail?.root))return {text:left+' '+right,ambiguous:true,rule:'2'};
+      if(host&&['이','가','은','는'].includes(left.slice(host.base.length))&&(['있','없'].includes(tail?.root)||tail&&tail.root!==right&&noun(right,personal)?.nominal))return {text:left+' '+right,ambiguous:true,rule:'2'};
     }
     // A short unknown noun plus particle is a reviewable name, not split fodder.
     if(word.length<=4&&unknownNoun(word)?.base.length===2)return null;
@@ -1105,6 +1109,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
           !['이','하','되','받','당하','드리'].includes(rightPredicate.root)&&(!rightPredicate.adnominal||next.includes(' ')))return true;
         const main=predicate(last)??(left?.kind==='predicate'?left:null);
         if(main&&last.endsWith('다')&&['보','하'].includes(rightPredicate?.root))return true;
+        if(main&&last.endsWith('나')&&!main.adnominal&&rightPredicate?.root==='하')return true;
         if(main&&/(?:야|야만)$/.test(last)&&['하','되'].includes(rightPredicate?.root))return true;
         if(main&&/(?:나|까|가)$/.test(last)&&rightPredicate?.root==='싶')return true;
         if(main&&last.endsWith('까')&&rightPredicate?.root==='보')return true;

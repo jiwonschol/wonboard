@@ -270,6 +270,9 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   for(const match of text.matchAll(/\b(?:it|he|she|this|that)\s+(?:(?:itself|himself|herself)\s+)?(?:(?:only|still|also|already|usually|always|often|sometimes|never)\s+)?(have)\b/gi)){
     if(permitsBaseVerb(match.index))continue;
+    // That can introduce a relative clause with a plural antecedent. Only
+    // treat a demonstrative as singular at an explicit sentence boundary.
+    if(/^(?:this|that)\b/i.test(match[0])&&!/(?:^|[.!?]\s*)$/.test(text.slice(0,match.index)))continue;
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'has','This singular subject takes has');
   }

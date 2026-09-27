@@ -2,6 +2,12 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('subject particles and ambiguous amount questions preserve their meaning',()=>{
+  for(const [text,target]of [['전화가옴','전화가 옴'],['소포가옴','소포가 옴'],['새로나왔나해서','새로 나왔나 해서'],['안가봣는데','안 가봤는데']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  assert.equal(check('얼마나오나요').some(f=>f.applicable),false);
+  assert.equal(check('안내합니다').some(f=>f.applicable),false);
+});
+
 test('honorific suffixes and enumeration homographs preserve ordinary prose',()=>{
   for(const text of ['요청드립니다','공유드립니다','스파, 철권 등등 합니다','붉은사막'])assert.equal(check(text).some(f=>f.applicable),false,text);
   for(const [text,target]of [['남긴글','남긴 글'],['나가볼까봐요','나가볼까 봐요'],['한동한','한동안'],['옵션들인걸까요','옵션들인 걸까요'],['친구들인걸까요','친구들인 걸까요'],['감은있는데','감은 있는데'],['견적한번봐주실수있을까요','견적 한번 봐주실 수 있을까요'],['비싼가싶기도','비싼가 싶기도'],['좋다하긴했는데','좋다 하긴 했는데'],['이런말들이','이런 말들이']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);

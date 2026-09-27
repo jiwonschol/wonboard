@@ -3,6 +3,12 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('relative that preserves agreement with its plural antecedent',()=>{
+  for(const text of ['a multitude of concepts that have been created','The tools that have changed','devices that usually have batteries'])assert.equal(check(text).some(f=>f.suggestions[0]==='has'),false,text);
+  assert.ok(check('That have changed.').some(f=>f.suggestions[0]==='has'));
+  assert.ok(check('It have changed.').some(f=>f.suggestions[0]==='has'));
+});
+
 test('complete mass noun phrases and singular clauses retain grammatical context',()=>{
   for(const [text,target]of [['I need a feedback.','feedback'],['Need a genuine advice.','genuine advice'],['much false positives','many'],['it just try to connect','tries'],['that i reached the end','I']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['a feedback loop','a software company','much false information','Does it just try to connect?','They demand that he often work late.'])assert.equal(check(text).some(f=>f.type==='grammar'),false,text);
