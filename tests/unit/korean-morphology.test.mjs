@@ -2,6 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('reported speech, purpose clauses and temporal activity nouns keep their boundaries',()=>{
+  for(const [text,target]of [['있단말이죠','있단 말이죠'],['보러다니는','보러 다니는'],['이거사면','이거 사면'],['이주후','이주 후']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['조크등요','좋크등요','그저','사후','그거'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('distributive suffixes stay attached and nominalized descriptions retain their boundary',()=>{
   for(const text of ['가끔씩만','조금씩은','가끔씩도'])assert.equal(check(text).some(f=>f.applicable),false,text);
   for(const [text,target]of [['내려놓기우당탕탕','내려놓기 우당탕탕'],['쓴다는가정하에','쓴다는 가정하에'],['몇번씩','몇 번씩']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);

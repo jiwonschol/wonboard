@@ -12,7 +12,7 @@ test('Latin accents retain the whole token while nearby ASCII typos are checked'
 });
 
 test('letter labels and construction material names preserve their meaning',()=>{
-  for(const text of ['City A and City B','Option A is ready','blueboard and hebel'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const text of ['City A and City B','Option A is ready','blueboard and hebel', 'matcha'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('a off brand').some(f=>f.suggestions[0]==='an off'));
 });
 

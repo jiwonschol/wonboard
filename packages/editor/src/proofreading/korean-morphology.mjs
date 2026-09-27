@@ -1119,6 +1119,8 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(last===first&&predicate(last))return true;
         if(part.includes(' ')&&last==='줄'&&['알','모르'].includes(rightPredicate?.root))return true;
         if(left?.nominal&&predicate(last)&&right?.kind==='adverb')return true;
+        if(/^(?:이거|그거|저거|이것|그것|저것)$/.test(last)&&rightPredicate&&first!==rightPredicate.root)return true;
+        if(left?.kind==='noun'&&left.base===last&&actionNouns.has(last)&&/^(?:전|후)(?:에|에는|에도|부터|까지)?$/.test(first))return true;
         if(/^(?:누구나|아무나|누구든지|아무도)$/.test(last)&&rightPredicate)return true;
         if(['다른','어느','아무','모든','여러','무슨','온갖','이런','그런','저런'].includes(part)&&right?.kind==='noun')return true;
         // A nominal can modify a validated activity-in-progress phrase.
@@ -1137,6 +1139,8 @@ export function createMorphology(sets,data,recognizeWhole=null) {
           !['이','하','되','받','당하','드리'].includes(rightPredicate.root)&&(!rightPredicate.adnominal||next.includes(' ')))return true;
         const main=predicate(last)??(left?.kind==='predicate'?left:null);
         if(main&&last.endsWith('게')&&rightPredicate?.root==='주')return true;
+        if(main&&/(?:으러|러)$/.test(last)&&['가','오','다니'].includes(rightPredicate?.root))return true;
+        if(main&&last.endsWith('단')&&right?.base==='말')return true;
         if(main?.adnominal&&rightPredicate?.root==='생각하')return true;
         if(main?.adnominal&&/^(?:가정|조건|상황)하(?:에|에서|의)$/.test(first))return true;
         if(left?.kind==='noun'&&!left.unknown&&last.slice(left.base.length)==='이다'&&rightPredicate?.root==='보')return true;
