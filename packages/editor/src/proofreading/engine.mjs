@@ -478,7 +478,7 @@ export function createChecker(data) {
         if(knownTechnicalAbbreviations.has(lookup.toLowerCase())||recognizedEnglish.has(lookup.toLowerCase()))continue;
         // Productive prefixes preserve a known whole base, including its
         // inflection. They recognize words without creating correction targets.
-        const prefixed=lookup.match(/^(?:un|non|re|micro|multi|co|pre|post)-?([a-z]{3,})$/i);
+        const prefixed=lookup.match(/^(?:un|non|re|micro|multi|co|pre|post|sub)-?([a-z]{3,})$/i);
         if(prefixed&&(enLower.has(prefixed[1].toLowerCase())||recognizedEnglish.has(prefixed[1].toLowerCase())))continue;
         if(personal.has(word)||personal.has(lookup)||english.has(lookup)||enLower.has(lookup.toLowerCase())||enLower.has(lookup.toLowerCase().replace(/'s$/,''))||english.has(lookup.replace(/'s$/,'')))continue;
         // Conventional abbreviation of an attested word; a period is optional.

@@ -15,7 +15,7 @@ test('CSS resource functions and established computing words stay intact',()=>{
 });
 
 test('compound hyphens and computing words preserve their identity',()=>{
-  for(const text of ['a to-do list','I uninstalled Pi-hole.','control diff inline'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const text of ['a to-do list','I uninstalled Pi-hole.','control diff inline','an old subdirectory','subnetwork routing'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('models are increasingly stucking in thought').some(f=>f.suggestions[0]==='stuck'));
 });
 
