@@ -21,6 +21,16 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'contain','The plural subject terms takes contain');
   }
+  for(const match of text.matchAll(/\bupto\b(?=\s+\d)/g)){
+    add(match.index,match.index+match[0].length,'up to','Up to is a two-word quantity expression','spelling');
+  }
+  for(const match of text.matchAll(/\ba\s+(?:two|three|four|five|six|seven|eight|nine|ten)\s+(?:power strips|windows|doors|questions|devices|files|people)\b/gi)){
+    add(match.index,match.index+match[0].length,match[0].replace(/^a\s+/i,''),'An indefinite singular article does not modify this explicit plural count');
+  }
+  for(const match of text.matchAll(/\bThose\s+(where)\s+the\s+(?:plastic|metal|wooden)\s+kind\b(?=\s+and\b|[.!?]|$)/g)){
+    const from=match.index+match[0].indexOf(match[1]);
+    add(from,from+match[1].length,'were','This demonstrative clause needs the past copula were');
+  }
   const permitsBaseVerb=from=>{
     const before=text.slice(Math.max(0,from-160),from);
     // An object followed by a bare infinitive and a mandative that-clause
@@ -380,6 +390,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   // Run broad article agreement after exact lexical repairs so a compound
   // correction can repair both the article and a misspelled head noun.
   for(const match of text.matchAll(/\b([Aa]) ([aeio][a-z]{2,})\b/g)){
+    if(match.index>0&&/[\p{L}\p{N}&/+_-]/u.test(text[match.index-1]))continue;
     if(/^(?:eu|ew)/.test(match[2])||/^(?:one|once|ones|oneness)$/.test(match[2]))continue;
     if(['and','or','as','is','are','of','in','on','at','out','into'].includes(match[2]))continue;
     add(match.index,match.index+match[0].length,(match[1]==='A'?'An':'an')+' '+match[2],'Use an before this vowel sound');

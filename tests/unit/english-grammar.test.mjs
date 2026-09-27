@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('joined letter labels are not articles and explicit count phrases retain their grammar',()=>{
+  for(const text of ['Q&A indicates the answer','A/B equipment','Those where the door opens'])assert.equal(check(text).some(f=>f.type==='grammar'),false,text);
+  for(const [text,target]of [['upto 46C','up to'],['a two power strips','two power strips'],['Those where the plastic kind and more','were'],['A apple','An apple']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
 test('close spelling candidates preserve more of the original prefix',()=>{
   assert.equal(check('suger')[0].suggestions[0],'sugar');
 });
