@@ -166,6 +166,11 @@ export function createChecker(data) {
     const runs=lower.replace(/([a-z])\1+/g,'$1');
     const sameRuns=new Set([...candidates].filter(s=>s.replace(/([a-z])\1+/g,'$1')===runs));
     const sharedPrefix=s=>{let i=0;while(i<lower.length&&lower[i]===s[i])i++;return i;};
+    // At three letters an accidental swap often produces a rare dictionary
+    // word from an acronym or a foreign article (des -> eds). Require a
+    // common grammatical target; longer spelling evidence is unchanged.
+    const shortTargets=new Set(['the','and','for','you','are','was','not','but','our','his','her','him','she','has','had','can','may','any','all','who','how','why','its']);
+    if(lower.length===3)for(const candidate of candidates)if(!shortTargets.has(candidate))candidates.delete(candidate);
     return [...candidates].filter(s=>(lower.length>=5||transpositions.has(s))&&(s[0]===lower[0]||!(/^[A-Z]/.test(word))&&transpositions.has(s))).sort((a,b)=>Number(transpositions.has(b))-Number(transpositions.has(a))||Number(b[0]===lower[0])-Number(a[0]===lower[0])||Number(doubled.has(b))-Number(doubled.has(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||sharedPrefix(b)-sharedPrefix(a)||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
   }
   function formalEndingCandidate(word) {

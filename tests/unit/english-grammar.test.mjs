@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('short unknown strings need a grammatical target rather than a rare swapped word',()=>{
+  for(const text of ['des','sto','espagnole sauce','foie gras'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['teh','the'],['adn','and']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
 test('foreign parenthetical names are reviewed without English word substitutions',()=>{
   assert.equal(check('milk (leche de chocho), with my indian passport').some(f=>f.applicable),false);
   assert.ok(check('milk (leche de chocho), recieve it').some(f=>f.suggestions[0]==='receive'));

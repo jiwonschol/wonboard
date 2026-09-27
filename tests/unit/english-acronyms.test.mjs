@@ -25,7 +25,7 @@ test('known acronym casing precedes unrelated edit-distance candidates',()=>{
 test('misplaced letter doubling ranks the preserved letter sequence before substitutions',()=>{
   const check=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:['tommyrot','tomorrow','committee','committed']});
   assert.equal(check('tommorow')[0].suggestions[0],'tomorrow');
-  assert.equal(check('Tommorow')[0].suggestions[0],'Tomorrow');
+  assert.deepEqual(check('Tommorow'),[]); // A capitalized unknown may be a name.
   assert.deepEqual(check('TOMMOROW')[0].suggestions,[]); // Existing acronym review policy.
   assert.equal(check('committe')[0].suggestions[0],'committee');
   assert.deepEqual(check('tommyrot tomorrow committee committed'),[]);
