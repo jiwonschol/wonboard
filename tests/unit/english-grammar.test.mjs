@@ -2,6 +2,45 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
+import {englishGrammar} from '../../packages/editor/src/proofreading/english-grammar.mjs';
+
+test('ordinary contractions and first-person predicates retain narrow clause contexts',()=>{
+  for(const [text,target] of [['Im split from my wife.',"I'm"],['Whats the cheapest way to travel?',"What's"],['I understands the problem.','I understand'],['which i wiped clean','I']]){
+    assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  }
+  for(const text of ['IM protocol','Whats is a label','She understands the problem.','`which i wiped`'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('list abbreviation and coordinated duration clauses repair specific letter errors',()=>{
+  for(const [text,target] of [['clean and nice area ect is basic','etc'],['in 2 weeks ant i wanted to book','and']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['ECT is a treatment.','medication, ect','an ant I wanted to draw','ASAB travel insurance'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('complete duration and calendar phrases preserve count modifiers and ordinary adjectives',()=>{
+  for(const [text,target] of [['in a few weeks time.',"weeks' time"],['at the end of august for a holiday','August'],['for a 3 days with my son','']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  assert.equal(englishGrammar('for\ta  3 days with my son')[0]?.original,'a  ');
+  for(const text of ['in three weeks time zones will change','for a 3 days pass','for a 1 days with my son','the end of august ceremonies'])assert.equal(englishGrammar(text).length,0,text);
+});
+
+test('explicit singular noun phrases recover articles and possessives without changing modifiers',()=>{
+  for(const [text,target] of [['recommend a travel insurance that covers illness','travel insurance'],['a travelling companions Father',"companion's"],['a toy for child.','a child'],['this is red flag:','a red flag']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['a travel insurance policy','travelling companions arrived','for child care','this is red flag territory'])assert.equal(englishGrammar(text).length,0,text);
+});
+
+test('a parenthetical family count does not duplicate the copula',()=>{
+  assert.ok(check("We're (2 adults, 2 children) are off to Bali.").some(f=>f.original==="We're"&&f.suggestions[0]==='We'));
+  assert.equal(englishGrammar("We're (2 adults, 2 children) off to Bali.").length,0);
+  assert.equal(englishGrammar("We're (the adults are ready) going.").length,0);
+});
+
+test('new clause repairs respect excluded ranges and personal entries',()=>{
+  for(const text of ['Whats the cheapest way?','in a few weeks time.','a travelling companions Father','for a 3 days with my son']){
+    const finding=englishGrammar(text)[0];
+    assert.ok(finding,text);
+    assert.equal(englishGrammar(text,[[finding.from,finding.to]]).length,0,text);
+    assert.equal(englishGrammar(text,[],new Set([finding.original])).length,0,text);
+  }
+});
 
 test('ordinary household clauses recover clear spelling and auxiliary errors',()=>{
   for(const [text,original,target]of [

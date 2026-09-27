@@ -950,6 +950,13 @@ export function createChecker(data) {
           emit(from,to,'ko','unknown',[],word);
           Object.assign(results.at(-1),{ambiguous:true,reason:'Possible name before a personal title; retain its complete spelling for review'});continue;
         }
+        // A recalled handle before "뭔가로 활동" is an identity, even if its
+        // syllables also form an ordinary adjective and noun.
+        if(word.endsWith('인가')&&/^[ \u00a0]+뭔가로[ \u00a0]+활동/u.test(text.slice(to))&&
+          !morphology.analyze(word,personal)&&!recognizedNoun(word)&&!recognizeWhole?.(word,personal)){
+          emit(from,to,'ko','unknown',[],word);
+          Object.assign(results.at(-1),{ambiguous:true,reason:'Possible recalled handle in an activity-name context; preserve its spelling for review'});continue;
+        }
         if(!spacingResults.has(word))spacingResults.set(word,morphology.spacing(word,personal));
         const spaced=spacingResults.get(word);
         if(spaced?.unknowns?.length&&!morphology.analyze(word,personal)&&!recognizedNoun(word)){

@@ -2,6 +2,12 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('informal copula questions and recalled handles preserve their internal spelling',()=>{
+  for(const text of ['인증 메탄가여?','학생인가여?','여기서 느린맘인가 뭔가로 활동했다던데'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('느린맘인가').some(f=>f.suggestions[0]==='느린 맘인가'));
+  assert.ok(check('가는사람인가').some(f=>f.suggestions[0]==='가는 사람인가'));
+});
+
 test('informal titles stay whole while admissions group boundaries remain usable',()=>{
   assert.equal(check('슨상님이').some(f=>f.applicable),false);
   for(const [text,target]of [['가군라인과','가군 라인과'],['나군라인이','나군 라인이']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);

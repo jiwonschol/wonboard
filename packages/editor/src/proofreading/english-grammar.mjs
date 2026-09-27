@@ -7,6 +7,44 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     if(findings.some(item=>item.from<to&&item.to>from))return;
     findings.push({from,to,original:text.slice(from,to),language:'en',type,suggestions:[suggestion],applicable:true,reason});
   };
+  for(const match of text.matchAll(/\b[Ww]hats(?=\s+the\s+(?:cheapest|best|easiest|quickest|safest|fastest)\s+(?:way|option|route|method|choice)\b)/g)){
+    add(match.index,match.index+match[0].length,match[0][0]==='W'?"What's":"what's",'This singular question uses the contraction what is');
+  }
+  for(const match of text.matchAll(/\bect\b(?=\s*[,.;:!?)]|$|\s+(?:is|are|was|were)\b)/g)){
+    if(!/\b(?:and|or)\s+(?:[a-z]+\s+){1,4}$/i.test(text.slice(Math.max(0,match.index-60),match.index)))continue;
+    add(match.index,match.index+3,'etc','The abbreviation after a list is etc','spelling');
+  }
+  for(const match of text.matchAll(/\b(?:in|within|after)\s+(?:\d+|a few|several|two|three|four|five|six|seven|eight|nine|ten)\s+((?:days|weeks|months|years)\s+time)\b(?=\s*[,.;:!?)]|$|\s+(?:we|I|you|they|he|she|it|will|from)\b)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,match[1].replace(/(\s+)(time)$/i,"'$1$2"),'This plural duration takes a possessive apostrophe before time');
+  }
+  for(const match of text.matchAll(/\b([Ww]e)['’]re(?=\s*\(\d+\s+(?:adults|children|people)(?:\s*,\s*\d+\s+(?:adults|children|people))*\)\s+are\b)/g)){
+    add(match.index,match.index+match[0].length,match[1],'The following are already supplies the copula after this parenthetical count');
+  }
+  for(const match of text.matchAll(/\bin\s+\d+\s+(?:days|weeks|months|years)\s+(ant)(?=\s+[Ii]\s+(?:want|wanted|need|needed|plan|planned)\b)/g)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+3,'and','The duration is followed by a coordinated first-person clause','spelling');
+  }
+  for(const match of text.matchAll(/\ba\s+(?:travelling|traveling)\s+(companions)(?=\s+(?:father|mother|parent|child|partner)\b)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,match[1].slice(0,-1)+"'s",'The singular companion determined by a possesses the following relation');
+  }
+  for(const match of text.matchAll(/\bfor\s+(child)\b(?=\s*[,.;!?)]|$)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'a '+match[1],'This complete singular count noun phrase needs an article');
+  }
+  for(const match of text.matchAll(/\b(?:is|was|been)\s+(red flag)\b(?=\s*[,.;:!?)]|$|\s+(?:for|that|to)\b)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'a '+match[1],'The singular count phrase red flag needs an article');
+  }
+  for(const match of text.matchAll(/\bfor\s+(a\s+)(?:[2-9]|[1-9]\d+)\s+(?:days|weeks|months|years)\b(?=\s*[,.;!?)]|$|\s+(?:with|in|at|from|to|before|after)\b)/gi)){
+    const from=match.index+match[0].indexOf(match[1]);
+    add(from,from+match[1].length,'','A complete plural duration does not take the singular article a');
+  }
+  for(const match of text.matchAll(/\b(?:start|end|middle|beginning)\s+of\s+(january|february|march|april|may|june|july|august|september|october|november|december)\b(?=\s*[,.;!?)]|$|\s+(?:for|with|and|or|in)\b)/g)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,match[1][0].toUpperCase()+match[1].slice(1),'A month name in this calendar phrase is capitalized');
+  }
   for(const match of text.matchAll(/\b(?:from|with|of|at|to)\s+(it['’]s)\s+connection\b/gi)){
     const from=match.index+match[0].indexOf(match[1]);
     add(from,from+match[1].length,'its','The preposition introduces a possessed connection, not an it-is clause');
@@ -164,7 +202,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\bi\b(?=\s+(?:(?:just|still|also|really|often|usually|sometimes|always|never|already|recently|now|first)\s+)?(?:am|was|have|had|will|would|can|could|should|may|might|must|think|thought|hope|hoped|hear|heard|feel|felt|want|wanted|need|needed|like|liked|do|did|don't|didn't|couldn't|wouldn't|shouldn't|can't|won't|haven't|hadn't|wasn't)\b)/g)){
     add(match.index,match.index+1,'I','English first-person pronoun is capitalized');
   }
-  for(const match of text.matchAll(/\bi\b(?=\s+(?:(?:just|still|also|really|often|usually|sometimes|always|never|already|recently|now|first)\s+)?(?:decided|read|kept|look|comment|found|bought|put|knew|know|tried|try|mentioned|said|wrote|noticed|believe|believed|remember|remembered|reached|started|used|use|see|saw|get|got|work|worked)\b)/g)){
+  for(const match of text.matchAll(/\bi\b(?=\s+(?:(?:just|still|also|really|often|usually|sometimes|always|never|already|recently|now|first)\s+)?(?:decided|read|kept|look|comment|found|bought|put|knew|know|tried|try|mentioned|said|wrote|noticed|believe|believed|remember|remembered|reached|started|used|use|see|saw|get|got|work|worked|wiped)\b)/g)){
     add(match.index,match.index+1,'I','English first-person pronoun is capitalized');
   }
   for(const match of text.matchAll(/\b(?:can|could|should|would|will|may|might|must|do|did|does|am|was|were|have|had)\s+(i)\b/gi)){
@@ -193,7 +231,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\byour going(?=\s+to\s+be\b)/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='Y'?"You're going":"you're going",'Use you are before going to be');
   }
-  for(const match of text.matchAll(/\b[Ii]m\b(?=\s+(?:a|an|back|going|doing|using|building|sorry|sure|ready|glad|not|still|here|having|trying|looking|working|wondering)\b)/g)){
+  for(const match of text.matchAll(/\b[Ii]m\b(?=\s+(?:a|an|back|going|doing|using|building|split|sorry|sure|ready|glad|not|still|here|having|trying|looking|working|wondering)\b)/g)){
     add(match.index,match.index+match[0].length,"I'm",'First-person contraction needs an apostrophe');
   }
   for(const match of text.matchAll(/\bcountry-side\b/gi)){
@@ -352,13 +390,13 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b([Ww]e|[Tt]hey|[Yy]ou)\s+was\b/g)){
     add(match.index,match.index+match[0].length,match[1]+' were','This plural or second-person subject takes were');
   }
-  const pluralSubjectVerbs=new Map([['seems','seem'],['works','work'],['needs','need'],['uses','use'],['wants','want'],['has','have'],['does','do'],['goes','go'],['makes','make'],['takes','take'],['runs','run'],['opens','open'],['switches','switch'],['connects','connect']]);
-  for(const match of text.matchAll(/\b([Tt]hey|[Ww]e|[Yy]ou|[Ii])\s+(seems|works|needs|uses|wants|has|does|goes|makes|takes|runs|opens|switches|connects)\b/g)){
+  const pluralSubjectVerbs=new Map([['seems','seem'],['works','work'],['needs','need'],['uses','use'],['wants','want'],['has','have'],['does','do'],['goes','go'],['makes','make'],['takes','take'],['runs','run'],['opens','open'],['switches','switch'],['connects','connect'],['understands','understand']]);
+  for(const match of text.matchAll(/\b([Tt]hey|[Ww]e|[Yy]ou|[Ii])\s+(seems|works|needs|uses|wants|has|does|goes|makes|takes|runs|opens|switches|connects|understands)\b/g)){
     add(match.index,match.index+match[0].length,(match[1]==='i'?'I':match[1])+' '+pluralSubjectVerbs.get(match[2]),'This subject takes the uninflected present-tense verb');
   }
   // Mass nouns can be modifiers in a software company or a feedback loop.
   // Only remove the article when this is the completed noun phrase.
-  for(const match of text.matchAll(/\b(?:a|an)\s+(?:(?:genuine|useful|helpful)\s+)?(?:feedback|advice|software)\b(?=\s*[,.;!?)]|$|\s+(?:on|about|for|from|to|that|which|in|with)\b)/gi)){
+  for(const match of text.matchAll(/\b(?:a|an)\s+(?:(?:genuine|useful|helpful)\s+)?(?:feedback|advice|software|travel insurance)\b(?=\s*[,.;!?)]|$|\s+(?:on|about|for|from|to|that|which|in|with)\b)/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/^(?:a|an)\s+/i,''),'This mass noun does not take an indefinite article');
   }
   for(const match of text.matchAll(/\bmuch\s+(?:false\s+)?(?:positives|negatives|errors|problems|issues|people|files|users)\b/gi)){
