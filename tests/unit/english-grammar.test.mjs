@@ -78,7 +78,7 @@ test('joined letter labels are not articles and explicit count phrases retain th
 });
 
 test('close spelling candidates preserve more of the original prefix',()=>{
-  for(const [text,target]of [['suger','sugar'],['colleg','college'],['subtley','subtly']])assert.equal(check(text)[0].suggestions[0],target);
+  for(const [text,target]of [['suger','sugar'],['colleg','college'],['subtley','subtly'],['continous','continuous']])assert.equal(check(text)[0].suggestions[0],target);
 });
 
 test('bounded household clauses recover missing auxiliaries and contextual spellings',()=>{

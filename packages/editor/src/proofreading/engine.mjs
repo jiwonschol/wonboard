@@ -159,6 +159,9 @@ export function createChecker(data) {
       doubled.add(lower.slice(0,i)+lower[i]+lower.slice(i));
       if(lower[i]===lower[i+1])doubled.add(lower.slice(0,i)+lower.slice(i+1));
     }
+    // Keep an attested adjective ending before preferring a letter swap:
+    // continous needs continuous, not the musical plural continuos.
+    const adjectiveEnding=s=>lower.endsWith('ous')&&s.endsWith('ous');
     const suffixScore=s=>['ly','ing','ed'].some(ending=>lower.endsWith(ending)&&s.endsWith(ending))||lower.endsWith('ley')&&s===lower.slice(0,-2)+'y'?1:0;
     // A doubled letter can be placed on the wrong run. Prefer retaining the
     // sequence of letters over changing it, within the existing edit bound.
@@ -185,7 +188,7 @@ export function createChecker(data) {
       if(lower.length===s.length+1){let i=0;while(lower[i]===s[i]&&i<s.length)i++;return /[aeiou]/.test(lower[i]);}
       return false;
     };
-    return [...candidates].filter(s=>spellingEvidence(s)&&(lower.length>=5||transpositions.has(s))&&(s[0]===lower[0]||!(/^[A-Z]/.test(word))&&transpositions.has(s))).sort((a,b)=>Number(transpositions.has(b))-Number(transpositions.has(a))||Number(b[0]===lower[0])-Number(a[0]===lower[0])||Number(doubled.has(b))-Number(doubled.has(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||sharedPrefix(b)-sharedPrefix(a)||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
+    return [...candidates].filter(s=>spellingEvidence(s)&&(lower.length>=5||transpositions.has(s))&&(s[0]===lower[0]||!(/^[A-Z]/.test(word))&&transpositions.has(s))).sort((a,b)=>Number(adjectiveEnding(b))-Number(adjectiveEnding(a))||Number(transpositions.has(b))-Number(transpositions.has(a))||Number(b[0]===lower[0])-Number(a[0]===lower[0])||Number(doubled.has(b))-Number(doubled.has(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||sharedPrefix(b)-sharedPrefix(a)||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
   }
   function formalEndingCandidate(word) {
     // Recover a mistyped ㅁ in the formal -ㅂ니다 ending only when the
