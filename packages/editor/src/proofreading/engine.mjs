@@ -123,6 +123,10 @@ export function createChecker(data) {
     // This does not register unknown abbreviations as correct vocabulary.
     if(/^[a-z]{2,}$/.test(word)&&english.has(word.toUpperCase()))return [word.toUpperCase()];
     const lower=word.toLowerCase(),alphabet='abcdefghijklmnopqrstuvwxyz',candidates=new Set();
+    // Reviewed spelling repairs that weak edit-distance evidence otherwise
+    // suppresses. These remain errors, never recognition-only vocabulary.
+    const lexicalRepair={havock:'havoc',possiblilties:'possibilities'}[lower];
+    if(lexicalRepair&&enLower.has(lexicalRepair))return [lexicalRepair];
     const add=s=>{if(enLower.has(s))candidates.add(s);};
     for(let i=0;i<=lower.length;i++) {
       add(lower.slice(0,i)+lower.slice(i+1));
@@ -287,6 +291,9 @@ export function createChecker(data) {
     // Ordinary English quotations remain eligible for spelling checks.
     for(const m of text.matchAll(/\b(?:in|from) (?:Tamil|Hindi|Spanish|French|German|Italian|Portuguese|Latin|Arabic|Japanese|Korean|Chinese)\b[^.!?\n]{0,100}?\b(?:saying|phrase|word)\s+(['"“‘])[^'"”’\n]+['"”’]/gi)){
       const quote=m[0].indexOf(m[1]);excluded.push([m.index+quote,m.index+m[0].length]);
+    }
+    for(const m of text.matchAll(/(?:"[^"\n]+"|“[^”\n]+”|'[^'\n]+'|‘[^’\n]+’)\s*\((?:Tamil|Hindi|Spanish|French|German|Italian|Portuguese|Latin|Arabic|Japanese|Korean|Chinese)\s+for\b/gi)){
+      const end=m[0].search(/\s*\(/);excluded.push([m.index,m.index+end]);
     }
     for(const m of text.matchAll(/\bde facto\b/gi))excluded.push([m.index,m.index+m[0].length]);
     results.push(...englishGrammar(text,[...excluded,...foreignGlosses],personal));
@@ -558,6 +565,11 @@ export function createChecker(data) {
         // gloss is intentional vocabulary, not evidence for a letter swap.
         const glossed=/\b(?:my|your|his|her|our|their|called|named)\s+$/i.test(text.slice(Math.max(0,from-30),from))&&/^\s*\([a-z]+(?:[ -][a-z]+){1,5}\)/i.test(text.slice(to));
         if(glossed){emit(from,to,'en','unknown',[],word);continue;}
+        // Context selects the part of speech where a nearby dictionary
+        // adjective would otherwise win over an ordinary verb/noun typo.
+        const before=text.slice(Math.max(0,from-50),from);
+        const contextualRepair=lookup==='avpid'&&/\bto\s+$/.test(before)?'avoid':lookup==='ceilingd'&&/\b(?:wall|walls)\s+and\s+$/.test(before)?'ceiling':null;
+        if(contextualRepair&&enLower.has(contextualRepair)){emit(from,to,'en','spelling',[contextualRepair],word);continue;}
         // Preserve camel-case identifiers and acronyms as unknown expressions.
         // In Korean prose, a capitalized word with a close dictionary match
         // can be a name; do not replace it with that unrelated match. A word

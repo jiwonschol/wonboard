@@ -191,7 +191,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     // An object followed by a bare infinitive and a mandative that-clause
     // both legitimately use the base form after a singular pronoun.
     return /\b(?:do|does|did|don['’]t|doesn['’]t|didn['’]t|can|could|may|might|must|should|would|will|shall|let|lets|make|makes|made|help|helps|helped|see|sees|saw|watch|watched|hear|heard|feel|felt|want|wants|wanted|need|needs|needed|expect|expects|expected|have|has|had|is|are|was|were|[a-z]+ing)\s*$/i.test(before)
-      || /\b(?:suggest(?:s|ed)?|recommend(?:s|ed)?|request(?:s|ed)?|demand(?:s|ed)?|insist(?:s|ed)?|propos(?:e|es|ed))\s+(?:that\s+)?$/i.test(before)
+      || /\b(?:suggest(?:s|ed)?|recommend(?:s|ed)?|request(?:s|ed)?|requir(?:e|es|ed)|demand(?:s|ed)?|insist(?:s|ed)?|propos(?:e|es|ed))\s+(?:that\s+)?$/i.test(before)
       || /\b(?:suggestion|recommendation|request|demand|requirement|important|essential|necessary|vital)\s+that\s+$/i.test(before);
   };
   for(const match of text.matchAll(/\b(?:am|is|are|was|were|be|been)\s+(?:(?:increasingly|still|always|completely)\s+)?(stucking)\b/gi)){
@@ -203,6 +203,9 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   for(const match of text.matchAll(/\b(?:ive|Ive)\b(?=\s+(?:been|had|got|seen|done|made|taken|found|heard|read|written|[a-z]+ed)\b)/g)){
     add(match.index,match.index+match[0].length,"I've",'A first-person perfect contraction before the participle needs I and an apostrophe');
+  }
+  for(const match of text.matchAll(/\b[Ii]ve(?=\s+no\s+(?:idea|reason|doubt|intention|interest)\b)/g)){
+    add(match.index,match.index+match[0].length,"I've",'The first-person have contraction before this negative noun phrase needs an apostrophe');
   }
   for(const match of text.matchAll(/\bi\b(?=\s+(?:(?:just|still|also|really|often|usually|sometimes|always|never|already|recently|now|first)\s+)?(?:am|was|have|had|will|would|can|could|should|may|might|must|think|thought|hope|hoped|hear|heard|feel|felt|want|wanted|need|needed|like|liked|do|did|don't|didn't|couldn't|wouldn't|shouldn't|can't|won't|haven't|hadn't|wasn't)\b)/g)){
     add(match.index,match.index+1,'I','English first-person pronoun is capitalized');
@@ -238,6 +241,26 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   for(const match of text.matchAll(/\b[Ii]m\b(?=\s+(?:a|an|back|going|doing|using|building|split|sorry|sure|ready|glad|not|still|here|having|trying|looking|working|wondering)\b)/g)){
     add(match.index,match.index+match[0].length,"I'm",'First-person contraction needs an apostrophe');
+  }
+  for(const match of text.matchAll(/\b[Ii]m\b(?=\s+(?:planning\s+to|planning\s+(?:a|an|the)|painting\s+(?:a|an|the)|replacing\s+(?:some|a|an|the|my|our)|keen\s+to|stuck\s+(?:between|with|in|on)|concerned\s+about|after\s+(?:some|a|an|the)|at\s+(?:a|an|the)|the\s+\d+(?:st|nd|rd|th)|new\s+(?:here|to|so))\b)/g)){
+    add(match.index,match.index+match[0].length,"I'm",'This first-person predicate needs the contraction I am');
+  }
+  for(const match of text.matchAll(/\b(?:airers?|devices?|printers?|computers?|routers?|cameras?|systems?|equipment)\s+(?:is|are|was|were|has been|have been)\s+(setup)\b(?=\s*(?:[.!?;]|$)|\s+(?:in|on|at|for|with|by)\s+(?:a|an|the|my|your|our|their)\b)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'set up','This passive predicate takes the participle set up, not the noun setup');
+  }
+  for(const match of text.matchAll(/\b(?:(?:I|you|we|they|he|she|it|anyone|someone)\s+(?:can|could|would|should|will|may|might|must)|(?:can|could|would|should|will|may|might|must)\s+(?:I|you|we|they|he|she|it|anyone|someone))\s+(advice)\b(?=\s*(?:[.!?;]|$)|\s+(?:me|us|you|them|him|her|on|about|whether|how)\b)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'advise','A modal takes the verb advise rather than the noun advice');
+  }
+  for(const match of text.matchAll(/\b(?:anyone|someone|everyone|no one)\s+(?:else\s+)?(have)\s+had\b/gi)){
+    if(permitsBaseVerb(match.index))continue;
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'has','This singular indefinite subject takes has in the perfect tense');
+  }
+  for(const match of text.matchAll(/\ba\s+(weeks|months|years)\s+(?:holiday|vacation|leave|notice)\b/gi)){
+    const from=match.index+match[0].indexOf(match[1]);
+    add(from,from+match[1].length,match[1].slice(0,-1)+"'s",'A singular duration possesses this period of leave or notice');
   }
   for(const match of text.matchAll(/\bcountry-side\b/gi)){
     add(match.index,match.index+match[0].length,match[0].replace('-',''),'Countryside is one lexical word');
@@ -324,6 +347,10 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   for(const match of text.matchAll(/\bdidnt\b(?=\s+(?:(?:really|ever|even|quite|actually|just)\s+)?(?:read|write|do|have|know|think|want|need|like|see|hear|feel|go|come|get|take|make|work|use|try|find|mean|say|expect|understand|believe|notice|remember)\b|\s+(?:I|you|we|they|he|she|it)\b)/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='D'?"Didn't":"didn't",'The negative auxiliary before a verb or question subject needs an apostrophe');
+  }
+  for(const match of text.matchAll(/\b(?:I|you|we|they|he|she|it)\s+(didnt)\b(?=\s*(?:[.!?;]|$))/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,"didn't",'The negative auxiliary in this elliptical clause needs an apostrophe');
   }
   for(const match of text.matchAll(/\b(?:a A\/B|a XP)\b/g)){
     add(match.index,match.index+match[0].length,'an '+match[0].slice(2),'These initialisms begin with a vowel sound');
@@ -549,6 +576,9 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   // correction can repair both the article and a misspelled head noun.
   for(const match of text.matchAll(/\b([Aa]) ([aeio][a-z]{2,})\b/g)){
     if(match.index>0&&/[\p{L}\p{N}&/+_-]/u.test(text[match.index-1]))continue;
+    // A following a word can label an entity (Agent A, Grade A). Its
+    // uppercase spelling is evidence to abstain from article agreement.
+    if(match[1]==='A'&&/[\p{L}\p{N}]\s+$/u.test(text.slice(0,match.index)))continue;
     if(/^(?:eu|ew)/.test(match[2])||/^(?:one|once|ones|oneness)$/.test(match[2]))continue;
     if(['and','or','as','is','are','of','in','on','at','out','into'].includes(match[2]))continue;
     add(match.index,match.index+match[0].length,(match[1]==='A'?'An':'an')+' '+match[2],'Use an before this vowel sound');

@@ -2,6 +2,20 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('explicit foreign translation quotes preserve their spelling and surrounding prose stays checkable',()=>{
+  const check=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:['diss','the','phrase','works']});
+  const text='The phrase "O Gemini disse" (Portuguese for "Gemini Said") works teh';
+  assert.equal(check(text).some(f=>f.original==='disse'&&f.applicable),false);
+  assert.ok(check(text).some(f=>f.original==='teh'&&f.suggestions[0]==='the'));
+});
+
+test('reviewed spelling and grammatical context outrank unrelated lexical neighbors',()=>{
+  const check=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:['avoid','vapid','ceiling','ceilinged','havoc','possibilities','blacklisting','flex']});
+  for(const [text,word,target]of [['trying to avpid an app','avpid','avoid'],['painting wall and ceilingd','ceilingd','ceiling'],['havock','havock','havoc'],['possiblilties','possiblilties','possibilities']])assert.ok(check(text).some(f=>f.original===word&&f.suggestions[0]===target),text);
+  for(const text of ['blocklisting','flexi'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.equal(check('trying to avpid an app',['avpid']).some(f=>f.original==='avpid'),false);
+});
+
 test('typographic apostrophes use canonical lookup without accepting misspelled contractions',()=>{
   const check=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:["you're","don't","we've","John"]});
   assert.deepEqual(check("You're You’re don't don’t we’ve John's John’s"),[]);

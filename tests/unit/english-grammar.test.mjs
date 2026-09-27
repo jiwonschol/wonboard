@@ -178,6 +178,42 @@ test('joined letter labels are not articles and explicit count phrases retain th
   for(const [text,target]of [['upto 46C','up to'],['a two power strips','two power strips'],['Those where the plastic kind and more','were'],['A apple','An apple']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
 });
 
+test('uppercase entity labels do not become indefinite articles',()=>{
+  for(const text of ['Agent A infers the answer','Group A improves','Grade A eggs'])assert.equal(englishGrammar(text).length,0,text);
+  for(const text of ['A apple fell.','I bought a apple.'])assert.ok(englishGrammar(text).some(f=>f.suggestions[0].toLowerCase()==='an apple'),text);
+});
+
+test('first-person household predicates and negative noun phrases recover contractions',()=>{
+  for(const text of ['Im planning a trip','im painting the wall','im replacing some hinges','Im keen to eat chickpeas','im stuck between options','im concerned about it','Im after some help','Im at a dead end','Im the 3rd','im new so bear with me'])assert.ok(englishGrammar(text).some(f=>f.suggestions[0]==="I'm"),text);
+  assert.ok(englishGrammar('Ive no idea who designed it').some(f=>f.suggestions[0]==="I've"));
+  for(const text of ['IM planning module','Im is a surname','Im painting supplies'])assert.equal(englishGrammar(text).some(f=>["I'm","I've"].includes(f.suggestions[0])),false,text);
+});
+
+test('elliptical negative clauses keep the omitted predicate',()=>{
+  assert.ok(englishGrammar('I called but he didnt').some(f=>f.suggestions[0]==="didn't"));
+  assert.equal(englishGrammar('a label called didnt').length,0);
+});
+
+test('passive setup predicates preserve attributive setup nouns',()=>{
+  for(const text of ['the clothes airer is setup.','the device was setup in the room'])assert.ok(englishGrammar(text).some(f=>f.suggestions[0]==='set up'),text);
+  for(const text of ['This is setup.','This is setup time.','It is setup for the room that takes longest.','the setup is simple'])assert.equal(englishGrammar(text).some(f=>f.suggestions[0]==='set up'),false,text);
+});
+
+test('modal advice is repaired only in verb contexts',()=>{
+  for(const text of ['if anyone could advice.','Can you advice me?'])assert.ok(englishGrammar(text).some(f=>f.suggestions[0]==='advise'),text);
+  for(const text of ['Could advice help?','Could advice on this help?','this is advice for me'])assert.equal(englishGrammar(text).length,0,text);
+});
+
+test('singular indefinite perfect clauses preserve inverted questions and mandatives',()=>{
+  assert.ok(englishGrammar('if anyone else have had issues').some(f=>f.suggestions[0]==='has'));
+  for(const text of ['Could anyone else have had issues?','I require that someone have had experience.'])assert.equal(englishGrammar(text).some(f=>f.suggestions[0]==='has'),false,text);
+});
+
+test('singular holiday durations retain their possessive boundary',()=>{
+  assert.ok(englishGrammar('on a weeks holiday').some(f=>f.suggestions[0]==="week's"));
+  for(const text of ["a week's holiday",'two weeks holiday','the Weeks holiday home'])assert.equal(englishGrammar(text).length,0,text);
+});
+
 test('close spelling candidates preserve more of the original prefix',()=>{
   for(const [text,target]of [['suger','sugar'],['colleg','college'],['subtley','subtly'],['continous','continuous'],['unbereable','unbearable']])assert.equal(check(text)[0].suggestions[0],target);
 });

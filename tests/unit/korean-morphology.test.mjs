@@ -2,6 +2,16 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('lexical stems and conversational endings survive competing shorter fragments',()=>{
+  for(const text of ['어마무시했네요','버벅거림','제품명이','살고 있는걸요','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['구경만할지','구경만 할지'],['안내해줘서','안내해 줘서'],['집가는데','집 가는데']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('bounded grammatical relations recover mandatory spacing without splitting whole words',()=>{
+  for(const [text,target]of [['다를바','다를 바'],['두어시간이','두어 시간이'],['이제품','이 제품'],['풀리길기다렸는데','풀리길 기다렸는데'],['없을것같긴한데','없을 것 같긴 한데'],['즐겨하는','즐겨 하는'],['문서확인하는','문서 확인하는'],['신경쓰는','신경 쓰는']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['바다','이내용물','저전력','기만하다'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('attested connective contractions recover boundaries and nicknames stay whole',()=>{
   for(const [text,target]of [['미쳐날뛰겠군요','미쳐 날뛰겠군요'],['흐려보입니다','흐려 보입니다']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['재미나이만','흐려','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
