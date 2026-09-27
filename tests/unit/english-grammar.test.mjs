@@ -3,6 +3,19 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('Latin accents retain the whole token while nearby ASCII typos are checked',()=>{
+  for(const text of ["my fiancée's",'café','fiance\u0301e','élève']){
+    assert.equal(check(text).some(f=>f.applicable),false,text);
+    for(const f of check(text))assert.equal(text.slice(f.from,f.to),f.original);
+  }
+  assert.ok(check('fiancée recieve').some(f=>f.original==='recieve'&&f.suggestions[0]==='receive'));
+});
+
+test('letter labels and construction material names preserve their meaning',()=>{
+  for(const text of ['City A and City B','Option A is ready','blueboard and hebel'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('a off brand').some(f=>f.suggestions[0]==='an off'));
+});
+
 test('first-person clauses and apostrophes work with intervening adverbs',()=>{
   for(const [text,target]of [['i still use it','I'],['i bought milk','I'],['i just had lunch','I'],['Id like to learn',"I'd"],['I`m sorry',"I'm"],['it wont let me',"won't"],["it's own skills",'its'],['its broken.',"it's"]])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['its broken arm','as is their wont','`i bought`'])assert.equal(check(text).some(f=>f.type==='grammar'),false,text);

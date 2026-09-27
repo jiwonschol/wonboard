@@ -435,7 +435,7 @@ export function createChecker(data) {
       Object.assign(results.at(-1),{ambiguous:true,reason:'Typo 떄 for dependent noun 때 after a nominal; confirm the intended boundary'});
     }
     const initialRepairSpans=results.filter(f=>f.applicable).map(f=>[f.from,f.to]);
-    const tokens=[...text.matchAll(/[A-Za-z]+(?:['’-][A-Za-z]+)*|[가-힣ㄱ-ㅎㅏ-ㅣ]+(?:_[ㄱ-ㅎㅏ-ㅣ]+)*/g)].flatMap(m=>{
+    const tokens=[...text.matchAll(/\p{Script=Latin}[\p{Script=Latin}\p{M}]*(?:['’-][\p{Script=Latin}\p{M}]+)*|[가-힣ㄱ-ㅎㅏ-ㅣ]+(?:_[ㄱ-ㅎㅏ-ㅣ]+)*/gu)].flatMap(m=>{
       // A laugh/emoticon suffix must not swallow the preceding word's
       // spelling error. Keep offsets in the original sentence for context.
       if(!/[ㄱ-ㅎㅏ-ㅣ]/.test(m[0])||personal.has(m[0]))return [m];
@@ -453,8 +453,8 @@ export function createChecker(data) {
         if(!personal.has(word))emit(from,to,'ko','unknown',[],word);
         continue;
       }
-      if(word.length>48){emit(from,to,/^[A-Za-z]/.test(word)?'en':'ko','unknown',[],word);results.at(-1).reason='An unbroken span longer than 48 characters needs manual review';continue;}
-      if(/^[A-Za-z]/.test(word)) {
+      if(word.length>48){emit(from,to,/^\p{Script=Latin}/u.test(word)?'en':'ko','unknown',[],word);results.at(-1).reason='An unbroken span longer than 48 characters needs manual review';continue;}
+      if(/^\p{Script=Latin}/u.test(word)) {
         if(results.some(item=>item.language==='en'&&item.from<to&&item.to>from))continue;
         // Smart punctuation changes typography, not the contracted word.
         // Normalize lookup only; offsets, user text and replacements stay intact.
@@ -487,6 +487,9 @@ export function createChecker(data) {
         const prefixed=lookup.match(/^(?:un|non|re|micro|multi|co|pre|post|sub)-?([a-z]{3,})$/i);
         if(prefixed&&(enLower.has(prefixed[1].toLowerCase())||recognizedEnglish.has(prefixed[1].toLowerCase())))continue;
         if(personal.has(word)||personal.has(lookup)||english.has(lookup)||enLower.has(lookup.toLowerCase())||enLower.has(lookup.toLowerCase().replace(/'s$/,''))||english.has(lookup.replace(/'s$/,'')))continue;
+        // An accented Latin word is one token, including decomposed marks.
+        // ASCII edit distance must not replace an isolated fragment of it.
+        if(/[^A-Za-z'’-]/.test(lookup)){emit(from,to,'en','unknown',[],word);continue;}
         // Conventional abbreviation of an attested word; a period is optional.
         // Do not treat arbitrary short identifiers as registered vocabulary.
         if(lookup.toLowerCase()==='vs'&&enLower.has('versus'))continue;

@@ -367,6 +367,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   // correction can repair both the article and a misspelled head noun.
   for(const match of text.matchAll(/\b([Aa]) ([aeio][a-z]{2,})\b/g)){
     if(/^(?:eu|ew)/.test(match[2])||/^(?:one|once|ones|oneness)$/.test(match[2]))continue;
+    if(['and','or','as','is','are','of','in','on','at','out','into'].includes(match[2]))continue;
     add(match.index,match.index+match[0].length,(match[1]==='A'?'An':'an')+' '+match[2],'Use an before this vowel sound');
   }
   for(const match of text.matchAll(/\b([Aa])n ([bcdfgjkpqtvwz][a-z]+er)\b/g)){
