@@ -384,6 +384,9 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     add(match.index,match.index+match[0].length,match[0].replace(/runs$/i,'run'),'A plural subject takes run');
   }
   for(const match of text.matchAll(/\b(?:it|he|she|this|that)\s+(don['’]?t)\s+(login|work|need|have|load|run|open|start|stop|show|connect|respond)\b/gi)){
+    // Relative that inherits its antecedent's number (forums that don't).
+    // Only a sentence-initial demonstrative establishes singular agreement.
+    if(/^that\b/i.test(match[0])&&!/(?:^|[.!?]\s*)$/.test(text.slice(0,match.index)))continue;
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,match.index+match[0].length,"doesn't "+(match[2].toLowerCase()==='login'?'log in':match[2].toLowerCase()),'Third-person singular uses does not and the base verb');
   }

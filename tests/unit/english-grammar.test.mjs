@@ -4,6 +4,11 @@ import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 import {englishGrammar} from '../../packages/editor/src/proofreading/english-grammar.mjs';
 
+test('relative that does not imply a singular antecedent',()=>{
+  for(const text of ["family forums that don't show on Google", "programs that don't work", "devices that dont run"])assert.equal(check(text).some(f=>f.suggestions[0].includes("doesn't")),false,text);
+  for(const text of ["That don't work.","It don't work."])assert.ok(check(text).some(f=>f.suggestions[0]==="doesn't work"),text);
+});
+
 test('ordinary contractions and first-person predicates retain narrow clause contexts',()=>{
   for(const [text,target] of [['Im split from my wife.',"I'm"],['Whats the cheapest way to travel?',"What's"],['I understands the problem.','I understand'],['which i wiped clean','I']]){
     assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
