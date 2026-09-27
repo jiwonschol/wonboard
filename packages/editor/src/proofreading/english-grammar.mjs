@@ -10,6 +10,20 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\bwev['’]e(?=\s+(?:been|had|got|seen|done|made|taken|found|heard|read|written|[a-z]+ed)\b)/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='W'?"We've":"we've",'Keep the perfect contraction and move its misplaced apostrophe','spelling');
   }
+  for(const match of text.matchAll(/\b[Ii]ts(?=\s+(?:something|nothing|anything)\s+(?:you|we|they|I|he|she)\b)/g)){
+    add(match.index,match.index+match[0].length,match[0][0]==='I'?"It's":"it's",'This pronoun clause needs it is rather than possessive its');
+  }
+  for(const match of text.matchAll(/\b(?:pulled|took|pull|take|pulling|taking)\s+(?:it|them)\s+out (if)(?=\s+the\s+(?:fridge|freezer|oven|box|bag)(?:[.,!?]|$|\s+(?:this|that|yesterday|today|to)\b))/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+2,'of','The source-container phrase is out of');
+  }
+  for(const match of text.matchAll(/\bIt it(?=\s+(?:possible|safe|normal|necessary|okay|ok)\s+to\b)/g)){
+    add(match.index,match.index+5,'Is it','This question uses an inverted copula, not a duplicated pronoun');
+  }
+  for(const match of text.matchAll(/\ba lot of (recipe)(?=\s+(?:for|about|that|which)\b)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'recipes','The count noun is plural after a lot of');
+  }
   for(const match of text.matchAll(/\bI a(?=\s+(?:visiting|trying|looking|working|planning|using|having)\b)/g)){
     add(match.index,match.index+match[0].length,'I am','A first-person progressive clause needs am');
   }
