@@ -2,6 +2,28 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('colloquial particles, vowel copulas and connective deut keep their internal spelling',()=>{
+  for(const text of ['엄마한테는','아빠한테도','친구한테서','수급자거든요','참가자거든요','샤워하듯','이야기하듯']){
+    assert.equal(check(text).some(f=>f.suggestions.length),false,text);
+  }
+  for(const [text,target] of [['먹은듯','먹은 듯'],['할순','할 순']])assert.ok(check(text).some(f=>f.suggestions.includes(target)),text);
+});
+
+test('unrelated dictionary fragments cannot justify new internal boundaries',()=>{
+  for(const text of ['클래스입니다','걸걸중상','제친구들','볼매시네','딸기코아빠','증상나타남','맞춰져있다보니']){
+    assert.equal(check(text).some(f=>f.suggestions.length),false,text);
+  }
+  for(const [text,target] of [['문서를저장하고','문서를 저장하고'],['아는애랑','아는 애랑'],['개념없는','개념 없는'],['가능한가봅니다','가능한가 봅니다'],['필요한가봐요','필요한가 봐요']]){
+    assert.ok(check(text).some(f=>f.suggestions.includes(target)),text);
+  }
+});
+
+test('a possible name before a personal title is reviewed without a speculative split',()=>{
+  const text='미친국어 선생님 강의';
+  assert.equal(check(text).some(f=>f.original==='미친국어'&&f.suggestions.length),false);
+  assert.equal(check(text,['미친국어']).some(f=>f.original==='미친국어'),false);
+});
+
 test('particle typo composes a unique noun boundary without altering registered names',()=>{
   for(const [source,target] of [['상품설명에넌','상품 설명에는'],['설명에넌','설명에는'],['학교에넌','학교에는']]){
     const text='😀 '+source+' 표시가 있어요.';

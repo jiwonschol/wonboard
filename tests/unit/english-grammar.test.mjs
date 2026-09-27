@@ -2,6 +2,22 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('first-person contractions preserve their word and use participle context',()=>{
+  for(const [text,target] of [["i'd picked it","I'd"],["i'll go","I'll"],['ive been working',"I've"],['Im having trouble',"I'm"]]){
+    const finding=check(text).find(f=>f.from===0);
+    assert.deepEqual(finding?.suggestions,[target],text);
+    assert.equal(check(text,[finding.original]).some(f=>f.from===0),false);
+  }
+  assert.equal(check('Ive concert tickets').some(f=>f.suggestions.includes("I've")),false);
+});
+
+test('short consonant codes and mixed-case identifiers do not become nearby words',()=>{
+  for(const text of ['lvp flooring','SSD NVMe Gen4','aorus motherboard','single atm']){
+    assert.equal(check(text).some(f=>f.suggestions.length),false,text);
+  }
+  for(const [text,target] of [['slighly','slightly'],['teh','the'],['recieve','receive']])assert.ok(check(text).some(f=>f.suggestions.includes(target)),text);
+});
+
 test('English grammar candidates repair attested constructions without changing nearby normal prose',()=>{
   for(const [source,target] of [
     ['i am here','I'],['Its fun :D',"It's"],['We can built it','can build'],

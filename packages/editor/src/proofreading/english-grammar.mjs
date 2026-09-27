@@ -15,6 +15,12 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
       || /\b(?:suggest(?:s|ed)?|recommend(?:s|ed)?|request(?:s|ed)?|demand(?:s|ed)?|insist(?:s|ed)?|propos(?:e|es|ed))\s+(?:that\s+)?$/i.test(before)
       || /\b(?:suggestion|recommendation|request|demand|requirement|important|essential|necessary|vital)\s+that\s+$/i.test(before);
   };
+  for(const match of text.matchAll(/\bi['’](?:m|d|ll|ve)\b/g)){
+    add(match.index,match.index+match[0].length,'I'+match[0].slice(1),'Capitalize the first-person contraction without replacing its word');
+  }
+  for(const match of text.matchAll(/\b(?:ive|Ive)\b(?=\s+(?:been|had|got|seen|done|made|taken|found|heard|read|written|[a-z]+ed)\b)/g)){
+    add(match.index,match.index+match[0].length,"I've",'A first-person perfect contraction before the participle needs I and an apostrophe');
+  }
   for(const match of text.matchAll(/\bi\b(?=\s+(?:am|was|have|had|will|would|can|could|should|may|might|must|think|thought|hope|hoped|hear|heard|feel|felt|want|wanted|need|needed|like|liked|do|did|don't|didn't)\b)/g)){
     add(match.index,match.index+1,'I','English first-person pronoun is capitalized');
   }
@@ -47,7 +53,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\byour going(?=\s+to\s+be\b)/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='Y'?"You're going":"you're going",'Use you are before going to be');
   }
-  for(const match of text.matchAll(/\bIm\b(?=\s+(?:back|going|sorry|sure|ready|glad|not|still|here)\b)/g)){
+  for(const match of text.matchAll(/\bIm\b(?=\s+(?:back|going|sorry|sure|ready|glad|not|still|here|having|trying|looking|working|wondering)\b)/g)){
     add(match.index,match.index+match[0].length,"I'm",'First-person contraction needs an apostrophe');
   }
   const modalForms=new Map([['built','build'],['went','go'],['came','come'],['did','do'],['was','be'],['were','be'],['breaked','break'],['broke','break'],['broken','break']]);

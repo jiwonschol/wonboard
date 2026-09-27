@@ -254,6 +254,12 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     return result;
   }
   function analyzePredicate(s) {
+    // Interrogative -(으)ㄴ가 / -는가 keeps 가 with the complete
+    // predicate; it is not the first syllable of a following 가보다.
+    if(s.length>=3&&s.endsWith('가')){
+      const host=s.slice(0,-1),base=predicate(host);
+      if(base?.adnominal&&(final(host)===4||host.endsWith('는')))return {...base,adnominal:false};
+    }
     // The present exclamatory ending -는구나 is attached to a verb. The
     // supplied forms can recognize -는 alone without its longer ending.
     if(s.endsWith('는구나')){
@@ -406,6 +412,10 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   const isNominalForm=s=>nominalForms.has(s)||s.endsWith('짐')&&Boolean(predicate(s)?.root.endsWith('지'))||s.endsWith('심')&&Boolean(predicate(s))||s.endsWith('기')&&Boolean(predicate(s))||s.endsWith('다기')&&Boolean(predicate(s.slice(0,-1)))||s.endsWith('음')&&s.length>1&&final(s.slice(0,-1))!==0&&Boolean(predicate(s));
   const approximationHosts=new Set(['사이','중간','끝','처음','지금','내일','어제','오늘','모레','이맘때','그맘때','저맘때','이때','그때','저때']);
   function noun(s,personal) {
+    // Productive colloquial case particles retain their supplementary tail.
+    // An omitted combined entry must not turn 한테는 into 한 + 테는.
+    for(let i=1;i<s.length;i++)if(/^(?:한테|에게|께)(?:서)?(?:는|도|만|까지|부터)?$/.test(s.slice(i))&&
+      (knownNominal(s.slice(0,i))||personal.has(s.slice(0,i))))return {base:s.slice(0,i),unknown:false};
     // 께서도 / 에게만 retain the complete attested particle before the
     // supplementary particle. Do not reuse their syllables as new words.
     if(/[도만]$/.test(s)){
@@ -476,7 +486,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       }
       if(final(base)===0&&(knownNominal(base)||personal.has(base))){
         if(tail.startsWith('잖')&&predicate('이'+tail)?.root==='이')return {base,unknown:false,copula:true};
-        const restored=tail.startsWith('여')?'이어'+tail.slice(1):tail.startsWith('였')?'이었'+tail.slice(1):/^(라|다|지|네)/.test(tail)?'이'+tail:null;
+        const restored=tail.startsWith('여')?'이어'+tail.slice(1):tail.startsWith('였')?'이었'+tail.slice(1):/^(라|다|지|네|거든)/.test(tail)?'이'+tail:null;
         if(restored&&predicate(restored)?.root==='이')return {base,unknown:false,copula:true};
       }
       if(!/^(이|인|일|임|입)/.test(tail))continue;
@@ -564,6 +574,14 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     // Its internal syllables do not establish a dependent-noun boundary.
     const lexical=predicate(s);
     if(lexical?.root.endsWith('듯하')&&roots.has(lexical.root))return null;
+    // Connective -듯(이) attaches to a stem. A stem's homographic
+    // adnominal analysis does not turn that ending into a dependent noun.
+    if(/듯이?$/.test(s)&&lexical&&!lexical.adnominal)return null;
+    // 순 contracts the dependent noun 수 plus topic particle 는.
+    if(contractions&&s.endsWith('순')){
+      const left=s.slice(0,-1);
+      if(final(left)===8&&predicate(left)?.adnominal)return {text:left+' 순',ambiguous:true,rule:'42'};
+    }
     // A complete dictionary word can happen to end in 수/때/걸.
     // Do not split 필수 or 이걸 merely because the prefix looks inflected.
     if(sets.noun.has(s)||recognizedNouns.has(s))return null;
@@ -766,6 +784,13 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       return {...d,text:parts.map((part,i)=>nested[i]?.text??part).join(' '),ambiguous:d.ambiguous||nested.some(Boolean)};
     }
     const auxiliary=auxiliaryBoundary(word,personal);if(auxiliary)return auxiliary;
+    // The interrogative + 보다 boundary precedes descriptive joined forms.
+    for(let i=2;i<word.length;i++){
+      const left=word.slice(0,i),right=word.slice(i);
+      const question=/(?:나|은가|는가|인가)$/.test(left)||left.endsWith('가')&&final(left.slice(0,-1))===4;
+      if(!question||predicate(right)?.root!=='보')continue;
+      if(predicate(left)||noun(left,personal)?.copula||left.endsWith('인가')&&(knownNominal(left.slice(0,-2))||personal.has(left.slice(0,-2))))return {text:left+' '+right,ambiguous:true,rule:'47'};
+    }
     if(analyze(word,personal))return null;
     // Apply explicit quantity/dependent-noun checks first: dictionary nouns
     // can be homographs of phrases. Only then protect a whole noun + particle
@@ -783,13 +808,8 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     // homograph 고하다 must not steal the 고 from 하려고/한다고.
     for(let i=2;i<word.length;i++){
       const left=word.slice(0,i),right=word.slice(i),tail=predicate(right);
-      if(tail?.root==='하'&&/(?:려고|다고|라고|자)$/.test(left)&&predicate(left))return {text:left+' '+right,ambiguous:true,rule:'2'};
+      if(tail?.root==='하'&&/(?:려|려고|다고|라고|자)$/.test(left)&&predicate(left))return {text:left+' '+right,ambiguous:true,rule:'2'};
       if(tail?.root==='싶'&&left.endsWith('고')&&predicate(left))return {text:left+' '+right,ambiguous:true,rule:'47'};
-    }
-    for(let i=2;i<word.length;i++){
-      const left=word.slice(0,i),right=word.slice(i);
-      if(!/(?:나|은가|는가|인가)$/.test(left)||predicate(right)?.root!=='보')continue;
-      if(predicate(left)||noun(left,personal)?.copula||left.endsWith('인가')&&(knownNominal(left.slice(0,-2))||personal.has(left.slice(0,-2))))return {text:left+' '+right,ambiguous:true,rule:'47'};
     }
     // These are grammatical boundaries, not arbitrary noun segmentation.
     // Whole-word and personal recognition above still protects compounds.
@@ -940,7 +960,10 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       // A validated adjective modifier has an independent boundary: 큰문
       // must not block 큰 + 문제. Whole lexical compounds were kept above.
       if(!sets.adjective.has(modifier?.root)&&Array.from({length:word.length-i-1},(_,n)=>word.slice(0,i+n+1)).some(knownNominal))continue;
-      if(modifier?.adnominal&&modifier.root!=='이'&&!knownNominal(left)&&nominal&&!nominal.nominal)return {text:left+' '+right,ambiguous:true,rule:'2'};
+      // Generic verbal adnominals also occur inside names (볼매, 제친구).
+      // Keep adjective modifiers with a completed -ㄴ form; prospective
+      // -ㄹ boundaries need the explicit dependent/auxiliary rules above.
+      if(modifier?.adnominal&&(sets.adjective.has(modifier.root)&&final(left)===4||/[는은]$/.test(left))&&!knownNominal(left)&&nominal&&!nominal.nominal)return {text:left+' '+right,ambiguous:true,rule:'2'};
     }
     // An adverb can be used as a nickname before the copula. Keep the whole
     // unknown nominal for review; its internal fragments do not prove a gap.
@@ -1035,6 +1058,25 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     // Dictionary-recognized fragments establish a possible segmentation,
     // not its meaning in context. All generic segmentation needs review.
     if(result&&result.parts.length>1){
+      // Dictionary fragments alone establish no word boundary. Require a
+      // grammatical relation at every gap before exposing a correction.
+      // Unresolved compounds still reach the caller's unknown-word review.
+      const grounded=result.parts.every((part,i)=>{
+        if(i===result.parts.length-1)return true;
+        const next=result.parts[i+1],last=part.split(' ').at(-1),first=next.split(' ')[0];
+        const left=analyze(last,personal,true),right=analyze(first,personal),rightPredicate=predicate(first)??(right?.kind==='predicate'?right:null);
+        if((left?.kind==='adverb'||adverbs.has(last))&&(right?.kind==='adverb'||adverbs.has(first)||rightPredicate))return true;
+        if(last===first&&predicate(last))return true;
+        if(/^(?:누구나|아무나|누구든지|아무도)$/.test(last)&&rightPredicate)return true;
+        if(['다른','어느','아무','모든','여러','무슨','온갖'].includes(part)&&right?.kind==='noun')return true;
+        if(left?.kind==='noun'&&!left.copula&&left.base!==last&&
+          /^(?:(?:에서|서|에게|께서|한테)(?:부터|까지)?(?:는|도|만)?|이|가|을|를|에|로|으로|랑|이랑|와|과|도|만)$/.test(last.slice(left.base.length))&&rightPredicate)return true;
+        if(left?.kind==='noun'&&!left.unknown&&left.base===last&&rightPredicate?.root==='드리'&&!dridaNouns.has(last))return true;
+        if(left?.kind==='noun'&&!left.unknown&&left.base===last&&(['있','없','아니'].includes(rightPredicate?.root)||first==='없이'))return true;
+        if(predicate(last)&&!predicate(last).adnominal&&(connectiveForms.has(last)||/[아어해]$/.test(last))&&['오','가','보','주','드리','두','놓','버리','내'].includes(rightPredicate?.root))return true;
+        return Boolean(predicate(last)&&/(?:고|서|면|다가)$/.test(last)&&rightPredicate);
+      });
+      if(!grounded)return null;
       const nested=result.parts.map(part=>auxiliaryBoundary(part,personal));
       return {text:result.parts.map((part,i)=>nested[i]?.text??part).join(' '),ambiguous:true,rule:'41/42',unknowns:result.unknowns};
     }

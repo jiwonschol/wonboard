@@ -67,7 +67,7 @@ export function createChecker(data) {
     if(!morphology.analyze(word,personal))for(let i=2;i<word.length-2;i++){
       if(word[i]!=='나')continue;
       const left=word.slice(0,i),right=word.slice(i+1);
-      if(knownOrthographicNoun(left)&&knownOrthographicNoun(right)&&!morphology.predicate(left+'나'))return {type:'spacing',suggestions:[left+'나 '+right],reason:'Separate two recognized nouns joined by the choice particle 나',ambiguous:true};
+      if(knownOrthographicNoun(left)&&knownOrthographicNoun(right)&&!morphology.predicate(left+'나')&&!morphology.predicate(word.slice(i)))return {type:'spacing',suggestions:[left+'나 '+right],reason:'Separate two recognized nouns joined by the choice particle 나',ambiguous:true};
     }
     const pair=candidatePhraseBoundaries.find(([source])=>{
       if(!word.startsWith(source))return false;
@@ -115,6 +115,9 @@ export function createChecker(data) {
     return a.length>b.length?a.slice(i+1)===b.slice(i):a.slice(i)===b.slice(i+1);
   }
   function englishSuggestions(word) {
+    // Apostrophes encode contractions/possessives. Lexical edit distance
+    // must not remove them to invent an unrelated dictionary word.
+    if(word.includes("'"))return [];
     // Prefer an attested acronym's casing over a different nearby word.
     // This does not register unknown abbreviations as correct vocabulary.
     if(/^[a-z]{2,}$/.test(word)&&english.has(word.toUpperCase()))return [word.toUpperCase()];
@@ -158,7 +161,7 @@ export function createChecker(data) {
     // This ranks candidates only; it does not accept a misspelling as a word.
     const runs=lower.replace(/([a-z])\1+/g,'$1');
     const sameRuns=new Set([...candidates].filter(s=>s.replace(/([a-z])\1+/g,'$1')===runs));
-    return [...candidates].filter(s=>!(/^[A-Z]/.test(word)&&word.length>3)||s[0]===lower[0]).sort((a,b)=>Number(transpositions.has(b))-Number(transpositions.has(a))||Number(doubled.has(b))-Number(doubled.has(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
+    return [...candidates].filter(s=>lower.length<4||s[0]===lower[0]||!(/^[A-Z]/.test(word))&&transpositions.has(s)).sort((a,b)=>Number(transpositions.has(b))-Number(transpositions.has(a))||Number(doubled.has(b))-Number(doubled.has(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
   }
   function formalEndingCandidate(word) {
     // Recover a mistyped ㅁ in the formal -ㅂ니다 ending only when the
@@ -466,7 +469,8 @@ export function createChecker(data) {
         if(titleCandidates?.length)continue;
         const shortAcronym=/^[a-z]{2,4}$/.test(word)&&english.has(word.toUpperCase());
         const shortIdentifier=mixedKorean&&/^[a-z]{2,4}$/.test(word)&&word!=='teh'&&!shortAcronym;
-        const candidates=shortIdentifier||word.length<=2&&!shortAcronym||/^[A-Z]{2,}$|[a-z][A-Z]/.test(word)?[]:titleCandidates??englishSuggestions(word);
+        const consonantIdentifier=/^[a-z]{2,4}$/i.test(word)&&!/[aeiouy]/i.test(word);
+        const candidates=shortIdentifier||consonantIdentifier||word.length<=2&&!shortAcronym||/^[A-Z]{2,}$|[a-z][A-Z]|[A-Z].*[A-Z]/.test(word)?[]:titleCandidates??englishSuggestions(word);
         emit(from,to,'en',candidates.length?'spelling':'unknown',candidates,word);
         if(shortIdentifier)Object.assign(results.at(-1),{ambiguous:true,reason:'Possible short identifier in Korean prose; no automatic replacement'});
       } else {
@@ -841,6 +845,13 @@ export function createChecker(data) {
           }
         }
         if(recognizedPlace(word))continue;
+        // An unfamiliar token immediately before a person's title may be
+        // their name. Review it whole instead of splitting dictionary parts.
+        if(/^[ \u00a0]+(?:선생님|교수님|작가님|감독님)(?=$|[\s,.!?]|[은는이가의께])/u.test(text.slice(to))&&
+          !morphology.analyze(word,personal)&&!recognizedNoun(word)&&!recognizeWhole?.(word,personal)){
+          emit(from,to,'ko','unknown',[],word);
+          Object.assign(results.at(-1),{ambiguous:true,reason:'Possible name before a personal title; retain its complete spelling for review'});continue;
+        }
         if(!spacingResults.has(word))spacingResults.set(word,morphology.spacing(word,personal));
         const spaced=spacingResults.get(word);
         if(spaced?.unknowns?.length&&!morphology.analyze(word,personal)&&!recognizedNoun(word)){
