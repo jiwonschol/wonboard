@@ -46,6 +46,9 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   const forms=new Map();
   const nominalForms=new Set();
   const connectiveForms=new Set();
+  // Descriptive EC forms include endings beyond the productive auxiliary
+  // inventory; use them only where the following lexical verb is bounded.
+  const attestedConnectiveForms=new Set();
   const prefixes=new Map();
   const sDeletionPrefixes=new Set();
   // Expand compound ㄷ alternations only for an existing lexical root
@@ -181,6 +184,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     // writable 싶다 form. The complete contraction is analyzed above.
     if(surface==='픈'&&root==='싶')continue;
     if(ending==='ETN')nominalForms.add(surface);
+    if(ending==='EC')attestedConnectiveForms.add(surface);
     // The supplied analysis attests a lost ㅅ, e.g. 낫 -> 나. Such
     // allomorphs retain -으- even though the written surface has no batchim.
     if(final(root)===19&&withFinal(root,0)===surface)sDeletionPrefixes.add(surface);
@@ -1256,7 +1260,8 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(main&&/(?:기는|긴)$/.test(last)&&rightPredicate?.root==='하')return true;
         const negative=last.endsWith('진')?last.slice(0,-1)+'지':last.endsWith('치')?last.slice(0,-1)+'하지':last;
         if(negative.endsWith('지')&&predicate(negative)&&['않','말','못하'].includes(rightPredicate?.root))return true;
-        if(main&&/[아어해]$/.test(last)&&rightPredicate?.root==='보이')return true;
+        if(main&&(connectiveForms.has(last)||attestedConnectiveForms.has(last)||/[아어해]$/.test(last))&&rightPredicate?.root==='보이')return true;
+        if(main?.root==='미치'&&attestedConnectiveForms.has(last)&&rightPredicate?.root==='날뛰')return true;
         if(main&&!main.adnominal&&(connectiveForms.has(last)||/[아어해져]$/.test(last))&&rightPredicate?.root==='나오')return true;
         if(predicate(last)&&!predicate(last).adnominal&&(connectiveForms.has(last)||/[아어해]$/.test(last))&&['오','가','보','주','드리','두','놓','버리','내'].includes(rightPredicate?.root))return true;
         return Boolean(predicate(last)&&/(?:고|서|면|다가)$/.test(last)&&rightPredicate);

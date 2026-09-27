@@ -2,6 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('attested connective contractions recover boundaries and nicknames stay whole',()=>{
+  for(const [text,target]of [['미쳐날뛰겠군요','미쳐 날뛰겠군요'],['흐려보입니다','흐려 보입니다']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['재미나이만','흐려','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('informal copula questions and recalled handles preserve their internal spelling',()=>{
   for(const text of ['인증 메탄가여?','학생인가여?','여기서 느린맘인가 뭔가로 활동했다던데'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('느린맘인가').some(f=>f.suggestions[0]==='느린 맘인가'));
