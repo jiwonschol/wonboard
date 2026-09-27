@@ -5,7 +5,7 @@ import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 import {englishGrammar} from '../../packages/editor/src/proofreading/english-grammar.mjs';
 
 test('typing nouns and established internet names do not become nearby dictionary words',()=>{
-  for(const text of ['a touch typer','fast typers','ublock origin','a faang company'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const text of ['a touch typer','fast typers','ublock origin','a faang company','Android app modding'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('teh company').some(f=>f.suggestions[0]==='the'));
 });
 
