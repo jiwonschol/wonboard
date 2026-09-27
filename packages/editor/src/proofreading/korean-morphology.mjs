@@ -886,7 +886,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       if(host&&['절대','계속','다시'].includes(right))return {text:left+' '+right,ambiguous:true,rule:'2'};
       const tail=predicate(right);
       const independentAdverb=sets.adverb.has(left)||left.length===2&&left[0]===left[1]&&adverbs.has(left);
-      if(left.length>=2&&independentAdverb&&!right.startsWith(left)&&tail&&!['하','이','되','시키'].includes(tail.root)&&!predicate(left))return {text:left+' '+right,ambiguous:true,rule:'2'};
+      if(left.length>=2&&independentAdverb&&!right.startsWith(left)&&tail&&!['하','이','되','시키'].includes(tail.root)&&!predicate(left)&&!recognizeWhole?.(word,personal))return {text:left+' '+right,ambiguous:true,rule:'2'};
     }
     // Degree adverb 많이 is a separate word before 하다. The generic
     // mimetic-adverb guard below must still protect 빠릿하게/버벅이지.

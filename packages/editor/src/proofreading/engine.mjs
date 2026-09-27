@@ -64,7 +64,7 @@ export function createChecker(data) {
       const standard=word.slice(0,-2)+'네요',spaced=morphology.spacing(standard,new Set());
       if(spaced&&!spaced.unknowns?.length&&spaced.text.endsWith('네요'))return {type:'spacing',suggestions:[spaced.text.slice(0,-2)+'네용'],reason:'Preserve colloquial 네용 while separating the validated preceding phrase',ambiguous:true};
     }
-    if(!morphology.analyze(word,personal))for(let i=2;i<word.length-2;i++){
+    if(!morphology.analyze(word,personal)&&!recognizedNoun(word)&&!recognizeWhole?.(word,personal))for(let i=2;i<word.length-2;i++){
       if(word[i]!=='나')continue;
       const left=word.slice(0,i),right=word.slice(i+1);
       if(knownOrthographicNoun(left)&&knownOrthographicNoun(right)&&!morphology.predicate(left+'나')&&!morphology.predicate(word.slice(i)))return {type:'spacing',suggestions:[left+'나 '+right],reason:'Separate two recognized nouns joined by the choice particle 나',ambiguous:true};

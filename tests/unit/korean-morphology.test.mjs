@@ -2,6 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('whole recognized names and mimetic verbs precede speculative noun and adverb gaps',()=>{
+  for(const text of ['제미나이도','제미나이만','벌렁거려요','벌렁거렸다'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['많이보이네요','많이 보이네요'],['빨리마무리하고','빨리 마무리하고']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
 test('copula negative particles and recognized group names stay intact',()=>{
   for(const text of ['고정적이지가','일반적이지가','과동아리도','천장등이'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('잘본과목이').some(f=>f.suggestions[0]==='잘 본 과목이'));
