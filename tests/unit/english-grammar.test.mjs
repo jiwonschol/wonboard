@@ -3,6 +3,13 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('provider names before interface acronyms retain repeated letters',()=>{
+  for(const text of ['a Taalas API','the Veera SDK','agentic coding on replit'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('a Taalas API').some(f=>f.original==='Taalas'&&f.type==='unknown'));
+  assert.ok(check('Excelllent example').some(f=>f.suggestions[0]==='Excellent'));
+  assert.equal(check('a Taalas API',['Taalas']).some(f=>f.original==='Taalas'),false);
+});
+
 test('prepositional gerunds and singular count nouns retain their surrounding meaning',()=>{
   for(const [text,target]of [['I look forward to write code.','writing'],['She looks forward to hear it.','hearing'],["I'm newbie here.",'a newbie'],['an new browser tab','a new'],["i couldn't use it.",'I'],["What's your favorite parts of Cocoa?",'What are']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['I look forward to work.','I look forward to travel.','I look forward to play.','I am newbie friendly.',"What's your favorite parts store?"]){

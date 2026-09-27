@@ -2,6 +2,12 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('degree nouns remain separate from hada while complete activity phrases gain boundaries',()=>{
+  for(const text of ['어느 정도 하려고','이 정도 하면','10분 정도 하면'])assert.equal(check(text).some(f=>f.suggestions.some(s=>s.includes('정도하'))),false,text);
+  for(const [text,target]of [['배송대기중','배송 대기 중'],['주문접수중','주문 접수 중'],['추가할생각입니다','추가할 생각입니다'],['확인할내용','확인할 내용'],['구매 하려고','구매하려고']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['파일탭','볼매시네','제미나이'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('temporal ttara particles and product names remain whole words',()=>{
   for(const text of ['오늘따라','요즘따라','그날따라','이때따라','바이퍼','바이퍼를','바이퍼는'])assert.equal(check(text).some(f=>f.suggestions.length),false,text);
   assert.ok(check('친구따라').some(f=>f.suggestions.includes('친구 따라')));

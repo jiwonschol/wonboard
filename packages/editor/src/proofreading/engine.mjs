@@ -449,6 +449,12 @@ export function createChecker(data) {
         // because a smaller word list contains a similar unrelated word.
         // A transposed title-case word still gets its strong spelling repair.
         if(/^[A-Z]{2,}s$/.test(lookup))continue;
+        // A capitalized provider before an interface acronym is a possible
+        // name even when deleting a repeated letter yields a dictionary word.
+        // Keep it reviewable instead of treating that coincidence as a typo.
+        if(/^[A-Z][a-z]+$/.test(lookup)&&/^\s+(?:API|SDK|CLI|IDE)\b/.test(text.slice(to))&&!personal.has(word)&&!personal.has(lookup)&&!english.has(lookup)&&!enLower.has(lookup.toLowerCase())&&!recognizedEnglish.has(lookup.toLowerCase())){
+          emit(from,to,'en','unknown',[],word);continue;
+        }
         if(!mixedKorean&&/^[A-Z][a-z]+(?:'s)?$/.test(lookup)){
           const candidates=englishSuggestions(lookup),lower=lookup.toLowerCase();
           const strong=candidates.some(candidate=>{
@@ -667,7 +673,7 @@ export function createChecker(data) {
             // An action-noun homograph does not override a complete particle
             // phrase (제가) or an independent adverb (계속) before 하다.
             const host=morphology.analyze(preceding[1],personal);
-            const independentHost=sets.adverb.has(preceding[1])||host?.kind==='noun'&&host.base!==preceding[1]&&sets.josa.has(preceding[1].slice(host.base.length));
+            const independentHost=preceding[1]==='정도'||sets.adverb.has(preceding[1])||host?.kind==='noun'&&host.base!==preceding[1]&&sets.josa.has(preceding[1].slice(host.base.length));
             const beforeMatch=text.slice(0,start).match(/([가-힣]+)[ \u00a0]+$/);
             const before=beforeMatch?.[1];
             const modifier=before&&morphology.analyze(before,personal);

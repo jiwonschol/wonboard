@@ -979,10 +979,10 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       // A validated adjective modifier has an independent boundary: 큰문
       // must not block 큰 + 문제. Whole lexical compounds were kept above.
       if(!sets.adjective.has(modifier?.root)&&Array.from({length:word.length-i-1},(_,n)=>word.slice(0,i+n+1)).some(knownNominal))continue;
-      // Generic verbal adnominals also occur inside names (볼매, 제친구).
-      // Keep adjective modifiers with a completed -ㄴ form; prospective
-      // -ㄹ boundaries need the explicit dependent/auxiliary rules above.
-      if(modifier?.adnominal&&(sets.adjective.has(modifier.root)&&final(left)===4||/[는은]$/.test(left)||left.length>=2&&final(left)===4&&modifier.root!=='이'&&nominal?.base.length>=2)&&!knownNominal(left)&&nominal&&!nominal.nominal)return {text:left+' '+right,ambiguous:true,rule:'2'};
+      // Short prospective forms also occur inside names. Require a longer
+      // complete predicate and a multi-syllable nominal for that boundary.
+      const prospective=left.length>=3&&modifier?.root.length>=2&&final(left)===8&&nominal?.base.length>=2;
+      if(modifier?.adnominal&&(sets.adjective.has(modifier.root)&&final(left)===4||/[는은]$/.test(left)||left.length>=2&&final(left)===4&&modifier.root!=='이'&&nominal?.base.length>=2||prospective)&&!knownNominal(left)&&nominal&&!nominal.nominal)return {text:left+' '+right,ambiguous:true,rule:'2'};
     }
     // An adverb can be used as a nickname before the copula. Keep the whole
     // unknown nominal for review; its internal fragments do not prove a gap.
@@ -1088,6 +1088,9 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(last===first&&predicate(last))return true;
         if(/^(?:누구나|아무나|누구든지|아무도)$/.test(last)&&rightPredicate)return true;
         if(['다른','어느','아무','모든','여러','무슨','온갖'].includes(part)&&right?.kind==='noun')return true;
+        // A nominal can modify a validated activity-in-progress phrase.
+        // The dependent rule already established the boundary before 중.
+        if(left?.kind==='noun'&&left.base===last&&actionNouns.has(first)&&next.startsWith(first+' ')&&noun(next.slice(first.length+1),personal)?.base==='중')return true;
         if(left?.kind==='noun'&&!left.copula&&left.base!==last&&
           /^(?:(?:에서|서|에게|께서|한테)(?:부터|까지)?(?:는|도|만)?|이|가|을|를|에|로|으로|랑|이랑|와|과|도|만)$/.test(last.slice(left.base.length))&&rightPredicate)return true;
         if(left?.kind==='noun'&&!left.unknown&&left.base===last&&rightPredicate?.root==='드리'&&!dridaNouns.has(last))return true;
