@@ -507,7 +507,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       // particle instead of accepting arbitrary text after 임/음.
       const nominalCopula=Array.from({length:tail.length-1},(_,j)=>j+1).some(j=>
         sets.josa.has(tail.slice(j))&&isNominalForm(tail.slice(0,j))&&predicate(tail.slice(0,j))?.root==='이');
-      const copula=predicate(tail)?.root==='이'||nominalCopula||['일','이긴','이기도','이기는','이기만'].includes(tail);
+      const copula=predicate(tail)?.root==='이'||nominalCopula||/^이지(?:가|는|도|만)$/.test(tail)||['일','이긴','이기도','이기는','이기만'].includes(tail);
       if(copula){
         if(knownNominal(base)||personal.has(base))return {base,unknown:false,copula:true};
         // A particle can precede the copula: 언제+부터+인가, 여기+까지+입니다.
@@ -1142,6 +1142,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(main&&/(?:으러|러)$/.test(last)&&['가','오','다니'].includes(rightPredicate?.root))return true;
         if(main&&last.endsWith('단')&&right?.base==='말')return true;
         if(main?.adnominal&&rightPredicate?.root==='생각하')return true;
+        if(part.includes(' ')&&adverbs.has(part.split(' ')[0])&&main?.adnominal&&right?.kind==='noun')return true;
         if(main?.adnominal&&/^(?:가정|조건|상황)하(?:에|에서|의)$/.test(first))return true;
         if(left?.kind==='noun'&&!left.unknown&&last.slice(left.base.length)==='이다'&&rightPredicate?.root==='보')return true;
         if(main&&last.endsWith('다')&&['보','하'].includes(rightPredicate?.root))return true;

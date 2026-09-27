@@ -2,6 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('copula negative particles and recognized group names stay intact',()=>{
+  for(const text of ['고정적이지가','일반적이지가','과동아리도'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('잘본과목이').some(f=>f.suggestions[0]==='잘 본 과목이'));
+});
+
 test('reported speech, purpose clauses and temporal activity nouns keep their boundaries',()=>{
   for(const [text,target]of [['있단말이죠','있단 말이죠'],['보러다니는','보러 다니는'],['이거사면','이거 사면'],['이주후','이주 후']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['조크등요','좋크등요','그저','사후','그거'])assert.equal(check(text).some(f=>f.applicable),false,text);

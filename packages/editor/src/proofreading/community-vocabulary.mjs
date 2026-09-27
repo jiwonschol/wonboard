@@ -5,7 +5,7 @@
 export const communityNouns = ['비트코인', '물가지수', '내구도', '이어버드', '라우터', '프로토타입', '워크플로', '마이그레이션', '이곳', '그곳', '저곳', '측', '더불어민주당', '파일명', '항목명', '역할명', '사용자명', '곡명', '작품명', '저자명', '긴바지', '배송지', '특별전', '날것'];
 // Established labels/terms recognize nominal use and particles, without
 // granting a productive -하다 stem or adding candidate fragments.
-export const communityNominalOnly = ['해양대', '붉은사막', '님', '얼리버드', '좋아요', '싫어요', '대시보드', '플러그인', '웹사이트', '스펙', '유튜브', '팁', '정답지', '나히다', '초심배마', '호감캐', '부캐', '모루저', '샛기', '도화가', '클영상', '할모시', '클리어', '제미나이', '바이퍼'];
+export const communityNominalOnly = ['과동아리', '해양대', '붉은사막', '님', '얼리버드', '좋아요', '싫어요', '대시보드', '플러그인', '웹사이트', '스펙', '유튜브', '팁', '정답지', '나히다', '초심배마', '호감캐', '부캐', '모루저', '샛기', '도화가', '클영상', '할모시', '클리어', '제미나이', '바이퍼'];
 // Established computing terms. Preserve the author's casing in informal prose;
 // other acronyms and personal entries retain their existing handling.
 export const technicalAbbreviations = ['CPU', 'GPU', 'SNS', 'RSS', 'NVMe'];
