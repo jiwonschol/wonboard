@@ -4,6 +4,39 @@ import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 import {englishGrammar} from '../../packages/editor/src/proofreading/english-grammar.mjs';
 
+test('bare resource paths and introduced tool names retain spelling without hiding prose',()=>{
+  const text='/api/memories contains teh results from a finance manager called procura.';
+  const actionable=check(text).filter(f=>f.applicable);
+  assert.deepEqual(actionable.map(f=>[f.original,f.suggestions[0]]),[['teh','the']]);
+  assert.equal(check('testing utils').some(f=>f.applicable),false);
+  assert.ok(check('teh API').some(f=>f.suggestions[0]==='the'));
+});
+
+test('a plural harness typo keeps its number across a bounded relative clause',()=>{
+  for(const text of ['harnesss which I have previously used are reliable.','These harnesss work.','Harnesss were tested.']){
+    assert.equal(check(text).find(f=>f.original.toLowerCase()==='harnesss')?.suggestions[0].toLowerCase(),'harnesses',text);
+  }
+  for(const text of ['The harness is reliable.','The harnesss which I have used is reliable.','harnesss which I know are popular','harnesses are reliable.'])assert.equal(englishGrammar(text).length,0,text);
+  assert.equal(check('`these harnesss`').length,0);
+});
+
+test('bounded adjective and perception-verb typos restore their intended words',()=>{
+  for(const [text,original,target] of [['do differents things','differents','different'],['Differents options exist.','Differents','Different'],['I notined that it grew.','notined','noticed'],['We recently notined the change.','notined','noticed']]){
+    assert.equal(check(text).find(f=>f.original===original)?.suggestions[0],target,text);
+  }
+  for(const text of ['different things','The Differents performed.','Notined is a name.'])assert.equal(englishGrammar(text).length,0,text);
+  for(const text of ['differents things','I notined that it grew.']){
+    const finding=englishGrammar(text)[0];
+    assert.equal(englishGrammar(text,[[finding.from,finding.to]]).length,0,text);
+    assert.equal(englishGrammar(text,[],new Set([finding.original])).length,0,text);
+  }
+});
+
+test('adverbs retain contraction context and required login actions use the phrasal verb',()=>{
+  for(const [text,target] of [['Im mostly using it.',"I'm"],['Im currently working here.',"I'm"],['I have to login multiple times.','log in'],['She needs to login.','log in']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['IM protocol','Im mostly','Go to login settings.','I need a login page.'])assert.equal(englishGrammar(text).length,0,text);
+});
+
 test('leasing-person typo and comma-separated list abbreviation keep their intended nouns',()=>{
   for(const [text,target]of [['find a leasee for a domain','lessee'],['TerminalBench, SWE-bench, RepoBench, ect,','etc']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['a lease for a domain','ECT treatment','ect is a variable'])assert.equal(englishGrammar(text).length,0,text);

@@ -2,6 +2,21 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('intention and experiential predicates retain their existing boundaries',()=>{
+  for(const text of ['사려 합니다','먹으려 합니다','해본 적이','만든 적이','넣으라는데','읽으라면서','의치대나','의치한약수','땡땡대','대폭등','궤를 같이하는데'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('생물학 적인').some(f=>f.suggestions[0]==='생물학적인'));
+});
+
+test('nested adverbs, nominal particles and honorific auxiliaries keep complete hosts',()=>{
+  for(const [text,target]of [['잘만든것','잘 만든 것'],['어제만해도','어제만 해도'],['견적해주셨는데','견적해 주셨는데'],['괜찮다고는하는데','괜찮다고는 하는데'],['있는걸보면','있는 걸 보면'],['것처럼하길래','것처럼 하길래'],['어려운시기에','어려운 시기에'],['만들예정인','만들 예정인']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['웬만하다','기만하다','잘만','만들다'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('colloquial ending typos are restored before speculative internal spaces',()=>{
+  for(const [text,target]of [['무서울정도내요','무서울 정도네요'],['모르게써요','모르겠어요'],['제작년에','재작년에']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['모르게 써요','돈 내요','재작년에'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('quotation and obligation phrases retain complete predicates before dependent nouns',()=>{
   for(const [text,target]of [['어디가야합니까','어디 가야 합니까'],['어디가야할까요','어디 가야 할까요'],['한다고할때','한다고 할 때'],['병원인가함','병원인가 함'],['지랄맞게변했음','지랄맞게 변했음']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['한다는','인가하다','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);

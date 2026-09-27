@@ -732,3 +732,7 @@ Luna 두 역할이 이뻐→예뻐를 필수 수정으로 제안한 것은 [국�
 ## 공개 글 판정 감사: 좀더의 허용 붙임
 
 [국립국어원 온라인가나다 320875](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=320875&searchCondition=&searchKeyword=)는 한글 맞춤법 제46항의 연속 단음절어 예에서 `좀 더`가 원칙이고 `좀더`도 허용된다고 설명한다. 공개 글 평가표의 `좀더→좀 더`는 필수 교정으로 세지 않는다. 검사기에 이를 강제하는 규칙도 넣지 않는다. 원래 평가표와 첫 결과는 사후 수정하지 않고 감사판에서 분모를 조정한다.
+
+## 의도 표현과 간접 명령의 보존
+
+[국립국어원 FAQ8556](https://www.korean.go.kr/front/mcfaq/mcfaqView.do?mcfaq_seq=8556&mn_id=62&pageIndex=80)은 `-려 하다`의 붙여 쓰기를 허용하지 않는다. 앞말에 명사 동음이의어가 있어도 검증된 의도 어미의 경계를 합치지 않는다. [한국어기초사전 -라는데](https://krdict.korean.go.kr/eng/dicSearch/SearchView?ParaWordNo=82259&nation=eng)는 명령을 간접 인용하는 표현과 `-으라는데`의 대응을 설명한다. 완성된 동사 명령형을 확인해 이 인용형을 보존하며, 형용사 동음이의 분석으로 새 교정 후보를 만들지 않는다. [재작년](https://krdict.korean.go.kr/eng/dicSearch/SearchView?ParaWordNo=24950&nation=eng&nationCode=6)은 독립된 시간 명사로 복원하고 뒤 조사를 유지한다.

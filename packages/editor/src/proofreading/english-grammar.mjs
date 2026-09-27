@@ -7,6 +7,19 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     if(findings.some(item=>item.from<to&&item.to>from))return;
     findings.push({from,to,original:text.slice(from,to),language:'en',type,suggestions:[suggestion],applicable:true,reason});
   };
+  for(const match of text.matchAll(/\bharnesss\b/gi)){
+    const before=text.slice(Math.max(0,match.index-40),match.index),after=text.slice(match.index+match[0].length);
+    const pluralDeterminer=/\b(?:these|those|many|several|some|both|two|three|four|five|[2-9]|[1-9]\d+)\s+$/i.test(before);
+    const pluralPredicate=/^\s+(?:(?:which|that)\s+(?:I|we|you|they|he|she)\s+(?:(?:have|has|had)\s+)?(?:(?:previously|already|recently)\s+)?(?:used|tried|tested|bought|made)\s+)?(?:are|were|have)\b/i.test(after);
+    if(pluralDeterminer||pluralPredicate)add(match.index,match.index+match[0].length,match[0][0]==='H'?'Harnesses':'harnesses','The plural context requires harnesses, retaining the final plural syllable','spelling');
+  }
+  for(const match of text.matchAll(/\b[Dd]ifferents(?=\s+(?:things|people|ways|tools|ideas|options|types|kinds|versions|results|methods|approaches)\b)/g)){
+    add(match.index,match.index+match[0].length,match[0].slice(0,-1),'The adjective different does not take plural agreement');
+  }
+  for(const match of text.matchAll(/\b(?:I|we|you|they|he|she)\s+(?:(?:just|recently|already)\s+)?(notined)(?=\s+(?:that|a|an|the|this|something)\b)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'noticed','This perception verb is spelled noticed','spelling');
+  }
   for(const match of text.matchAll(/\b(?:a|the)\s+(leasee)(?=\s+(?:for|of)\s+(?:a|the)\s+(?:domain|property|flat|apartment|car)\b)/gi)){
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'lessee','The person holding the lease is the lessee','spelling');
@@ -239,7 +252,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\byour going(?=\s+to\s+be\b)/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='Y'?"You're going":"you're going",'Use you are before going to be');
   }
-  for(const match of text.matchAll(/\b[Ii]m\b(?=\s+(?:a|an|back|going|doing|using|building|creating|related|split|sorry|sure|ready|glad|not|still|here|having|trying|looking|Looking|working|wondering)\b)/g)){
+  for(const match of text.matchAll(/\b[Ii]m\b(?=\s+(?:(?:mostly|currently|really|just)\s+)?(?:a|an|back|going|doing|using|building|creating|related|split|sorry|sure|ready|glad|not|still|here|having|trying|looking|Looking|working|wondering)\b)/g)){
     add(match.index,match.index+match[0].length,"I'm",'First-person contraction needs an apostrophe');
   }
   for(const match of text.matchAll(/\b[Ii]m\b(?=\s+(?:planning\s+to|planning\s+(?:a|an|the)|painting\s+(?:a|an|the)|replacing\s+(?:some|a|an|the|my|our)|keen\s+to|stuck\s+(?:between|with|in|on)|concerned\s+about|after\s+(?:some|a|an|the)|at\s+(?:a|an|the)|the\s+\d+(?:st|nd|rd|th)|new\s+(?:here|to|so))\b)/g)){
@@ -284,6 +297,10 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(?:have|has|had|need|needs|needed|want|wants|wanted)\s+to\s+(spent)\b/gi)){
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'spend','The infinitive takes the base verb spend');
+  }
+  for(const match of text.matchAll(/\b(?:have|has|had|need|needs|needed|want|wants|wanted)\s+to\s+(login)\b/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'log in','The infinitive phrasal verb log in is written as two words');
   }
   for(const match of text.matchAll(/\b[Tt]here\s+(has)\s+been\s+(?:a few|several|many)\s+(?:posts|people|questions|problems|changes|days|years|cases)\b/g)){
     const from=match.index+match[0].indexOf(match[1]);

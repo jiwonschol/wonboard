@@ -5,14 +5,14 @@
 export const communityNouns = ['비트코인', '물가지수', '내구도', '이어버드', '라우터', '프로토타입', '워크플로', '마이그레이션', '이곳', '그곳', '저곳', '측', '더불어민주당', '파일명', '항목명', '역할명', '사용자명', '곡명', '작품명', '제품명', '저자명', '긴바지', '배송지', '특별전', '날것'];
 // Established labels/terms recognize nominal use and particles, without
 // granting a productive -하다 stem or adding candidate fragments.
-export const communityNominalOnly = ['여친', '남친', '난타전', '선이수', '슨상님', '된찌', '아주대', '자연대', '명시지', '용과같이', '천장등', '과동아리', '해양대', '붉은사막', '님', '얼리버드', '좋아요', '싫어요', '대시보드', '플러그인', '웹사이트', '스펙', '유튜브', '팁', '정답지', '나히다', '초심배마', '호감캐', '부캐', '모루저', '샛기', '도화가', '클영상', '할모시', '클리어', '제미나이', '재미나이', '바이퍼'];
+export const communityNominalOnly = ['의치대', '의치한약수', '땡땡대', '대폭등', '여친', '남친', '난타전', '선이수', '슨상님', '된찌', '아주대', '자연대', '명시지', '용과같이', '천장등', '과동아리', '해양대', '붉은사막', '님', '얼리버드', '좋아요', '싫어요', '대시보드', '플러그인', '웹사이트', '스펙', '유튜브', '팁', '정답지', '나히다', '초심배마', '호감캐', '부캐', '모루저', '샛기', '도화가', '클영상', '할모시', '클리어', '제미나이', '재미나이', '바이퍼'];
 // Established computing terms. Preserve the author's casing in informal prose;
 // other acronyms and personal entries retain their existing handling.
 export const technicalAbbreviations = ['CPU', 'GPU', 'SNS', 'RSS', 'NVMe', 'OSS'];
 // Reviewed English forms absent from the small bundled word list. Recognition
 // only: these do not become edit-distance correction targets.
 export const englishRecognizedTerms = [
-  'appt', 'appts', 'skool', 'oauth', 'genai', 'forumite', 'forumites', 'vaillant', 'tortie', 'baseus',
+  'util', 'utils', 'appt', 'appts', 'skool', 'oauth', 'genai', 'forumite', 'forumites', 'vaillant', 'tortie', 'baseus',
   'typer', 'typers', 'ublock', 'faang', 'modding', 'insta', 'blocklist', 'blocklists', 'blocklisted', 'blocklisting', 'flexi',
   // Common technical words and names reviewed in already exposed posts.
   'adblock', 'addons', 'auth', 'autocomplete', 'changelog', 'chatbot', 'chatbots', 'checkmail', 'cloudflare', 'codeberg', 'codeshare', 'cowsay', 'deserialization', 'dlss', 'downdetector', 'downvote', 'downvoted', 'dropbox', 'embeddable', 'esbuild', 'ethernet', 'favicon', 'firefox', 'github', 'gsoc', 'hackathon', 'haskell', 'healthcare', 'heatwave', 'homelabbing', 'href', 'http', 'imgur', 'infostealers', 'instagram', 'installable', 'inswing', 'jumpered', 'kubernetes', 'linkedin', 'mainboard', 'monospace', 'namespace', 'neighbourhood', 'neovim', 'netstat', 'newbie', 'ngrok', 'onboarding', 'openbsd', 'pagefile', 'pinephone', 'plugin', 'plugins', 'postgresql', 'prioritising', 'pyautogui', 'pytorch', 'repl', 'rootkit', 'schengen', 'serverless', 'sideloaded', 'sidepanel', 'signup', 'signups', 'sourcecode', 'speedrun', 'subreddits', 'sunsetting', 'taskkill', 'telehealth', 'timestamps', 'timezone', 'tmux', 'traceroute', 'undercabinet', 'upvote', 'urls', 'vscode', 'wholewheat', 'wifi', 'wirenut', 'worktrees', 'youtube',
@@ -22,7 +22,7 @@ export const communityVerbStems = ['개기', '버벅거리'];
 export const communityAdjectiveStems = ['지랄맞', '찰떡같', '불꽃같', '푹신푹신하', '개빡세', '어마무시하'];
 // Verified productive action nouns. Shared by inflection recognition and
 // noun + 하다 boundary checks; personal words never enter this list.
-export const communityActionNouns = ['시각화', '자동화', '암호화', '복호화', '출시', '테스트', '마이그레이션', '필터링', '덤핑', '패스', '구동', '정당화', '소포장', '세팅'];
+export const communityActionNouns = ['견적', '시각화', '자동화', '암호화', '복호화', '출시', '테스트', '마이그레이션', '필터링', '덤핑', '패스', '구동', '정당화', '소포장', '세팅'];
 
 // Development-corpus candidates. Their internal nouns may also have other
 // readings; keep these out of the productive noun inventory and request review.

@@ -29,6 +29,8 @@ export function createChecker(data) {
   const knownOrthographicNoun=word=>sets.noun.has(word)||recognizedNouns.has(word)||morphology.isDerivedNominal(word);
   const candidateBoundary=(word,personal,text,from,to)=>{
     if(personal.has(word))return null;
+    const degreeEnding=word.match(/^(.+)정도내요$/);
+    if(degreeEnding&&morphology.predicate(degreeEnding[1])?.adnominal)return {type:'spelling',suggestions:[degreeEnding[1]+' 정도네요'],reason:'Restore the copular ending after an adnominal degree phrase',ambiguous:true};
     // A recognition-only noun plus topic particle can coincide with 안/못
     // and an adnominal verb (안가+는 / 안 가는). A preceding destination or
     // object and following nominal support the negative reading in context.
@@ -284,6 +286,10 @@ export function createChecker(data) {
     // Relative request targets are structured identifiers, including query
     // placeholders containing spaces. Do not change their path/key casing.
     for(const m of text.matchAll(/(?:^|[\s(])\/[A-Za-z0-9._~/-]+\?[A-Za-z0-9_%-]+=(?:<[^>\n]*>|[^\s)]*)/g)){
+      const start=m.index+(m[0][0]==='/'?0:1);excluded.push([start,m.index+m[0].length]);
+    }
+    // Slash-delimited resource paths retain identifier casing without a query.
+    for(const m of text.matchAll(/(?:^|[\s("'])\/[A-Za-z0-9._~-]+(?:\/[A-Za-z0-9._~-]+)+\/?/g)){
       const start=m.index+(m[0][0]==='/'?0:1);excluded.push([start,m.index+m[0].length]);
     }
     // CSS URL functions carry code identifiers and resource paths together.
@@ -578,6 +584,9 @@ export function createChecker(data) {
         // Context selects the part of speech where a nearby dictionary
         // adjective would otherwise win over an ordinary verb/noun typo.
         const before=text.slice(Math.max(0,from-50),from);
+        if(/\b(?:app|tool|project|service|manager|platform|library|package)\s+(?:called|named)\s+$/i.test(before)){
+          emit(from,to,'en','unknown',[],word);continue;
+        }
         const contextualRepair=lookup==='ther'&&/\b(?:hi|hello|hey)\s+$/i.test(before)?'there':lookup==='avpid'&&/\bto\s+$/.test(before)?'avoid':lookup==='ceilingd'&&/\b(?:wall|walls)\s+and\s+$/.test(before)?'ceiling':null;
         if(contextualRepair&&enLower.has(contextualRepair)){emit(from,to,'en','spelling',[contextualRepair],word);continue;}
         // Preserve camel-case identifiers and acronyms as unknown expressions.
@@ -651,7 +660,7 @@ export function createChecker(data) {
         // Preserve the complete particle/copula after the nominal suffix -적.
         // Bare 적 can be an independent noun; do not join that homograph.
         const nominalSuffix=text.slice(to).match(/^[ \u00a0]+적([가-힣]+)(?![가-힣ㄱ-ㅎㅏ-ㅣ])/);
-        if(nominalSuffix&&morphology.isDerivedNominal(word+'적')&&!personal.has('적'+nominalSuffix[1])){
+        if(nominalSuffix&&!morphology.predicate(word)?.adnominal&&morphology.isDerivedNominal(word+'적')&&!personal.has('적'+nominalSuffix[1])){
           const tail=nominalSuffix[1],end=to+nominalSuffix[0].length;
           if((/^(?:으로|의|에|도|만)/.test(tail)&&sets.josa.has(tail)||/^(?:인|이|입|였)/.test(tail)&&morphology.predicate(tail)?.root==='이')&&!excluded.some(([a,b])=>from<b&&end>a)&&!results.some(f=>f.from<end&&f.to>from)){
             emit(from,end,'ko','spacing',[word+'적'+tail]);
@@ -779,7 +788,8 @@ export function createChecker(data) {
             // An action-noun homograph does not override a complete particle
             // phrase (제가) or an independent adverb (계속) before 하다.
             const host=morphology.analyze(preceding[1],personal);
-            const independentHost=['정도','등등'].includes(preceding[1])||sets.adverb.has(preceding[1])||host?.kind==='noun'&&host.base!==preceding[1]&&sets.josa.has(preceding[1].slice(host.base.length));
+            const intentionHost=derivationalTail==='하'&&/(?:려|려고)$/.test(preceding[1])&&morphology.predicate(preceding[1]);
+            const independentHost=intentionHost||['정도','등등'].includes(preceding[1])||sets.adverb.has(preceding[1])||host?.kind==='noun'&&host.base!==preceding[1]&&sets.josa.has(preceding[1].slice(host.base.length));
             const beforeMatch=text.slice(0,start).match(/([가-힣]+)[ \u00a0]+$/);
             const before=beforeMatch?.[1];
             const modifier=before&&morphology.analyze(before,personal);
