@@ -2,6 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('derived nominal suffixes retain particles and contracted transport clauses split',()=>{
+  for(const text of ['대체품이','자연풍도','해양대를','조립품은','복고풍으로'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('가져다놓는건데').some(f=>f.suggestions[0]==='가져다 놓는 건데'));
+});
+
 test('adnominal 듯이 remains distinct from a stem ending',()=>{
   assert.ok(check('미친듯이 노력했다').some(f=>f.suggestions[0]==='미친 듯이'));
   for(const text of ['먹듯이','날듯이','인식이 잘된답니다','서성한 라인알거 같음'])assert.equal(check(text).some(f=>f.applicable),false,text);

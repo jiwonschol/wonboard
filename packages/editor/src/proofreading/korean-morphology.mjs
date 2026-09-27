@@ -207,7 +207,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   const recognitionParticles=[...sets.josa];
   const shortHostParticles=new Set(['이','가','을','를','은','는','도','만','에','로','와','과','의','에서','에게','으로','부터','까지','처럼','보다','보단','께서']);
   const isRecognizedNoun=s=>recognizedNouns.has(s)||recognitionParticles.some(p=>s.endsWith(p)&&recognizedNouns.has(s.slice(0,-p.length)));
-  const derivedNominal=s=>/[적용별]$/.test(s)&&s.length>2&&(sets.noun.has(s.slice(0,-1))||recognizedNouns.has(s.slice(0,-1))||s.endsWith('용')&&s.length>3&&s[s.length-2]==='자'&&actionNouns.has(s.slice(0,-2)));
+  const derivedNominal=s=>/[적용별품풍]$/.test(s)&&s.length>2&&(sets.noun.has(s.slice(0,-1))||recognizedNouns.has(s.slice(0,-1))||s.endsWith('용')&&s.length>3&&s[s.length-2]==='자'&&actionNouns.has(s.slice(0,-2)));
   const demonstratives=new Set(['이것','그것','저것','요것','무엇','이곳','그곳','저곳']);
   const quantityHosts=new Set(['하나','둘','셋','넷','다섯','여섯','일곱','여덟','아홉','열','스물','반','번째','개','장','번','군데','달','시간','조각','권','명','마리','살','쪽','줄','잔','병','봉지','그루','켤레','벌','세트','차례','개월','년','분','초','가지','폭','칸','날']);
   const repeatedActionNoun=s=>s.length>=3&&s.startsWith('재')&&!s.slice(1).startsWith('재')&&actionNouns.has(s.slice(1));
@@ -1118,6 +1118,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
           !['이','하','되','받','당하','드리'].includes(rightPredicate.root)&&(!rightPredicate.adnominal||next.includes(' ')))return true;
         const main=predicate(last)??(left?.kind==='predicate'?left:null);
         if(main&&last.endsWith('다')&&['보','하'].includes(rightPredicate?.root))return true;
+        if(main&&last.endsWith('다')&&predicate(last.slice(0,-1))?.root===main.root&&rightPredicate)return true;
         if(main&&last.endsWith('나')&&!main.adnominal&&rightPredicate?.root==='하')return true;
         if(main&&/(?:야|야만)$/.test(last)&&['하','되'].includes(rightPredicate?.root))return true;
         if(main&&/(?:나|까|가)$/.test(last)&&rightPredicate?.root==='싶')return true;

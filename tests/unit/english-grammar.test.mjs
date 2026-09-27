@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('CSS resource functions and established computing words stay intact',()=>{
+  for(const text of ['background: url("triangle.svg");','model params','hardcode the value'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('graudate student').some(f=>f.suggestions[0]==='graduate'));
+});
+
 test('compound hyphens and computing words preserve their identity',()=>{
   for(const text of ['a to-do list','I uninstalled Pi-hole.','control diff inline'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('models are increasingly stucking in thought').some(f=>f.suggestions[0]==='stuck'));

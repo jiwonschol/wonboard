@@ -242,6 +242,8 @@ export function createChecker(data) {
     for(const m of text.matchAll(/(?:^|[\s(])\/[A-Za-z0-9._~/-]+\?[A-Za-z0-9_%-]+=(?:<[^>\n]*>|[^\s)]*)/g)){
       const start=m.index+(m[0][0]==='/'?0:1);excluded.push([start,m.index+m[0].length]);
     }
+    // CSS URL functions carry code identifiers and resource paths together.
+    for(const m of text.matchAll(/\burl\(\s*(?:"[^"]*"|'[^']*'|[^\s)]*)\s*\)/gi))excluded.push([m.index,m.index+m[0].length]);
     results.push(...englishGrammar(text,excluded,personal));
     const quotedEnds=new Set([...text.matchAll(/"[^"\n]+"|'[^'\n]+'|“[^”\n]+”|‘[^’\n]+’|「[^」\n]+」|『[^』\n]+』|\([^()\n]+\)|\[[^\[\]\n]+\]/g)].map(m=>m.index+m[0].length));
     function emit(from,to,language,type,suggestions,base) {results.push({from,to,original:text.slice(from,to),language,type,suggestions,base,applicable:suggestions.length>0,reason:type==='unknown'?'Not in the selected vocabulary':'Prototype lexical candidate; rule source not yet verified'});}
