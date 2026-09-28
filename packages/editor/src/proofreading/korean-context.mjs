@@ -26,6 +26,8 @@ export function communityExpression(text,from,to,personal,sets,predicate){
   // sequence of dictionary fragments. Review the complete expression;
   // registration still belongs to the individual user's dictionary.
   if(!personal.has(word)&&/^[으우아어오와악앗헉헐하허흐히후휴호에엥음응]+$/.test(word)&&/([가-힣])\1{3,}/.test(word))return word;
+  // Crying interjections may end with a nasal coda after stretched 아.
+  if(!personal.has(word)&&/^으?아+앙$/.test(word))return word;
   // Review a possible internet intensifier without inventing a space or
   // approving it as standard. Complete lexical predicates stay intact.
   if(!personal.has(word)&&word.startsWith('개')&&!predicate(word)){

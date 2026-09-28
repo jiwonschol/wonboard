@@ -683,3 +683,58 @@ test('progressive colloquial endings and attested terms preserve their meaning',
   for(const text of ['I am givin it.','she aint givin me Da remote.','overspeeding','from carsa'])assert.equal(check(text).some(f=>f.applicable),false,text);
   for(const [text,target]of [['I was readin about it.','reading'],['I am lookin for it.','looking'],['moral comapss','compass'],['an optitician','optician'],['I proofreaded it.','proofread']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
 });
+
+const applicable=text=>check(text).filter(f=>f.applicable);
+const byOriginal=(text,original)=>applicable(text).find(f=>f.original===original);
+
+test('check-in terminal noun is not changed into a progressive verb',()=>{
+  assert.equal(byOriginal('self checkin terminals','checkin'),undefined);
+  assert.equal(byOriginal('self checkin terminals','checking'),undefined);
+  assert.equal(applicable('self checkin terminals; teh sign is broken').find(f=>f.original==='teh')?.suggestions[0],'the');
+  assert.equal(applicable('I am checking the terminals.').some(f=>f.original==='checking'),false);
+});
+
+test('the intended participle outranks an unrelated weekend candidate',()=>{
+  assert.equal(byOriginal('corroded but not seriusly weakend','weakend')?.suggestions[0],'weakened');
+  assert.equal(byOriginal('The metal was seriously weakend.','weakend')?.suggestions[0],'weakened');
+  assert.equal(byOriginal('We had a great weakend.','weakend')?.suggestions[0],'weekend');
+  assert.equal(applicable('The weekend was quiet.').some(f=>f.original==='weekend'),false);
+  assert.equal(byOriginal('The rail is seriously weakened.','weakened'),undefined);
+});
+
+test('sound-making context selects noises over notices',()=>{
+  assert.equal(byOriginal('making these noices','noices')?.suggestions[0],'noises');
+  assert.equal(byOriginal('making these noises','noises'),undefined);
+  assert.equal(byOriginal('making these notices available','notices'),undefined);
+});
+
+test('French idiom is protected by phrase context while English errors nearby remain actionable',()=>{
+  const text='homme des lettres and teh letters';
+  assert.equal(applicable(text).some(f=>['homme','des','lettres'].includes(f.original)),false);
+  assert.equal(applicable(text).find(f=>f.original==='teh')?.suggestions[0],'the');
+  assert.equal(applicable('The letters are in the envelope.').some(f=>f.original==='letters'),false);
+});
+
+test('through is restored in the history-of-attempts context, without touching valid forms',()=>{
+  assert.deepEqual(byOriginal('attempts throught history to generate code','throught')?.suggestions,['through','throughout']);
+  for(const text of ['attempts through history to generate code','attempts throughout history to generate code','I thought about history.'])
+    assert.equal(applicable(text).length,0,text);
+});
+
+test('an article before terminal software stays reviewable as an open modifier',()=>{
+  assert.equal(englishGrammar('operating a software').length,0);
+  assert.equal(englishGrammar('operating a software product').length,0);
+  assert.equal(englishGrammar('Operating a software.')[0]?.suggestions[0],'software');
+  assert.equal(englishGrammar('Operating a software, which is expensive.')[0]?.suggestions[0],'software');
+  assert.equal(englishGrammar('I need a feedback')[0]?.suggestions[0],'feedback');
+});
+
+
+test('less common but attested spelling losses recover their intended words',()=>{
+  assert.equal(byOriginal('who is losing breathble air','breathble')?.suggestions[0],'breathable');
+  assert.equal(byOriginal('considering using insectasides','insectasides')?.suggestions[0],'insecticides');
+  assert.equal(byOriginal('with Celular Number or IMEI','Celular')?.suggestions[0],'Cellular');
+  assert.equal(byOriginal('Celular Systems are proprietary.','Celular'),undefined);
+  assert.equal(byOriginal('The air is breathable.','breathable'),undefined);
+  assert.equal(byOriginal('Use insecticides carefully.','insecticides'),undefined);
+});

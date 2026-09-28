@@ -603,7 +603,7 @@ test('an emphatic particle keeps the complete causal connective intact',()=>{
 });
 
 test('elongated interjections remain one review expression and personal registration keeps neighboring repairs',()=>{
-  for(const source of ['으아아아아악','와아아아아','하하하하하']){
+  for(const source of ['으아아아아악','와아아아아','하하하하하','으아아앙','으아앙','아아아앙']){
     const result=check(source);assert.equal(result.length,1,source);
     assert.equal(result[0].type,'unknown');assert.equal(result[0].original,source);assert.deepEqual(result[0].suggestions,[]);
     assert.deepEqual(check(source,[source]),[],source);

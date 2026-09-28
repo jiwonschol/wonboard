@@ -70,6 +70,27 @@ export function createChecker(data) {
       const standard=word.slice(0,-2)+'네요',spaced=morphology.spacing(standard,new Set());
       if(spaced&&!spaced.unknowns?.length&&spaced.text.endsWith('네요'))return {type:'spacing',suggestions:[spaced.text.slice(0,-2)+'네용'],reason:'Preserve colloquial 네용 while separating the validated preceding phrase',ambiguous:true};
     }
+    if(!morphology.analyze(word,personal)&&!recognizedNoun(word)&&!recognizeWhole?.(word,personal)&&!morphology.spacing(word,personal)){
+      const boundaries=[];
+      // Preserve colloquial 땜, but keep it separate from a demonstrative.
+      const cause=word.match(/^(이거|그거|저거)(땜.*)$/);
+      if(cause&&morphology.analyze(cause[2],personal)?.base==='땜')boundaries.push(cause[1]+' '+cause[2]);
+      for(let i=2;i<word.length-1;i++){
+        const left=word.slice(0,i),right=word.slice(i),tail=morphology.predicate(right);
+        // A purpose connective and its motion verb remain separate, including
+        // the auxiliary compound 가보다. Keep complete lexical forms above.
+        if(left.endsWith('러')&&morphology.predicate(left)&&['가','오','다니','가보','와보'].includes(tail?.root))boundaries.push(left+' '+right);
+        if(!knownOrthographicNoun(left))continue;
+        if(['있','없'].includes(tail?.root)&&!(left.endsWith('수')&&morphology.predicate(left.slice(0,-1))?.adnominal))boundaries.push(left+' '+right);
+        // Recognition-only nouns must not become arbitrary segmentation
+        // fragments. A validated -고 싶다 clause supplies its own boundary,
+        // provided its first predicate does not derive from the noun.
+        const clause=morphology.spacing(right,personal),parts=clause?.text.split(' ');
+        if(parts?.length===2&&parts[0].endsWith('고')&&parts[1].startsWith('싶')&&!clause.unknowns?.length&&morphology.predicate(parts[0])&&!['이','하','되','시키','스럽','받','주','드리'].includes(morphology.predicate(parts[0]).root)&&!knownOrthographicPredicate(left+parts[0]))boundaries.push(left+' '+clause.text);
+      }
+      const unique=[...new Set(boundaries)];
+      if(unique.length===1)return {type:'spacing',suggestions:unique,reason:'Separate a validated purpose or nominal boundary before an independent clause',ambiguous:true};
+    }
     if(!morphology.analyze(word,personal)&&!recognizedNoun(word)&&!recognizeWhole?.(word,personal))for(let i=2;i<word.length-2;i++){
       if(word[i]!=='나')continue;
       const left=word.slice(0,i),right=word.slice(i+1);
@@ -135,7 +156,7 @@ export function createChecker(data) {
     const lower=word.toLowerCase(),alphabet='abcdefghijklmnopqrstuvwxyz',candidates=new Set();
     // Reviewed spelling repairs that weak edit-distance evidence otherwise
     // suppresses. These remain errors, never recognition-only vocabulary.
-    const lexicalRepair={comapss:'compass',optitician:'optician',proofreaded:'proofread',anyboby:'anybody',technicaians:'technicians',lucious:'luscious',havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth',conming:'coming',washine:'washing',opnions:'opinions',maube:'maybe',staistic:'statistic',sautee:'saute',nothwithstanding:'notwithstanding',creasote:'creosote',subtley:'subtly',harasssed:'harassed',headequarter:'headquarters',unbereable:'unbearable',diptheria:'diphtheria',communial:'communal',clobering:'clobbering',mantlepiece:'mantelpiece',spolit:'spoilt',breathelessness:'breathlessness',ancestores:'ancestors',combustable:'combustible',desparately:'desperately',predesessors:'predecessors',squeeking:'squeaking',adheasion:'adhesion',mismangement:'mismanagement',aneamic:'anaemic',duatpan:'dustpan',idiogram:'ideogram',omeprazol:'omeprazole',antogonistic:'antagonistic'}[lower];
+    const lexicalRepair={breathble:'breathable',insectasides:'insecticides',comapss:'compass',optitician:'optician',proofreaded:'proofread',anyboby:'anybody',technicaians:'technicians',lucious:'luscious',havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth',conming:'coming',washine:'washing',opnions:'opinions',maube:'maybe',staistic:'statistic',sautee:'saute',nothwithstanding:'notwithstanding',creasote:'creosote',subtley:'subtly',harasssed:'harassed',headequarter:'headquarters',unbereable:'unbearable',diptheria:'diphtheria',communial:'communal',clobering:'clobbering',mantlepiece:'mantelpiece',spolit:'spoilt',breathelessness:'breathlessness',ancestores:'ancestors',combustable:'combustible',desparately:'desperately',predesessors:'predecessors',squeeking:'squeaking',adheasion:'adhesion',mismangement:'mismanagement',aneamic:'anaemic',duatpan:'dustpan',idiogram:'ideogram',omeprazol:'omeprazole',antogonistic:'antagonistic'}[lower];
     if(lexicalRepair&&enLower.has(lexicalRepair))return [lexicalRepair];
     if(lower==='alot')return ['a lot'];
     if(lower==='canthe')return ['can the'];
@@ -296,7 +317,10 @@ export function createChecker(data) {
     // A parenthetical Romance-language name is not English edit-distance
     // input. Keep the words reviewable and preserve the surrounding prose.
     const foreignGlosses=[...text.matchAll(/\([a-z]+(?:\s+[a-z]+){0,2}\s+(?:de|del|du|des)\s+[a-z]+(?:\s+[a-z]+){0,2}\)/gi)].map(m=>[m.index,m.index+m[0].length]);
-    const excluded=[...text.matchAll(/https?:\/\/[^\s]+|`[^`]*`|\b[A-Za-z0-9_-]+\.(?:md|txt|png|jpe?g|gif|webp|pdf|json|tsx?|jsx?|html|css|zip)\b|\b(?:Ctrl|Control|Alt|Option|Shift|Cmd|Command|Meta)(?:\+[A-Za-z0-9]+)+/g)].map(m=>[m.index,m.index+m[0].length]);
+    // Preserve this established French idiom as a phrase, without allowlisting
+    // its component word lettres in ordinary English prose.
+    const protectedForeignPhrases=[...text.matchAll(/\bhomme\s+des\s+lettres\b/gi)].map(m=>[m.index,m.index+m[0].length]);
+    const excluded=[...protectedForeignPhrases,...[...text.matchAll(/https?:\/\/[^\s]+|`[^`]*`|\b[A-Za-z0-9_-]+\.(?:md|txt|png|jpe?g|gif|webp|pdf|json|tsx?|jsx?|html|css|zip)\b|\b(?:Ctrl|Control|Alt|Option|Shift|Cmd|Command|Meta)(?:\+[A-Za-z0-9]+)+/g)].map(m=>[m.index,m.index+m[0].length])];
     // TeX control words are identifiers, including when pasted without math
     // delimiters. Their arguments and surrounding prose remain checkable.
     for(const m of text.matchAll(/\\[A-Za-z]+/g))excluded.push([m.index,m.index+m[0].length]);
@@ -540,6 +564,10 @@ export function createChecker(data) {
         // Smart punctuation changes typography, not the contracted word.
         // Normalize lookup only; offsets, user text and replacements stay intact.
         const lookup=word.replaceAll('’',"'");
+        const localBefore=text.slice(Math.max(0,from-50),from);
+        if(lookup.toLowerCase()==='celular'&&/\bwith\s+$/i.test(localBefore)&&/^\s+Number\s+or\s+IMEI\b/i.test(text.slice(to))&&enLower.has('cellular')){
+          emit(from,to,'en','spelling',[word[0]===word[0].toUpperCase()?'Cellular':'cellular'],word);continue;
+        }
         // Capitalized names and plural acronyms are not misspellings merely
         // because a smaller word list contains a similar unrelated word.
         // A letter swap can also make a different name; only an excessive
@@ -626,7 +654,11 @@ export function createChecker(data) {
         if(/^[a-z]{3,}in$/.test(lookup)&&enLower.has(lookup+'g')&&englishSuggestions(word)[0]!==lookup+'g'&&/\b(?:am|is|are|was|were|ain['’]?t)(?:\s+not)?\s+$/i.test(before)){
           emit(from,to,'en','unknown',[],word);continue;
         }
-        const contextualRepair=lookup==='ther'&&/\b(?:hi|hello|hey)\s+$/i.test(before)?'there':lookup==='avpid'&&/\bto\s+$/.test(before)?'avoid':lookup==='ceilingd'&&/\b(?:wall|walls)\s+and\s+$/.test(before)?'ceiling':lookup==='extrem'&&/^\s+(?:knowledgeable|difficult|important|good|bad|useful)\b/i.test(text.slice(to))?'extremely':null;
+        if(lookup.toLowerCase()==='checkin'&&/\bself\s+$/i.test(before)&&/^\s+terminals?\b/i.test(text.slice(to)))continue;
+        if(lookup.toLowerCase()==='throught'&&/\b(?:attempts?|efforts?|tries)\s+$/i.test(before)&&/^\s+history\b/i.test(text.slice(to))&&enLower.has('through')&&enLower.has('throughout')){
+          emit(from,to,'en','spelling',['through','throughout'],word);continue;
+        }
+        const contextualRepair=lookup==='weakend'&&/\b(?:seriously|seriusly|severely|badly|further)\s+$/i.test(before)?'weakened':lookup==='noices'&&/\bmaking\s+these\s+$/i.test(before)?'noises':lookup==='ther'&&/\b(?:hi|hello|hey)\s+$/i.test(before)?'there':lookup==='avpid'&&/\bto\s+$/.test(before)?'avoid':lookup==='ceilingd'&&/\b(?:wall|walls)\s+and\s+$/.test(before)?'ceiling':lookup==='extrem'&&/^\s+(?:knowledgeable|difficult|important|good|bad|useful)\b/i.test(text.slice(to))?'extremely':null;
         if(contextualRepair&&enLower.has(contextualRepair)){emit(from,to,'en','spelling',[contextualRepair],word);continue;}
         // Preserve camel-case identifiers and acronyms as unknown expressions.
         // In Korean prose, a capitalized word with a close dictionary match

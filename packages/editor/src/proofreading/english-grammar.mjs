@@ -467,6 +467,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   // Mass nouns can be modifiers in a software company or a feedback loop.
   // Only remove the article when this is the completed noun phrase.
   for(const match of text.matchAll(/\b(?:a|an)\s+(?:(?:genuine|useful|helpful)\s+)?(?:feedback|advice|software|spyware|travel insurance)\b(?=\s*[,.;!?)]|$|\s+(?:on|about|for|from|to|that|which|in|with)\b)/gi)){
+    if(/\bsoftware$/i.test(match[0])&&match.index+match[0].length===text.length)continue;
     add(match.index,match.index+match[0].length,match[0].replace(/^(?:a|an)\s+/i,''),'This mass noun does not take an indefinite article');
   }
   for(const match of text.matchAll(/\bmuch\s+(?:false\s+)?(?:positives|negatives|errors|problems|issues|people|files|users)\b/gi)){

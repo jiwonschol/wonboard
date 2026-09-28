@@ -2,6 +2,28 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('purpose connectives stay separate from independently inflected motion verbs',()=>{
+  for(const [text,target]of [['보러가볼까','보러 가볼까'],['먹으러가볼까','먹으러 가볼까'],['만나러왔어요','만나러 왔어요']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['보러 가볼까','먹으러 가볼까','그러니까'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.equal(check('보러가볼까',['보러가볼까']).some(f=>f.applicable),false);
+});
+
+test('recognized nouns can precede a desire clause without becoming arbitrary fragments',()=>{
+  for(const [text,target]of [['오리고기먹고싶어지는데','오리고기 먹고 싶어지는데'],['인정받고싶다','인정받고 싶다'],['건강해지고싶다','건강해지고 싶다']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['오리고기','대가리','엄마한테는','재택하고싶어요'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.equal(check('오리고기먹고싶어지는데',['오리고기먹고싶어지는데']).some(f=>f.applicable),false);
+});
+
+test('bare recognized nouns separate from existential verbs while lexical wholes remain intact',()=>{
+  assert.ok(check('자대있지만').some(f=>f.suggestions[0]==='자대 있지만'));
+  for(const text of ['재미있지만','맛있지만','자대 있지만'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('demonstratives keep a boundary before colloquial 땜 without rewriting its spelling',()=>{
+  for(const [text,target]of [['이거땜에','이거 땜에'],['그거땜에도','그거 땜에도'],['저거땜에','저거 땜에']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['이거 땜에','땜질'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('question particles and colloquial endings remain whole while grounded clauses separate',()=>{
   for(const text of ['샀는지와','먹었는지도','자자해서','자자한','햄부기','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
   for(const [text,target]of [['안한담서','안 한담서'],['어느세','어느새'],['적대적이지않고','적대적이지 않고'],['느낀점은','느낀 점은'],['비가왔나봐요','비가 왔나 봐요'],['영상만들때','영상 만들 때']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
