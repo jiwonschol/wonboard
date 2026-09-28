@@ -1010,3 +1010,24 @@ test('whole products and names survive short fragment analyses',()=>{
   for(const text of ['제거제','식세기','박은정','자식이거아'])assert.equal(check(text).some(f=>f.applicable),false,text);
   for(const [text,target]of [['먹은밥','먹은 밥'],['받은돈','받은 돈'],['같은과','같은 과'],['할거야','할 거야']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
 });
+
+
+test('range suffixes and university abbreviations remain whole',()=>{
+  for(const text of ['중반대에','초중반대에','후반대는','간호대를','연고서성한'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('며칠전').some(f=>f.suggestions[0]==='며칠 전'));
+});
+
+test('complete connective clauses precede shorter negative homographs',()=>{
+  for(const [text,target]of [['안전하고나서','안전하고 나서'],['안하고나서','안 하고 나서'],['결혼하고나서','결혼하고 나서']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  assert.equal(check('안전하고 나서').some(f=>f.applicable),false);
+});
+
+test('bare imperative stems do not masquerade as dependent-noun modifiers',()=>{
+  for(const text of ['하거라','하거라고','가거라'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['할거라','할 거라'],['한거라고','한 거라고']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('short uncertain noun and nominalization homographs do not invent boundaries',()=>{
+  for(const text of ['센경','삽사기','삽사기도'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['큰문제','큰 문제'],['책읽기','책 읽기'],['밥먹기','밥 먹기'],['머리감기','머리 감기']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});

@@ -213,7 +213,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   const recognitionParticles=[...sets.josa];
   const shortHostParticles=new Set(['이','가','을','를','은','는','도','만','에','로','와','과','의','에서','에게','으로','부터','까지','처럼','보다','보단','께서']);
   const isRecognizedNoun=s=>recognizedNouns.has(s)||recognitionParticles.some(p=>s.endsWith(p)&&recognizedNouns.has(s.slice(0,-p.length)));
-  const derivedNominal=s=>/[적용별품풍]$/.test(s)&&s.length>2&&(sets.noun.has(s.slice(0,-1))||recognizedNouns.has(s.slice(0,-1))||s.endsWith('용')&&s.length>3&&s[s.length-2]==='자'&&actionNouns.has(s.slice(0,-2)));
+  const derivedNominal=s=>/^(?:초|중|후|초중|중후)반대$/.test(s)||/[적용별품풍]$/.test(s)&&s.length>2&&(sets.noun.has(s.slice(0,-1))||recognizedNouns.has(s.slice(0,-1))||s.endsWith('용')&&s.length>3&&s[s.length-2]==='자'&&actionNouns.has(s.slice(0,-2)));
   const demonstratives=new Set(['이것','그것','저것','요것','무엇','이곳','그곳','저곳']);
   const quantityHosts=new Set(['하나','둘','셋','넷','다섯','여섯','일곱','여덟','아홉','열','스물','반','번째','개','장','번','군데','달','시간','조각','권','명','마리','살','쪽','줄','잔','모금','병','봉지','그루','켤레','벌','세트','차례','개월','년','분','초','가지','폭','칸','날']);
   const repeatedActionNoun=s=>s.length>=3&&s.startsWith('재')&&!s.slice(1).startsWith('재')&&actionNouns.has(s.slice(1));
@@ -728,6 +728,9 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       const left=s.slice(0,-dep.length),adverb=knownAdverbBoundary(left,personal);
       const analysis=predicate(left)??(adverb?predicate(adverb.text.split(' ').at(-1)):analyze(left,personal));
       if(dep==='뿐'&&isPronoun(left))continue;
+      // Bare 하- is not an adnominal before contracted 거라. The supplied
+      // short-form analysis must not split the imperative 하거라.
+      if(dep.startsWith('거라')&&analysis?.root===left&&final(left)!==8)continue;
       const nominalAdnominal=isNominalAdnominal(left,analysis,personal)||/^중[인일]$/.test(left)||left.endsWith('라는')&&knownNominal(left.slice(0,-2));
       const p=nominalAdnominal?{...analysis,adnominal:true}:analysis;
       if(dep==='걸'&&p?.adnominal&&final(left)===8&&predicate(s))continue;
@@ -878,6 +881,12 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       if(/^[인일](?:거|것|게|건|걸|뿐|수|때)/.test(word.slice(registered.base.length)))return dependent(word,true,personal);
       return null;
     }
+    // Resolve a complete -고 clause before its shorter negative homograph:
+    // 안전하고 나서 keeps the lexical 안전하- stem intact.
+    if(word.endsWith('고나서')){
+      const left=word.slice(0,-2),negative=negativeBoundary(left,personal);
+      if(predicate(left)||negative)return {text:(negative?.text??left)+' 나서',ambiguous:Boolean(negative),rule:'2'};
+    }
     // Descriptive lexical entries can contain joined 안 하다 forms.
     // This negative construction has a boundary even when a whole-form
     // analysis exists. Do not generalize to lexical 안되다 or 못하다.
@@ -917,11 +926,6 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       const left=word.slice(0,i),right=word.slice(i),tail=predicate(right);
       const attachedBogo=left.endsWith('보고')&&predicate(left.slice(0,-2))&&predicate('보고')?.root==='보';
       if(left.endsWith('고')&&tail?.root==='있'&&(predicate(left)||auxiliaryBoundary(left,personal)||attachedBogo))return {text:left+' '+right,ambiguous:false,rule:'47'};
-    }
-    // The connective -고 and following 나서 are separate words.
-    if(word.endsWith('고나서')){
-      const left=word.slice(0,-2);
-      if(predicate(left))return {text:left+' 나서',ambiguous:false,rule:'2'};
     }
     // 수 있다 keeps its boundary even when the preceding adnominal is
     // already separated. 수없다 has a lexical reading and is not included.
@@ -1180,7 +1184,10 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     for(let i=1;i<word.length-1;i++){
       const left=word.slice(0,i),right=word.slice(i),host=noun(left,personal),activity=noun(right,personal);
       if(!host||host.base!==left||!activity?.nominal||!activity.base.endsWith('기'))continue;
-      if(i===1&&Array.from({length:word.length-2},(_,n)=>word.slice(0,n+2)).some(knownNominal))continue;
+      // A one-syllable object plus a lexical noun such as 사기 is also
+      // an unknown compound/name. Its nominalized-verb homograph alone
+      // does not establish a missing gap (삽사기 must not become 삽 사기).
+      if(i===1&&(sets.noun.has(activity.base)||Array.from({length:word.length-2},(_,n)=>word.slice(0,n+2)).some(knownNominal)))continue;
       const verb=predicate(activity.base);
       if(verb&&verb.root!==activity.base&&verb.root!=='이')return {text:left+' '+right,ambiguous:true,rule:'2'};
     }
@@ -1203,7 +1210,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       // Two unfamiliar syllables can each resemble a verb and noun.
       // That coincidence alone does not justify splitting a short name
       // or loanword. Explicit dependent-noun boundaries ran above.
-      if(word.length===2&&final(left)===4&&!sets.adjective.has(modifier?.root))continue;
+      if(word.length===2&&final(left)===4)continue;
       // A short verb plus a one-syllable abstract nominal often overlaps
       // an unfamiliar name. Require a concrete, common object in this case.
       if(word.length===3&&left.endsWith('은')&&modifier?.root.length===1&&!sets.adjective.has(modifier.root)&&nominal?.base.length===1&&!['밥','돈','글','말','집','책','일','점','옷','물','술','손','발','눈','짐','땅','돌'].includes(nominal.base))continue;

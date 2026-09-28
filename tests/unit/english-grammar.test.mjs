@@ -60,8 +60,21 @@ test('leasing-person typo and comma-separated list abbreviation keep their inten
 });
 
 test('typing nouns and established internet names do not become nearby dictionary words',()=>{
-  for(const text of ['a touch typer','fast typers','ublock origin','a faang company','Android app modding','insta messages'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const text of ['a touch typer','fast typers','ublock origin','a faang company','Android app modding','insta messages','a modded Minecraft server','improve their skillset','different skillsets','yoga/pilates studios','make a choix'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('teh company').some(f=>f.suggestions[0]==='the'));
+});
+
+test('negative modal questions retain the bare verb after a singular subject',()=>{
+  for(const modal of ["Wouldn't",'Wouldn’t',"Couldn't","Shouldn't","Can't","Won't","Mightn't","Mustn't","Shan't","Wouldnt","couldnt"]){
+    for(const clause of ['it make sense?','he work here?','she often use it?'])assert.equal(englishGrammar(`${modal} ${clause}`).length,0,`${modal} ${clause}`);
+  }
+  assert.ok(englishGrammar('It make sense.').some(f=>f.suggestions[0]==='It makes'));
+  assert.ok(englishGrammar('She often use it.').some(f=>f.suggestions[0]==='uses'));
+});
+
+test('unambiguous historical spelling losses retain their intended words',()=>{
+  for(const [source,target] of [['anyboby','anybody'],['technicaians','technicians'],['lucious','luscious'],['spoofying','spoofing'],["I wante'd to evaluate it.",'wanted']])assert.ok(check(source).some(f=>f.suggestions[0]===target),source);
+  for(const source of ['anybody','technicians','luscious','spoofing',"I'd wanted to evaluate it."])assert.equal(check(source).some(f=>f.applicable),false,source);
 });
 
 test('bare DOI identifiers retain their suffix while adjacent prose is checked',()=>{

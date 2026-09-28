@@ -5,13 +5,14 @@
 export const communityNouns = ['제거제', '비트코인', '물가지수', '내구도', '이어버드', '라우터', '프로토타입', '워크플로', '마이그레이션', '이곳', '그곳', '저곳', '측', '더불어민주당', '파일명', '항목명', '역할명', '사용자명', '곡명', '작품명', '제품명', '저자명', '긴바지', '배송지', '특별전', '날것'];
 // Established labels/terms recognize nominal use and particles, without
 // granting a productive -하다 stem or adding candidate fragments.
-export const communityNominalOnly = ['식세기', '의치대', '의치한약수', '땡땡대', '대폭등', '여친', '남친', '난타전', '선이수', '슨상님', '된찌', '아주대', '자연대', '명시지', '용과같이', '천장등', '과동아리', '해양대', '붉은사막', '님', '얼리버드', '좋아요', '싫어요', '대시보드', '플러그인', '웹사이트', '스펙', '유튜브', '팁', '정답지', '나히다', '초심배마', '호감캐', '부캐', '모루저', '샛기', '도화가', '클영상', '할모시', '클리어', '제미나이', '재미나이', '바이퍼', '데스에더', '불칸'];
+export const communityNominalOnly = ['간호대', '연고서성한', '식세기', '의치대', '의치한약수', '땡땡대', '대폭등', '여친', '남친', '난타전', '선이수', '슨상님', '된찌', '아주대', '자연대', '명시지', '용과같이', '천장등', '과동아리', '해양대', '붉은사막', '님', '얼리버드', '좋아요', '싫어요', '대시보드', '플러그인', '웹사이트', '스펙', '유튜브', '팁', '정답지', '나히다', '초심배마', '호감캐', '부캐', '모루저', '샛기', '도화가', '클영상', '할모시', '클리어', '제미나이', '재미나이', '바이퍼', '데스에더', '불칸'];
 // Established computing terms. Preserve the author's casing in informal prose;
 // other acronyms and personal entries retain their existing handling.
 export const technicalAbbreviations = ['CPU', 'GPU', 'SNS', 'RSS', 'NVMe', 'OSS'];
 // Reviewed English forms absent from the small bundled word list. Recognition
 // only: these do not become edit-distance correction targets.
 export const englishRecognizedTerms = [
+  'modded', 'skillset', 'skillsets', 'pilates', 'choix',
   'axios', 'aws', 'aiims',
   'macos', 'oled', 'cras', 'pentest', 'okrs', 'coolify', 'corfu', 'bodged', 'strimmer', 'coolbox', 'activ', 'gitea', 'okara',
   'spain', 'turing', 'avios', 'nitter', 'catio', 'anecdata',

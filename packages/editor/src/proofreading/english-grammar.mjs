@@ -203,10 +203,16 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const before=text.slice(Math.max(0,from-160),from);
     // An object followed by a bare infinitive and a mandative that-clause
     // both legitimately use the base form after a singular pronoun.
-    return /\b(?:do|does|did|don['’]t|doesn['’]t|didn['’]t|can|could|may|might|must|should|would|will|shall|let|lets|make|makes|made|help|helps|helped|see|sees|saw|watch|watched|hear|heard|feel|felt|want|wants|wanted|need|needs|needed|expect|expects|expected|have|has|had|is|are|was|were|[a-z]+ing)\s*$/i.test(before)
+    return /\b(?:do|does|did|don['’]t|doesn['’]t|didn['’]t|can|could|may|might|must|should|would|will|shall|can['’]?t|cannot|couldn['’]?t|mightn['’]?t|mustn['’]?t|shouldn['’]?t|wouldn['’]?t|won['’]?t|shan['’]?t|let|lets|make|makes|made|help|helps|helped|see|sees|saw|watch|watched|hear|heard|feel|felt|want|wants|wanted|need|needs|needed|expect|expects|expected|have|has|had|is|are|was|were|[a-z]+ing)\s*$/i.test(before)
       || /\b(?:suggest(?:s|ed)?|recommend(?:s|ed)?|request(?:s|ed)?|requir(?:e|es|ed)|demand(?:s|ed)?|insist(?:s|ed)?|propos(?:e|es|ed))\s+(?:that\s+)?$/i.test(before)
       || /\b(?:suggestion|recommendation|request|demand|requirement|important|essential|necessary|vital)\s+that\s+$/i.test(before);
   };
+  for(const match of text.matchAll(/\bwante['’]d\b(?=\s+to\s+[a-z])/gi)){
+    add(match.index,match.index+match[0].length,match[0].replace(/['’]/,''),'The past-tense verb wanted has no internal apostrophe','spelling');
+  }
+  for(const match of text.matchAll(/\bspoofying\b/gi)){
+    add(match.index,match.index+match[0].length,match[0].replace(/ying$/i,'ing'),'The participle of spoof is spoofing','spelling');
+  }
   for(const match of text.matchAll(/\b(?:am|is|are|was|were|be|been)\s+(?:(?:increasingly|still|always|completely)\s+)?(stucking)\b/gi)){
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'stuck','Be takes the participle stuck, not an invented -ing form');
