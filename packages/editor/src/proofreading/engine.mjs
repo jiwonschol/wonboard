@@ -30,6 +30,14 @@ export function createChecker(data) {
   const knownOrthographicNoun=word=>sets.noun.has(word)||recognizedNouns.has(word)||morphology.isDerivedNominal(word);
   const candidateBoundary=(word,personal,text,from,to)=>{
     if(personal.has(word))return null;
+    // A following existential predicate disambiguates contracted 것+이
+    // from the homographic promise ending: 여쭤볼 게 있습니다.
+    const contractedSubject=word.endsWith('게')?word.slice(0,-1):null;
+    if(contractedSubject&&(morphology.predicate(contractedSubject)??morphology.analyze(contractedSubject,personal))?.adnominal&&/^[ \u00a0]+(?:있|없)(?:습니다|어요|어|는데|다|음)(?=$|[\s,.!?])/u.test(text.slice(to)))return {type:'spacing',suggestions:[contractedSubject+' 게'],reason:'The following existential predicate selects the contracted nominal subject 게',ambiguous:true};
+    // A misspelled mimetic -대다 is one predicate. Validate the repaired
+    // whole before an adverb + 때다 homograph can invent a word boundary.
+    const mimeticPast=word.match(/^(.+)(땠)(.*)$/);
+    if(mimeticPast&&sets.adverb.has(mimeticPast[1])&&morphology.predicate(mimeticPast[1]+'댔'+mimeticPast[3])?.root===mimeticPast[1]+'대')return {type:'spelling',suggestions:[mimeticPast[1]+'댔'+mimeticPast[3]],reason:'Restore the validated mimetic predicate ending -댔-',ambiguous:true};
     const existsTypo=word.match(/^(.+[아어해춰워여])잇(.*)$/);
     if(existsTypo&&knownOrthographicPredicate(existsTypo[1])&&knownOrthographicPredicate('있'+existsTypo[2]))return {type:'spelling',suggestions:[existsTypo[1]+' 있'+existsTypo[2]],reason:'Restore 있다 after a complete connective predicate',ambiguous:true};
     if(word==='있다라면')return {type:'spelling',suggestions:['있다면'],reason:'Restore the conditional 있다 ending without introducing past counterfactual tense',ambiguous:true};
@@ -156,7 +164,7 @@ export function createChecker(data) {
     const lower=word.toLowerCase(),alphabet='abcdefghijklmnopqrstuvwxyz',candidates=new Set();
     // Reviewed spelling repairs that weak edit-distance evidence otherwise
     // suppresses. These remain errors, never recognition-only vocabulary.
-    const lexicalRepair={breathble:'breathable',insectasides:'insecticides',comapss:'compass',optitician:'optician',proofreaded:'proofread',anyboby:'anybody',technicaians:'technicians',lucious:'luscious',havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth',conming:'coming',washine:'washing',opnions:'opinions',maube:'maybe',staistic:'statistic',sautee:'saute',nothwithstanding:'notwithstanding',creasote:'creosote',subtley:'subtly',harasssed:'harassed',headequarter:'headquarters',unbereable:'unbearable',diptheria:'diphtheria',communial:'communal',clobering:'clobbering',mantlepiece:'mantelpiece',spolit:'spoilt',breathelessness:'breathlessness',ancestores:'ancestors',combustable:'combustible',desparately:'desperately',predesessors:'predecessors',squeeking:'squeaking',adheasion:'adhesion',mismangement:'mismanagement',aneamic:'anaemic',duatpan:'dustpan',idiogram:'ideogram',omeprazol:'omeprazole',antogonistic:'antagonistic'}[lower];
+    const lexicalRepair={shiney:'shiny',monitized:'monetized',condemed:'condemned',succintly:'succinctly',asbandoned:'abandoned',debarcle:'debacle',jepardy:'jeopardy',breathble:'breathable',insectasides:'insecticides',comapss:'compass',optitician:'optician',proofreaded:'proofread',anyboby:'anybody',technicaians:'technicians',lucious:'luscious',havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth',conming:'coming',washine:'washing',opnions:'opinions',maube:'maybe',staistic:'statistic',sautee:'saute',nothwithstanding:'notwithstanding',creasote:'creosote',subtley:'subtly',harasssed:'harassed',headequarter:'headquarters',unbereable:'unbearable',diptheria:'diphtheria',communial:'communal',clobering:'clobbering',mantlepiece:'mantelpiece',spolit:'spoilt',breathelessness:'breathlessness',ancestores:'ancestors',combustable:'combustible',desparately:'desperately',predesessors:'predecessors',squeeking:'squeaking',adheasion:'adhesion',mismangement:'mismanagement',aneamic:'anaemic',duatpan:'dustpan',idiogram:'ideogram',omeprazol:'omeprazole',antogonistic:'antagonistic'}[lower];
     if(lexicalRepair&&enLower.has(lexicalRepair))return [lexicalRepair];
     if(lower==='alot')return ['a lot'];
     if(lower==='canthe')return ['can the'];
@@ -655,6 +663,8 @@ export function createChecker(data) {
           emit(from,to,'en','unknown',[],word);continue;
         }
         if(lookup.toLowerCase()==='checkin'&&/\bself\s+$/i.test(before)&&/^\s+terminals?\b/i.test(text.slice(to)))continue;
+        const financialTypo=lookup==='traffi'&&/\bfixed\s+$/i.test(before)?'tariff':lookup==='gping'&&/\b(?:am|is|are|was|were)(?:\s+not)?\s+$/i.test(before)&&/^\s+(?:from|to)\b/i.test(text.slice(to))?'going':null;
+        if(financialTypo&&enLower.has(financialTypo)){emit(from,to,'en','spelling',[financialTypo],word);continue;}
         if(lookup.toLowerCase()==='throught'&&/\b(?:attempts?|efforts?|tries)\s+$/i.test(before)&&/^\s+history\b/i.test(text.slice(to))&&enLower.has('through')&&enLower.has('throughout')){
           emit(from,to,'en','spelling',['through','throughout'],word);continue;
         }
@@ -1031,6 +1041,9 @@ export function createChecker(data) {
         const compoundWithHonorific=word.match(/^([가-힣]+님)(.*)$/);
         if(compoundWithHonorific){
           const compound=compoundWithHonorific[1];
+          // An established nominal host keeps suffix 님 attached. Its
+          // internal predicate homograph does not establish a missing gap.
+          if(!compound.endsWith('아님')&&knownOrthographicNoun(compound.slice(0,-1))&&morphology.analyze(word,new Set([compound]))?.kind==='noun')continue;
           let titleBoundary=null;
           for(let i=1;i<compound.length-1;i++)if(morphology.predicate(compound.slice(0,i))?.adnominal&&sets.noun.has(compound.slice(i))&&morphology.analyze(word.slice(i),personal)?.kind==='noun'){titleBoundary=i;break;}
           if(titleBoundary!==null&&!personal.has(word)){emit(from,to,'ko','spacing',[word.slice(0,titleBoundary)+' '+word.slice(titleBoundary)]);continue;}

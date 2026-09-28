@@ -1,6 +1,12 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 
+test('reviewed spelling and local grammar choose words over unrelated distance neighbors',()=>{
+  for(const [text,target]of [['a shiney new boiler','shiny'],['fixed traffi ends today','tariff'],['the bill is gping from 126 to 140','going'],['monitized','monetized'],['succintly','succinctly'],['debarcle','debacle'],['jepardy','jeopardy']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  assert.equal(check('gping').some(f=>f.suggestions[0]==='going'),false);
+  assert.equal(check('traffi').some(f=>f.suggestions[0]==='tariff'),false);
+});
+
 test('object adjectives and unfinished noun phrases are not finite subject clauses',()=>{
   for(const text of ['How can I get it open','Keep it open.','They left it open.','searching for child'])assert.equal(englishGrammar(text).length,0,text);
   assert.ok(englishGrammar('It open every day.').some(f=>f.suggestions[0]==='It opens'));

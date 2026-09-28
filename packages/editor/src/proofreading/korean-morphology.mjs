@@ -741,7 +741,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       // Keep prospective -ㄹ게 (진행할게) distinct from this construction.
       const contractedNoun=p?.adnominal&&(left.endsWith('는')||final(left)===4||dep==='거'&&final(left)===8);
       const shortAdnominal=left.length===1&&p?.adnominal&&p.root!=='이';
-      if(['거','게','건'].includes(dep)&&(!contractions||left.length<2&&!shortAdnominal||predicate(s)&&!contractedNoun))continue;
+      if(['거','게','건'].includes(dep)&&(!contractions||left.length<2&&!shortAdnominal||(predicate(s)||analyze(s,personal)?.kind==='predicate')&&!contractedNoun))continue;
       if(p?.adnominal)return {text:(adverb?.text??left)+' '+dep,ambiguous:Boolean(adverb)||dep==='걸'||dep.startsWith('적'),rule:'42'};
     }
     return null;
@@ -997,14 +997,21 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     // 어디가 must not consume the first syllable of 가야 하다.
     const whereObligation=word.match(/^(어디|여기|거기|저기)(가야)(.+)$/);
     if(whereObligation&&['하','되'].includes(predicate(whereObligation[3])?.root))return {text:whereObligation.slice(1).join(' '),ambiguous:true,rule:'47'};
+    // A nominal + 대로 particle precedes an independent 하다 predicate.
+    // The rarer verb 대로하다 cannot consume that particle's host.
+    for(let i=3;i<word.length;i++){
+      const left=word.slice(0,i),right=word.slice(i),host=noun(left,personal);
+      if(host&&!host.unknown&&left.slice(host.base.length)==='대로'&&predicate(right)?.root==='하')return {text:left+' '+right,ambiguous:true,rule:'2'};
+    }
     // Quotation endings precede 하다, including a following dependent noun.
     // 고하다 is a separate homograph and cannot take the 고 from 한다고.
     for(let i=2;i<word.length;i++){
       const left=word.slice(0,i),right=word.slice(i);
       const interrogativeCopula=left.endsWith('인가')&&knownNominal(left.slice(0,-2));
-      if(!interrogativeCopula&&(!/(?:다고|라고|자|까)$/.test(left)||!predicate(left)))continue;
+      const negativeQuote=/(?:다고|라고)$/.test(left)?negativeBoundary(left,personal):null;
+      if(!interrogativeCopula&&(!/(?:다고|라고|자|까)$/.test(left)||!predicate(left)&&!negativeQuote))continue;
       if(left.endsWith('자')&&sets.adjective.has(predicate(word)?.root))continue;
-      if(predicate(right)?.root==='하')return {text:left+' '+right,ambiguous:true,rule:'2'};
+      if(predicate(right)?.root==='하')return {text:(negativeQuote?.text??left)+' '+right,ambiguous:true,rule:'2'};
       const nested=dependent(right,true,personal);
       if(nested&&predicate(nested.text.split(' ')[0])?.root==='하')return {...nested,text:left+' '+nested.text,ambiguous:true};
     }
@@ -1383,7 +1390,10 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         const main=predicate(last)??(left?.kind==='predicate'?left:null);
         if(main&&last.endsWith('길')&&predicate(last.slice(0,-1)+'기')?.root===main.root&&['기다리','바라','원하'].includes(rightPredicate?.root))return true;
         if(main?.root==='즐기'&&attestedConnectiveForms.has(last)&&rightPredicate?.root==='하')return true;
-        if(main&&last.endsWith('도')&&rightPredicate?.root==='되')return true;
+        // Concessive -아도/-어도/-여도 may precede a complete predicate,
+        // including 좋다/괜찮다. A noun's additive 도 is not this ending.
+        if(main&&last.endsWith('도')&&predicate(last.slice(0,-1))?.root===main.root&&rightPredicate)return true;
+        if(main&&last.endsWith('기')&&['바라','원하'].includes(rightPredicate?.root))return true;
         if(main&&last.endsWith('게')&&(['주','하'].includes(rightPredicate?.root)||sets.adjective.has(rightPredicate?.root))&&!recognizeWhole?.(last+first,personal))return true;
         if(last==='달라'&&(rightPredicate?.root==='하'||right?.root==='하'))return true;
         if(main&&(connectiveForms.has(last)||/[아어해]$/.test(last))&&first==='달라')return true;
@@ -1399,7 +1409,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         // stem lives in the inflection prefix inventory, not predicate().
         if(main&&last.endsWith('다')&&prefixes.get(last.slice(0,-1))===main.root&&rightPredicate)return true;
         if(main&&last.endsWith('나')&&!main.adnominal&&rightPredicate?.root==='하')return true;
-        if(main&&/(?:야|야만)$/.test(last)&&['하','되'].includes(rightPredicate?.root))return true;
+        if(main&&/(?:야|야만|려|려고)$/.test(last)&&['하','되'].includes(rightPredicate?.root))return true;
         if(main&&/(?:나|까|가)$/.test(last)&&rightPredicate?.root==='싶')return true;
         if(main&&last.endsWith('까')&&rightPredicate?.root==='보')return true;
         if(main&&last.endsWith('까')&&first==='말까'&&rightPredicate?.root==='말')return true;
@@ -1411,7 +1421,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(main?.root==='미치'&&attestedConnectiveForms.has(last)&&rightPredicate?.root==='날뛰')return true;
         if(main&&!main.adnominal&&(connectiveForms.has(last)||/[아어해져]$/.test(last))&&rightPredicate?.root==='나오')return true;
         if(predicate(last)&&!predicate(last).adnominal&&(connectiveForms.has(last)||/[아어해]$/.test(last))&&['오','가','보','주','드리','두','놓','버리','내'].includes(rightPredicate?.root))return true;
-        return Boolean(predicate(last)&&/(?:고|서|면|다가)$/.test(last)&&rightPredicate);
+        return Boolean(main&&/(?:고|서|면|다가)$/.test(last)&&rightPredicate);
       });
       if(!grounded)return null;
       const nested=result.parts.map(part=>auxiliaryBoundary(part,personal));

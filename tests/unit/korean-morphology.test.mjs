@@ -2,6 +2,34 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('nominal honorific hosts take priority over internal predicate homographs',()=>{
+  for(const text of ['사장님은','부장님께','교수님이'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('친절한선생님').some(f=>f.suggestions[0]==='친절한 선생님'));
+});
+
+test('permitted auxiliary compounds retain prospective promise endings',()=>{
+  for(const text of ['잘해볼게','먹어볼게','읽어볼게요'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('잘하는게').some(f=>f.suggestions[0]==='잘하는 게'));
+  assert.ok(check('여쭤볼게 있습니다.').some(f=>f.suggestions[0]==='여쭤볼 게'));
+  assert.ok(check('비만아님').some(f=>f.suggestions[0]==='비만 아님'));
+});
+
+test('mimetic past typo repair validates a whole derived predicate',()=>{
+  assert.ok(check('낑낑땠는데').some(f=>f.suggestions[0]==='낑낑댔는데'));
+  assert.equal(check('낑낑댔는데').some(f=>f.applicable),false);
+  assert.equal(check('낑낑땠는데',['낑낑땠는데']).some(f=>f.applicable),false);
+});
+
+test('negation and nominal particles retain their hosts before quoted or independent 하다',()=>{
+  for(const [text,target]of [['안돌아간다고하면','안 돌아간다고 하면'],['견적대로하면','견적대로 하면'],['계획대로하면','계획대로 하면']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['국민대까지','안 돌아간다고 하면','견적대로 하면'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('validated connective and nominalized clauses establish every internal gap',()=>{
+  for(const [text,target]of [['맞춰도괜찮을까요','맞춰도 괜찮을까요'],['구매해도상관없나요','구매해도 상관없나요'],['전부바꾸려합니다','전부 바꾸려 합니다'],['알려주시기바랍니다','알려주시기 바랍니다'],['썩어가고있다보니','썩어가고 있다 보니']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['엄마한테는','고속도로','편도선'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('purpose connectives stay separate from independently inflected motion verbs',()=>{
   for(const [text,target]of [['보러가볼까','보러 가볼까'],['먹으러가볼까','먹으러 가볼까'],['만나러왔어요','만나러 왔어요']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['보러 가볼까','먹으러 가볼까','그러니까'])assert.equal(check(text).some(f=>f.applicable),false,text);
