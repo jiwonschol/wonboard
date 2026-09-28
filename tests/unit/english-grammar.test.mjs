@@ -9,7 +9,7 @@ test('object adjectives and unfinished noun phrases are not finite subject claus
 });
 
 test('counted acronyms keep singular modifiers and HTTP status descriptions',()=>{
-  for(const text of ['500 API Error','20 API requests','3 LLM providers'])assert.equal(englishGrammar(text).some(f=>f.suggestions[0].includes('APIs')||f.suggestions[0].includes('LLMs')),false,text);
+  for(const text of ['500 API Error','20 API requests','3 LLM providers','54 LLM-backed workflows','12 API-driven projects','3 PR-related changes','hundreds of LLM-based tools'])assert.equal(englishGrammar(text).length,0,text);
   assert.ok(englishGrammar('We use 20 API.').some(f=>f.suggestions[0]==='20 APIs'));
 });
 
@@ -618,6 +618,12 @@ test('missing negative apostrophes need verb context and never become unrelated 
   }
   assert.deepEqual(check('didnt')[0]?.suggestions,[]);
   assert.equal(check('didnt_count').some(f=>f.applicable),false);
+});
+
+test('a perfect auxiliary distinguishes a mistyped done from negative dont',()=>{
+  for(const text of ['what have i dont and what','I have dont it','what has she already dont?'])assert.equal(check(text).find(f=>f.original==='dont')?.suggestions[0],'done',text);
+  for(const text of ['I dont know','They dont have it'])assert.equal(check(text).find(f=>f.original==='dont')?.suggestions[0],"don't",text);
+  assert.equal(check('I have dont it',['dont']).some(f=>f.original==='dont'),false);
 });
 
 test('weak nearby words need stronger evidence than short or two-substitution distance alone',()=>{

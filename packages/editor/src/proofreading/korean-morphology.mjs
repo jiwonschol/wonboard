@@ -707,6 +707,9 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(dep==='뿐'&&knownNominal(left))continue;
         if(!right.startsWith(dep))continue;
         const tail=right.slice(dep.length);
+        // The dependent colloquial 거 cannot take the vocative -아.
+        // Its dictionary particle entry must not split a mistyped ending.
+        if(dep==='거'&&tail==='아')continue;
         if(tail&&!sets.josa.has(tail)&&!(noun(right,new Set())?.base===dep)&&!(dep==='분'&&tail.startsWith('들')&&(!tail.slice(1)||sets.josa.has(tail.slice(1)))))continue;
         // 이때 + 는 is an existing noun with a particle, not 이 + 때는.
         const wholeNoun=tail?s.slice(0,-tail.length):s;
@@ -1201,6 +1204,9 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       // That coincidence alone does not justify splitting a short name
       // or loanword. Explicit dependent-noun boundaries ran above.
       if(word.length===2&&final(left)===4&&!sets.adjective.has(modifier?.root))continue;
+      // A short verb plus a one-syllable abstract nominal often overlaps
+      // an unfamiliar name. Require a concrete, common object in this case.
+      if(word.length===3&&left.endsWith('은')&&modifier?.root.length===1&&!sets.adjective.has(modifier.root)&&nominal?.base.length===1&&!['밥','돈','글','말','집','책','일','점','옷','물','술','손','발','눈','짐','땅','돌'].includes(nominal.base))continue;
       const adjectiveNoun=sets.adjective.has(modifier?.root)&&modifier?.adnominal&&nominal?.base.length>=2&&knownNominal(nominal.base);
       if(predicate(right)?.root==='이'&&!adjectiveNoun)continue;
       // Do not take 올 from the longer nominal 올해, or another known

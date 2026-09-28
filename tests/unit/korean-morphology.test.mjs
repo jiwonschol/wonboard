@@ -1004,3 +1004,9 @@ test('historical community boundaries preserve required correction recall',()=>{
   for(const [source,target]of [['싶어하는','싶어 하는'],['한과목','한 과목'],['한숨쉬던','한숨 쉬던'],['그런척','그런 척'],['보던앤데','보던 앤데'],['이득이라해서','이득이라 해서']])assert.ok(check(source).some(f=>f.suggestions[0]===target),source);
   for(const source of ['미안해하면서','불편해했다','불칸으로'])assert.equal(check(source).some(f=>f.applicable),false,source);
 });
+
+
+test('whole products and names survive short fragment analyses',()=>{
+  for(const text of ['제거제','식세기','박은정','자식이거아'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['먹은밥','먹은 밥'],['받은돈','받은 돈'],['같은과','같은 과'],['할거야','할 거야']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});

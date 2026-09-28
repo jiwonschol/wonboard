@@ -78,3 +78,16 @@ test('stable spelling and observed use outrank accidental rare letter deletions'
   for(const source of ['litte','sensoe'])assert.equal(check(source,[source]).length,0);
   for(const source of ['macos','oled','cras','Amature','Tommorow'])assert.equal(check(source).some(f=>f.applicable),false,source);
 });
+
+test('community service and institution names survive nearby dictionary targets',()=>{
+  const check=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:['axioms','was','aims','the']});
+  for(const source of ['axios','aws','aiims'])assert.equal(check(source).some(f=>f.applicable),false,source);
+  assert.equal(check('teh')[0]?.suggestions[0],'the');
+});
+
+test('short doubled-letter omission and reviewed adjective spelling remain repairable',()=>{
+  const check=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:['still','antagonistic','stile']});
+  for(const [source,target] of [['stil','still'],['antogonistic','antagonistic']])assert.equal(check(source)[0]?.suggestions[0],target,source);
+  assert.equal(check('stil',['stil']).length,0);
+  assert.equal(check('Hyenna').some(f=>f.applicable),false);
+});
