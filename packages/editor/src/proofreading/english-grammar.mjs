@@ -585,7 +585,12 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\btried using to generate\b/gi))add(match.index,match.index+match[0].length,'tried using it to generate','Using needs an object in this construction');
   for(const match of text.matchAll(/\blots of important bit\b/gi))add(match.index,match.index+match[0].length,'lots of important bits','The plural quantity lots of takes bits');
   for(const match of text.matchAll(/\b([2-9]|[1-9]\d+) PR\b(?!s)/g))add(match.index,match.index+match[0].length,match[1]+' PRs','A numeral above one takes a plural count abbreviation');
-  for(const match of text.matchAll(/\b([2-9]|[1-9]\d+) (URL|API|LLM)\b(?!s)/g))add(match.index,match.index+match[0].length,match[1]+' '+match[2]+'s','A numeral above one takes a plural count abbreviation');
+  for(const match of text.matchAll(/\b([2-9]|[1-9]\d+) (URL|API|LLM)\b(?!s)/g)){
+    // HTTP status numbers and counted noun modifiers do not pluralize the
+    // acronym: 500 API Error, 20 API requests, 3 LLM providers.
+    if(/^\s+(?:errors?|requests?|calls?|keys?|responses?|endpoints?|providers?|models?|tokens?|parameters?|links?|addresses?)\b/i.test(text.slice(match.index+match[0].length)))continue;
+    add(match.index,match.index+match[0].length,match[1]+' '+match[2]+'s','A numeral above one takes a plural count abbreviation');
+  }
   for(const match of text.matchAll(/\b(?:hundreds|thousands|millions) of (?:URL|API|LLM)\b(?!s)/g))add(match.index,match.index+match[0].length,match[0]+'s','A plural quantity takes a plural count abbreviation');
   for(const match of text.matchAll(/\bthrough is many\b/gi))add(match.index,match.index+match[0].length,'through as many','As many forms the comparative quantity phrase');
   for(const match of text.matchAll(/\ba implemention\b/gi))add(match.index,match.index+match[0].length,'an implementation','Correct the noun and its preceding article');

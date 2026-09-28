@@ -127,7 +127,7 @@ export function createChecker(data) {
     const lower=word.toLowerCase(),alphabet='abcdefghijklmnopqrstuvwxyz',candidates=new Set();
     // Reviewed spelling repairs that weak edit-distance evidence otherwise
     // suppresses. These remain errors, never recognition-only vocabulary.
-    const lexicalRepair={havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth'}[lower];
+    const lexicalRepair={havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth',conming:'coming',washine:'washing',opnions:'opinions',maube:'maybe'}[lower];
     if(lexicalRepair&&enLower.has(lexicalRepair))return [lexicalRepair];
     if(lower==='flooplan'&&enLower.has('floor')&&enLower.has('plan'))return ['floor plan'];
     const add=s=>{if(enLower.has(s))candidates.add(s);};
@@ -196,7 +196,7 @@ export function createChecker(data) {
       if(lower.length===s.length+1){let i=0;while(lower[i]===s[i]&&i<s.length)i++;return /[aeiou]/.test(lower[i]);}
       return false;
     };
-    return [...candidates].filter(s=>spellingEvidence(s)&&(lower.length>=5||transpositions.has(s))&&(s[0]===lower[0]||!(/^[A-Z]/.test(word))&&transpositions.has(s))).sort((a,b)=>Number(adjectiveEnding(b))-Number(adjectiveEnding(a))||Number(transpositions.has(b))-Number(transpositions.has(a))||Number(b[0]===lower[0])-Number(a[0]===lower[0])||Number(doubled.has(b))-Number(doubled.has(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||sharedPrefix(b)-sharedPrefix(a)||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
+    return [...candidates].filter(s=>spellingEvidence(s)&&(lower.length>=5||transpositions.has(s)||/([a-z])\1{2,}/.test(lower)&&sameRuns.has(s))&&(s[0]===lower[0]||!(/^[A-Z]/.test(word))&&transpositions.has(s))).sort((a,b)=>Number(adjectiveEnding(b))-Number(adjectiveEnding(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||Number(transpositions.has(b))-Number(transpositions.has(a))||Number(b[0]===lower[0])-Number(a[0]===lower[0])||Number(doubled.has(b))-Number(doubled.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||sharedPrefix(b)-sharedPrefix(a)||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
   }
   function formalEndingCandidate(word) {
     // Recover a mistyped ㅁ in the formal -ㅂ니다 ending only when the
@@ -551,6 +551,12 @@ export function createChecker(data) {
         // Regular plural/third-person suffixes preserve an attested base.
         // This expands recognition only; no synthetic word becomes a target.
         const lowerLookup=lookup.toLowerCase();
+        // British -ise/-ising forms remain the same verb as their attested
+        // -ize/-izing counterparts. A productive -less adjective likewise
+        // retains its known base, rather than borrowing a nearby noun.
+        const americanVerb=lowerLookup.replace(/is(e[ds]?|ing)$/,'iz$1');
+        if(americanVerb!==lowerLookup&&enLower.has(americanVerb))continue;
+        if(lowerLookup.endsWith('less')&&lowerLookup.length>6&&enLower.has(lowerLookup.slice(0,-4)))continue;
         const inflectionBase=/[sxz]es$|(?:ch|sh)es$/.test(lowerLookup)?lowerLookup.slice(0,-2):/[^aeiou]ies$/.test(lowerLookup)?lowerLookup.slice(0,-3)+'y':/[^s]s$/.test(lowerLookup)?lowerLookup.slice(0,-1):null;
         if(inflectionBase&&inflectionBase.length>=3&&(enLower.has(inflectionBase)||recognizedEnglish.has(inflectionBase)))continue;
         // Regular participles retain a known base (diffing, vibing). This
@@ -587,7 +593,7 @@ export function createChecker(data) {
         if(/\b(?:app|tool|project|service|manager|platform|library|package)\s+(?:called|named)\s+$/i.test(before)){
           emit(from,to,'en','unknown',[],word);continue;
         }
-        const contextualRepair=lookup==='ther'&&/\b(?:hi|hello|hey)\s+$/i.test(before)?'there':lookup==='avpid'&&/\bto\s+$/.test(before)?'avoid':lookup==='ceilingd'&&/\b(?:wall|walls)\s+and\s+$/.test(before)?'ceiling':null;
+        const contextualRepair=lookup==='ther'&&/\b(?:hi|hello|hey)\s+$/i.test(before)?'there':lookup==='avpid'&&/\bto\s+$/.test(before)?'avoid':lookup==='ceilingd'&&/\b(?:wall|walls)\s+and\s+$/.test(before)?'ceiling':lookup==='extrem'&&/^\s+(?:knowledgeable|difficult|important|good|bad|useful)\b/i.test(text.slice(to))?'extremely':null;
         if(contextualRepair&&enLower.has(contextualRepair)){emit(from,to,'en','spelling',[contextualRepair],word);continue;}
         // Preserve camel-case identifiers and acronyms as unknown expressions.
         // In Korean prose, a capitalized word with a close dictionary match

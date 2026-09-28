@@ -2,6 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('question particles and colloquial endings remain whole while grounded clauses separate',()=>{
+  for(const text of ['샀는지와','먹었는지도','자자해서','자자한','햄부기','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['안한담서','안 한담서'],['어느세','어느새'],['적대적이지않고','적대적이지 않고'],['느낀점은','느낀 점은'],['비가왔나봐요','비가 왔나 봐요'],['영상만들때','영상 만들 때']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
 test('intention and experiential predicates retain their existing boundaries',()=>{
   for(const text of ['사려 합니다','먹으려 합니다','해본 적이','만든 적이','넣으라는데','읽으라면서','의치대나','의치한약수','땡땡대','대폭등','궤를 같이하는데'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('생물학 적인').some(f=>f.suggestions[0]==='생물학적인'));

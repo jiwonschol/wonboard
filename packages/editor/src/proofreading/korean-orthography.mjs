@@ -2,6 +2,7 @@
 // Sources and limits: docs/planning/spelling-orthography-sources.md.
 export function orthography(word,sets,personal,isPredicate,isKnownNoun=w=>sets.noun.has(w),precedingAdnominal=false,followingPredicate=false) {
   if(personal.has(word))return null;
+  if(word==='어느세')return {suggestions:['어느새'],reason:'The temporal adverb 어느새 is one word',ambiguous:false};
   const informalFuture=word.match(/^(.+)게써(요)?$/);
   if(informalFuture){
     const corrected=informalFuture[1]+'겠어'+(informalFuture[2]??'');

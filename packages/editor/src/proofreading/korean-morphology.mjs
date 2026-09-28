@@ -262,6 +262,15 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     return result;
   }
   function analyzePredicate(s) {
+    // Indirect-question clauses can take a following particle intact.
+    // Validate the complete -는지 clause before accepting its outer particle.
+    const questionParticle=s.match(/^(.+는지)(와|과|를|는|도|만|가|에)$/);
+    if(questionParticle){const host=predicate(questionParticle[1]);if(host)return {...host,adnominal:false};}
+    // Colloquial -담서 shortens -다면서; it is an ending, not a noun 담서.
+    if(s.endsWith('담서')){
+      const host=predicate(s.slice(0,-2)+'다면서');
+      if(host)return {...host,adnominal:false};
+    }
     // Polite 요 can follow the complete conversational -걸 ending.
     // Retain its predicate analysis so spelling fallback cannot mutate it.
     if(s.endsWith('걸요')){
@@ -772,12 +781,13 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       const copularEmphasis=emphasis&&left.match(/^(.+)(?:이기는|이기도|이기나|이긴)$/);
       const emphasisHost=copularEmphasis&&(knownNominal(copularEmphasis[1])||personal.has(copularEmphasis[1]));
       const negativeForm=left.endsWith('진')?left.slice(0,-1)+'지':left.endsWith('치')?left.slice(0,-1)+'하지':left;
-      const negativeEnding=negativeForm.endsWith('지')&&right!=='만'&&['말','않','못하'].includes(tail?.root)&&predicate(negativeForm);
+      const copularNegative=negativeForm.endsWith('이지')&&knownNominal(negativeForm.slice(0,-2));
+      const negativeEnding=negativeForm.endsWith('지')&&right!=='만'&&['말','않','못하'].includes(tail?.root)&&(predicate(negativeForm)||copularNegative);
       const lexicalNegative=negativeEnding?(predicate(word)??recognizeWhole?.(word,personal))?.root:null;
       const lexicalNegativeAdjective=lexicalNegative?.endsWith('지않')&&(sets.adjective.has(lexicalNegative)||data?.recognitionAdjectiveRoots?.includes(lexicalNegative));
       const negative=negativeEnding&&!lexicalNegativeAdjective&&predicate(left)?.root!==left;
       const boundary=negative||/(?:야|야만)$/.test(left)&&['하','되'].includes(tail?.root)||left.endsWith('게')&&tail?.root==='되'||emphasis;
-      if(boundary&&!right.startsWith('겠')&&(predicate(left)||analyze(left,personal)?.kind==='predicate'||emphasis&&(noun(left,personal)?.copula||emphasisHost)))return {text:(negative?(knownAdverbBoundary(left,personal)?.text??left):left)+' '+(nested?.text??right),ambiguous:true,rule:'47'};
+      if(boundary&&!right.startsWith('겠')&&(predicate(left)||copularNegative||analyze(left,personal)?.kind==='predicate'||emphasis&&(noun(left,personal)?.copula||emphasisHost)))return {text:(negative?(knownAdverbBoundary(left,personal)?.text??left):left)+' '+(nested?.text??right),ambiguous:true,rule:'47'};
     }
     return null;
   }
@@ -815,6 +825,11 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     for(const weather of ['비','눈','우박'])if(word.startsWith(weather)){
       const tail=word.slice(weather.length),p=predicate(tail);
       if(tail.length>=2&&['오','내리'].includes(p?.root)&&!predicate(word))return {text:weather+' '+tail,ambiguous:true,rule:'2'};
+      const subjectParticle=weather==='비'?'가':'이';
+      if(tail.startsWith(subjectParticle)&&tail.length>2){
+        const clause=spacing(tail.slice(1),personal),main=clause&&predicate(clause.text.split(' ')[0]);
+        if(clause&&!clause.unknowns?.length&&['오','내리'].includes(main?.root))return {...clause,text:weather+subjectParticle+' '+clause.text};
+      }
     }
     const registered=personal.size?noun(word,personal):null;
     if(registered&&personal.has(registered.base)){
@@ -945,6 +960,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       const left=word.slice(0,i),right=word.slice(i);
       const interrogativeCopula=left.endsWith('인가')&&knownNominal(left.slice(0,-2));
       if(!interrogativeCopula&&(!/(?:다고|라고|자|까)$/.test(left)||!predicate(left)))continue;
+      if(left.endsWith('자')&&sets.adjective.has(predicate(word)?.root))continue;
       if(predicate(right)?.root==='하')return {text:left+' '+right,ambiguous:true,rule:'2'};
       const nested=dependent(right,true,personal);
       if(nested&&predicate(nested.text.split(' ')[0])?.root==='하')return {...nested,text:left+' '+nested.text,ambiguous:true};
@@ -1159,7 +1175,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       // Short prospective forms also occur inside names. Require a longer
       // complete predicate and a multi-syllable nominal for that boundary.
       const prospective=left.length>=2&&modifier?.root.length>=2&&final(left)===8&&nominal?.base.length>=2;
-      if(modifier?.adnominal&&(sets.adjective.has(modifier.root)&&final(left)===4||/[는은]$/.test(left)||left.length>=2&&final(left)===4&&modifier.root!=='이'&&(nominal?.base.length>=2||['글','말','집','책','일'].includes(nominal?.base))||prospective)&&(!knownNominal(left)||prospective)&&nominal&&(!nominal.nominal||adjectiveNoun))return {text:left+' '+right,ambiguous:true,rule:'2'};
+      if(modifier?.adnominal&&(sets.adjective.has(modifier.root)&&final(left)===4||/[는은]$/.test(left)||left.length>=2&&final(left)===4&&modifier.root!=='이'&&(nominal?.base.length>=2||['글','말','집','책','일','점'].includes(nominal?.base))||prospective)&&(!knownNominal(left)||prospective)&&nominal&&(!nominal.nominal||adjectiveNoun))return {text:left+' '+right,ambiguous:true,rule:'2'};
     }
     // An adverb can be used as a nickname before the copula. Keep the whole
     // unknown nominal for review; its internal fragments do not prove a gap.
@@ -1312,7 +1328,8 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         // A bare nominal can be the omitted-case subject/object of a
         // complete predicate (점심 먹으러, 결과 나오면). Bare stems,
         // nominalizations and productive nominal suffixes are not clauses.
-        if(left?.kind==='noun'&&!left.unknown&&left.base===last&&last.length>=2&&rightPredicate&&first!==rightPredicate.root&&!right?.nominal&&
+        const adnominalTime=rightPredicate?.adnominal&&next.includes(' ')&&noun(next.split(' ').at(-1),personal)?.base==='때';
+        if(left?.kind==='noun'&&!left.unknown&&left.base===last&&last.length>=2&&rightPredicate&&(first!==rightPredicate.root||adnominalTime)&&!right?.nominal&&
           !['이','하','되','받','당하','드리'].includes(rightPredicate.root)&&(!rightPredicate.adnominal||next.includes(' ')))return true;
         const main=predicate(last)??(left?.kind==='predicate'?left:null);
         if(main&&last.endsWith('길')&&predicate(last.slice(0,-1)+'기')?.root===main.root&&['기다리','바라','원하'].includes(rightPredicate?.root))return true;

@@ -1,5 +1,15 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+
+test('counted acronyms keep singular modifiers and HTTP status descriptions',()=>{
+  for(const text of ['500 API Error','20 API requests','3 LLM providers'])assert.equal(englishGrammar(text).some(f=>f.suggestions[0].includes('APIs')||f.suggestions[0].includes('LLMs')),false,text);
+  assert.ok(englishGrammar('We use 20 API.').some(f=>f.suggestions[0]==='20 APIs'));
+});
+
+test('regional verbs and derived adjectives survive lexical correction with short-name boundaries',()=>{
+  for(const text of ['synthesise','synthesising','bagless','saas','zell'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['alll','all'],['conming','coming'],['washine','washing'],['opnions','opinions'],['maube','maybe'],['extrem knowledgeable','extremely']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
 import {check} from '../../scripts/spelling-prototype.mjs';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 import {englishGrammar} from '../../packages/editor/src/proofreading/english-grammar.mjs';
