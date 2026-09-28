@@ -30,6 +30,9 @@ export function createChecker(data) {
   const knownOrthographicNoun=word=>sets.noun.has(word)||recognizedNouns.has(word)||morphology.isDerivedNominal(word);
   const candidateBoundary=(word,personal,text,from,to)=>{
     if(personal.has(word))return null;
+    const existsTypo=word.match(/^(.+[아어해춰워여])잇(.*)$/);
+    if(existsTypo&&knownOrthographicPredicate(existsTypo[1])&&knownOrthographicPredicate('있'+existsTypo[2]))return {type:'spelling',suggestions:[existsTypo[1]+' 있'+existsTypo[2]],reason:'Restore 있다 after a complete connective predicate',ambiguous:true};
+    if(word==='있다라면')return {type:'spelling',suggestions:['있다면'],reason:'Restore the conditional 있다 ending without introducing past counterfactual tense',ambiguous:true};
     const degreeEnding=word.match(/^(.+)정도내요$/);
     if(degreeEnding&&morphology.predicate(degreeEnding[1])?.adnominal)return {type:'spelling',suggestions:[degreeEnding[1]+' 정도네요'],reason:'Restore the copular ending after an adnominal degree phrase',ambiguous:true};
     // A recognition-only noun plus topic particle can coincide with 안/못
@@ -128,7 +131,7 @@ export function createChecker(data) {
     const lower=word.toLowerCase(),alphabet='abcdefghijklmnopqrstuvwxyz',candidates=new Set();
     // Reviewed spelling repairs that weak edit-distance evidence otherwise
     // suppresses. These remain errors, never recognition-only vocabulary.
-    const lexicalRepair={havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth',conming:'coming',washine:'washing',opnions:'opinions',maube:'maybe',staistic:'statistic',sautee:'saute',nothwithstanding:'notwithstanding',creasote:'creosote',subtley:'subtly',harasssed:'harassed',headequarter:'headquarters',unbereable:'unbearable',diptheria:'diphtheria',communial:'communal',clobering:'clobbering',mantlepiece:'mantelpiece',spolit:'spoilt',breathelessness:'breathlessness',ancestores:'ancestors',combustable:'combustible',desparately:'desperately',predesessors:'predecessors',squeeking:'squeaking',adheasion:'adhesion',mismangement:'mismanagement',aneamic:'anaemic',duatpan:'dustpan'}[lower];
+    const lexicalRepair={havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth',conming:'coming',washine:'washing',opnions:'opinions',maube:'maybe',staistic:'statistic',sautee:'saute',nothwithstanding:'notwithstanding',creasote:'creosote',subtley:'subtly',harasssed:'harassed',headequarter:'headquarters',unbereable:'unbearable',diptheria:'diphtheria',communial:'communal',clobering:'clobbering',mantlepiece:'mantelpiece',spolit:'spoilt',breathelessness:'breathlessness',ancestores:'ancestors',combustable:'combustible',desparately:'desperately',predesessors:'predecessors',squeeking:'squeaking',adheasion:'adhesion',mismangement:'mismanagement',aneamic:'anaemic',duatpan:'dustpan',idiogram:'ideogram',omeprazol:'omeprazole'}[lower];
     if(lexicalRepair&&enLower.has(lexicalRepair))return [lexicalRepair];
     if(lower==='alot')return ['a lot'];
     if(lower==='canthe')return ['can the'];
@@ -188,12 +191,18 @@ export function createChecker(data) {
     // Consonant replacement is weak evidence for an unknown word: it turns
     // names and technical terms into unrelated valid words. Keep letter-order,
     // vowel and omission evidence, while leaving other spans for review.
+    // Resolve an existing internal-vowel-deletion ambiguity with a final
+    // neighboring keyboard key (sensoe/sense/sensor). It must not make new
+    // lone candidates for unfamiliar words such as Italian logistica.
+    const hasVowelDeletion=[...candidates].some(s=>s.length===lower.length-1&&s.at(-1)===lower.at(-1)&&(englishUsage.get(s)??0)>0&&[...lower].some((c,i)=>i<lower.length-1&&/[aeiou]/.test(c)&&lower.slice(0,i)+lower.slice(i+1)===s));
+    const terminalKeySlip=s=>hasVowelDeletion&&lower.length>=6&&s.length===lower.length&&sharedPrefix(s)===lower.length-1&&['qwertyuiop','asdfghjkl','zxcvbnm'].some(row=>Math.abs(row.indexOf(lower.at(-1))-row.indexOf(s.at(-1)))===1&&row.includes(lower.at(-1))&&row.includes(s.at(-1)));
     const spellingEvidence=s=>{
       if(transpositions.has(s)||sameRuns.has(s))return true;
       // Stable spelling on both sides supports an internal typo without
       // admitting short neighbors such as muslim/muslin or clojure/closure.
       let suffix=0;while(suffix<Math.min(lower.length,s.length)&&lower.at(-1-suffix)===s.at(-1-suffix))suffix++;
-      if(sharedPrefix(s)>=2&&suffix>=4)return true;
+      if(sharedPrefix(s)>=2&&(suffix>=4||suffix>=2&&sharedPrefix(s)+suffix>=7))return true;
+      if(terminalKeySlip(s))return true;
       if(lower.length===s.length)return lower.replace(/[aeiou]/g,'')===s.replace(/[aeiou]/g,'');
       if(s.length===lower.length+1)return true;
       if(lower.length===s.length+1){let i=0;while(lower[i]===s[i]&&i<s.length)i++;return /[aeiou]/.test(lower[i]);}
@@ -203,7 +212,11 @@ export function createChecker(data) {
     // target usage and rank familiar targets before prefix resemblance.
     // Strong letter-order/run evidence takes priority among attested targets.
     const usage=s=>englishUsage.get(s)??0;
-    return [...candidates].filter(s=>spellingEvidence(s)&&(usage(s)>=1||s.length>lower.length&&sameRuns.has(s))&&(lower.length>=5||transpositions.has(s)||/([a-z])\1{2,}/.test(lower)&&sameRuns.has(s))&&(s[0]===lower[0]||!(/^[A-Z]/.test(word))&&transpositions.has(s))).sort((a,b)=>Number(adjectiveEnding(b))-Number(adjectiveEnding(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||Number(transpositions.has(b))-Number(transpositions.has(a))||Number(b[0]===lower[0])-Number(a[0]===lower[0])||Number(doubled.has(b))-Number(doubled.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||usage(b)-usage(a)||sharedPrefix(b)-sharedPrefix(a)||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
+    // A repeated source letter alone is not proof that it should be deleted.
+    // A much more frequent insertion target can preserve the intended word
+    // (litte/little) instead of a rare doubled-letter deletion (lite).
+    const frequentInsertion=s=>s.length===lower.length+1&&usage(s)>=20&&[...sameRuns].some(other=>other.length<lower.length&&usage(s)>=10*Math.max(1,usage(other)));
+    return [...candidates].filter(s=>spellingEvidence(s)&&(usage(s)>=1||s.length>lower.length&&sameRuns.has(s))&&(lower.length>=5||transpositions.has(s)||/([a-z])\1{2,}/.test(lower)&&sameRuns.has(s))&&(s[0]===lower[0]||!(/^[A-Z]/.test(word))&&transpositions.has(s))).sort((a,b)=>Number(frequentInsertion(b))-Number(frequentInsertion(a))||Number(terminalKeySlip(b))-Number(terminalKeySlip(a))||Number(adjectiveEnding(b))-Number(adjectiveEnding(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||Number(transpositions.has(b))-Number(transpositions.has(a))||Number(b[0]===lower[0])-Number(a[0]===lower[0])||Number(doubled.has(b))-Number(doubled.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||usage(b)-usage(a)||sharedPrefix(b)-sharedPrefix(a)||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
   }
   function formalEndingCandidate(word) {
     // Recover a mistyped ㅁ in the formal -ㅂ니다 ending only when the
@@ -538,6 +551,9 @@ export function createChecker(data) {
           const candidates=englishSuggestions(lookup),lower=lookup.toLowerCase();
           const strong=candidates.some(candidate=>{
             const target=candidate.toLowerCase();
+            // A missing repeated consonant in a familiar word is distinct
+            // from weak name-like substitutions such as Amature/amateur.
+            if(target.length===lower.length+1&&englishUsage.get(target)>=10&&lower.replace(/([a-z])\1+/g,'$1')===target.replace(/([a-z])\1+/g,'$1'))return true;
             // Preserve the attested -ceive spelling repair after c.
             if(/^(?:re|de|per|con)cieve(?:d|s)?$/.test(lower)&&lower.replace('cie','cei')===target)return true;
             if(lower.length>=6&&/([a-z])\1{2,}/.test(lower)&&lower.replace(/([a-z])\1+/g,'$1')===target.replace(/([a-z])\1+/g,'$1'))return true;

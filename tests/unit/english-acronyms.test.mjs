@@ -70,3 +70,11 @@ test('productive initialism plurals, actor nouns and hesitation sounds retain th
   assert.equal(check('obfuscatr').some(f=>f.type==='unknown'),true);
   assert.equal(check('hi ther.',['ther']).some(f=>f.original==='ther'),false);
 });
+
+
+test('stable spelling and observed use outrank accidental rare letter deletions',()=>{
+  const check=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:['little','lite','sensor','sense','address','ideogram','sentences','wondering','omeprazole','olde','macros','cars']});
+  for(const [source,target]of [['litte','little'],['sensoe','sensor'],['Adress','Address'],['idiogram','ideogram'],['sentenses','sentences'],['wonderning','wondering'],['omeprazol','omeprazole']])assert.equal(check(source)[0]?.suggestions[0],target,source);
+  for(const source of ['litte','sensoe'])assert.equal(check(source,[source]).length,0);
+  for(const source of ['macos','oled','cras','Amature','Tommorow'])assert.equal(check(source).some(f=>f.applicable),false,source);
+});

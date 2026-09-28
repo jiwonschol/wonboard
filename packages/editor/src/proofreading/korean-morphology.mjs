@@ -429,7 +429,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       const left=s.slice(0,i);
       if(!/[아어해]$/.test(left))continue;
       const main=predicate(left);
-      if(!main||!sets.adjective.has(main.root))continue;
+      if(!main||main.root==='싶'||!sets.adjective.has(main.root))continue;
       const tail=predicate(s.slice(i));
       if(tail?.root==='하')return {root:left+'하',adnominal:tail.adnominal};
     }
@@ -720,7 +720,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     }
     // Prospective -ㄹ걸 can be a complete regret/guess ending. A lexical
     // predicate analysis does not justify replacing it with a dependent noun.
-    for(const dep of ['거심','건데','건가','건가요','건지','걸까','걸까요','거냐','거냐고','거긴','거야','거예요','거였어요','겁니다','거라','거라고','거라는','거죠','것인데','것입니다','것을','것이','것은','것도','것만','것으로','걸로','걸로는','걸로도','일이','일을','일은','적이','적을','적은','것','걸','거','게','건','수','때','뿐','적']) {
+    for(const dep of ['거면','거심','건데','건가','건가요','건지','걸까','걸까요','거냐','거냐고','거긴','거야','거예요','거였어요','겁니다','거라','거라고','거라는','거죠','것인데','것입니다','것을','것이','것은','것도','것만','것으로','걸로','걸로는','걸로도','일이','일을','일은','적이','적을','적은','것','걸','거','게','건','수','때','뿐','적']) {
       if(!s.endsWith(dep))continue;
       const left=s.slice(0,-dep.length),adverb=knownAdverbBoundary(left,personal);
       const analysis=predicate(left)??(adverb?predicate(adverb.text.split(' ').at(-1)):analyze(left,personal));
@@ -750,6 +750,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       const rest=word.slice(3),tail=predicate(rest);
       if((tail&&tail.root!==rest||adverbs.has(rest))&&!knownNominal(word)&&!recognizeWhole?.(word,personal))return {text:'아무리 '+rest,ambiguous:true,rule:'2'};
     }
+    if(word.startsWith('잘못')&&!['하','되'].includes(predicate(word.slice(2))?.root)&&predicate(word.slice(2))&&!knownNominal(word))return {text:'잘못 '+word.slice(2),ambiguous:true,rule:'2'};
     if(!word.startsWith('잘'))return null;
     const rest=word.slice(1),tail=predicate(rest);
     // Productive -어지다 analysis can retain the underlying 알리 root.
@@ -825,6 +826,31 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   }
   function spacing(word,personal) {
     if(personal.has(word))return null;
+    // Quoted -단 말 is a clause, not the unrelated noun 단말.
+    const reported=word.match(/^(.+단)(말.*)$/);
+    if(reported&&noun(reported[2],personal)?.base==='말'){
+      const left=negativeBoundary(reported[1],personal)?.text??reported[1];
+      if(predicate(left.split(' ').at(-1)))return {text:left+' '+reported[2],ambiguous:true,rule:'2/42'};
+    }
+    // 싶다 is an auxiliary in -고 싶어 하다, unlike descriptive -어하다.
+    if(word.startsWith('싶어')&&predicate(word.slice(2))?.root==='하')return {text:'싶어 '+word.slice(2),ambiguous:false,rule:'47'};
+    // Preserve the subject 제가 before a nominal copula. The possessive
+    // 제 + 가게 reading must not consume the subject particle.
+    if(word.startsWith('제가')&&noun(word.slice(2),personal)?.copula)return {text:'제가 '+word.slice(2),ambiguous:true,rule:'2'};
+    // A complete noun+도 precedes negative 안; 도안하다 is a homograph.
+    for(let i=2;i<word.length-2;i++)if(word.slice(i-1,i+1)==='도안'){
+      const host=word.slice(0,i),base=host.slice(0,-1),tail=word.slice(i+1);
+      if(knownNominal(base)&&predicate(tail)&&!predicate(word)&&!knownNominal(word))return {text:host+' 안 '+tail,ambiguous:true,rule:'2'};
+    }
+    // Complete recalled clauses and contracted nominal/copula forms keep their gaps.
+    for(let i=2;i<word.length;i++){
+      const left=word.slice(0,i),right=word.slice(i),main=predicate(left),tail=predicate(right);
+      if(left.endsWith('네')&&main&&!main.adnominal&&['이게','그게','저게'].includes(right)&&!predicate(word))return {text:left+' '+right,ambiguous:true,rule:'2'};
+      if(left.endsWith('던')&&main?.adnominal&&/^앤(?:데|데요|가|지)$/.test(right))return {text:left+' '+right,ambiguous:true,rule:'42'};
+      if(/이라$/.test(left)&&knownNominal(left.slice(0,-2))&&tail?.root==='하')return {text:left+' '+right,ambiguous:true,rule:'2'};
+    }
+    const pretence=word.match(/^(이런|그런|저런)(척.*)$/);
+    if(pretence&&noun(pretence[2],personal)?.base==='척')return {text:pretence[1]+' '+pretence[2],ambiguous:false,rule:'42'};
     // Repeated syllables and short mimetic units are expressive runs, not
     // evidence for dictionary-sized word boundaries.
     if(/^([가-힣]{1,4})\1{2,}$/.test(word))return null;
@@ -919,7 +945,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     if(allCount)return {text:allCount[1]+' 다'+(allCount[2]??''),ambiguous:true,rule:'2'};
     const repeatedCount=word.match(/^(또|다시)(한|두|세|네)번(.*)$/);
     if(repeatedCount&&(!repeatedCount[3]||sets.josa.has(repeatedCount[3])))return {text:repeatedCount[1]+' '+repeatedCount[2]+' 번'+repeatedCount[3],ambiguous:true,rule:'43'};
-    const quantity=word.match(/^(한두|두세|서너|두어|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|스무|몇|여러)(번째|개|장|번|군데|달|시간|조각|권|명|사람|배|마리|살|쪽|줄|잔|모금|병|봉지|방울|그루|켤레|벌|세트|차례|개월|년|분|초|가지|폭|칸|날)(.*)$/);
+    const quantity=word.match(/^(한두|두세|서너|두어|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|스무|몇|여러)(번째|과목|개|장|번|군데|달|시간|조각|권|명|사람|배|마리|살|쪽|줄|잔|모금|병|봉지|방울|그루|켤레|벌|세트|차례|개월|년|분|초|가지|폭|칸|날)(.*)$/);
     // A native numeral and duration unit may be joined, but the following
     // independent 정도 always has its own boundary.
     const durationDegree=quantity&&['달','시간','개월','년','분','초','날'].includes(quantity[2])&&quantity[3].match(/^정도(.*)$/);
@@ -1287,7 +1313,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     })&&(!predicate(result.parts.at(-1))||analyze(result.parts.at(-1),personal,true)?.nominal&&result.parts.slice(0,-1).every(p=>noun(p,personal)?.base===p)))return null;
     // A verbal homograph of a bare noun (파일/메일) is not enough to
     // split its compound. Keep explicit duration/adverb boundaries usable.
-    if(result&&result.parts.every(p=>analyze(p,personal,true)?.kind==='noun')&&noun(result.parts[0],personal)?.base===result.parts[0]&&!['동안','이상','이하','전','후','계속','다시'].includes(result.parts.at(-1)))return null;
+    if(result&&result.parts.every(p=>analyze(p,personal,true)?.kind==='noun')&&noun(result.parts[0],personal)?.base===result.parts[0]&&!['동안','이상','이하','전','후','계속','다시'].includes(result.parts.at(-1))&&!(result.parts[0]==='알람'&&noun(result.parts[1],personal)?.base==='시간'))return null;
     // Dictionary-recognized fragments establish a possible segmentation,
     // not its meaning in context. All generic segmentation needs review.
     if(result&&result.parts.length>1){
@@ -1312,7 +1338,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(part.includes(' ')&&last==='줄'&&['알','모르'].includes(rightPredicate?.root))return true;
         if(part.includes(' ')&&['것','거'].includes(last)&&rightPredicate?.root==='같')return true;
         if(left?.kind==='noun'&&!left.unknown&&last.slice(left.base.length)==='의'&&(right?.kind==='noun'||noun(first,personal)))return true;
-        if(left?.kind==='noun'&&left.base===last&&['문서','신경'].includes(last)&&['확인하','쓰'].includes(rightPredicate?.root)&&rightPredicate.adnominal)return true;
+        if(left?.kind==='noun'&&left.base===last&&(['문서','신경'].includes(last)&&['확인하','쓰'].includes(rightPredicate?.root)||last==='한숨'&&rightPredicate?.root==='쉬')&&rightPredicate.adnominal)return true;
         if(left?.nominal&&predicate(last)&&right?.kind==='adverb')return true;
         if(/^(?:이거|그거|저거|이것|그것|저것)$/.test(last)&&rightPredicate&&first!==rightPredicate.root)return true;
         if(left?.kind==='noun'&&left.base===last&&actionNouns.has(last)&&/^(?:전|후)(?:에|에는|에도|부터|까지)?$/.test(first))return true;
@@ -1324,7 +1350,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(last==='출장'&&first==='수리'&&predicate(result.parts[i+2]??''))return true;
         if(['현금','환불'].includes(last)&&rightPredicate?.root==='처리하')return true;
         if(last==='며칠'&&/^(?:전|후)(?:에|에는|부터|까지)?$/.test(first))return true;
-        if(last==='알람'&&right?.kind==='noun'&&right.base==='소리')return true;
+        if(last==='알람'&&right?.kind==='noun'&&['소리','시간'].includes(right.base))return true;
         if(part.endsWith(' 수')&&rightPredicate?.root==='있')return true;
         if(left?.kind==='noun'&&!left.copula&&left.base!==last&&
           /^(?:(?:에서|서|에게|께서|한테)(?:부터|까지)?(?:는|도|만)?|이|가|을|를|에|로|으로|랑|이랑|와|과|도|만|나|이나|부터|까지)$/.test(last.slice(left.base.length))&&(rightPredicate||adverbs.has(first)||['정말','진짜','너무','아주','매우'].includes(first)))return true;

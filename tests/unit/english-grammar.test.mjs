@@ -640,3 +640,15 @@ test('complete noun phrases recover articles while noun modifiers keep their str
   for(const text of ['we are fresh graduate recruiters','with separate answer sheets','will be default settings','in UK law','in UK schools'])assert.equal(englishGrammar(text).length,0,text);
   const text='a AI tool';assert.equal(englishGrammar(text,[[0,text.length]]).length,0);assert.equal(englishGrammar(text,[],new Set(['a'])).length,0);
 });
+
+
+test('need of after a copula repairs the preposition while finite need still agrees',()=>{
+  for(const text of ["It's it need of repair.",'They are it need of help.','It is IT  need of help.']){
+    const finding=englishGrammar(text).find(f=>f.suggestions[0]==='in');
+    assert.ok(finding,text);
+    assert.equal(text.slice(finding.from,finding.to).toLowerCase(),'it');
+    assert.equal(englishGrammar(text).some(f=>f.suggestions[0].includes('needs')),false,text);
+  }
+  assert.ok(englishGrammar('It need tools.').some(f=>f.suggestions[0]==='It needs'));
+  assert.equal(englishGrammar("It's in need of repair.").length,0);
+});

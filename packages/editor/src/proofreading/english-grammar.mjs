@@ -459,9 +459,15 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,match[1].toLowerCase()==='try'?'tries':match[1]+'s','This singular subject takes a third-person present verb');
   }
+  // Need of is a noun construction after a copula, not a finite need verb.
+  for(const match of text.matchAll(/\b(?:am|is|are|was|were|been|be|it['’]s|that['’]s|there['’]s)\s+(it)\s+need\s+of\b/gi)){
+    const from=match.index+match[0].search(/\bit\s+need\s+of$/i);
+    add(from,from+match[1].length,'in','The prepositional phrase is in need of');
+  }
   const singularSubjectVerbs=new Map([['switch','switches'],['work','works'],['need','needs'],['use','uses'],['want','wants'],['make','makes'],['take','takes'],['run','runs'],['open','opens'],['close','closes'],['show','shows'],['respond','responds'],['seem','seems'],['start','starts'],['stop','stops']]);
   for(const match of text.matchAll(/\b([Ii]t|[Hh]e|[Ss]he)\s+(switch|work|need|use|want|make|take|run|open|close|show|respond|seem|start|stop)(?:\s+(on|off|out|up|down))?\b/g)){
     if(permitsBaseVerb(match.index))continue;
+    if(match[2]==='need'&&/^\s+of\b/i.test(text.slice(match.index+match[0].length)))continue;
     if(match[2]==='open'&&/\b(?:get|gets|got|keep|keeps|kept|leave|leaves|left|hold|holds|held)\s*$/i.test(text.slice(Math.max(0,match.index-30),match.index)))continue;
     add(match.index,match.index+match[0].length,match[1]+' '+singularSubjectVerbs.get(match[2])+(match[3]?' '+match[3]:''),'This singular subject takes a third-person singular verb');
   }

@@ -993,3 +993,14 @@ test('consecutive particles attach to a nominal while elapsed-time man remains s
 test('rule 46 permits joined short adverbs as an author variant',()=>{
   for(const source of ['좀더 선명하고요','좀 더 선명하고요'])assert.equal(check(source).filter(f=>f.applicable).length,0,source);
 });
+
+
+test('subject and negative particles take precedence over unrelated noun fragments',()=>{
+  for(const [source,target]of [['개학도안했는데','개학도 안 했는데'],['안준단말이야','안 준단 말이야'],['제가게이냐는','제가 게이냐는'],['잘못살까봐','잘못 살까봐']])assert.ok(check(source).some(f=>f.suggestions[0]===target),source);
+  for(const source of ['잘못된','잘못한','엄마한테는','어떻게든지'])assert.equal(check(source).some(f=>f.applicable),false,source);
+});
+
+test('historical community boundaries preserve required correction recall',()=>{
+  for(const [source,target]of [['싶어하는','싶어 하는'],['한과목','한 과목'],['한숨쉬던','한숨 쉬던'],['그런척','그런 척'],['보던앤데','보던 앤데'],['이득이라해서','이득이라 해서']])assert.ok(check(source).some(f=>f.suggestions[0]===target),source);
+  for(const source of ['미안해하면서','불편해했다','불칸으로'])assert.equal(check(source).some(f=>f.applicable),false,source);
+});
