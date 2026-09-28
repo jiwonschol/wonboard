@@ -35,7 +35,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   for(const [s,e,r]of data?.forms??[])if(e==='ETM'&&naeConnectives.has(r)&&s===r.slice(0,-1)+'낸')roots.add(r);
   // Attested suffix uses, not every noun + 드리다 (불편 드리다 differs).
   // Expand the stems so honorific, past and connective forms share the rules.
-  const dridaNouns=new Set(['감사','질문','답변','부탁','말씀','문의','연락','송부','추천','요청','공유','축하']);
+  const dridaNouns=new Set(['감사','질문','답변','부탁','말씀','문의','연락','송부','추천','요청','공유','축하','인사']);
   for(const base of dridaNouns)roots.add(base+'드리');
   // -받다 attaches to these verified abstract hosts. A concrete object
   // (선물 받다) or a modified noun phrase remains a separate construction.

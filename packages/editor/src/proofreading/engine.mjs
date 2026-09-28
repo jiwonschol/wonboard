@@ -73,7 +73,11 @@ export function createChecker(data) {
     if(!morphology.analyze(word,personal)&&!recognizedNoun(word)&&!recognizeWhole?.(word,personal))for(let i=2;i<word.length-2;i++){
       if(word[i]!=='나')continue;
       const left=word.slice(0,i),right=word.slice(i+1);
-      if(knownOrthographicNoun(left)&&knownOrthographicNoun(right)&&!morphology.predicate(left+'나')&&!morphology.predicate(word.slice(i)))return {type:'spacing',suggestions:[left+'나 '+right],reason:'Separate two recognized nouns joined by the choice particle 나',ambiguous:true};
+      if(knownOrthographicNoun(left)&&knownOrthographicNoun(right)&&!morphology.predicate(left+'나')&&!morphology.predicate(word.slice(i))){
+        // A verified whole-word spelling repair precedes a speculative
+        // noun + choice-particle boundary inside the malformed word.
+        return orthography(word,sets,personal,knownOrthographicPredicate,knownOrthographicNoun)??{type:'spacing',suggestions:[left+'나 '+right],reason:'Separate two recognized nouns joined by the choice particle 나',ambiguous:true};
+      }
     }
     const pair=candidatePhraseBoundaries.find(([source])=>{
       if(!word.startsWith(source))return false;
@@ -131,7 +135,7 @@ export function createChecker(data) {
     const lower=word.toLowerCase(),alphabet='abcdefghijklmnopqrstuvwxyz',candidates=new Set();
     // Reviewed spelling repairs that weak edit-distance evidence otherwise
     // suppresses. These remain errors, never recognition-only vocabulary.
-    const lexicalRepair={anyboby:'anybody',technicaians:'technicians',lucious:'luscious',havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth',conming:'coming',washine:'washing',opnions:'opinions',maube:'maybe',staistic:'statistic',sautee:'saute',nothwithstanding:'notwithstanding',creasote:'creosote',subtley:'subtly',harasssed:'harassed',headequarter:'headquarters',unbereable:'unbearable',diptheria:'diphtheria',communial:'communal',clobering:'clobbering',mantlepiece:'mantelpiece',spolit:'spoilt',breathelessness:'breathlessness',ancestores:'ancestors',combustable:'combustible',desparately:'desperately',predesessors:'predecessors',squeeking:'squeaking',adheasion:'adhesion',mismangement:'mismanagement',aneamic:'anaemic',duatpan:'dustpan',idiogram:'ideogram',omeprazol:'omeprazole',antogonistic:'antagonistic'}[lower];
+    const lexicalRepair={comapss:'compass',optitician:'optician',proofreaded:'proofread',anyboby:'anybody',technicaians:'technicians',lucious:'luscious',havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth',conming:'coming',washine:'washing',opnions:'opinions',maube:'maybe',staistic:'statistic',sautee:'saute',nothwithstanding:'notwithstanding',creasote:'creosote',subtley:'subtly',harasssed:'harassed',headequarter:'headquarters',unbereable:'unbearable',diptheria:'diphtheria',communial:'communal',clobering:'clobbering',mantlepiece:'mantelpiece',spolit:'spoilt',breathelessness:'breathlessness',ancestores:'ancestors',combustable:'combustible',desparately:'desperately',predesessors:'predecessors',squeeking:'squeaking',adheasion:'adhesion',mismangement:'mismanagement',aneamic:'anaemic',duatpan:'dustpan',idiogram:'ideogram',omeprazol:'omeprazole',antogonistic:'antagonistic'}[lower];
     if(lexicalRepair&&enLower.has(lexicalRepair))return [lexicalRepair];
     if(lower==='alot')return ['a lot'];
     if(lower==='canthe')return ['can the'];
@@ -615,6 +619,11 @@ export function createChecker(data) {
         // adjective would otherwise win over an ordinary verb/noun typo.
         const before=text.slice(Math.max(0,from-50),from);
         if(/\b(?:(?:app|tool|project|service|manager|platform|library|package)\s+(?:called|named)|(?:I|we)\s+call)\s+$/i.test(before)){
+          emit(from,to,'en','unknown',[],word);continue;
+        }
+        // Colloquial -in after a progressive auxiliary preserves an attested
+        // -ing verb; lexical distance must not turn givin into given.
+        if(/^[a-z]{3,}in$/.test(lookup)&&enLower.has(lookup+'g')&&englishSuggestions(word)[0]!==lookup+'g'&&/\b(?:am|is|are|was|were|ain['’]?t)(?:\s+not)?\s+$/i.test(before)){
           emit(from,to,'en','unknown',[],word);continue;
         }
         const contextualRepair=lookup==='ther'&&/\b(?:hi|hello|hey)\s+$/i.test(before)?'there':lookup==='avpid'&&/\bto\s+$/.test(before)?'avoid':lookup==='ceilingd'&&/\b(?:wall|walls)\s+and\s+$/.test(before)?'ceiling':lookup==='extrem'&&/^\s+(?:knowledgeable|difficult|important|good|bad|useful)\b/i.test(text.slice(to))?'extremely':null;

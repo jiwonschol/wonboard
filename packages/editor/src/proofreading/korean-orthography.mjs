@@ -190,7 +190,7 @@ export function orthography(word,sets,personal,isPredicate,isKnownNoun=w=>sets.n
   if(uncertain&&(uncertain[1].charCodeAt(uncertain[1].length-1)-0xac00)%28===8&&isPredicate(uncertain[1]))return {suggestions:[uncertain[1]+'는지'+(uncertain[2]??'')],reason:'Standard ending -ㄹ는지 when this is a predicate; confirm intended word',ambiguous:true};
   // A bound stem correction must still have a grammatical ending; do not
   // replace these syllables inside a nickname or an unrelated noun.
-  for(const [bad,good] of [['왠만','웬만'],['희안','희한'],['환골탈퇴','환골탈태']])if(word.startsWith(bad)){
+  for(const [bad,good] of [['다사나단','다사다난'],['왠만','웬만'],['희안','희한'],['환골탈퇴','환골탈태']])if(word.startsWith(bad)){
     const tail=word.slice(bad.length);
     const haForms=new Set(['하다','하면','하고','하지','하니','하네요','합니다','한','할','해서','해도','해요','했다','했어요','했지만']);
     if(haForms.has(tail))return {suggestions:[good+tail],reason:'Verified bound stem spelling; see source registry',ambiguous:false};
@@ -202,7 +202,7 @@ export function orthography(word,sets,personal,isPredicate,isKnownNoun=w=>sets.n
   }
   // Bounded malformed stems: validate each complete repair, and leave the
   // choice of lexical meaning to the author when two repairs are possible.
-  for(const [bad,alternatives]of [['겹처',['겹쳐']],['싫어아',['싫어하']],['편한하',['편안하','편하']]]){
+  for(const [bad,alternatives]of [['비꾸',['바꾸']],['겹처',['겹쳐']],['싫어아',['싫어하']],['편한하',['편안하','편하']]]){
     if(!word.startsWith(bad)||personal.has(bad)||personal.has(bad+'다')||isKnownNoun(word)||isPredicate(word))continue;
     const suggestions=alternatives.map(good=>good+word.slice(bad.length)).filter(isPredicate);
     if(suggestions.length)return {suggestions,reason:'Possible spelling repair on a validated full predicate; confirm the intended meaning',ambiguous:true};

@@ -7,6 +7,18 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     if(findings.some(item=>item.from<to&&item.to>from))return;
     findings.push({from,to,original:text.slice(from,to),language:'en',type,suggestions:[suggestion],applicable:true,reason});
   };
+  for(const match of text.matchAll(/\b(?:I|we|you|they)\s+(belive)(?=\s+(?:that|this|it|you|he|she|we|they|the|in)\b)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'believe','This finite belief verb takes believe','spelling');
+  }
+  for(const match of text.matchAll(/\b(?:have|has|had)(?:\s+(?:already|just|never|ever))?\s+(showin)\b/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'shown','The perfect auxiliary requires shown rather than showing','spelling');
+  }
+  for(const match of text.matchAll(/\b(?:under|in)\s+(warant(?:ee|y)|warantee|warentee|warrantee)\b/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'warranty','This coverage phrase refers to the warranty, not the warrantee','spelling');
+  }
   for(const match of text.matchAll(/\bharnesss\b/gi)){
     const before=text.slice(Math.max(0,match.index-40),match.index),after=text.slice(match.index+match[0].length);
     const pluralDeterminer=/\b(?:these|those|many|several|some|both|two|three|four|five|[2-9]|[1-9]\d+)\s+$/i.test(before);
@@ -491,6 +503,10 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   // dont a mistyped participle instead of a negative contraction.
   for(const [source,replacement] of [['thats',"that's"],['theres',"there's"],['dont',"don't"],['doesnt',"doesn't"],['arent',"aren't"]]){
     for(const match of text.matchAll(new RegExp(`\\b${source}\\b`,'gi'))){
+      if(source==='thats'&&/^\s+(?:(?:now|still|always|usually|often)\s+)?(?:sits|stands|works|runs|looks|seems|makes|takes|needs|gets|has|does)\b/i.test(text.slice(match.index+match[0].length))){
+        add(match.index,match.index+match[0].length,match[0][0]==='T'?'That':'that','The following finite verb takes the relative or demonstrative that','spelling');
+        continue;
+      }
       if(source==='dont'&&/\b(?:have|has|had)(?:\s+(?:I|we|you|they|he|she|it))?(?:\s+(?:already|just|never|ever))?\s+$/i.test(text.slice(0,match.index))){
         add(match.index,match.index+match[0].length,'done','The perfect auxiliary requires the past participle done','spelling');
         continue;

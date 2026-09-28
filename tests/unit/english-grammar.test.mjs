@@ -671,3 +671,15 @@ test('need of after a copula repairs the preposition while finite need still agr
   assert.ok(englishGrammar('It need tools.').some(f=>f.suggestions[0]==='It needs'));
   assert.equal(englishGrammar("It's in need of repair.").length,0);
 });
+
+
+test('context chooses warranty and finite forms before lexical neighbors',()=>{
+  for(const [text,target]of [['I have showin it.','shown'],['The car is under warantee.','warranty'],['It is in warentee.','warranty'],['a van thats now sits parked','that'],['I belive this works.','believe']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['That is a warrantee.','I have shown it.','a van that now sits parked'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('Thats a nice car.').some(f=>f.suggestions[0]==="That's"));
+});
+
+test('progressive colloquial endings and attested terms preserve their meaning',()=>{
+  for(const text of ['I am givin it.','she aint givin me Da remote.','overspeeding','from carsa'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['I was readin about it.','reading'],['I am lookin for it.','looking'],['moral comapss','compass'],['an optitician','optician'],['I proofreaded it.','proofread']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});

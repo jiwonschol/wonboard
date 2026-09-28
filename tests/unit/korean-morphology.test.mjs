@@ -1031,3 +1031,15 @@ test('short uncertain noun and nominalization homographs do not invent boundarie
   for(const text of ['센경','삽사기','삽사기도'])assert.equal(check(text).some(f=>f.applicable),false,text);
   for(const [text,target]of [['큰문제','큰 문제'],['책읽기','책 읽기'],['밥먹기','밥 먹기'],['머리감기','머리 감기']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
 });
+
+
+test('verified lexical stems and nominalizations keep community boundaries intact',()=>{
+  for(const text of ['인사드리고','인사드렸습니다','인사드릴게요','명문대를','명문대에서','못남과','못남을','못난'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['불편드려요','불편 드려요'],['못먹었다','못 먹었다'],['못나가겠고','못 나가겠고'],['못나와서','못 나와서']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('bounded predicate repairs precede speculative noun choice and activity gaps',()=>{
+  for(const [text,target]of [['다사나단한','다사다난한'],['다사나단했다','다사다난했다'],['비꾸기','바꾸기'],['비꾸고','바꾸고']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['다사다난한','바꾸기','다사나단닉네임','비꾸닉네임'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const text of ['다사나단한','비꾸기'])assert.deepEqual(check(text,[text]),[],text);
+});
