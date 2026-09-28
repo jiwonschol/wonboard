@@ -942,6 +942,13 @@ test('ge doeda composition recovers the past ending before speculative unknown s
   assert.equal(check('알게되엇는데요',['알게되엇는데요']).length,0);
 });
 
+test('adjective-derived psychological verbs and modified honorifics keep their units',()=>{
+  for(const text of ['미안해하면서','불편해했다','아는 형님이'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('아는형님이').some(f=>f.suggestions[0]==='아는 형님이'));
+  assert.equal(check('아는형님이',['아는형님이']).length,0);
+  for(const text of ['갠적으로','데스에더'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('complete nouns are not split at a coincidental dependent noun ending',()=>{
   for(const source of ['필수','이걸','이때'])assert.equal(check(source).length,0,source);
   for(const [source,target]of [['아닌것','아닌 것'],['탈일이','탈 일이'],['한군데','한 군데']])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);

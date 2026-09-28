@@ -1,6 +1,13 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 
+test('object adjectives and unfinished noun phrases are not finite subject clauses',()=>{
+  for(const text of ['How can I get it open','Keep it open.','They left it open.','searching for child'])assert.equal(englishGrammar(text).length,0,text);
+  assert.ok(englishGrammar('It open every day.').some(f=>f.suggestions[0]==='It opens'));
+  assert.ok(englishGrammar('A ticket for child.').some(f=>f.suggestions[0]==='a child'));
+  assert.equal(check('an agent which I call magent.').some(f=>f.original==='magent'&&f.applicable),false);
+});
+
 test('counted acronyms keep singular modifiers and HTTP status descriptions',()=>{
   for(const text of ['500 API Error','20 API requests','3 LLM providers'])assert.equal(englishGrammar(text).some(f=>f.suggestions[0].includes('APIs')||f.suggestions[0].includes('LLMs')),false,text);
   assert.ok(englishGrammar('We use 20 API.').some(f=>f.suggestions[0]==='20 APIs'));

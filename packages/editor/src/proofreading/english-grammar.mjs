@@ -47,7 +47,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,match[1].slice(0,-1)+"'s",'The singular companion determined by a possesses the following relation');
   }
-  for(const match of text.matchAll(/\bfor\s+(child)\b(?=\s*[,.;!?)]|$)/gi)){
+  for(const match of text.matchAll(/\bfor\s+(child)\b(?=\s*[,.;!?)])/gi)){
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'a '+match[1],'This complete singular count noun phrase needs an article');
   }
@@ -462,6 +462,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   const singularSubjectVerbs=new Map([['switch','switches'],['work','works'],['need','needs'],['use','uses'],['want','wants'],['make','makes'],['take','takes'],['run','runs'],['open','opens'],['close','closes'],['show','shows'],['respond','responds'],['seem','seems'],['start','starts'],['stop','stops']]);
   for(const match of text.matchAll(/\b([Ii]t|[Hh]e|[Ss]he)\s+(switch|work|need|use|want|make|take|run|open|close|show|respond|seem|start|stop)(?:\s+(on|off|out|up|down))?\b/g)){
     if(permitsBaseVerb(match.index))continue;
+    if(match[2]==='open'&&/\b(?:get|gets|got|keep|keeps|kept|leave|leaves|left|hold|holds|held)\s*$/i.test(text.slice(Math.max(0,match.index-30),match.index)))continue;
     add(match.index,match.index+match[0].length,match[1]+' '+singularSubjectVerbs.get(match[2])+(match[3]?' '+match[3]:''),'This singular subject takes a third-person singular verb');
   }
   for(const match of text.matchAll(/(?:^|[.!?]\s+)[Aa]ll the (?:steps|tasks|issues|files|changes|tests|features)(?:\s+(?:of|in|for|on|with)\s+(?:(?:[a-z]+)\s+){0,8}[a-z]+)?\s+(has been)\b/gim)){

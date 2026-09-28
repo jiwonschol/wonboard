@@ -2,6 +2,13 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('attested usage resolves rare neighbors without blocking strong two-edit repairs',()=>{
+  const check=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:['capot','carpet','armature','amateur','simplist','simplest','flattering','faltering','custom','customer']});
+  for(const [source,target]of [['capet','carpet'],['amature','amateur'],['simpliest','simplest'],['falttering','flattering'],['custome','custom']])assert.equal(check(source)[0]?.suggestions[0],target,source);
+  assert.equal(check('capet',['capet']).length,0);
+  assert.equal(check('Amature').some(f=>f.applicable),false);
+});
+
 test('explicit foreign translation quotes preserve their spelling and surrounding prose stays checkable',()=>{
   const check=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:['diss','the','phrase','works']});
   const text='The phrase "O Gemini disse" (Portuguese for "Gemini Said") works teh';

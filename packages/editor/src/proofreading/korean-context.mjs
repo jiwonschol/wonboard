@@ -9,6 +9,7 @@ export function communityAction(word,predicate){
 export function communityExpression(text,from,to,personal,sets,predicate){
   const word=text.slice(from,to);
   const right=text.slice(to,to+64).split('\n')[0];
+  if(!personal.has(word)&&/^갠적으로(?:는|도|만)?$/.test(word))return '갠적으로';
   // Preserve the intentionally altered food nickname as one expression.
   if(!personal.has(word)&&/^햄부기(?:는|가|를|도|만|야|임)?$/.test(word))return '햄부기';
   // Reviewed phonetic internet speech stays a whole expression for review.

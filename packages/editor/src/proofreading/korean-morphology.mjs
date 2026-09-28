@@ -423,6 +423,16 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     const uncertain=s.match(/^(.+)는지(?:요)?$/);
     if(uncertain&&final(uncertain[1])===8&&forms.get(uncertain[1])?.adnominal)return {root:forms.get(uncertain[1]).root,adnominal:false};
     for(const i of prefixLengths.get(s[0])??[])if(i>0&&i<s.length&&prefixes.has(s.slice(0,i))&&connects(s.slice(0,i),s.slice(i)))return {root:prefixes.get(s.slice(0,i)),adnominal:/(?:는|은|던|을)$/.test(s.slice(i))};
+    // Descriptive -아/어하다 is one verb: 미안해하면서, 불편해했다.
+    // Require an attested adjective connective and a complete 하다 tail.
+    for(let i=1;i<s.length;i++){
+      const left=s.slice(0,i);
+      if(!/[아어해]$/.test(left))continue;
+      const main=predicate(left);
+      if(!main||!sets.adjective.has(main.root))continue;
+      const tail=predicate(s.slice(i));
+      if(tail?.root==='하')return {root:left+'하',adnominal:tail.adnominal};
+    }
     // -아/어지다 remains one written unit, including noun-derived 해지다.
     // Validate both predicates; a coincidental 지 inside a noun is insufficient.
     for(let i=1;i<s.length;i++){

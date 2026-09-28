@@ -4,6 +4,7 @@ import {createMorphology,createActionNounSet,isPronoun} from './korean-morpholog
 import {orthography,lexicalNounRepair} from './korean-orthography.mjs';
 import {contextSuggestion,communityExpression,communityAction} from './korean-context.mjs';
 import {englishGrammar} from './english-grammar.mjs';
+import {englishUsage} from './english-usage.mjs';
 import {communityNouns,communityNominalOnly,technicalAbbreviations,englishRecognizedTerms,communityActionNouns,communityAdjectiveStems,communityVerbStems,candidatePhraseBoundaries,candidateJoinedPhrases} from './community-vocabulary.mjs';
 export function createChecker(data) {
   const sets=Object.fromEntries(Object.entries(data.ko).map(([k,v])=>[k,new Set(v)]));
@@ -127,8 +128,10 @@ export function createChecker(data) {
     const lower=word.toLowerCase(),alphabet='abcdefghijklmnopqrstuvwxyz',candidates=new Set();
     // Reviewed spelling repairs that weak edit-distance evidence otherwise
     // suppresses. These remain errors, never recognition-only vocabulary.
-    const lexicalRepair={havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth',conming:'coming',washine:'washing',opnions:'opinions',maube:'maybe'}[lower];
+    const lexicalRepair={havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth',conming:'coming',washine:'washing',opnions:'opinions',maube:'maybe',staistic:'statistic',sautee:'saute',nothwithstanding:'notwithstanding',creasote:'creosote',subtley:'subtly',harasssed:'harassed',headequarter:'headquarters',unbereable:'unbearable',diptheria:'diphtheria',communial:'communal',clobering:'clobbering',mantlepiece:'mantelpiece',spolit:'spoilt',breathelessness:'breathlessness',ancestores:'ancestors',combustable:'combustible',desparately:'desperately',predesessors:'predecessors',squeeking:'squeaking',adheasion:'adhesion',mismangement:'mismanagement',aneamic:'anaemic',duatpan:'dustpan'}[lower];
     if(lexicalRepair&&enLower.has(lexicalRepair))return [lexicalRepair];
+    if(lower==='alot')return ['a lot'];
+    if(lower==='canthe')return ['can the'];
     if(lower==='flooplan'&&enLower.has('floor')&&enLower.has('plan'))return ['floor plan'];
     const add=s=>{if(enLower.has(s))candidates.add(s);};
     for(let i=0;i<=lower.length;i++) {
@@ -139,7 +142,7 @@ export function createChecker(data) {
     // Two edits need evidence of misplaced/doubled letters, not just a nearby
     // dictionary entry. This preserves repairs such as tommorow -> tomorrow
     // without replacing an unfamiliar package name with an unrelated word.
-    if(!candidates.size&&lower.length>=6&&lower.length<=32&&/^[a-z]+$/.test(lower)){
+    if(lower.length>=6&&lower.length<=32&&/^[a-z]+$/.test(lower)){
       const distanceTwo=(a,b)=>{
         let previous=Array.from({length:b.length+1},(_,i)=>i),before;
         for(let i=1;i<=a.length;i++){
@@ -196,7 +199,11 @@ export function createChecker(data) {
       if(lower.length===s.length+1){let i=0;while(lower[i]===s[i]&&i<s.length)i++;return /[aeiou]/.test(lower[i]);}
       return false;
     };
-    return [...candidates].filter(s=>spellingEvidence(s)&&(lower.length>=5||transpositions.has(s)||/([a-z])\1{2,}/.test(lower)&&sameRuns.has(s))&&(s[0]===lower[0]||!(/^[A-Z]/.test(word))&&transpositions.has(s))).sort((a,b)=>Number(adjectiveEnding(b))-Number(adjectiveEnding(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||Number(transpositions.has(b))-Number(transpositions.has(a))||Number(b[0]===lower[0])-Number(a[0]===lower[0])||Number(doubled.has(b))-Number(doubled.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||sharedPrefix(b)-sharedPrefix(a)||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
+    // A word-game dictionary contains many rare neighbors. Require observed
+    // target usage and rank familiar targets before prefix resemblance.
+    // Strong letter-order/run evidence takes priority among attested targets.
+    const usage=s=>englishUsage.get(s)??0;
+    return [...candidates].filter(s=>spellingEvidence(s)&&(usage(s)>=1||s.length>lower.length&&sameRuns.has(s))&&(lower.length>=5||transpositions.has(s)||/([a-z])\1{2,}/.test(lower)&&sameRuns.has(s))&&(s[0]===lower[0]||!(/^[A-Z]/.test(word))&&transpositions.has(s))).sort((a,b)=>Number(adjectiveEnding(b))-Number(adjectiveEnding(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||Number(transpositions.has(b))-Number(transpositions.has(a))||Number(b[0]===lower[0])-Number(a[0]===lower[0])||Number(doubled.has(b))-Number(doubled.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||usage(b)-usage(a)||sharedPrefix(b)-sharedPrefix(a)||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
   }
   function formalEndingCandidate(word) {
     // Recover a mistyped ㅁ in the formal -ㅂ니다 ending only when the
@@ -557,6 +564,7 @@ export function createChecker(data) {
         const americanVerb=lowerLookup.replace(/is(e[ds]?|ing)$/,'iz$1');
         if(americanVerb!==lowerLookup&&enLower.has(americanVerb))continue;
         if(lowerLookup.endsWith('less')&&lowerLookup.length>6&&enLower.has(lowerLookup.slice(0,-4)))continue;
+        if(lowerLookup.endsWith('ish')&&lowerLookup.length>5&&enLower.has(lowerLookup.slice(0,-3)))continue;
         const inflectionBase=/[sxz]es$|(?:ch|sh)es$/.test(lowerLookup)?lowerLookup.slice(0,-2):/[^aeiou]ies$/.test(lowerLookup)?lowerLookup.slice(0,-3)+'y':/[^s]s$/.test(lowerLookup)?lowerLookup.slice(0,-1):null;
         if(inflectionBase&&inflectionBase.length>=3&&(enLower.has(inflectionBase)||recognizedEnglish.has(inflectionBase)))continue;
         // Regular participles retain a known base (diffing, vibing). This
@@ -590,7 +598,7 @@ export function createChecker(data) {
         // Context selects the part of speech where a nearby dictionary
         // adjective would otherwise win over an ordinary verb/noun typo.
         const before=text.slice(Math.max(0,from-50),from);
-        if(/\b(?:app|tool|project|service|manager|platform|library|package)\s+(?:called|named)\s+$/i.test(before)){
+        if(/\b(?:(?:app|tool|project|service|manager|platform|library|package)\s+(?:called|named)|(?:I|we)\s+call)\s+$/i.test(before)){
           emit(from,to,'en','unknown',[],word);continue;
         }
         const contextualRepair=lookup==='ther'&&/\b(?:hi|hello|hey)\s+$/i.test(before)?'there':lookup==='avpid'&&/\bto\s+$/.test(before)?'avoid':lookup==='ceilingd'&&/\b(?:wall|walls)\s+and\s+$/.test(before)?'ceiling':lookup==='extrem'&&/^\s+(?:knowledgeable|difficult|important|good|bad|useful)\b/i.test(text.slice(to))?'extremely':null;
@@ -966,6 +974,9 @@ export function createChecker(data) {
         const compoundWithHonorific=word.match(/^([가-힣]+님)(.*)$/);
         if(compoundWithHonorific){
           const compound=compoundWithHonorific[1];
+          let titleBoundary=null;
+          for(let i=1;i<compound.length-1;i++)if(morphology.predicate(compound.slice(0,i))?.adnominal&&sets.noun.has(compound.slice(i))&&morphology.analyze(word.slice(i),personal)?.kind==='noun'){titleBoundary=i;break;}
+          if(titleBoundary!==null&&!personal.has(word)){emit(from,to,'ko','spacing',[word.slice(0,titleBoundary)+' '+word.slice(titleBoundary)]);continue;}
           let recognizedCompound=false;
           for(let i=1;i<compound.length-1;i++)if(sets.noun.has(compound.slice(0,i))&&sets.noun.has(compound.slice(i))){recognizedCompound=true;break;}
           // Recognizing the title must not hide an arbitrary following span.
