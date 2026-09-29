@@ -1144,3 +1144,19 @@ test('bounded predicate repairs precede speculative noun choice and activity gap
   for(const text of ['다사다난한','바꾸기','다사나단닉네임','비꾸닉네임'])assert.equal(check(text).some(f=>f.applicable),false,text);
   for(const text of ['다사나단한','비꾸기'])assert.deepEqual(check(text,[text]),[],text);
 });
+
+
+test('food nouns and quantities retain lexical suffixes in community prose',()=>{
+  for(const text of ['제주시로','묵은지에','데리야키','벚꽃놀이하기','고급졌습니다','대파 한 대','미술슨상님도'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('한장짜리').some(f=>f.suggestions[0]==='한 장짜리'));
+});
+
+test('complete predicates precede auxiliary and abbreviated report boundaries',()=>{
+  for(const [text,target]of [['아른아른거렸을듯','아른아른거렸을 듯'],['지원해볼만할까요','지원해 볼만할까요'],['이렇게한다함','이렇게 한다 함'],['한다함','한다 함']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['안하도','떨어질가요'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('independent eating predicates and omitted objects recover mandatory gaps',()=>{
+  for(const [text,target]of [['구워먹을라고','구워 먹을라고'],['만들어먹겠다는','만들어 먹겠다는'],['찍어먹기','찍어 먹기'],['비벼먹으니','비벼 먹으니'],['시켜먹습니다','시켜 먹습니다'],['발라내먹어야','발라내 먹어야'],['도움받을수','도움 받을 수'],['정신나간','정신 나간']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['받아먹었다','갉아먹었다','까먹었다','다쳐먹더라고'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});

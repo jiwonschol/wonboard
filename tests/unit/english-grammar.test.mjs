@@ -1,6 +1,36 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 
+test('ordinary verb constructions recover adjacent-key spelling without changing introduced names',()=>{
+  for(const [text,original,target] of [
+    ['it organzies your tabs','organzies','organizes'],
+    ['and lookinf for micro tasks','lookinf','looking'],
+    ['Wotked for years, then stopped','Wotked','Worked'],
+    ['as soon as I movrd','movrd','moved'],
+  ])assert.equal(check(text).find(f=>f.original===original)?.suggestions[0],target,text);
+  for(const text of ['Organzies is a service.','a package called lookinf','Wotked is a name.','movrd is a key.'])assert.equal(englishGrammar(text).length,0,text);
+});
+
+test('adverb and adjective typos retain their grammatical forms in bounded contexts',()=>{
+  for(const [text,original,target] of [['SaaS specificly.','specificly','specifically'],['find nornal to path length','nornal','normal']])assert.equal(check(text).find(f=>f.original===original)?.suggestions[0],target,text);
+  for(const text of ['Specifically for you.','Specificly is a name.','Nornal is a town.','the normal line'])assert.equal(englishGrammar(text).length,0,text);
+});
+
+test('utility noun repairs preserve pricing and metering context',()=>{
+  for(const [text,original,target] of [['the electiciry meter','electiciry','electricity'],['my fixed tarfiff ends soon','tarfiff','tariff']])assert.equal(check(text).find(f=>f.original===original)?.suggestions[0],target,text);
+  for(const text of ['electiciry is a variable','Tarfiff is a name','a fixed tariff','an electricity meter'])assert.equal(englishGrammar(text).length,0,text);
+});
+
+test('contextual spelling repairs respect excluded spans and personal words',()=>{
+  for(const text of ['it organzies your tabs','SaaS specificly.','find nornal to path length','lookinf for work','wotked for years','I movrd','the electiciry meter','a fixed tarfiff']){
+    const finding=englishGrammar(text)[0];
+    assert.ok(finding,text);
+    assert.equal(englishGrammar(text,[[finding.from,finding.to]]).length,0,text);
+    assert.equal(englishGrammar(text,[],new Set([finding.original])).length,0,text);
+    assert.equal(check(text,[finding.original]).some(f=>f.from===finding.from&&f.applicable),false,text);
+  }
+});
+
 test('joined copulas retain the singular noun and a following subject clause',()=>{
   for(const [text,target] of [['the problemis it came without instructions','problem is'],['my issueis that they left','issue is'],['the reasonis we cannot leave','reason is']]){
     assert.ok(check(text).some(f=>f.suggestions[0]===target),text);

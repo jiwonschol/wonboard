@@ -7,6 +7,24 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     if(findings.some(item=>item.from<to&&item.to>from))return;
     findings.push({from,to,original:text.slice(from,to),language:'en',type,suggestions:[suggestion],applicable:true,reason});
   };
+  // These neighboring-key, letter-order and suffix errors need an attested
+  // construction. Do not relax lexical matching for arbitrary unknown names.
+  for(const [pattern,target,reason] of [
+    [/\b(organzies)(?=\s+(?:my|your|the|these|those|our|their)\s+(?:tabs|files|folders|data|notes|tasks|records|photos)\b)/gi,'organizes','The verb before this organized object is organizes'],
+    [/\b(specificly)\b(?=\s*[,.;:!?)]|$|\s+(?:for|in|on|to|about|with|because|when|as)\b)/gi,'specifically','The adverb specifically retains the -ically suffix'],
+    [/\b(?:a|the|find|finding|found|seems|seemed|is|was|be|become)\s+(nornal)\b/gi,'normal','This adjective or geometric noun is spelled normal'],
+    [/\b(lookinf)(?=\s+(?:for|at|into|through|around|forward\s+to)\b)/gi,'looking','This looking construction retains the progressive -ing ending'],
+    [/\b(wotked)(?=\s+(?:for\s+(?:(?:\d+|many|several|a few)\s+)?(?:years|months|weeks|days|hours)|well|fine|before|yesterday)\b)/gi,'worked','This past action before a duration or result is worked'],
+    [/\b(?:I|we|you|they|he|she)\s+(?:(?:just|recently|already)\s+)?(movrd)\b/gi,'moved','This subject clause takes the past verb moved'],
+    [/\b(electiciry)(?=\s+(?:meters?|bills?|tariffs?|supply|prices?|costs?|rates?)\b)/gi,'electricity','This utility noun before a meter or charge is electricity'],
+    [/\b(?:fixed|variable|current|new|energy|electricity|gas)\s+(tarfiff)\b/gi,'tariff','This pricing or energy phrase refers to a tariff'],
+  ]){
+    for(const match of text.matchAll(pattern)){
+      const original=match[1],from=match.index+match[0].lastIndexOf(original);
+      const replacement=original===original.toUpperCase()?target.toUpperCase():/^[A-Z]/.test(original)?target[0].toUpperCase()+target.slice(1):target;
+      add(from,from+original.length,replacement,reason,'spelling');
+    }
+  }
   for(const match of text.matchAll(/\b(long|lomng)\s+(storu)\s+short\b/gi)){
     if(match[1].toLowerCase()==='lomng')add(match.index,match.index+match[1].length,match[1][0]==='L'?'Long':'long','Restore long in the fixed expression long story short','spelling');
     const from=match.index+match[0].indexOf(match[2]);

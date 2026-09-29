@@ -902,7 +902,8 @@ export function createChecker(data) {
             // phrase (제가) or an independent adverb (계속) before 하다.
             const host=morphology.analyze(preceding[1],personal);
             const intentionHost=derivationalTail==='하'&&/(?:려|려고)$/.test(preceding[1])&&morphology.predicate(preceding[1]);
-            const independentHost=intentionHost||['정도','등등','소리'].includes(preceding[1])||sets.adverb.has(preceding[1])||host?.kind==='noun'&&host.base!==preceding[1]&&sets.josa.has(preceding[1].slice(host.base.length));
+            const quantityOne=word==='한'&&/^[ \u00a0]+(?:대|개|장|병|봉지|줄|명|번|그루|마리)(?=$|[^가-힣]|[은는이가을를도만])/u.test(text.slice(to));
+            const independentHost=quantityOne||intentionHost||['정도','등등','소리'].includes(preceding[1])||sets.adverb.has(preceding[1])||host?.kind==='noun'&&host.base!==preceding[1]&&sets.josa.has(preceding[1].slice(host.base.length));
             const beforeMatch=text.slice(0,start).match(/([가-힣]+)[ \u00a0]+$/);
             const before=beforeMatch?.[1];
             const modifier=before&&morphology.analyze(before,personal);
@@ -1089,7 +1090,7 @@ export function createChecker(data) {
           if(recognizedCompound&&morphology.analyze(word,new Set([compound]))?.kind==='noun')continue;
         }
         const namedHonorific=word.match(/^([가-힣]{2,})님(.*)$/);
-        if(namedHonorific&&!word.endsWith('아님')&&!/(?:대표|지사|회장|사장|부장|과장|팀장|실장|원장|교수|선생|박사|작가|기사|감독|코치|대장|장관|의원|보좌관|총장|교장|사범|스승)$/.test(namedHonorific[1])&&!knownOrthographicNoun(namedHonorific[1])&&!(namedHonorific[1].endsWith('들')&&knownOrthographicNoun(namedHonorific[1].slice(0,-1)))&&!morphology.analyze(word,personal)&&!recognizedNoun(word)&&!recognizeWhole?.(word,personal)){
+        if(namedHonorific&&!word.endsWith('아님')&&!/(?:대표|지사|회장|사장|부장|과장|팀장|실장|원장|교수|선생|슨상|박사|작가|기사|감독|코치|대장|장관|의원|보좌관|총장|교장|사범|스승)$/.test(namedHonorific[1])&&!knownOrthographicNoun(namedHonorific[1])&&!(namedHonorific[1].endsWith('들')&&knownOrthographicNoun(namedHonorific[1].slice(0,-1)))&&!morphology.analyze(word,personal)&&!recognizedNoun(word)&&!recognizeWhole?.(word,personal)){
           const name=namedHonorific[1],tail=namedHonorific[2];
           const nominalTail=!tail||sets.josa.has(tail)||/^(?:입니다|입니까|이었다|이었|이에요|이지만|이니|이라|이던)/.test(tail)&&morphology.predicate(tail)?.root==='이';
           if(nominalTail){

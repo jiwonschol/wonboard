@@ -12,6 +12,8 @@ export function communityExpression(text,from,to,personal,sets,predicate){
   // The internet suffix 느님 is one playful unit, not a name ending 느 + 님.
   if(!personal.has(word)&&/^.+느님(?:은|는|이|가|을|를|께|도|만)?$/.test(word))return word;
   if(!personal.has(word)&&/^갠적으로(?:는|도|만)?$/.test(word))return '갠적으로';
+  // Colloquial -지다 remains an author expression, not a noun + 지다 gap.
+  if(!personal.has(word)&&/^고급(?:지|진|질|집|져|졌)/.test(word)&&predicate(word.slice(2)))return word;
   // Preserve the intentionally altered food nickname as one expression.
   if(!personal.has(word)&&/^햄부기(?:는|가|를|도|만|야|임)?$/.test(word))return '햄부기';
   // Reviewed phonetic internet speech stays a whole expression for review.
