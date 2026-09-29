@@ -46,6 +46,19 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'believe','This finite belief verb takes believe','spelling');
   }
+  for(const match of text.matchAll(/\b(?:I|we|you|they)\s+(?:am|are|were)\s+(loking)(?=\s+(?:for|at|into)\b)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'looking','This progressive search or direction verb is looking','spelling');
+  }
+  for(const match of text.matchAll(/\bhelpdeks(?=\s+engineer\b)/gi))add(match.index,match.index+match[0].length,'helpdesk','The established role name is helpdesk engineer','spelling');
+  for(const match of text.matchAll(/\b(?:Economy\s+7|energy|electricity)\s+(Tarriffs)\b/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,match[1][0]==='T'?'Tariffs':'tariffs','The energy-pricing noun is spelled tariffs','spelling');
+  }
+  for(const match of text.matchAll(/\bthe one that (don't|dont) have\b/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,match.index+match[0].length,"doesn't have",'The one is singular, so the relative clause takes does not have','grammar');
+  }
   for(const match of text.matchAll(/\b(?:have|has|had)(?:\s+(?:already|just|never|ever))?\s+(showin)\b/gi)){
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'shown','The perfect auxiliary requires shown rather than showing','spelling');

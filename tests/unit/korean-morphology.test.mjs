@@ -1174,3 +1174,21 @@ test('food actions and elliptical state phrases keep independent word boundaries
   for(const [text,target]of [['썰어넣은','썰어 넣은'],['건져먹고','건져 먹고'],['감당못하는','감당 못하는'],['너무행복','너무 행복']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['못생겼다','한번 해보자','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
 });
+
+test('copula and colloquial intent endings preserve the complete host',()=>{
+  for(const text of ['이거군요','그거군요','공문서란','안내서란','모을라고','먹을라고','있어야지란 생각'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('연락오더군요').some(f=>f.suggestions[0]==='연락 오더군요'));
+});
+
+test('past and result-state typos are repaired before internal segmentation',()=>{
+  for(const [text,target]of [['일어낫는대','일어났는데'],['안갓냐는','안 갔냐는'],['되있어서','돼 있어서'],['바글바글되었지만','바글바글댔지만'],['아니먼','아니면']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['웃는대','낫는대','됐지만','되있어서'])assert.equal(check(text,[text]).some(f=>f.applicable),false,text);
+  for(const text of ['웃는대','낫는대'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.equal(check('타겟은').some(f=>f.applicable),false);
+  assert.ok(check('안낫네').some(f=>f.suggestions[0]==='안 낫네'));
+});
+
+test('motion nominalization and additional count units retain complete boundaries',()=>{
+  for(const [text,target]of [['이사가기 전에','이사 가기'],['한상자에','한 상자에'],['한단계','한 단계']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['달달구리하면서','네네가','우도나쓰는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});

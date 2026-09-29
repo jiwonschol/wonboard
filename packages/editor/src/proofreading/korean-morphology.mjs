@@ -265,6 +265,17 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     return result;
   }
   function analyzePredicate(s) {
+    // Colloquial prospective -ㄹ라고 expresses intention, not the
+    // imperative -(으)라고. Keep the complete prospective host.
+    if(s.endsWith('라고')){
+      const host=s.slice(0,-2),base=predicate(host);
+      if(final(host)===8&&base?.adnominal)return {...base,adnominal:false};
+    }
+    // A quoted resolution (-야지란 생각) preserves its original ending.
+    if(s.endsWith('야지란')){
+      const base=predicate(s.slice(0,-1));
+      if(base)return {...base,adnominal:true};
+    }
     // Informal -데여 preserves -데요; indirect -는진 contracts -는지는.
     if(s.endsWith('게용')){const host=predicate(s.slice(0,-1)+'요');if(host)return {...host,adnominal:false};}
     if(s.endsWith('데여')){const host=predicate(s.slice(0,-1)+'요');if(host)return {...host,adnominal:false};}
@@ -566,8 +577,10 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       }
       if(final(base)===0&&(knownNominal(base)||personal.has(base))){
         if(tail.startsWith('잖')&&predicate('이'+tail)?.root==='이')return {base,unknown:false,copula:true};
-        const restored=tail.startsWith('여')?'이어'+tail.slice(1):tail.startsWith('였')?'이었'+tail.slice(1):/^(라|다|지|네|거든)/.test(tail)?'이'+tail:null;
-        if(restored&&predicate(restored)?.root==='이')return {base,unknown:false,copula:true};
+        const restored=tail.startsWith('여')?'이어'+tail.slice(1):tail.startsWith('였')?'이었'+tail.slice(1):/^(라|란|다|지|네|거든|군)/.test(tail)?'이'+tail:null;
+        // 오더군요 already inflects 오다; the noun 오더 must not steal it.
+        const originalPredicate=tail.startsWith('군')?predicate(s):null;
+        if(restored&&predicate(restored)?.root==='이'&&(!originalPredicate||originalPredicate.root==='이'))return {base,unknown:false,copula:true};
       }
       if(!/^(이|인|일|임|입)/.test(tail))continue;
       // Nominalized copulas retain their particles: 것 + 임 + 에 is
@@ -1019,7 +1032,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     if(allCount)return {text:allCount[1]+' 다'+(allCount[2]??''),ambiguous:true,rule:'2'};
     const repeatedCount=word.match(/^(또|다시)(한|두|세|네)번(.*)$/);
     if(repeatedCount&&(!repeatedCount[3]||sets.josa.has(repeatedCount[3])))return {text:repeatedCount[1]+' '+repeatedCount[2]+' 번'+repeatedCount[3],ambiguous:true,rule:'43'};
-    const quantity=word.match(/^(한두|두세|서너|두어|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|스무|몇|여러)(번째|과목|접시|개|장|번|군데|달|시간|조각|권|명|사람|배|마리|살|쪽|줄|잔|모금|병|봉지|방울|그루|켤레|벌|세트|차례|개월|년|분|초|가지|폭|칸|날)(.*)$/);
+    const quantity=word.match(/^(한두|두세|서너|두어|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|스무|몇|여러)(번째|과목|접시|상자|단계|개|장|번|군데|달|시간|조각|권|명|사람|배|마리|살|쪽|줄|잔|모금|병|봉지|방울|그루|켤레|벌|세트|차례|개월|년|분|초|가지|폭|칸|날)(.*)$/);
     // A native numeral and duration unit may be joined, but the following
     // independent 정도 always has its own boundary.
     const durationDegree=quantity&&['달','시간','개월','년','분','초','날'].includes(quantity[2])&&quantity[3].match(/^정도(.*)$/);
@@ -1243,6 +1256,8 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     // A destination precedes the full motion nominalization; its 가 is
     // part of 가기, not a subject particle followed by a spurious 기.
     if(word.startsWith('군대')&&['가','오','다니'].includes(predicate(word.slice(2))?.root))return {text:'군대 '+word.slice(2),ambiguous:true,rule:'2'};
+    // Moving house is 이사 가다; nominal -기 belongs to the motion verb.
+    if(word.startsWith('이사')&&['가','오'].includes(predicate(word.slice(2))?.root))return {text:'이사 '+word.slice(2),ambiguous:true,rule:'2'};
     // Subject/topic particles belong to their host before an existential predicate.
     // Keep nominal homographs available without splitting the particle.
     for(let i=2;i<word.length;i++){

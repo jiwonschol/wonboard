@@ -23,6 +23,8 @@ export function communityAction(word,predicate){
 export function communityExpression(text,from,to,personal,sets,predicate){
   const word=text.slice(from,to);
   const right=text.slice(to,to+64).split('\n')[0];
+  // A playful taste adjective is one author expression, not 달달 + 구리하다.
+  if(!personal.has(word)&&word.startsWith('달달구리')&&predicate(word.slice(4))?.root==='하')return word;
   // The internet suffix 느님 is one playful unit, not a name ending 느 + 님.
   if(!personal.has(word)&&/^.+느님(?:은|는|이|가|을|를|께|도|만)?$/.test(word))return word;
   if(!personal.has(word)&&/^갠적으로(?:는|도|만)?$/.test(word))return '갠적으로';

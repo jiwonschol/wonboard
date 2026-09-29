@@ -116,3 +116,33 @@ test('electronic prefixes and product names do not lose their leading vowel',()=
   for(const source of ['ecommerce','imessage','imessaging','ebusiness'])assert.equal(check(source).some(f=>f.applicable),false,source);
   for(const [source,target] of [['especulation','speculation'],['especulations','speculations']])assert.equal(check(source)[0]?.suggestions[0],target,source);
 });
+
+test('proper names and established broadband shorthand stay out of spelling candidates',()=>{
+  const check=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:['deeply','band']});
+  for(const text of ['DeepL','deepl','bband','Bband'])assert.deepEqual(check(text),[],text);
+});
+
+test('a neighboring first-key typo uses the common exact-suffix word, not a rare neighbor',()=>{
+  const check=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:['rather','tether','founder','BTS']});
+  assert.equal(check('tather')[0]?.suggestions[0],'rather');
+  // First-letter guesses without neighboring-key evidence stay conservative.
+  assert.equal(check('wounder')[0]?.suggestions.includes('founder'),false);
+  assert.equal(check('RTS')[0]?.suggestions.includes('BTS'),false);
+});
+
+test('a long word plus a stray final i remains reviewable instead of being shortened',()=>{
+  const check=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:['develop','developing']});
+  const finding=check('developi')[0];
+  assert.equal(finding?.type,'unknown');
+  assert.deepEqual(finding?.suggestions,[]);
+  assert.deepEqual(check('developing'),[]);
+  assert.deepEqual(check('developi',['developi']),[]);
+  assert.deepEqual(check('unprecented',['unprecented']),[]);
+});
+
+
+test('acronym casing preserves a lowercase file extension',()=>{
+  const check=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:['PDF']});
+  assert.equal(check('a pdf document').find(f=>f.original==='pdf')?.suggestions[0],'PDF');
+  for(const text of ['Full.pdf','a .pdf file'])assert.equal(check(text).some(f=>f.suggestions[0]==='PDF'),false);
+});

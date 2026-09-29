@@ -46,8 +46,24 @@ export function createChecker(data) {
     if(contractedSubject&&(morphology.predicate(contractedSubject)??morphology.analyze(contractedSubject,personal))?.adnominal&&/^[ \u00a0]+(?:있|없)(?:습니다|어요|어|는데|다|음)(?=$|[\s,.!?])/u.test(text.slice(to)))return {type:'spacing',suggestions:[contractedSubject+' 게'],reason:'The following existential predicate selects the contracted nominal subject 게',ambiguous:true};
     // A misspelled mimetic -대다 is one predicate. Validate the repaired
     // whole before an adverb + 때다 homograph can invent a word boundary.
-    const mimeticPast=word.match(/^(.+)(땠)(.*)$/);
+    const mimeticPast=word.match(/^(.+)(땠|되었|됐)(.*)$/);
     if(mimeticPast&&sets.adverb.has(mimeticPast[1])&&morphology.predicate(mimeticPast[1]+'댔'+mimeticPast[3])?.root===mimeticPast[1]+'대')return {type:'spelling',suggestions:[mimeticPast[1]+'댔'+mimeticPast[3]],reason:'Restore the validated mimetic predicate ending -댔-',ambiguous:true};
+    // Recover a missing past-tense double final before speculative spacing.
+    // A valid original predicate (낫는대, 웃는대) must keep its own reading.
+    if(!knownOrthographicPredicate(word)&&!knownOrthographicNoun(word)&&!morphology.analyze(word,personal)&&!recognizedNoun(word)&&!(/^(안|못)/.test(word)&&morphology.predicate(word.slice(1)))){
+      for(let i=0;i<word.length-1;i++){
+        const code=word.charCodeAt(i);
+        if((code-0xac00)%28!==19)continue;
+        if(!/^(?:어|던|다|고|지|면|는데|는대|냐|었|겠|습니다|습니까)/.test(word.slice(i+1)))continue;
+        let repaired=word.slice(0,i)+String.fromCharCode(code+1)+word.slice(i+1);
+        if(repaired.endsWith('는대'))repaired=repaired.slice(0,-1)+'데';
+        if(/^(안|못)/.test(repaired)&&knownOrthographicPredicate(repaired.slice(1)))return {type:'spelling',suggestions:[repaired[0]+' '+repaired.slice(1)],reason:'Restore the past predicate and its independent negative adverb',ambiguous:true};
+        if(knownOrthographicPredicate(repaired)){
+          const repair=orthography(repaired,sets,personal,knownOrthographicPredicate,knownOrthographicNoun);
+          return {type:'spelling',suggestions:repair?.suggestions??[repaired],reason:'Restore a validated past-tense predicate before splitting its ending',ambiguous:true};
+        }
+      }
+    }
     const existsTypo=word.match(/^(.+[아어해춰워여])잇(.*)$/);
     if(existsTypo&&knownOrthographicPredicate(existsTypo[1])&&knownOrthographicPredicate('있'+existsTypo[2]))return {type:'spelling',suggestions:[existsTypo[1]+' 있'+existsTypo[2]],reason:'Restore 있다 after a complete connective predicate',ambiguous:true};
     if(word==='있다라면')return {type:'spelling',suggestions:['있다면'],reason:'Restore the conditional 있다 ending without introducing past counterfactual tense',ambiguous:true};
@@ -170,12 +186,13 @@ export function createChecker(data) {
     if(/['-]/.test(word)||/^(?:didnt|isnt|hasnt|havent|hadnt|couldnt|wouldnt|shouldnt)$/i.test(word))return [];
     // Prefer an attested acronym's casing over a different nearby word.
     // This does not register unknown abbreviations as correct vocabulary.
-    if(/^[a-z]{2,}$/.test(word)&&english.has(word.toUpperCase()))return [word.toUpperCase()];
+    if(/^[a-z]{2,}$/.test(word)&&(english.has(word.toUpperCase())||word==='css'))return [word.toUpperCase()];
     const lower=word.toLowerCase(),alphabet='abcdefghijklmnopqrstuvwxyz',candidates=new Set();
     // Reviewed spelling repairs that weak edit-distance evidence otherwise
     // suppresses. These remain errors, never recognition-only vocabulary.
-    const lexicalRepair={levvies:'levies',subscribition:'subscription',unfortuantly:'unfortunately',especulation:'speculation',especulations:'speculations',woudl:'would',recommention:'recommendation',basiically:'basically',shiney:'shiny',monitized:'monetized',condemed:'condemned',succintly:'succinctly',asbandoned:'abandoned',debarcle:'debacle',jepardy:'jeopardy',breathble:'breathable',insectasides:'insecticides',comapss:'compass',optitician:'optician',proofreaded:'proofread',anyboby:'anybody',technicaians:'technicians',lucious:'luscious',havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth',conming:'coming',washine:'washing',opnions:'opinions',maube:'maybe',staistic:'statistic',sautee:'saute',nothwithstanding:'notwithstanding',creasote:'creosote',subtley:'subtly',harasssed:'harassed',headequarter:'headquarters',unbereable:'unbearable',diptheria:'diphtheria',communial:'communal',clobering:'clobbering',mantlepiece:'mantelpiece',spolit:'spoilt',breathelessness:'breathlessness',ancestores:'ancestors',combustable:'combustible',desparately:'desperately',predesessors:'predecessors',squeeking:'squeaking',adheasion:'adhesion',mismangement:'mismanagement',aneamic:'anaemic',duatpan:'dustpan',idiogram:'ideogram',omeprazol:'omeprazole',antogonistic:'antagonistic'}[lower];
-    if(lexicalRepair&&enLower.has(lexicalRepair))return [word===word.toUpperCase()?lexicalRepair.toUpperCase():/^[A-Z][a-z]+$/.test(word)?lexicalRepair[0].toUpperCase()+lexicalRepair.slice(1):lexicalRepair];
+    const lexicalRepair={levvies:'levies',subscribition:'subscription',unfortuantly:'unfortunately',especulation:'speculation',especulations:'speculations',woudl:'would',recommention:'recommendation',basiically:'basically',shiney:'shiny',monitized:'monetized',condemed:'condemned',succintly:'succinctly',asbandoned:'abandoned',debarcle:'debacle',jepardy:'jeopardy',breathble:'breathable',insectasides:'insecticides',comapss:'compass',optitician:'optician',proofreaded:'proofread',anyboby:'anybody',technicaians:'technicians',lucious:'luscious',havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth',conming:'coming',washine:'washing',opnions:'opinions',maube:'maybe',staistic:'statistic',sautee:'saute',nothwithstanding:'notwithstanding',creasote:'creosote',subtley:'subtly',harasssed:'harassed',headequarter:'headquarters',unbereable:'unbearable',diptheria:'diphtheria',communial:'communal',clobering:'clobbering',mantlepiece:'mantelpiece',spolit:'spoilt',breathelessness:'breathlessness',ancestores:'ancestors',combustable:'combustible',desparately:'desperately',predesessors:'predecessors',squeeking:'squeaking',adheasion:'adhesion',mismangement:'mismanagement',aneamic:'anaemic',duatpan:'dustpan',idiogram:'ideogram',omeprazol:'omeprazole',antogonistic:'antagonistic',unprecented:'unprecedented',neibours:'neighbours',recovety:'recovery'}[lower];
+    if(lower==='carchup')return ['catch-up'];
+    if(lexicalRepair&&(enLower.has(lexicalRepair)||englishUsage.has(lexicalRepair)))return [word===word.toUpperCase()?lexicalRepair.toUpperCase():/^[A-Z][a-z]+$/.test(word)?lexicalRepair[0].toUpperCase()+lexicalRepair.slice(1):lexicalRepair];
     if(lower==='alot')return ['a lot'];
     if(lower==='canthe')return ['can the'];
     if(lower==='flooplan'&&enLower.has('floor')&&enLower.has('plan'))return ['floor plan'];
@@ -240,7 +257,7 @@ export function createChecker(data) {
     const hasVowelDeletion=[...candidates].some(s=>s.length===lower.length-1&&s.at(-1)===lower.at(-1)&&(englishUsage.get(s)??0)>0&&[...lower].some((c,i)=>i<lower.length-1&&/[aeiou]/.test(c)&&lower.slice(0,i)+lower.slice(i+1)===s));
     const terminalKeySlip=s=>hasVowelDeletion&&lower.length>=6&&s.length===lower.length&&sharedPrefix(s)===lower.length-1&&['qwertyuiop','asdfghjkl','zxcvbnm'].some(row=>Math.abs(row.indexOf(lower.at(-1))-row.indexOf(s.at(-1)))===1&&row.includes(lower.at(-1))&&row.includes(s.at(-1)));
     const spellingEvidence=s=>{
-      if(transpositions.has(s)||sameRuns.has(s))return true;
+      if(transpositions.has(s)||sameRuns.has(s)||leadingKeySlip(s))return true;
       // Stable spelling on both sides supports an internal typo without
       // admitting short neighbors such as muslim/muslin or clojure/closure.
       let suffix=0;while(suffix<Math.min(lower.length,s.length)&&lower.at(-1-suffix)===s.at(-1-suffix))suffix++;
@@ -255,6 +272,11 @@ export function createChecker(data) {
     // target usage and rank familiar targets before prefix resemblance.
     // Strong letter-order/run evidence takes priority among attested targets.
     const usage=s=>englishUsage.get(s)??0;
+    // A high-frequency target with an otherwise exact long suffix can be a
+    // strong first-letter typo (tather -> rather). Keep this evidence narrow.
+    const keyboardRows=['qwertyuiop','asdfghjkl','zxcvbnm'];
+    const adjacentLeadingKeys=(a,b)=>keyboardRows.some(row=>Math.abs(row.indexOf(a)-row.indexOf(b))===1&&row.includes(a)&&row.includes(b));
+    const leadingKeySlip=s=>/^[a-z]+$/.test(word)&&lower.length>=6&&s.length===lower.length&&s[0]!==lower[0]&&adjacentLeadingKeys(lower[0],s[0])&&s.slice(1)===lower.slice(1)&&usage(s)>=20;
     // Allow a dictionary adverb with an internal omission even when the usage
     // sample contains no occurrence of that particular -ly form.
     const adverbOmission=s=>lower.length>=7&&lower.endsWith('ly')&&s.endsWith('ly')&&s.length===lower.length+1&&enLower.has(s.slice(0,-2))&&sharedPrefix(s)>=3&&nearOne(lower,s);
@@ -265,7 +287,7 @@ export function createChecker(data) {
     // With equally observed candidates, prefer filling an internal omission
     // while retaining both ends over deleting an original letter.
     const internalInsertion=s=>s.length===lower.length+1&&usage(s)>=1&&sharedPrefix(s)>=3&&s.slice(-2)===lower.slice(-2)&&nearOne(lower,s)&&[...candidates].some(other=>other.length===lower.length-1&&usage(other)>=1&&usage(s)>=usage(other)&&nearOne(lower,other));
-    return [...candidates].filter(s=>spellingEvidence(s)&&(usage(s)>=1||adverbOmission(s)||s.length>lower.length&&sameRuns.has(s))&&(lower.length>=5||transpositions.has(s)||s.length===lower.length+1&&sameRuns.has(s)&&usage(s)>=20||/([a-z])\1{2,}/.test(lower)&&sameRuns.has(s))&&(s[0]===lower[0]||!(/^[A-Z]/.test(word))&&transpositions.has(s))).sort((a,b)=>Number(internalInsertion(b))-Number(internalInsertion(a))||Number(frequentInsertion(b))-Number(frequentInsertion(a))||Number(terminalKeySlip(b))-Number(terminalKeySlip(a))||Number(adjectiveEnding(b))-Number(adjectiveEnding(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||Number(transpositions.has(b))-Number(transpositions.has(a))||Number(b[0]===lower[0])-Number(a[0]===lower[0])||Number(doubled.has(b))-Number(doubled.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||usage(b)-usage(a)||sharedPrefix(b)-sharedPrefix(a)||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
+    return [...candidates].filter(s=>spellingEvidence(s)&&(usage(s)>=1||adverbOmission(s)||s.length>lower.length&&sameRuns.has(s))&&(lower.length>=5||transpositions.has(s)||s.length===lower.length+1&&sameRuns.has(s)&&usage(s)>=20||/([a-z])\1{2,}/.test(lower)&&sameRuns.has(s))&&(s[0]===lower[0]||leadingKeySlip(s)||!(/^[A-Z]/.test(word))&&transpositions.has(s))).sort((a,b)=>Number(leadingKeySlip(b))-Number(leadingKeySlip(a))||Number(internalInsertion(b))-Number(internalInsertion(a))||Number(frequentInsertion(b))-Number(frequentInsertion(a))||Number(terminalKeySlip(b))-Number(terminalKeySlip(a))||Number(adjectiveEnding(b))-Number(adjectiveEnding(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||Number(transpositions.has(b))-Number(transpositions.has(a))||Number(b[0]===lower[0])-Number(a[0]===lower[0])||Number(doubled.has(b))-Number(doubled.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||usage(b)-usage(a)||sharedPrefix(b)-sharedPrefix(a)||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
   }
   function formalEndingCandidate(word) {
     // Recover a mistyped ㅁ in the formal -ㅂ니다 ending only when the
@@ -642,6 +664,7 @@ export function createChecker(data) {
         // retains its known base, rather than borrowing a nearby noun.
         const americanVerb=lowerLookup.replace(/is(e[ds]?|ing)$/,'iz$1');
         if(americanVerb!==lowerLookup&&enLower.has(americanVerb))continue;
+        if(!personal.has(word)&&!personal.has(lookup)&&lowerLookup.endsWith('i')&&lowerLookup.length>=7&&enLower.has(lowerLookup.slice(0,-1))){emit(from,to,'en','unknown',[],word);continue;}
         if(lowerLookup.endsWith('less')&&lowerLookup.length>6&&enLower.has(lowerLookup.slice(0,-4)))continue;
         if(lowerLookup.endsWith('ish')&&lowerLookup.length>5&&enLower.has(lowerLookup.slice(0,-3)))continue;
         const inflectionBase=/[sxz]es$|(?:ch|sh)es$/.test(lowerLookup)?lowerLookup.slice(0,-2):/[^aeiou]ies$/.test(lowerLookup)?lowerLookup.slice(0,-3)+'y':/[^s]s$/.test(lowerLookup)?lowerLookup.slice(0,-1):null;
@@ -662,6 +685,7 @@ export function createChecker(data) {
         // Productive prefixes preserve a known whole base, including its
         // inflection. They recognize words without creating correction targets.
         const prefixed=lookup.match(/^(?:un|non|re|micro|multi|co|pre|post|sub|super)-?([a-z]{3,})$/i);
+        if(!personal.has(word)&&!personal.has(lookup)&&lookup.toLowerCase()==='unprecented'){emit(from,to,'en','spelling',['unprecedented'],word);continue;}
         if(prefixed&&(enLower.has(prefixed[1].toLowerCase())||recognizedEnglish.has(prefixed[1].toLowerCase())))continue;
         if(personal.has(word)||personal.has(lookup)||english.has(lookup)||enLower.has(lookup.toLowerCase())||enLower.has(lookup.toLowerCase().replace(/'s$/,''))||english.has(lookup.replace(/'s$/,'')))continue;
         // An accented Latin word is one token, including decomposed marks.
@@ -707,7 +731,7 @@ export function createChecker(data) {
         const shortAcronym=/^[a-z]{2,4}$/.test(word)&&english.has(word.toUpperCase());
         const shortIdentifier=mixedKorean&&/^[a-z]{2,4}$/.test(word)&&word!=='teh'&&!shortAcronym;
         const consonantIdentifier=/^[a-z]{2,4}$/i.test(word)&&!/[aeiouy]/i.test(word);
-        const candidates=shortIdentifier||consonantIdentifier||word.length<=2&&!shortAcronym||/^[A-Z]{2,}$|[a-z][A-Z]|[A-Z].*[A-Z]/.test(word)?[]:titleCandidates??englishSuggestions(word);
+        const candidates=shortIdentifier||consonantIdentifier&&(!shortAcronym||text[from-1]==='.')||word.length<=2&&!shortAcronym||/^[A-Z]{2,}$|[a-z][A-Z]|[A-Z].*[A-Z]/.test(word)?[]:titleCandidates??englishSuggestions(word);
         emit(from,to,'en',candidates.length?'spelling':'unknown',candidates,word);
         if(shortIdentifier)Object.assign(results.at(-1),{ambiguous:true,reason:'Possible short identifier in Korean prose; no automatic replacement'});
       } else {

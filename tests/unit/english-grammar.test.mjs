@@ -333,6 +333,15 @@ test('technical nouns, acronyms and names retain their identity in lowercase pro
   assert.equal(check('weave been getting').some(f=>f.suggestions[0]==="we've"),false);
 });
 
+test('reviewed R67 English misses use local context instead of broad name substitutions',()=>{
+  assert.equal(check('We are loking for insurance').find(f=>f.original==='loking')?.suggestions[0],'looking');
+  assert.equal(check('I am a helpdeks engineer').find(f=>f.original==='helpdeks')?.suggestions[0],'helpdesk');
+  assert.equal(check('Economy 7 Tarriffs').find(f=>f.original==='Tarriffs')?.suggestions[0],'Tariffs');
+  assert.equal(check("the one that don't have a turntable").find(f=>f.original==="don't have")?.suggestions[0],"doesn't have");
+  assert.equal(englishGrammar('a helpdeks is a name.').length,0);
+  assert.equal(englishGrammar('the one that do have is plural.').length,0);
+});
+
 test('possessive objects and degree phrases keep their clause meaning',()=>{
   for(const [text,target]of [["rate it's work",'its'],['I’m bit concerned','a bit'],['i decided','I']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ["It's work that matters",'I bit the apple','synology photos'])assert.equal(check(text).some(f=>f.applicable),false,text);
