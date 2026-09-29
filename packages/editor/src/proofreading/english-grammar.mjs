@@ -7,6 +7,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     // Inverted questions can use the variable i as their subject. Following
     // verb matches elsewhere must not silently turn that identifier into I.
     if(suggestion==='I'&&text.slice(from,to)==='i'&&/\b(?:can|could|should|would|will|may|might|must|do|did|does|am|was|were|have|had)\s+$/i.test(text.slice(0,from)))return;
+    if(suggestion==='I'&&text.slice(from,to)==='i'&&/\b(?:variable|index|counter|parameter|integer|identifier|symbol|value|row|column)\s+(?:(?:named|called)\s+)?$/i.test(text.slice(0,from)))return;
     if(findings.some(item=>item.from<to&&item.to>from))return;
     findings.push({from,to,original:text.slice(from,to),language:'en',type,suggestions:[suggestion],applicable:true,reason});
   };
@@ -197,11 +198,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].indexOf(match[1]);
     add(from,from+match[1].length,'exist','The plural head controls existential agreement');
   }
-  for(const match of text.matchAll(/\b(?:AI |software |developer )?tooling\s+(are)\s+(?:making|becoming|getting)\b/gi)){
-    const from=match.index+match[0].lastIndexOf(match[1]);
-    if(/\b(?:and|or)\s+$/i.test(text.slice(Math.max(0,match.index-20),match.index)))continue;
-    add(from,from+match[1].length,'is','Tooling is a singular mass noun in this clause');
-  }
   for(const match of text.matchAll(/\bwev['’]e(?=\s+(?:been|had|got|seen|done|made|taken|found|heard|read|written|[a-z]+ed)\b)/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='W'?"We've":"we've",'Keep the perfect contraction and move its misplaced apostrophe','spelling');
   }
@@ -368,9 +364,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].lastIndexOf(match[1]),words=match[1].split(/\s+/),replacement=words[0]+' '+modalForms.get(words[1].toLowerCase());
     add(from,from+match[1].length,replacement,'A modal verb after this subject takes the base form of the following verb');
   }
-  for(const match of text.matchAll(/\bto treated as\b/gi)){
-    add(match.index,match.index+match[0].length,match[0].replace(/ treated as$/i,' be treated as'),'A passive infinitive needs be');
-  }
   for(const match of text.matchAll(/\bmake it sounds\b/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/sounds$/i,'sound'),'Make takes a bare infinitive after its object');
   }
@@ -386,9 +379,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   for(const match of text.matchAll(/\bhave audience\b(?=\s*[,?!]|\s*$)/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/audience$/i,'an audience'),'Singular count noun audience needs an article here');
-  }
-  for(const match of text.matchAll(/\bwho['’]s primary(?=\s+(?:contributors|authors|developers|maintainers|users|role|goal)\b)/gi)){
-    add(match.index,match.index+match[0].length,'whose primary','Use the possessive pronoun before a noun phrase');
   }
   for(const match of text.matchAll(/\bwasnt\b/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='W'?"Wasn't":"wasn't",'The contraction of was not needs an apostrophe');
@@ -437,15 +427,13 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length+1+match[2].length,'an '+match[1]+' '+match[2],'A singular count noun with an adjective needs a determiner');
   }
-  for(const match of text.matchAll(/\bimminently(?=\s+(?:more|less)\s+(?:capable|suitable|likely|qualified|important)\b)/gi)){
-    add(match.index,match.index+match[0].length,'eminently','Eminently modifies degree; imminently means soon');
-  }
   for(const match of text.matchAll(/\bequipments\b/gi)){
     add(match.index,match.index+match[0].length,'equipment','Equipment is an uncountable noun in this sense');
   }
-  for(const match of text.matchAll(/\b(?:worked|works|working|ran|runs|running) perfectly seamless\b/gi)){
-    const from=match.index+match[0].lastIndexOf('seamless');
-    add(from,from+'seamless'.length,'seamlessly','An adverb modifies the preceding verb');
+  for(const match of text.matchAll(/\b(?:worked|works|working|ran|runs|running) perfectly (seamless)\b(?=\s*(?:[.!?;]|$))/gi)){
+    const original=match[1],from=match.index+match[0].lastIndexOf(original);
+    const replacement=original===original.toUpperCase()?'SEAMLESSLY':/^[A-Z]/.test(original)?'Seamlessly':'seamlessly';
+    add(from,from+original.length,replacement,'An adverb modifies the preceding verb');
   }
   for(const match of text.matchAll(/(?:^|[.!?]\s+)(Few years ago)\b/gm)){
     const from=match.index+match[0].lastIndexOf(match[1]);
@@ -554,7 +542,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(?:tuning|using|training|running) it make\b(?=\s+(?:it|them|the|a|an|this|that)\b)/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/make$/i,'makes'),'The singular it takes makes');
   }
-  for(const match of text.matchAll(/\bsophisticated to we\b/gi))add(match.index,match.index+match[0].length,'sophisticated do we','The question uses auxiliary do before we');
   for(const match of text.matchAll(/\b(?:I am|I'm) not (?:devops|software|hardware|security) person\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/not /i,'not a '),'This singular count noun needs an article');
   for(const match of text.matchAll(/\bthere were no firewall\b(?=\s*(?:[.!?;]|$))/gi))add(match.index,match.index+match[0].length,match[0].replace(/were/i,'was'),'Singular firewall agrees with was at the end of this clause');
   for(const match of text.matchAll(/\bdid they workout\b/gi))add(match.index,match.index+match[0].length,'did they work out','Work out is the verb; workout is a noun or adjective');
@@ -606,13 +593,13 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   for(const match of text.matchAll(/\ba (?:dumping|testing|training) grounds\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/grounds$/i,'ground'),'A singular article takes the singular noun ground');
   for(const match of text.matchAll(/\bit let['’]s\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/let['’]s$/i,'lets'),'Lets is the third-person verb; let’s means let us');
-  for(const match of text.matchAll(/\bmost of time\b/gi))add(match.index,match.index+match[0].length,'most of the time','This time expression needs the');
+  for(const match of text.matchAll(/\b[Mm]ost of time\b(?=\s*(?:[.,!?;]|$))/g))add(match.index,match.index+match[0].length,match[0].replace(/time$/,'the time'),'This completed time expression needs the');
   for(const match of text.matchAll(/\b(?:the|an) agent get\b(?=\s+(?:tools|access|results|data|a|the)\b)/gi)){
     if(permitsBaseVerb(match.index))continue;
     add(match.index,match.index+match[0].length,match[0].replace(/get$/i,'gets'),'A singular subject takes gets');
   }
   for(const match of text.matchAll(/\bbefore and agent\b/gi))add(match.index,match.index+match[0].length,'before an agent','An precedes this singular noun');
-  for(const match of text.matchAll(/\blots of important bit\b/gi))add(match.index,match.index+match[0].length,'lots of important bits','The plural quantity lots of takes bits');
+  for(const match of text.matchAll(/\blots of important bit\b(?=\s*(?:[.!?;]|$))/gi))add(match.index,match.index+match[0].length,match[0]+'s','The completed plural quantity phrase takes bits');
   for(const match of text.matchAll(/\b([2-9]|[1-9]\d+) PR\b(?=\s*(?:[.!?,;]|$)|\s+(?:yesterday|today|tonight)\b)/g)){
     if(/[\p{L}\p{N}_.\-‐‑]/u.test(text[match.index-1]??''))continue;
     add(match.index,match.index+match[0].length,match[1]+' PRs','A numeral above one takes a plural count abbreviation');
@@ -638,14 +625,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].indexOf(match[1]);
     add(from,from+match[1].length,match[1].slice(0,-1)+"'s",'A singular duration takes a singular possessive before time');
   }
-  for(const match of text.matchAll(/\b(?:can|could|would|should|will|may|might|must)\s+(feedback)\b(?=\s+(?:observations|results|findings|comments|to)\b)/gi)){
-    const from=match.index+match[0].lastIndexOf(match[1]);
-    add(from,from+match[1].length,'feed back','The modal takes the phrasal verb feed back');
-  }
-  for(const match of text.matchAll(/\b(?:I|you|we|they|he|she|it)\s+(cant)\b(?=\s+(?:go|figure|find|work|use|see|hear|understand|afford|remember|wait)\b)/gi)){
-    const from=match.index+match[0].lastIndexOf(match[1]);
-    add(from,from+match[1].length,"can't",'The negative modal after this subject requires an apostrophe');
-  }
   for(const match of text.matchAll(/\b(?:[Ww]hats)(?=\s+the\s+(?:legal|current|official|actual)\s+(?:status|position|reason|name)\b)/g))add(match.index,match.index+match[0].length,match[0][0]==='W'?"What's":"what's",'This question needs what is');
   for(const match of text.matchAll(/\b[Ll]ets(?=\s+say\b)/g))add(match.index,match.index+match[0].length,match[0][0]==='L'?"Let's":"let's",'This invitation is the contraction let us');
   for(const match of text.matchAll(/\blooking\s+(advice)\b(?=\s+(?:on|about|regarding|for|from)\b|[.!?,;:]|$)/gi)){
@@ -660,7 +639,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'booked','The perfect auxiliary takes the participle booked');
   }
-  for(const match of text.matchAll(/\b(?:in|for)\s+(same price)\b/gi)){
+  for(const match of text.matchAll(/\bfor\s+(same price)\b/gi)){
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'the same price','Same in this price phrase needs a determiner');
   }
