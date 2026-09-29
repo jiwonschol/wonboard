@@ -214,7 +214,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'recipes','The count noun is plural after a lot of');
   }
-  for(const match of text.matchAll(/\bI (?:a|an)(?=\s+(?:visiting|trying|looking|working|planning|using|having|seeing)\b)/g)){
+  for(const match of text.matchAll(/\bI (?:a|an)(?=\s+(?:visiting|trying|looking|working|planning|using|having|seeing)\s+(?:a|an|the|my|your|our|their|his|her|its|it|them|us|me|you|him)\b)/g)){
     add(match.index,match.index+match[0].length,'I am','A first-person progressive clause needs am');
   }
   for(const match of text.matchAll(/\b(panner)(?=\s+tikka\b)/gi)){
@@ -324,9 +324,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   for(const match of text.matchAll(/\bwont\b(?=\s+(?:(?:ever|even|really|just)\s+)?(?:let|allow|work|run|load|open|start|stop|be|have|do|go|come|use|show)\b)/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='W'?"Won't":"won't",'The future negative before a verb needs an apostrophe');
-  }
-  for(const match of text.matchAll(/\bit['’]s(?=\s+own\s+[a-z]+\b)/gi)){
-    add(match.index,match.index+match[0].length,match[0][0]==='I'?'Its':'its','Own modifies a possessed noun here');
   }
   for(const match of text.matchAll(/\b(?:(?:trying|try|tries|tried|want|wants|wanted|need|needs|needed|how)\s+to|asked\s+(?:me|you|us|them|Google)\s+to)\s+(setup|backup)\b/gi)){
     const from=match.index+match[0].lastIndexOf(match[1]);
@@ -554,11 +551,11 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     add(from,from+match[1].length,'has','This singular subject takes has');
   }
   const doSupportForms=new Map([['tries','try'],['has','have'],['uses','use'],['works','work'],['needs','need'],['wants','want'],['seems','seem'],['worked','work'],['came','come'],['went','go'],['made','make'],['took','take'],['broke','break']]);
-  for(const match of text.matchAll(/\b(do|does|did|don['’]?t|doesn['’]?t|didn['’]?t)\s+(?:(i|you|we|they|it|he|she|this|that)\s+)?(has|uses|works|needs|wants|seems|tries|worked|came|went|made|took|broke)\b/gi)){
+  for(const match of text.matchAll(/\b(do|does|did|don['’]?t|doesn['’]?t|didn['’]?t)\s+(?:(i|you|we|they|it|he|she)\s+)?(has|uses|works|needs|wants|seems|tries|worked|came|went|made|took|broke)\b/gi)){
     const subject=match[2]??text.slice(0,match.index).match(/\b(I|you|we|they|it|he|she)\s+$/i)?.[1];
     if(!match[2]&&(!/n['’]?t$/i.test(match[1])||!subject))continue;
     const auxiliary=match[1].toLowerCase().replace(/n['’]?t$/,'');
-    if(auxiliary!=='did'&&auxiliary!==(/^(?:it|he|she|this|that)$/i.test(subject)?'does':'do'))continue;
+    if(auxiliary!=='did'&&auxiliary!==(/^(?:it|he|she)$/i.test(subject)?'does':'do'))continue;
     const from=match[2]?match.index+match[0].lastIndexOf(match[3]):match.index;
     const base=doSupportForms.get(match[3].toLowerCase());
     add(from,match.index+match[0].length,match[2]?base:match[1]+' '+base,'Do-support takes the base form of the main verb');
@@ -591,15 +588,21 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   for(const match of text.matchAll(/\bbefore and agent\b/gi))add(match.index,match.index+match[0].length,'before an agent','An precedes this singular noun');
   for(const match of text.matchAll(/\blots of important bit\b(?=\s*(?:[.!?;]|$))/gi))add(match.index,match.index+match[0].length,match[0]+'s','The completed plural quantity phrase takes bits');
+  // A number after an arbitrary label can classify one object. Only count
+  // sentence-initial numbers or direct objects of these explicit clauses.
+  const hasAcronymQuantityContext=from=>{
+    const before=text.slice(0,from);
+    return /(?:^|[.!?])\s*$/.test(before)||/\b(?:I|we|you|they|he|she|it)\s+(?:use|uses|used|merge|merges|merged)\s+$/i.test(before);
+  };
   for(const match of text.matchAll(/\b([2-9]|[1-9]\d+) PR\b(?=\s*(?:[.!?,;]|$)|\s+(?:yesterday|today|tonight)\b)/g)){
     if(/[\p{L}\p{N}_.\-‐‑]/u.test(text[match.index-1]??''))continue;
-    if(/\b(?:version|generation|model|release|series|gen|v)\s*$/i.test(text.slice(0,match.index)))continue;
+    if(!hasAcronymQuantityContext(match.index))continue;
     add(match.index,match.index+match[0].length,match[1]+' PRs','A numeral above one takes a plural count abbreviation');
   }
   for(const match of text.matchAll(/\b([2-9]|[1-9]\d+) (URL|API|LLM)\b(?=\s*(?:[.,!?;]|$)|\s+each\s+(?:day|week|month|year)\b)/g)){
     // A numeric component of a model/version identifier is not a quantity.
     if(/[\p{L}\p{N}_.\-‐‑]/u.test(text[match.index-1]??''))continue;
-    if(/\b(?:version|generation|model|release|series|gen|v)\s*$/i.test(text.slice(0,match.index)))continue;
+    if(!hasAcronymQuantityContext(match.index))continue;
     // HTTP status numbers and counted noun modifiers do not pluralize the
     // acronym: 500 API Error, 20 API requests, 3 LLM providers.
     if(/^\s+(?:errors?|requests?|calls?|keys?|responses?|endpoints?|providers?|models?|tokens?|parameters?|links?|addresses?)\b/i.test(text.slice(match.index+match[0].length)))continue;
@@ -653,8 +656,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   for(const match of text.matchAll(/\b(?:in)\s+(UK|USA)\b/g)){
     const from=match.index+match[0].lastIndexOf(match[1]);
-    if(/^\s+(?:law|English|schools|companies|cities|politics|history|markets|terms)\b/.test(text.slice(from+match[1].length)))continue;
-    if(!/^(?:\s*[,.;:!?)]|$|\s+(?:and|but|for|with|to|since|next|last|this)\b)/.test(text.slice(from+match[1].length)))continue;
+    if(!/^\s*(?:[.!?;]|$)/.test(text.slice(from+match[1].length)))continue;
     add(from,from+match[1].length,'the '+match[1],'This country name takes the definite article as a complete location phrase');
   }
   // Run broad article agreement after exact lexical repairs so a compound

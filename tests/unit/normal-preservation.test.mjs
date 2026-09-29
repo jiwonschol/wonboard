@@ -2,6 +2,16 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('SPAC finance nouns keep their distinct spelling with nominal tails',()=>{
+  for(const source of ['스팩 합병을 발표했다','스팩 상장을 추진한다','스팩에 투자했다','스팩입니다'])assert.equal(check(source).some(f=>f.applicable),false,source);
+  assert.ok(check('스팩 상장을 확인됬어요').some(f=>f.suggestions.includes('확인됐어요')));
+});
+
+test('percentage points remain one unit while independent following words can be spaced',()=>{
+  for(const source of ['금리를 0.25%포인트 인하했다','차이는 2%포인트로 줄었다','0.25%포인트씩','2%포인트입니다'])assert.equal(check(source).some(f=>f.applicable),false,source);
+  assert.ok(check('0.95%감량').some(f=>f.suggestions.includes('0.95% 감량')));
+});
+
 test('national security noun plus copula does not become a negative visibility verb',()=>{
   for(const source of ['국가의 핵심은 안보이더군요','주제는 안보이더군요'])assert.equal(check(source).some(f=>f.applicable),false,source);
   assert.ok(check('안보이더군요 확인됬어요').some(f=>f.suggestions.includes('확인됐어요')));
@@ -59,7 +69,7 @@ test('live forum grammar repairs preserve complete Korean predicates and ordinar
 });
 
 test('reviewed phrase corrections keep the accepted result and personal entries intact',()=>{
-  for(const [source,target] of [['기준자체가','기준 자체가'],['연습양이','연습량이'],['스팩에','스펙에'],['되느냐 였는데','되느냐였는데'],['sns짜증이','sns 짜증이']]){
+  for(const [source,target] of [['기준자체가','기준 자체가'],['연습양이','연습량이'],['되느냐 였는데','되느냐였는데'],['sns짜증이','sns 짜증이']]){
     assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
     assert.equal(check(target).some(f=>f.applicable),false,target);
   }
@@ -491,7 +501,7 @@ test('season phrases retain the complete temporal noun hancheol',()=>{
 test('verified lexical repairs retain particles and respect personal entries',()=>{
   for(const [source,target]of [['스폰지','스펀지'],['스폰지를','스펀지를'],['스폰지입니다','스펀지입니다'],['뒷통수','뒤통수'],['뒷통수를','뒤통수를'],['마찮가지다','마찬가지다'],['마찮가지로','마찬가지로']])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
   for(const source of ['스펀지','스펀지를','뒤통수','뒤통수를','마찬가지다','마찬가지로','스펙'])assert.ok(!check(source).some(f=>f.applicable),source);
-  assert.ok(check('스팩').some(f=>f.suggestions.includes('스펙')));
+  assert.equal(check('스팩').some(f=>f.applicable),false);
   for(const word of ['스폰지','뒷통수','마찮가지']){
     assert.ok(!check(word+'를',[word]).some(f=>f.applicable),word);
     assert.ok(check(word+' 됬어요',[word]).some(f=>f.suggestions.includes('됐어요')),word);

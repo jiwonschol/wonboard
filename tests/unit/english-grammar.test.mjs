@@ -255,7 +255,7 @@ test('ordinary household clauses recover clear spelling and auxiliary errors',()
     ['We live here since 10 years','We live here since 10 years','We have lived here for 10 years'],
     ['the whol process','whol','whole'],
     ['Laminate is new. Thankd','Thankd','Thanks'],
-    ['Does this tries to make a call','tries','try'],
+    ['Does it tries to make a call','tries','try'],
   ])assert.ok(check(text).some(f=>f.original===original&&f.suggestions[0]===target),text);
   for(const text of ["it's connection that matters",'we have to go','we live here','the whole process','Thankd is a name'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.equal(check('`had to got`').some(f=>f.applicable),false);
@@ -428,7 +428,7 @@ test('letter labels and construction material names preserve their meaning',()=>
 });
 
 test('first-person clauses and apostrophes work with intervening adverbs',()=>{
-  for(const [text,target]of [['i still use it','I'],['i bought milk','I'],['i just had lunch','I'],['Id like to learn',"I'd"],['I`m sorry',"I'm"],['it wont let me',"won't"],["it's own skills",'its'],['its broken.',"it's"]])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const [text,target]of [['i still use it','I'],['i bought milk','I'],['i just had lunch','I'],['Id like to learn',"I'd"],['I`m sorry',"I'm"],['it wont let me',"won't"],['its broken.',"it's"]])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['its broken arm','as is their wont','`i bought`'])assert.equal(check(text).some(f=>f.type==='grammar'),false,text);
 });
 
@@ -737,6 +737,30 @@ test('weak nearby words need stronger evidence than short or two-substitution di
   assert.equal(smallCheck('tommorow')[0]?.suggestions[0],'tomorrow');
 });
 
+
+test('own after it is can begin a cleft focus rather than establish possession',()=>{
+  for(const text of ["It's own goals that decide close matches.","It's own brands that the retailer promotes."])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('numbered classifications require quantity evidence before pluralizing acronyms',()=>{
+  for(const text of ['The service is a Level 2 API.','The model is a Tier 3 LLM.','This is a Level 2 PR.','We use a Category 4 URL.','We expose the Level 2 API.','We expose Level 2 API.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target] of [['We use 2 API.','2 APIs'],['I merged 10 PR yesterday.','10 PRs']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('an ing form after I a may modify a noun rather than form a progressive predicate',()=>{
+  for(const text of ['I a visiting professor at university.','I a working parent.','I a planning engineer.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('I a visiting a home.').some(f=>f.suggestions[0]==='I am'));
+});
+
+test('this and that after an auxiliary can be determiners before plural modifiers',()=>{
+  for(const text of ['Does this works council meet monthly?','Does that needs assessment cover costs?','Did this works council meet yesterday?'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('Did she went home?').some(f=>f.suggestions[0]==='go'));
+});
+
+test('country abbreviations can jointly modify a later head noun',()=>{
+  for(const text of ['It applies in UK and EU law.','It applies in UK and EU markets.','They operate in UK, EU and US markets.','It applies in UK (and EU) law.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('We live in UK.').some(f=>f.suggestions[0]==='the UK'));
+});
 
 test('count article removal preserves capitalized titles and following noun heads',()=>{
   for(const text of ['We watched a Two Doors Down episode.','We discussed a Three Windows project.','We watched a two doors down episode.'])assert.equal(check(text).some(f=>f.applicable),false,text);

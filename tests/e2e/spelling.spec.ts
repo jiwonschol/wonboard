@@ -885,26 +885,26 @@ test("new noun and stem corrections apply through the Worker and survive reload"
   expect(errors).toEqual([]);
 });
 
-test("reviewed phrase boundaries apply through the Worker without altering an acronym", async ({ page }) => {
+test("reviewed phrase boundaries apply through the Worker without altering acronyms or SPAC", async ({ page }) => {
   await page.goto("/");
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
   await body.fill("기준자체가 sns짜증이 스팩에");
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
-  for (const suggestion of ["기준 자체가", "sns 짜증이", "스펙에"]) {
+  for (const suggestion of ["기준 자체가", "sns 짜증이"]) {
     await expect(dialog.getByRole("button", { name: suggestion, exact: true })).toBeVisible();
     await dialog.getByRole("button", { name: "Change", exact: true }).click();
   }
   await expect(dialog).toContainText("Spelling review complete.");
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
-  await expect(body).toHaveText("기준 자체가 sns 짜증이 스펙에");
-  await body.press("ControlOrMeta+z");
   await expect(body).toHaveText("기준 자체가 sns 짜증이 스팩에");
+  await body.press("ControlOrMeta+z");
+  await expect(body).toHaveText("기준 자체가 sns짜증이 스팩에");
   await body.press("ControlOrMeta+Shift+z");
-  await expect(body).toHaveText("기준 자체가 sns 짜증이 스펙에");
+  await expect(body).toHaveText("기준 자체가 sns 짜증이 스팩에");
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
   await page.reload();
-  await expect(body).toHaveText("기준 자체가 sns 짜증이 스펙에");
+  await expect(body).toHaveText("기준 자체가 sns 짜증이 스팩에");
 });
 
 test("context suggestions require Change and survive save, reload and undo", async ({ page, browserName }) => {

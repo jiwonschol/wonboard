@@ -563,6 +563,8 @@ export function createChecker(data) {
       if(/[A-Za-z0-9_가-힣]/.test(text[from-1]||'')||/[A-Za-z0-9_가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text[to]||'')||personal.has(m[0])||excluded.some(([a,b])=>from<b&&to>a)||results.some(f=>f.from<to&&f.to>from))continue;
       const predicate=morphology.predicate(word),nominal=morphology.analyze(word,personal);
       if(sets.josa.has(word)||predicate?.root==='이')continue;
+      // %포인트 completes the percentage-point unit before any attached tail.
+      if(word.startsWith('포인트'))continue;
       const suffix=word.match(/^(가량|짜리|쯤|대|여|권)([가-힣]*)$/);
       if(suffix&&(!suffix[2]||sets.josa.has(suffix[2])||morphology.predicate(suffix[2])?.root==='이'))continue;
       if(!predicate&&!(nominal?.kind==='noun'&&!nominal.unknown)&&!recognizedNoun(word))continue;
