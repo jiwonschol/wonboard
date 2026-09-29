@@ -2,6 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('national security noun plus copula does not become a negative visibility verb',()=>{
+  for(const source of ['국가의 핵심은 안보이더군요','주제는 안보이더군요'])assert.equal(check(source).some(f=>f.applicable),false,source);
+  assert.ok(check('안보이더군요 확인됬어요').some(f=>f.suggestions.includes('확인됐어요')));
+});
+
 test('bare URL hosts do not hide adjacent prose while path delimiters stay protected',()=>{
   for(const source of ['Visit https://example.com,teh page','Visit https://example.com;teh page','Visit http://example.com:8080,teh page','Visit http://localhost,teh page','Visit http://127.0.0.1:8080;teh page','Visit http://[::1]:8080,teh page','Visit https://예시.한국,teh page','Visit http://user@localhost,teh page']){
     const findings=check(source).filter(f=>f.applicable);

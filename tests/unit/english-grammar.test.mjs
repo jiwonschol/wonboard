@@ -109,6 +109,17 @@ test('counted acronyms keep singular modifiers and HTTP status descriptions',()=
   assert.ok(englishGrammar('We use 20 API.').some(f=>f.suggestions[0]==='20 APIs'));
 });
 
+test('version labels before numerals do not count acronym nouns',()=>{
+  for(const text of ['We still support the version 2 API.','This is version 3 LLM.','It uses the generation 2 API.','We updated the model 3 LLM.','This is version 12 PR.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('We use 2 API.').some(f=>f.suggestions[0]==='2 APIs'));
+  assert.ok(check('I merged 10 PR yesterday.').some(f=>f.suggestions[0]==='10 PRs'));
+});
+
+test('gerund subjects keep the base verb governed by an inverted auxiliary',()=>{
+  for(const text of ['Will using it make it faster?','Does tuning it make it unstable?','Could running it make the device faster?','How does using it make it faster?'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('Tuning it make it narrow.').some(f=>f.suggestions[0]==='Tuning it makes'));
+});
+
 test('one compounds retain their consonant sound while ordinary vowel nouns keep their article repair',()=>{
   for(const text of ['a oneoff payment','a onetime offer','a oneway trip','a onesided argument'])assert.equal(englishGrammar(text).length,0,text);
   assert.ok(englishGrammar('a onerous task').some(f=>f.suggestions[0]==='an onerous'));

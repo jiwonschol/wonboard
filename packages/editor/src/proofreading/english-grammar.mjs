@@ -532,7 +532,8 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     add(match.index,match.index+match[0].length,match[0][0]==='I'?"It's so":"it's so",'The degree adverb follows it is');
   }
   for(const match of text.matchAll(/\b(?:tuning|using|training|running) it make\b(?=\s+(?:it|them|the|a|an|this|that)\b)/gi)){
-    add(match.index,match.index+match[0].length,match[0].replace(/make$/i,'makes'),'The singular it takes makes');
+    if(!/(?:^|[.!?]\s*)$/.test(text.slice(0,match.index)))continue;
+    add(match.index,match.index+match[0].length,match[0].replace(/make$/i,'makes'),'This sentence-initial gerund clause takes makes');
   }
   for(const match of text.matchAll(/\b(?:I am|I'm) not (?:devops|software|hardware|security) person\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/not /i,'not a '),'This singular count noun needs an article');
   for(const match of text.matchAll(/\bthere were no firewall\b(?=\s*(?:[.!?;]|$))/gi))add(match.index,match.index+match[0].length,match[0].replace(/were/i,'was'),'Singular firewall agrees with was at the end of this clause');
@@ -592,11 +593,13 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\blots of important bit\b(?=\s*(?:[.!?;]|$))/gi))add(match.index,match.index+match[0].length,match[0]+'s','The completed plural quantity phrase takes bits');
   for(const match of text.matchAll(/\b([2-9]|[1-9]\d+) PR\b(?=\s*(?:[.!?,;]|$)|\s+(?:yesterday|today|tonight)\b)/g)){
     if(/[\p{L}\p{N}_.\-‐‑]/u.test(text[match.index-1]??''))continue;
+    if(/\b(?:version|generation|model|release|series|gen|v)\s*$/i.test(text.slice(0,match.index)))continue;
     add(match.index,match.index+match[0].length,match[1]+' PRs','A numeral above one takes a plural count abbreviation');
   }
   for(const match of text.matchAll(/\b([2-9]|[1-9]\d+) (URL|API|LLM)\b(?=\s*(?:[.,!?;]|$)|\s+each\s+(?:day|week|month|year)\b)/g)){
     // A numeric component of a model/version identifier is not a quantity.
     if(/[\p{L}\p{N}_.\-‐‑]/u.test(text[match.index-1]??''))continue;
+    if(/\b(?:version|generation|model|release|series|gen|v)\s*$/i.test(text.slice(0,match.index)))continue;
     // HTTP status numbers and counted noun modifiers do not pluralize the
     // acronym: 500 API Error, 20 API requests, 3 LLM providers.
     if(/^\s+(?:errors?|requests?|calls?|keys?|responses?|endpoints?|providers?|models?|tokens?|parameters?|links?|addresses?)\b/i.test(text.slice(match.index+match[0].length)))continue;
