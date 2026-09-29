@@ -18,6 +18,9 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     [/\b(?:I|we|you|they|he|she)\s+(?:(?:just|recently|already)\s+)?(movrd)\b/gi,'moved','This subject clause takes the past verb moved'],
     [/\b(electiciry)(?=\s+(?:meters?|bills?|tariffs?|supply|prices?|costs?|rates?)\b)/gi,'electricity','This utility noun before a meter or charge is electricity'],
     [/\b(?:fixed|variable|current|new|energy|electricity|gas)\s+(tarfiff)\b/gi,'tariff','This pricing or energy phrase refers to a tariff'],
+    [/\b(awseome)(?=\s+(?:people|work|ideas?|tools?|projects?|results?|news|experience)\b)/gi,'awesome','This adjective before a common noun is spelled awesome'],
+    [/\b(throtlling)(?=\s+(?:packets|traffic|requests|connections|bandwidth|speeds?|performance)\b)/gi,'throttling','This traffic or performance action retains the doubled t in throttling'],
+    [/\b(?:without|before|after|while|by|is|was|are|were)\s+(beeing)(?=\s+(?:logged\s+(?:in|out)|able|unable|used|asked|told|paid|ignored|blocked|careful|honest)\b)/gi,'being','This state or passive construction uses being'],
   ]){
     for(const match of text.matchAll(pattern)){
       const original=match[1],from=match.index+match[0].lastIndexOf(original);
@@ -238,6 +241,10 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(?:I['’]m|I am)\s+(bit)\b(?=\s+(?:concerned|worried|confused|tired|scared|surprised|lost)\b)/g)){
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+3,'a bit','The degree phrase is a bit before this adjective');
+  }
+  for(const match of text.matchAll(/\b(?:am|is|are|was|were|be|been|getting|feeling|seems|seemed)\s+(abit)(?=\s+(?:stressed|concerned|worried|confused|tired|scared|surprised|lost|slow|fast|late|early|expensive|cheap|difficult|easier|harder|better|worse)\b)/g)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,'a bit','Separate a bit when it modifies this adjective');
   }
   for(const match of text.matchAll(/\b(?:rate|assess|review)\s+(it['’]s)\s+(?:work|output|results)\b/gi)){
     const from=match.index+match[0].indexOf(match[1]);

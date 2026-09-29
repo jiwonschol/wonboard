@@ -1,6 +1,29 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 
+test('a transposed awesome adjective is repaired before a common noun',()=>{
+  assert.equal(check('Hello Awseome People').find(f=>f.original==='Awseome')?.suggestions[0],'Awesome');
+  assert.equal(englishGrammar('Awseome is a name.').length,0);
+  assert.equal(englishGrammar('Hello Awesome People').length,0);
+});
+
+test('a misplaced doubled consonant in throttling retains its traffic object',()=>{
+  assert.equal(check('It works by throtlling packets per second').find(f=>f.original==='throtlling')?.suggestions[0],'throttling');
+  assert.equal(englishGrammar('throtlling is an identifier').length,0);
+  assert.equal(englishGrammar('throttling network traffic').length,0);
+});
+
+test('being in a state construction is not accepted as bee plus ing',()=>{
+  assert.equal(check('without beeing logged in').find(f=>f.original==='beeing')?.suggestions[0],'being');
+  assert.equal(check('She was beeing ignored').find(f=>f.original==='beeing')?.suggestions[0],'being');
+  for(const text of ['Beeing is a name.','I enjoy beekeeping.','without being logged in'])assert.equal(englishGrammar(text).length,0,text);
+});
+
+test('joined a bit before a degree adjective retains its meaning',()=>{
+  for(const text of ['I am getting abit stressed','It is abit slow'])assert.equal(check(text).find(f=>f.original==='abit')?.suggestions[0],'a bit',text);
+  for(const text of ['ABIT motherboard','It is ABIT hardware','I am getting a bit stressed'])assert.equal(englishGrammar(text).length,0,text);
+});
+
 test('ordinary verb constructions recover adjacent-key spelling without changing introduced names',()=>{
   for(const [text,original,target] of [
     ['it organzies your tabs','organzies','organizes'],
@@ -22,7 +45,7 @@ test('utility noun repairs preserve pricing and metering context',()=>{
 });
 
 test('contextual spelling repairs respect excluded spans and personal words',()=>{
-  for(const text of ['it organzies your tabs','SaaS specificly.','find nornal to path length','lookinf for work','wotked for years','I movrd','the electiciry meter','a fixed tarfiff']){
+  for(const text of ['it organzies your tabs','SaaS specificly.','find nornal to path length','lookinf for work','wotked for years','I movrd','the electiciry meter','a fixed tarfiff','Hello Awseome People','by throtlling packets','without beeing logged in','I am getting abit stressed']){
     const finding=englishGrammar(text)[0];
     assert.ok(finding,text);
     assert.equal(englishGrammar(text,[[finding.from,finding.to]]).length,0,text);
@@ -58,7 +81,7 @@ test('a temporal until typo is not accepted merely because till has a dictionary
 });
 
 test('service names and an explicitly named customer relationship retain their identity',()=>{
-  for(const text of ['run canva and Instagram','Canva has tools','an email address on vinted','a zzoom customer for years'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const text of ['run canva and Instagram','Canva has tools','an email address on vinted','a zzoom customer for years','places like fiverr','Fiverr offers services'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('Please zzoom in.').some(f=>f.original==='zzoom'&&f.suggestions[0]==='zoom'));
   assert.ok(check('canva recieve').some(f=>f.suggestions[0]==='receive'));
 });

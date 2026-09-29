@@ -1,5 +1,19 @@
 // Own bounded confusion-word rules. Lexical meanings: spelling-orthography-sources.md.
 // These are review suggestions, never a claim of full sentence understanding.
+export function contextualProductName(text,from,to){
+  const word=text.slice(from,to),left=text.slice(Math.max(0,from-80),from).split('\n').at(-1),right=text.slice(to,to+100).split('\n')[0];
+  // Both names are published by their manufacturers (Samyang / Haitai).
+  // They also resemble ordinary phrases, so require a local brand cue.
+  if(/^맛있는라면(?:으로|은|는|도|을|과|과는)?$/.test(word)){
+    if(/(?:^|[^가-힣])삼양(?:식품)?(?:의)?[ \u00a0]+$/.test(left))return true;
+    if(word==='맛있는라면으로'&&/(?:^|[^가-힣])(?:신라면|진라면|삼양라면|안성탕면)으로(?:는|도)?(?=$|[^가-힣])/.test(left+right))return true;
+  }
+  if(word==='갈아만든'&&/^[ \u00a0]+배(?:는|를|도|가|와|로|에)?(?=$|[^가-힣])/.test(right)){
+    return /(?:^|[^가-힣])(?:해장용|숙취해소용|해태(?:음료)?)[ \u00a0]+$/.test(left)
+      || /^[ \u00a0]+배[ \u00a0]*(?:\d+[ \u00a0]*(?:ml|mL|L)|캔|페트|음료)(?=$|[^가-힣A-Za-z])/u.test(right);
+  }
+  return false;
+}
 export function communityAction(word,predicate){
   // A reviewed action abbreviation may have a validated 하다 ending.
   // This does not make arbitrary personal nouns productive verb stems.
@@ -18,6 +32,9 @@ export function communityExpression(text,from,to,personal,sets,predicate){
   if(!personal.has(word)&&/^햄부기(?:는|가|를|도|만|야|임)?$/.test(word))return '햄부기';
   // Reviewed phonetic internet speech stays a whole expression for review.
   if(!personal.has(word)&&/^(?:조크|좋크|좋거)등요$/.test(word))return word;
+  // An adnominal + 뎁니다 may contract 데입니다 in colloquial speech.
+  // Do not turn that place/circumstance reading into reported -답니다.
+  if(!personal.has(word)&&word.endsWith('뎁니다')&&predicate(word.slice(0,-3))?.adnominal)return word;
   // A model identifier disambiguates the device nickname from 개다's 갤.
   if(word==='갤'&&!personal.has(word)&&/^[ \u00a0]+(?:S|Z|A)\d+(?=$|[^A-Za-z0-9])/i.test(right))return word;
   // 넘 before a complete adjective may abbreviate 너무. Keep the bare

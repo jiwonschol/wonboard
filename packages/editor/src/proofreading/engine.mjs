@@ -2,7 +2,7 @@
 // No network access; dictionaries are supplied by the caller.
 import {createMorphology,createActionNounSet,isPronoun} from './korean-morphology.mjs';
 import {orthography,lexicalNounRepair} from './korean-orthography.mjs';
-import {contextSuggestion,communityExpression,communityAction} from './korean-context.mjs';
+import {contextSuggestion,communityExpression,communityAction,contextualProductName} from './korean-context.mjs';
 import {englishGrammar} from './english-grammar.mjs';
 import {englishUsage} from './english-usage.mjs';
 import {communityNouns,communityNominalOnly,technicalAbbreviations,englishRecognizedTerms,communityActionNouns,communityAdjectiveStems,communityVerbStems,candidatePhraseBoundaries,candidateJoinedPhrases} from './community-vocabulary.mjs';
@@ -30,6 +30,13 @@ export function createChecker(data) {
   const knownOrthographicNoun=word=>sets.noun.has(word)||recognizedNouns.has(word)||morphology.isDerivedNominal(word);
   const candidateBoundary=(word,personal,text,from,to)=>{
     if(personal.has(word))return null;
+    // A common surname followed by an office title keeps the title whole.
+    // Established compounds (이사장, 부사장) and personal entries win first.
+    const namedTitle=word.match(/^([김이박최정강조윤장임])((?:과장|차장|부장|팀장|실장|사장|회장)(?:님)?)(.*)$/);
+    if(namedTitle&&!knownOrthographicNoun(namedTitle[1]+namedTitle[2])&&(!namedTitle[3]||sets.josa.has(namedTitle[3])||morphology.predicate(namedTitle[3])?.root==='이'))return {type:'spacing',suggestions:[namedTitle[1]+' '+namedTitle[2]+namedTitle[3]],reason:'Separate a surname from its complete office title; confirm the intended person',ambiguous:true};
+    // 웬걸 is a complete interjection, not determiner 왠 + dependent 걸.
+    const surprise=word.match(/^(이거|그거|저거)?왠걸$/);
+    if(surprise)return {type:'spelling',suggestions:[(surprise[1]?surprise[1]+' ':'')+'웬걸'],reason:'Restore the interjection 웬걸 and preserve a preceding demonstrative boundary',ambiguous:false};
     // Elapsed-time context distinguishes dependent 지 from question endings.
     const elapsed=word.match(/^(.+)지(가|는|도)?$/u),elapsedHost=elapsed&&(morphology.predicate(elapsed[1])??morphology.analyze(elapsed[1],personal));
     if(elapsedHost?.adnominal&&elapsedHost.root!=='이'&&(elapsed[1].charCodeAt(elapsed[1].length-1)-0xac00)%28===4&&!elapsed[1].endsWith('는')&&/^[ \u00a0]+(?:얼마[ \u00a0]+(?:안|되)|오래|[0-9]+[ \u00a0]*(?:년|달|개월|일))/u.test(text.slice(to)))return {type:'spacing',suggestions:[elapsed[1]+' 지'+(elapsed[2]??'')],reason:'Elapsed-time context selects dependent 지',ambiguous:true};
@@ -706,7 +713,13 @@ export function createChecker(data) {
       } else {
         const statedName=statedKoreanNames.find(name=>word.startsWith(name)&&(!word.slice(name.length)||sets.josa.has(word.slice(name.length))||morphology.predicate(word.slice(name.length))?.root==='이'));
         const authorName=/^[ \u00a0]+(?:지음|옮김)(?=$|[\s.,!?])/u.test(text.slice(to));
-        if(statedName||authorName){emit(from,to,'ko','unknown',[],word);results.at(-1).reason='Explicit name or author credit; preserve the complete identity for review';continue;}
+        if(statedName||authorName||contextualProductName(text,from,to)){
+          if(!personal.has(word)){
+            emit(from,to,'ko','unknown',[],word);
+            results.at(-1).reason='Name, author credit, or locally identified product; preserve the complete identity for review';
+          }
+          continue;
+        }
         // A named avatar is an identity, even when its syllables form a
         // normal adjective/noun phrase. Keep the unknown-name review.
         const avatarName=/^[ \u00a0]+캐릭(?:터)?[ \u00a0]+유저/u.test(text.slice(to))||/^-[가-힣]+-\[[^\]\n]+\][ \u00a0]+님/u.test(text.slice(to));
@@ -809,7 +822,9 @@ export function createChecker(data) {
         // the following gap so protected text and a name review stay intact.
         const demonstrativeI=word==='이'&&(()=>{
           const next=text.slice(to).match(/^[ \u00a0]+([가-힣]+)/)?.[1];
-          return /^[ \u00a0]+\d+(?:개|명|가지|권|장|대|번|곳)/.test(text.slice(to))||next&&(knownOrthographicNoun(next)||morphology.analyze(next,personal)?.kind==='noun');
+          const unknown=next&&!knownOrthographicPredicate(next)&&morphology.unknownNoun(next);
+          const nominalTail=unknown&&/^(?:은|는|이|가|을|를|의)$/.test(next.slice(unknown.base.length));
+          return /^[ \u00a0]+\d+(?:개|명|가지|권|장|대|번|곳)/.test(text.slice(to))||next&&(knownOrthographicNoun(next)||morphology.analyze(next,personal)?.kind==='noun'||nominalTail);
         })();
         if(!demonstrativeI&&(unambiguousParticles.has(word)||['에','을','를','은','는','이','가','와','과','도','만','의','라고','이라는','라는'].includes(word))){
           const gap=text.slice(0,from).match(/[ \u00a0]+$/);

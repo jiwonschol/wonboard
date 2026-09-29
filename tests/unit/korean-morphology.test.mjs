@@ -1160,3 +1160,17 @@ test('independent eating predicates and omitted objects recover mandatory gaps',
   for(const [text,target]of [['구워먹을라고','구워 먹을라고'],['만들어먹겠다는','만들어 먹겠다는'],['찍어먹기','찍어 먹기'],['비벼먹으니','비벼 먹으니'],['시켜먹습니다','시켜 먹습니다'],['발라내먹어야','발라내 먹어야'],['도움받을수','도움 받을 수'],['정신나간','정신 나간']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['받아먹었다','갉아먹었다','까먹었다','다쳐먹더라고'])assert.equal(check(text).some(f=>f.applicable),false,text);
 });
+
+test('whole predicates and nominal suffixes survive fragment homographs',()=>{
+  for(const text of ['짜장이기보다는','세발나물이','내세우지','때아닌','찾아다님','내신식으로','세이부가','라오쓰지','존맛','정말정말'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['이와중에','이 와중에'],['그중한곳에서','그중 한 곳에서'],['한번꼴로','한 번꼴로'],['군대가기','군대 가기'],['퍽퍽해보였는데','퍽퍽해 보였는데']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('complete adnominal and colloquial motion forms recover grammatical gaps',()=>{
+  for(const [text,target]of [['한다음에','한 다음에'],['만든맛이','만든 맛이'],['구운맛입니다','구운 맛입니다'],['나온것중에','나온 것 중에'],['급식없던시절','급식 없던 시절'],['자러갈게용','자러 갈게용'],['할라하면','할라 하면'],['아님말고','아님 말고']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('food actions and elliptical state phrases keep independent word boundaries',()=>{
+  for(const [text,target]of [['썰어넣은','썰어 넣은'],['건져먹고','건져 먹고'],['감당못하는','감당 못하는'],['너무행복','너무 행복']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['못생겼다','한번 해보자','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
