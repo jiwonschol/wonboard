@@ -758,10 +758,10 @@ test("successive inflection and noun-boundary changes preserve offsets and saved
 test("skipping a Latin name still allows particle spacing and ending review", async ({ page }) => {
   await page.goto("/");
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
-  await body.fill("Imgur 에 좋더라구요 10년넘게");
+  await body.fill("Zzqvx 에 좋더라구요 10년넘게");
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
-  await expect(dialog).toContainText("Unrecognized expression: Imgur");
+  await expect(dialog).toContainText("Unrecognized expression: Zzqvx");
   await dialog.getByRole("button", { name: "Skip once", exact: true }).click();
   for (const suggestion of ["에", "좋더라고요", "10년 넘게"]) {
     await expect(dialog.getByRole("button", { name: suggestion, exact: true })).toBeVisible();
@@ -770,10 +770,10 @@ test("skipping a Latin name still allows particle spacing and ending review", as
   }
   await expect(dialog).toContainText("Spelling review complete.");
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
-  await expect(body).toHaveText("Imgur에 좋더라고요 10년 넘게");
+  await expect(body).toHaveText("Zzqvx에 좋더라고요 10년 넘게");
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
   await page.reload();
-  await expect(body).toHaveText("Imgur에 좋더라고요 10년 넘게");
+  await expect(body).toHaveText("Zzqvx에 좋더라고요 10년 넘게");
 });
 
 test("adverb acronym and ending corrections are explicit and survive reload", async ({ page }) => {
