@@ -4,7 +4,21 @@ import assert from 'node:assert/strict';
 test('how much may describe the degree of a following plural clause',()=>{
   for(const text of ['We measured how much positives outweigh negatives.','How much users contribute varies.'])assert.equal(check(text).some(f=>f.suggestions[0]==='many'),false,text);
   assert.ok(check('There are much errors.').some(f=>f.suggestions[0]==='many'));
-  for(const text of ['How much errors did you find?','How much files are missing?'])assert.ok(check(text).some(f=>f.suggestions[0]==='many'),text);
+  for(const text of ['How much errors did you find?','How much files are missing?','How much files remain?','How much users joined?'])assert.ok(check(text).some(f=>f.suggestions[0]==='many'),text);
+});
+
+test('mass equipment repairs retain source capitalization',()=>{
+  for(const [text,target] of [['Equipments are expensive.','Equipment'],['EQUIPMENTS','EQUIPMENT'],['equipments','equipment']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('perfect indefinite subject repairs abstain when question inversion is needed',()=>{
+  assert.equal(check('Anyone have had this issue?').some(f=>f.suggestions[0]==='has'),false);
+  assert.ok(check('Everyone have had this issue.').some(f=>f.suggestions[0]==='has'));
+});
+
+test('perfect setup verbs with definite objects remain distinct from setup nouns',()=>{
+  for(const text of ['I have setup the server.','We had setup the account before noon.'])assert.ok(check(text).some(f=>f.suggestions[0]==='set up'),text);
+  for(const text of ['I have setup experience.','I have setup this week.','I have setup the following morning.'])assert.equal(check(text).some(f=>f.suggestions[0]==='set up'),false,text);
 });
 
 test('let binds a lowercase variable without creating a first-person pronoun',()=>{

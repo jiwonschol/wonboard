@@ -309,6 +309,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   for(const match of text.matchAll(/\b(?:anyone|someone|everyone|no one)\s+(?:else\s+)?(have)\s+had\b/gi)){
     if(permitsBaseVerb(match.index))continue;
+    if(/^[^.!?\n]*\?/.test(text.slice(match.index)))continue;
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'has','This singular indefinite subject takes has in the perfect tense');
   }
@@ -422,7 +423,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     add(from,from+match[1].length+1+match[2].length,'an '+match[1]+' '+match[2],'A singular count noun with an adjective needs a determiner');
   }
   for(const match of text.matchAll(/\bequipments\b/gi)){
-    add(match.index,match.index+match[0].length,'equipment','Equipment is an uncountable noun in this sense');
+    add(match.index,match.index+match[0].length,match[0].slice(0,-1),'Equipment is an uncountable noun in this sense');
   }
   for(const match of text.matchAll(/\b(?:worked|works|working|ran|runs|running) perfectly (seamless)\b(?=\s*(?:[.!?;]|$))/gi)){
     const original=match[1],from=match.index+match[0].lastIndexOf(original);
@@ -469,7 +470,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     add(match.index,match.index+match[0].length,match[0].replace(/^(?:a|an)\s+/i,''),'This mass noun does not take an indefinite article');
   }
   for(const match of text.matchAll(/\bmuch\s+(?:false\s+)?(?:positives|negatives|errors|problems|issues|people|files|users)\b/gi)){
-    if(/\bhow\s+$/i.test(text.slice(0,match.index))&&!/^\s+(?:(?:did|do|does|have|has|had|will|would|can|could)\s+(?:I|you|we|they|he|she|it)\b|(?:are|were)\s+(?:missing|available|remaining|present)\b)/i.test(text.slice(match.index+match[0].length)))continue;
+    if(/\bhow\s+$/i.test(text.slice(0,match.index))&&!/^\s+(?:(?:did|do|does|have|has|had|will|would|can|could)\s+(?:I|you|we|they|he|she|it)\b|(?:are|were)\s+(?:missing|available|remaining|present)\b|(?:remain|remained|joined|arrived|exist|existed)\b)/i.test(text.slice(match.index+match[0].length)))continue;
     add(match.index,match.index+4,match[0][0]==='M'?'Many':'many','This plural count noun takes many');
   }
   for(const match of text.matchAll(/\b(?:it|he|she)\s+(?:just|often|always|sometimes)\s+(try|work|use|need|want)\b/gi)){
@@ -571,7 +572,10 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     if(/^(?:he|she|it)$/i.test(match[1])&&(!match[2]||/^(?:just|already)$/i.test(match[2])))continue;
     const from=match.index+match[0].lastIndexOf(match[3]);
     // Have also takes a noun object, even before a determiner: setup this week.
-    if(/^(?:have|has|had)$/i.test(match[2]??''))continue;
+    if(/^(?:have|has|had)$/i.test(match[2]??'')){
+      const after=text.slice(from+match[3].length);
+      if(!/^\s+(?:the|a|an|my|your|our|their|his|her)\s+[a-z]+\b/i.test(after)||/^\s+the\s+(?:(?:next|previous|following|same)\s+)?(?:day|week|month|year|morning|afternoon|evening|night)\b/i.test(after))continue;
+    }
     add(from,from+match[3].length,'set up','Set up is the verb; setup is a noun or noun modifier');
   }
   const irregularParticiples=new Map([['went','gone'],['came','come'],['wrote','written'],['took','taken'],['ran','run'],['did','done'],['ate','eaten'],['knew','known'],['drank','drunk'],['gave','given']]);
