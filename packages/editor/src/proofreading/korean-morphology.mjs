@@ -785,6 +785,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   function knownAdverbBoundary(word,personal) {
     if(personal.has(word))return null;
     const day=word.match(/^(.+)날(.*)$/);
+    if(day&&knownNominal(day[1]+'날')&&(!day[2]||sets.josa.has(day[2])))return null;
     if(day&&predicate(day[1])?.adnominal&&day[1].length>1&&(!day[2]||sets.josa.has(day[2])))return {text:day[1]+' 날'+day[2],ambiguous:true,rule:'42'};
     // Preserve the complete adverb 아무리 before the following clause;
     // 아무 + 리그 must not steal its final syllable in 아무리그래도.
@@ -871,6 +872,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
   function spacing(word,personal) {
     if(personal.has(word))return null;
     const day=word.match(/^(.+)날(.*)$/);
+    if(day&&knownNominal(day[1]+'날')&&(!day[2]||sets.josa.has(day[2])))return null;
     if(day&&predicate(day[1])?.adnominal&&day[1].length>1&&(!day[2]||sets.josa.has(day[2])))return {text:day[1]+' 날'+day[2],ambiguous:true,rule:'42'};
     // Repeated interrogative determiners and quantity suffixes are complete
     // expressions; their internal dictionary fragments do not imply gaps.
@@ -1029,7 +1031,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     // The descriptive vocabulary includes 둘다/셋다 as whole forms.
     // A cardinal followed by independent 다 still keeps its word boundary.
     const allCount=word.match(/^(둘|셋|넷|다섯|여섯|일곱|여덟|아홉|열)다(요|는|도|만)?$/);
-    if(allCount)return {text:allCount[1]+' 다'+(allCount[2]??''),ambiguous:true,rule:'2'};
+    if(allCount&&!predicate(word))return {text:allCount[1]+' 다'+(allCount[2]??''),ambiguous:true,rule:'2'};
     const repeatedCount=word.match(/^(또|다시)(한|두|세|네)번(.*)$/);
     if(repeatedCount&&(!repeatedCount[3]||sets.josa.has(repeatedCount[3])))return {text:repeatedCount[1]+' '+repeatedCount[2]+' 번'+repeatedCount[3],ambiguous:true,rule:'43'};
     const quantity=word.match(/^(한두|두세|서너|두어|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|스무|몇|여러)(번째|과목|접시|상자|단계|개|장|번|군데|달|시간|조각|권|명|사람|배|마리|살|쪽|줄|잔|모금|병|봉지|방울|그루|켤레|벌|세트|차례|개월|년|분|초|가지|폭|칸|날)(.*)$/);

@@ -10,9 +10,6 @@ const analysisLimit=48;
 export function createChecker(data) {
   const sets=Object.fromEntries(Object.entries(data.ko).map(([k,v])=>[k,new Set(v)]));
   for(const word of [...communityNouns,...communityActionNouns])sets.noun.add(word);
-  // 한살림 is the proper name of the consumer cooperative; do not parse it
-  // as the ordinary phrase 한 살림 when followed by a particle.
-  sets.noun.add('한살림');
   for(const stem of communityVerbStems)sets.verb.add(stem);
   for(const stem of communityAdjectiveStems)sets.adjective.add(stem);
   // Additional stems recognize a complete word only. They must not become
@@ -31,6 +28,8 @@ export function createChecker(data) {
   const knownOrthographicNoun=word=>sets.noun.has(word)||recognizedNouns.has(word)||morphology.isDerivedNominal(word);
   const candidateBoundary=(word,personal,text,from,to)=>{
     if(personal.has(word))return null;
+    const household=word.match(/^한살림(.*)$/);
+    if(household&&(!household[1]||sets.josa.has(household[1]))&&morphology.predicate(text.slice(to).match(/^[ \u00a0]+([가-힣]+)/)?.[1]??'')?.root==='차리')return {type:'spacing',suggestions:['한 '+word.slice(1)],reason:'The following household-setting predicate selects the count phrase 한 살림',ambiguous:true};
     // A common surname followed by an office title keeps the title whole.
     // Established compounds (이사장, 부사장) and personal entries win first.
     const namedTitle=word.match(/^([김이박최정강조윤장임])((?:과장|차장|부장|팀장|실장|사장|회장)(?:님)?)(.*)$/);

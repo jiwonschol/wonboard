@@ -467,6 +467,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     add(match.index,match.index+match[0].length,match[0].replace(/^(?:a|an)\s+/i,''),'This mass noun does not take an indefinite article');
   }
   for(const match of text.matchAll(/\bmuch\s+(?:false\s+)?(?:positives|negatives|errors|problems|issues|people|files|users)\b/gi)){
+    if(/\bhow\s+$/i.test(text.slice(0,match.index)))continue;
     add(match.index,match.index+4,match[0][0]==='M'?'Many':'many','This plural count noun takes many');
   }
   for(const match of text.matchAll(/\b(?:it|he|she)\s+(?:just|often|always|sometimes)\s+(try|work|use|need|want)\b/gi)){

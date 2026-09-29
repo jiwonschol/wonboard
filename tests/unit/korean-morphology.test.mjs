@@ -2,6 +2,21 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('lexical day nouns precede the adnominal day boundary',()=>{
+  for(const text of ['지난날을 회상했다','지난날','지난날에도'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('받은날').some(f=>f.suggestions[0]==='받은 날'));
+});
+
+test('the opening verb is not a numeral followed by all',()=>{
+  for(const text of ['문을 열다','문을 열다는 표현'])assert.equal(check(text).some(f=>f.suggestions.includes('열 다')),false,text);
+  assert.ok(check('둘다').some(f=>f.suggestions[0]==='둘 다'));
+});
+
+test('Hansalim is protected only in a local cooperative context',()=>{
+  for(const text of ['한살림이 오픈됐어요','한살림 매장','생협 한살림에서 구매했다'])assert.equal(check(text).some(f=>f.applicable&&f.original.startsWith('한살림')),false,text);
+  assert.ok(check('한살림을 차렸다').some(f=>f.suggestions[0]==='한 살림을'));
+});
+
 test('complete nominals and adverbs preserve internal lexical boundaries',()=>{
   for(const text of ['엄마한테는','어디선가','잘못인가요','잘못이지만','이른바','고려대니','무슨무슨','만원짜리','뒹굴거리다','제주어로','가죽나물이'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('잘못먹었다').some(f=>f.suggestions[0]==='잘못 먹었다'));
@@ -845,7 +860,7 @@ test('ambiguous Korean boundaries preserve the intended reading and lexical name
   assert.equal(childEtc?.ambiguous,true);
   assert.equal(enumeration.some(f=>f.original==='님으로'||f.suggestions.some(s=>s.includes('님으로'))),false);
 
-  assert.equal(check('한살림이 오픈됐어요').some(f=>f.original==='한살림이'),false);
+  assert.equal(check('한살림이 오픈됐어요').some(f=>f.original==='한살림이'&&f.applicable),false);
   assert.deepEqual(check('한 살림이 필요하다'),[]);
 });
 test('finite endings, plural nouns and permitted auxiliary spelling stay intact',()=>{

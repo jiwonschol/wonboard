@@ -1,6 +1,11 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 
+test('how much may describe the degree of a following plural clause',()=>{
+  for(const text of ['We measured how much positives outweigh negatives.','How much users contribute varies.'])assert.equal(check(text).some(f=>f.suggestions[0]==='many'),false,text);
+  assert.ok(check('There are much errors.').some(f=>f.suggestions[0]==='many'));
+});
+
 test('agreement does not turn Roman numeral labels into pronouns',()=>{
   for(const text of ['Chapter I has the introduction.','Model I works correctly.','Part I uses examples.'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('I has a question.').some(f=>f.suggestions[0]==='I have'));
