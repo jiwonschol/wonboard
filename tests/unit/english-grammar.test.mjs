@@ -241,7 +241,6 @@ test('new clause repairs respect excluded ranges and personal entries',()=>{
 test('ordinary household clauses recover clear spelling and auxiliary errors',()=>{
   for(const [text,original,target]of [
     ["leaking from it's connection with the pipe","it's",'its'],
-    ['had to got to hospital','got','go'],
     ['We live here since 10 years','We live here since 10 years','We have lived here for 10 years'],
     ['the whol process','whol','whole'],
     ['Laminate is new. Thankd','Thankd','Thanks'],
@@ -510,9 +509,7 @@ test('English grammar candidates repair attested constructions without changing 
     ["projects who's primary contributors are AI",'whose primary'],
     ["You can't trust it's account.",'its'],
     ['Im back at work.',"I'm"],
-    ['I should have reigned in my emotions.','reined in'],
     ['You can bank couple of those.','bank a couple'],
-    ['I rather have this version.',"I'd rather"],
     ['It wasnt on DOS.',"wasn't"],
     ['It connects to a A/B switched CRT.','an A/B'],
     ['We have a XP box.','an XP'],
@@ -532,9 +529,7 @@ test('English grammar candidates repair attested constructions without changing 
     ['The chinnese government','Chinese'],
     ['They publish news everyday.','news every day'],
     ['They would loose their minds.','lose their minds'],
-    ["I read an LLMs output.","an LLM's output"],
     ["The AI's are doing this.",'AIs are'],
-    ['There will be once case.','one case'],
     ['How sophisticated to we need to be?','sophisticated do we'],
     ['I am not devops person.','I am not a devops person'],
     ['There were no firewall.','There was no firewall'],
@@ -553,16 +548,13 @@ test('English grammar candidates repair attested constructions without changing 
     ['It missed lots of important bit.','lots of important bits'],
     ['I merged 10 PR yesterday.','10 PRs'],
     ["It don't need plan mode.","doesn't need"],
-    ['Read epic1 through is many epics as needed.','through as many'],
     ['I found a implemention.','an implementation'],
     ["LLM's exist today.",'LLMs'],
     ['It ranks the the values.','the'],
     ["It a paradox.","It's a"],
     ["Its so cheap.","It's so"],
     ['Tuning it make it narrow.','Tuning it makes'],
-    ['Should we worried about this?', 'Should we be worried'],
     ['As i mentioned earlier.', 'I'],
-    ['Can i get a technical report?', 'I'],
     ['I hope to join in upcoming project.', 'an upcoming project'],
     ['They had to deal with enormous flood of people.', 'an enormous flood'],
     ['I need to get more clarify from the manager.', 'more clarification'],
@@ -594,7 +586,7 @@ test('English grammar candidates repair attested constructions without changing 
     ['It switch off automatically.','It switches off'],
     ['She work on Tuesdays.','She works on'],
     ['They will came tomorrow.','will come'],
-    ["The app didn't worked.","didn't work"],
+    ["It didn't worked.","didn't work"],
     ['Does API really uses this format?','use'],
     ['We checked every devices.','every device'],
     ['I have went back.','have gone'],
@@ -746,6 +738,54 @@ test('weak nearby words need stronger evidence than short or two-substitution di
   assert.equal(smallCheck('tommorow')[0]?.suggestions[0],'tomorrow');
 });
 
+
+test('large quantities do not pluralize acronym modifiers',()=>{
+  for(const text of ['hundreds of API requests','thousands of URL links','millions of LLM tokens','hundreds of API gateways','20 API gateways'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('We use hundreds of API.').some(f=>f.suggestions[0]==='hundreds of APIs'));
+});
+
+test('do support requires an identified subject in positive and negative clauses',()=>{
+  for(const text of ['Did works by Monet sell at auction?','Do works by Monet sell well?','Does work interest you?',"Don't works by Monet sell at auction?","Why don't works by Monet sell?"])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target] of [['Did she went home?','go'],["She doesn't has a book.","doesn't have"]])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('got after have to does not determine get or go',()=>{
+  for(const text of ['You have to got access first.','We had to got permission.','They have to got to the station.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('a participle after a modal does not determine an omitted copula',()=>{
+  for(const text of ['Should we prepared the report?','Could they prepared dinner?','Can we ready the room?'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('a repeated article spelling can instead name an uppercase acronym',()=>{
+  for(const text of ['We implemented the THE protocol.','We selected an AN module.','We selected a A label.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('It ranks the the values.').some(f=>f.suggestions[0]==='the'));
+});
+
+test('once can introduce a temporal clause before a noun modifier',()=>{
+  for(const text of ['Once case review begins, no edits are allowed.','Once case selection finishes, work begins.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('through can end a relative clause before a main predicate',()=>{
+  for(const text of ['The tunnel we drove through is many miles long.','The road we passed through is many years old.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('an article before LLMs output does not establish the number of owners',()=>{
+  assert.equal(check('an LLMs output synthesized from all three systems').some(f=>f.applicable),false);
+});
+
+test('inverted auxiliary questions can refer to the variable i',()=>{
+  for(const text of ['Does i denote the row index?','Can i be negative in this equation?','Does i mean the index?','Can i have a negative value?'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('i bought milk.').some(f=>f.original==='i'&&f.suggestions[0]==='I'));
+});
+
+test('reigned retains a figurative subject and location meaning',()=>{
+  for(const text of ['Fear reigned in her emotions.','Chaos reigned in their behavior.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('rather can qualify a statement without expressing would rather preference',()=>{
+  for(const text of ['I rather have the impression that the result is wrong.','I rather think the answer is clear.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
 
 test('allow can take a noun object without a to infinitive',()=>{
   for(const text of ['The policy allows users access to their records.','The library allows us use of its records.','They allow users change without penalty.','The policy allows users delete permissions.'])assert.equal(check(text).some(f=>f.applicable),false,text);

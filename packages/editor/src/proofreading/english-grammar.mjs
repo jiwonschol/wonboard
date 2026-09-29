@@ -4,6 +4,9 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   const findings=[];
   const add=(from,to,suggestion,reason,type='grammar')=>{
     if(excluded.some(([a,b])=>from<b&&to>a)||personal.has(text.slice(from,to)))return;
+    // Inverted questions can use the variable i as their subject. Following
+    // verb matches elsewhere must not silently turn that identifier into I.
+    if(suggestion==='I'&&text.slice(from,to)==='i'&&/\b(?:can|could|should|would|will|may|might|must|do|did|does|am|was|were|have|had)\s+$/i.test(text.slice(0,from)))return;
     if(findings.some(item=>item.from<to&&item.to>from))return;
     findings.push({from,to,original:text.slice(from,to),language:'en',type,suggestions:[suggestion],applicable:true,reason});
   };
@@ -126,10 +129,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(?:from|with|of|at|to)\s+(it['’]s)\s+connection\b/gi)){
     const from=match.index+match[0].indexOf(match[1]);
     add(from,from+match[1].length,'its','The preposition introduces a possessed connection, not an it-is clause');
-  }
-  for(const match of text.matchAll(/\b(?:had|have|has)\s+to\s+(got)\b/g)){
-    const from=match.index+match[0].lastIndexOf(match[1]);
-    add(from,from+3,'go','Have to takes the base infinitive go');
   }
   for(const match of text.matchAll(/\b(I|We|we|You|you|They|they) live here since (\d+ (?:years|months|weeks|days))\b/g)){
     add(match.index,match.index+match[0].length,match[1]+' have lived here for '+match[2],'Continuing residence over a duration uses the perfect tense and for');
@@ -289,14 +288,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\bi\b(?=\s+(?:(?:just|still|also|really|often|usually|sometimes|always|never|already|recently|now|first|ever)\s+)?(?:decided|read|kept|look|comment|found|bought|put|knew|know|tried|try|mentioned|said|wrote|noticed|believe|believed|remember|remembered|reached|started|used|use|see|saw|get|got|work|worked|wiped|killed|made|mean|sound|own|hit|installed|missed|buy)\b)/g)){
     add(match.index,match.index+1,'I','English first-person pronoun is capitalized');
   }
-  for(const match of text.matchAll(/\b(?:can|could|should|would|will|may|might|must|do|did|does|am|was|were|have|had)\s+(i)\b/gi)){
-    if(match[1]==='I')continue;
-    const from=match.index+match[0].lastIndexOf(match[1]);
-    add(from,from+1,'I','English first-person pronoun is capitalized');
-  }
-  for(const match of text.matchAll(/\b(?:Should|Could|Would|Can|Will) (?:we|they|you|I|he|she|it) (?:worried|concerned|prepared|ready)\b/g)){
-    add(match.index,match.index+match[0].length,match[0].replace(/ (worried|concerned|prepared|ready)$/,' be $1'),'The modal needs be before this predicative adjective');
-  }
   for(const match of text.matchAll(/\b[Ii]ts\b(?=\s+(?:broken|fun|fine|okay|ok|great|possible|impossible|necessary|available|ready)\b(?:\s*(?:[.!?]|[:;][)(DP]|$)))/g)){
     add(match.index,match.index+match[0].length,match[0][0]==='I'?"It's":"it's",'The following adjective needs the contraction it is');
   }
@@ -386,18 +377,12 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\bin past (\d+ years?)\b/gi)){
     add(match.index,match.index+match[0].length,'in the past '+match[1],'This time phrase uses the before past');
   }
-  for(const match of text.matchAll(/\breigned in\b(?=\s+(?:my|your|his|her|their|our)\s+(?:emotions|spending|behavior|behaviour|ambitions|expectations)\b)/gi)){
-    add(match.index,match.index+match[0].length,'reined in','Rein in means restrain; reign means rule');
-  }
   for(const match of text.matchAll(/\b(?:bank|save|have|had|need|use) couple\b(?=\s+of\b)/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/ couple$/i,' a couple'),'A couple of needs an article here');
   }
   for(const match of text.matchAll(/\b(?:get|need|want|provide|give|seek)\s+(more clarify)\b/gi)){
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'more clarification','This noun phrase needs clarification, not the verb clarify');
-  }
-  for(const match of text.matchAll(/\bI rather\b(?=\s+(?:have|do|use|go|see|not|be|wait|keep|take|make)\b)/g)){
-    add(match.index,match.index+match[0].length,"I'd rather",'Would rather expresses a preference');
   }
   for(const match of text.matchAll(/\bhave audience\b(?=\s*[,?!]|\s*$)/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/audience$/i,'an audience'),'Singular count noun audience needs an article here');
@@ -553,12 +538,11 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     add(match.index,match.index+match[0].length,match[0].replace(/everyday$/i,'every day'),'Every day is the adverbial time expression');
   }
   for(const match of text.matchAll(/\bloose their minds\b/gi))add(match.index,match.index+match[0].length,'lose their minds','Lose means to cease to have; loose is an adjective or verb');
-  for(const match of text.matchAll(/\ban (LLMs) output\b/g))add(match.index,match.index+match[0].length,"an LLM's output",'The singular model possesses its output');
   for(const match of text.matchAll(/\b(?:AI|LLM)['’]s are\b/g))add(match.index,match.index+match[0].length,match[0].replace(/['’]s are$/,'s are'),'A plural acronym has no possessive apostrophe');
   for(const match of text.matchAll(/\b(?:AI|LLM|API|GPU|CPU)['’]s\b(?=\s+(?:exist|have)\b)/g)){
     add(match.index,match.index+match[0].length,match[0].replace(/['’]s$/,'s'),'A plural acronym before a plural verb has no possessive apostrophe');
   }
-  for(const match of text.matchAll(/\b(the|a|an)\s+\1\b/gi)){
+  for(const match of text.matchAll(/\b(the|a|an)\s+\1\b/g)){
     add(match.index,match.index+match[0].length,match[0].replace(/^(\S+)\s+\S+$/,'$1'),'The adjacent function word is repeated');
   }
   for(const match of text.matchAll(/\b[Ii]t a\b(?=\s+(?:paradox|problem|mistake|feature|bug|tool|model|question)\b)/g)){
@@ -570,7 +554,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(?:tuning|using|training|running) it make\b(?=\s+(?:it|them|the|a|an|this|that)\b)/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/make$/i,'makes'),'The singular it takes makes');
   }
-  for(const match of text.matchAll(/\bonce case\b/gi))add(match.index,match.index+match[0].length,'one case','One is the numeral before this singular noun');
   for(const match of text.matchAll(/\bsophisticated to we\b/gi))add(match.index,match.index+match[0].length,'sophisticated do we','The question uses auxiliary do before we');
   for(const match of text.matchAll(/\b(?:I am|I'm) not (?:devops|software|hardware|security) person\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/not /i,'not a '),'This singular count noun needs an article');
   for(const match of text.matchAll(/\bthere were no firewall\b(?=\s*(?:[.!?;]|$))/gi))add(match.index,match.index+match[0].length,match[0].replace(/were/i,'was'),'Singular firewall agrees with was at the end of this clause');
@@ -593,6 +576,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   const doSupportForms=new Map([['tries','try'],['has','have'],['uses','use'],['works','work'],['needs','need'],['wants','want'],['seems','seem'],['worked','work'],['came','come'],['went','go'],['made','make'],['took','take'],['broke','break']]);
   for(const match of text.matchAll(/\b(do|does|did|don['’]?t|doesn['’]?t|didn['’]?t)\s+(?:(i|you|we|they|it|he|she|this|that)\s+)?(has|uses|works|needs|wants|seems|tries|worked|came|went|made|took|broke)\b/gi)){
+    if(!match[2]&&(!/n['’]?t$/i.test(match[1])||!/\b(?:I|you|we|they|it|he|she)\s+$/i.test(text.slice(0,match.index))))continue;
     const from=match[2]?match.index+match[0].lastIndexOf(match[3]):match.index;
     const base=doSupportForms.get(match[3].toLowerCase());
     add(from,match.index+match[0].length,match[2]?base:match[1]+' '+base,'Do-support takes the base form of the main verb');
@@ -633,7 +617,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     if(/[\p{L}\p{N}_.\-‐‑]/u.test(text[match.index-1]??''))continue;
     add(match.index,match.index+match[0].length,match[1]+' PRs','A numeral above one takes a plural count abbreviation');
   }
-  for(const match of text.matchAll(/\b([2-9]|[1-9]\d+) (URL|API|LLM)\b(?!s|[-‐‑][A-Za-z])/g)){
+  for(const match of text.matchAll(/\b([2-9]|[1-9]\d+) (URL|API|LLM)\b(?=\s*(?:[.,!?;]|$)|\s+each\s+(?:day|week|month|year)\b)/g)){
     // A numeric component of a model/version identifier is not a quantity.
     if(/[\p{L}\p{N}_.\-‐‑]/u.test(text[match.index-1]??''))continue;
     // HTTP status numbers and counted noun modifiers do not pluralize the
@@ -641,8 +625,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     if(/^\s+(?:errors?|requests?|calls?|keys?|responses?|endpoints?|providers?|models?|tokens?|parameters?|links?|addresses?)\b/i.test(text.slice(match.index+match[0].length)))continue;
     add(match.index,match.index+match[0].length,match[1]+' '+match[2]+'s','A numeral above one takes a plural count abbreviation');
   }
-  for(const match of text.matchAll(/\b(?:hundreds|thousands|millions) of (?:URL|API|LLM)\b(?!s|[-‐‑][A-Za-z])/g))add(match.index,match.index+match[0].length,match[0]+'s','A plural quantity takes a plural count abbreviation');
-  for(const match of text.matchAll(/\bthrough is many\b/gi))add(match.index,match.index+match[0].length,'through as many','As many forms the comparative quantity phrase');
+  for(const match of text.matchAll(/\b(?:hundreds|thousands|millions) of (?:URL|API|LLM)\b(?=\s*(?:[.,!?;]|$)|\s+each\s+(?:day|week|month|year)\b)/g))add(match.index,match.index+match[0].length,match[0]+'s','A plural quantity takes a plural count abbreviation at this noun phrase boundary');
   for(const match of text.matchAll(/\ba implemention\b/gi))add(match.index,match.index+match[0].length,'an implementation','Correct the noun and its preceding article');
   // Initialisms use the spoken letter name rather than the first written
   // letter. Restrict this to familiar initialisms with unambiguous readings.
