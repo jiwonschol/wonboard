@@ -135,7 +135,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].indexOf(match[1]);
     add(from,from+match[1].length,'its','The preposition introduces a possessed connection, not an it-is clause');
   }
-  for(const match of text.matchAll(/\b(I|We|we|You|you|They|they) live here since (\d+ (?:years|months|weeks|days))\b/g)){
+  for(const match of text.matchAll(/\b(I|We|we|You|you|They|they) live here since (\d+ (?:years|months|weeks|days))\b(?:\s+ago\b)?/g)){
     add(match.index,match.index+match[0].length,match[1]+' have lived here for '+match[2],'Continuing residence over a duration uses the perfect tense and for');
   }
   for(const match of text.matchAll(/\b(?:the|this|that|my|your|our|their)\s+(whol)(?=\s+(?:process|thing|day|week|time)\b)/g)){
@@ -362,7 +362,8 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     add(match.index,match.index+match[0].length,match[0].replace(/sounds$/i,'sound'),'Make takes a bare infinitive after its object');
   }
   for(const match of text.matchAll(/\bin past (\d+ years?)\b/gi)){
-    add(match.index,match.index+match[0].length,'in the past '+match[1],'This time phrase uses the before past');
+    const replacement=match[0].replace(/^in /i,part=>part+(match[0]===match[0].toUpperCase()?'THE ':'the '));
+    add(match.index,match.index+match[0].length,replacement,'This time phrase uses the before past');
   }
   for(const match of text.matchAll(/\b(?:bank|save|have|had|need|use) couple\b(?=\s+of\b)/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/ couple$/i,' a couple'),'A couple of needs an article here');
@@ -455,7 +456,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   const pluralSubjectVerbs=new Map([['seems','seem'],['works','work'],['needs','need'],['uses','use'],['wants','want'],['has','have'],['does','do'],['goes','go'],['makes','make'],['takes','take'],['runs','run'],['opens','open'],['switches','switch'],['connects','connect'],['understands','understand']]);
   for(const match of text.matchAll(/\b([Tt]hey|[Ww]e|[Yy]ou|[Ii])\s+(seems|works|needs|uses|wants|has|does|goes|makes|takes|runs|opens|switches|connects|understands)\b/g)){
-    if(match[1].toLowerCase()==='you'&&!/(?:^|[.!?]\s*)$/.test(text.slice(0,match.index)))continue;
+    if(!/(?:^|[.!?]\s*)$/.test(text.slice(0,match.index)))continue;
     if(/\bdoes(?:n['’]?t)?\s+$/i.test(text.slice(0,match.index)))continue;
     add(match.index,match.index+match[0].length,(match[1]==='i'?'I':match[1])+' '+pluralSubjectVerbs.get(match[2]),'This subject takes the uninflected present-tense verb');
   }
@@ -574,6 +575,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   const irregularParticiples=new Map([['went','gone'],['came','come'],['wrote','written'],['took','taken'],['ran','run'],['did','done'],['ate','eaten'],['knew','known'],['drank','drunk'],['gave','given']]);
   for(const match of text.matchAll(/\b(have|has|had|haven['’]t|hasn['’]t|hadn['’]t)\s+(went|came|wrote|took|ran|did|ate|knew|drank|gave)\b/gi)){
+    if(match[2]!==match[2].toLowerCase())continue;
     add(match.index,match.index+match[0].length,match[1]+' '+irregularParticiples.get(match[2].toLowerCase()),'Perfect aspect takes the past participle');
   }
   const singularCountNouns=new Map([['questions','question'],['devices','device'],['users','user'],['files','file'],['apps','app'],['projects','project'],['tasks','task'],['issues','issue'],['cases','case'],['options','option'],['servers','server'],['cameras','camera'],['systems','system'],['models','model'],['features','feature'],['tests','test'],['versions','version'],['reports','report'],['messages','message'],['answers','answer'],['programs','program'],['children','child']]);

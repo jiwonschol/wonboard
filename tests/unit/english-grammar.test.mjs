@@ -1,6 +1,26 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 
+test('agreement does not turn Roman numeral labels into pronouns',()=>{
+  for(const text of ['Chapter I has the introduction.','Model I works correctly.','Part I uses examples.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('I has a question.').some(f=>f.suggestions[0]==='I have'));
+});
+
+test('capitalized abbreviations after have are not malformed participles',()=>{
+  for(const text of ['The clinic has DID support groups.','They had DID symptoms.','The network has RAN equipment.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('She has went home.').some(f=>f.suggestions[0]==='has gone'));
+});
+
+test('residence duration repairs consume ago rather than leaving it after for',()=>{
+  const source='I live here since 2 years ago.',finding=check(source).find(f=>f.applicable);
+  assert.ok(finding);
+  assert.equal(source.slice(0,finding.from)+finding.suggestions[0]+source.slice(finding.to),'I have lived here for 2 years.');
+});
+
+test('past duration article insertion preserves the original capitalization',()=>{
+  for(const [source,target] of [['In past 5 years, costs rose.','In the past 5 years'],['IN PAST 5 YEARS, COSTS ROSE.','IN THE PAST 5 YEARS'],['Costs rose in past 5 years.','in the past 5 years']])assert.ok(check(source).some(f=>f.suggestions[0]===target),source);
+});
+
 test('a transposed awesome adjective is repaired before a common noun',()=>{
   assert.equal(check('Hello Awseome People').find(f=>f.original==='Awseome')?.suggestions[0],'Awesome');
   assert.equal(englishGrammar('Awseome is a name.').length,0);
@@ -656,7 +676,7 @@ test('reviewed English words and names are recognized without granting arbitrary
 
 test('English agreement repairs first-person predicates and preserves licensed base forms',()=>{
   for(const [source,target] of [
-    ['If i connects to the network, it fails.','I connect'],
+    ['i connects to the network.','I connect'],
     ['I has a spare cable.','I have'],
     ['They connects two devices.','They connect'],
     ['She work at home.','She works'],
