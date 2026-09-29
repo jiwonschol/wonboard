@@ -3,14 +3,20 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
 test('bare URL hosts do not hide adjacent prose while path delimiters stay protected',()=>{
-  for(const source of ['Visit https://example.com,teh page','Visit https://example.com;teh page','Visit http://example.com:8080,teh page']){
+  for(const source of ['Visit https://example.com,teh page','Visit https://example.com;teh page','Visit http://example.com:8080,teh page','Visit http://localhost,teh page','Visit http://127.0.0.1:8080;teh page','Visit http://[::1]:8080,teh page','Visit https://예시.한국,teh page','Visit http://user@localhost,teh page']){
     const findings=check(source).filter(f=>f.applicable);
     assert.equal(findings.length,1,source);
     assert.equal(findings[0].original,'teh');
     assert.equal(findings[0].from,source.indexOf('teh'));
     assert.equal(findings[0].suggestions[0],'the');
   }
-  for(const source of ['https://example.com/path,teh','https://example.com/path;teh','https://example.com?q=teh,recieve','https://example.com/#teh,recieve','https://[::1]/teh','https://example.com/컨텐츠'])assert.equal(check(source).some(f=>f.applicable),false,source);
+  for(const source of ['https://example.com/path,teh','https://example.com/path;teh','https://example.com?q=teh,recieve','https://example.com/#teh,recieve','https://[::1]/teh','http://localhost/path,teh','http://127.0.0.1?q=teh,recieve','http://[::1]/path;teh','https://example.com/컨텐츠'])assert.equal(check(source).some(f=>f.applicable),false,source);
+});
+
+test('personal phrase bases keep supported Korean particles and copulas intact',()=>{
+  for(const source of ['다음날이 밝았다','다음날부터','다음날들에도','다음날입니다'])assert.equal(check(source,['다음날']).some(f=>f.applicable),false,source);
+  assert.ok(check('다음날이 밝았다').some(f=>f.suggestions.includes('다음 날이')));
+  assert.ok(check('다음날이 확인됬어요',['다음날']).some(f=>f.suggestions.includes('확인됐어요')));
 });
 
 test('compound honorific recognition validates the complete trailing expression',()=>{

@@ -136,7 +136,7 @@ export function createChecker(data) {
       }
     }
     const pair=candidatePhraseBoundaries.find(([source])=>{
-      if(!word.startsWith(source))return false;
+      if(!word.startsWith(source)||personal.has(source))return false;
       const tail=word.slice(source.length);
       return !tail||sets.josa.has(tail)||tail.startsWith('들')&&(!tail.slice(1)||sets.josa.has(tail.slice(1)))||morphology.predicate('이'+tail)?.root==='이';
     });
@@ -373,7 +373,7 @@ export function createChecker(data) {
     const urlSpans=[...text.matchAll(/https?:\/\/[^\s]+/g)].map(m=>{
       // A comma/semicolon after a bare host separates adjacent prose.
       // Keep the same characters inside a path or query as part of the URL.
-      const bareHost=m[0].match(/^https?:\/\/(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,63}(?::\d+)?(?=[,;])/);
+      const bareHost=m[0].match(/^https?:\/\/(?:[^/?#@\s]*@)?(?:\[[^\]\s]+\]|[^/?#,:;@\s]+)(?::\d+)?(?=[,;])/);
       return [m.index,m.index+(bareHost?.[0].length??m[0].length)];
     });
     const excluded=[...protectedForeignPhrases,...urlSpans,...[...text.matchAll(/`[^`]*`|\b[A-Za-z0-9_-]+\.(?:md|txt|png|jpe?g|gif|webp|pdf|json|tsx?|jsx?|html|css|zip)\b|\b(?:Ctrl|Control|Alt|Option|Shift|Cmd|Command|Meta)(?:\+[A-Za-z0-9]+)+/g)].map(m=>[m.index,m.index+m[0].length])];

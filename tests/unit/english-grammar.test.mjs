@@ -427,7 +427,7 @@ test('infinitives retain their grammatical construction',()=>{
 });
 
 test('count expressions and mass nouns retain number and articles',()=>{
-  for(const [text,target]of [['I have had couple of bottles','had a couple'],['There has been a few posts','have'],['many softwares','software'],['a 10 yrs old son','10-year-old']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const [text,target]of [['I have had couple of bottles','had a couple'],['There has been a few posts','have'],['a 10 yrs old son','10-year-old']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['There has been a few-post increase','There has been a problem','my son is 10 years old','a 10-year-old son'])assert.equal(check(text).some(f=>f.type==='grammar'),false,text);
 });
 
@@ -727,6 +727,30 @@ test('weak nearby words need stronger evidence than short or two-substitution di
   assert.equal(smallCheck('tommorow')[0]?.suggestions[0],'tomorrow');
 });
 
+
+test('implementation repairs retain article casing',()=>{
+  for(const [text,target] of [['A implemention failed.','An implementation'],['A IMPLEMENTION FAILED.','AN IMPLEMENTATION'],['I found a implemention.','an implementation']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('softwares is only singularized after a compatible noun quantifier',()=>{
+  for(const text of ['The vendor softwares each device before shipping.','That company softwares the equipment.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const text of ['We need some softwares.','We tried all the softwares.'])assert.ok(check(text).some(f=>f.suggestions[0]==='software'),text);
+});
+
+test('need of repairs preserve an inverted question subject',()=>{
+  for(const text of ['Is it need of maintenance?','Was it need of repair?','Why is it need of repair?'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('The device is it need of repair.').some(f=>f.original==='it'&&f.suggestions[0]==='in'));
+});
+
+test('coordinated pronouns retain plural agreement across singular repair paths',()=>{
+  for(const text of ['He and she work remotely.','He and she often work remotely.','He and she have arrived.',"He and she don't work remotely.",'Alice and he work remotely.','He and only she have arrived.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('She work remotely.').some(f=>f.suggestions[0]==='She works'));
+});
+
+test('terms in a prepositional modifier does not control the main predicate',()=>{
+  for(const text of ['A glossary of terms contains this definition.','A list of terms contains the answer.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('The terms contains this part.').some(f=>f.suggestions[0]==='contain'));
+});
 
 test('that clauses preserve possible mandative base verbs without listing governors',()=>{
   for(const text of ['It is imperative that he work remotely.','The policy asks that she use encryption.','We stipulated that it have a backup.','It is crucial that he often work remotely.'])assert.equal(check(text).some(f=>f.applicable),false,text);

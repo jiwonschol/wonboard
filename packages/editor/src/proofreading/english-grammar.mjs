@@ -217,7 +217,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(panner)(?=\s+tikka\b)/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='P'?'Paneer':'paneer','The cheese in this dish is paneer','spelling');
   }
-  for(const match of text.matchAll(/\bterms\s+(contains)(?=\s+(?:this|that|the|a|an)\b)/gi)){
+  for(const match of text.matchAll(/(?:^|[.!?]\s+)(?:the\s+)?terms\s+(contains)(?=\s+(?:this|that|the|a|an)\b)/gi)){
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'contain','The plural subject terms takes contain');
   }
@@ -250,6 +250,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
       || /\b(?:suggest(?:s|ed)?|recommend(?:s|ed)?|request(?:s|ed)?|requir(?:e|es|ed)|demand(?:s|ed)?|insist(?:s|ed)?|propos(?:e|es|ed))\s+(?:that\s+)?$/i.test(before)
       || /(?:\bwould|['’]d)\s+rather\s+$/i.test(before)
       || /\bthat\s+$/i.test(before)
+      || /\band\s+(?:(?:also|even|only|both)\s+)?$/i.test(before)
       || /\b(?:suggestion|recommendation|request|demand|requirement|important|essential|necessary|vital)\s+that\s+$/i.test(before);
   };
   for(const match of text.matchAll(/\bwante['’]d\b(?=\s+to\s+[a-z])/gi)){
@@ -340,8 +341,9 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].indexOf(match[1]);
     add(from,from+3,'have','The following plural noun controls the agreement');
   }
-  for(const match of text.matchAll(/\bsoftwares\b/gi)){
-    add(match.index,match.index+match[0].length,match[0].slice(0,-1),'This mass noun has no plural -s in ordinary prose');
+  for(const match of text.matchAll(/\b(?:some|more|less|much|any|all\s+the)\s+(softwares)\b/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,match[1].slice(0,-1),'This quantifier permits the mass noun software');
   }
   for(const match of text.matchAll(/\b(\d+)[ -]+(?:yrs?|years?)[ -]+old\b(?=\s+(?:son|daughter|child|kid|boy|girl|person|house|car|fridge|refrigerator|washer|computer|laptop|phone|boiler|conservatory)\b)/gi)){
     const replacement=match[1]+'-year-old';
@@ -439,6 +441,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     add(match.index,match.index+match[0].length,match[0].replace(/runs$/i,'run'),'A plural subject takes run');
   }
   for(const match of text.matchAll(/\b(?:it|he|she|this|that)\s+(don['’]?t)\s+(login|work|need|have|load|run|open|start|stop|show|connect|respond)\b/gi)){
+    if(permitsBaseVerb(match.index))continue;
     // Relative that inherits its antecedent's number (forums that don't).
     // Only a sentence-initial demonstrative establishes singular agreement.
     if(/^that\b/i.test(match[0])&&!/(?:^|[.!?]\s*)$/.test(text.slice(0,match.index)))continue;
@@ -469,6 +472,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   // Need of is a noun construction after a copula, not a finite need verb.
   for(const match of text.matchAll(/\b(?:am|is|are|was|were|been|be|it['’]s|that['’]s|there['’]s)\s+(it)\s+need\s+of\b/gi)){
+    if(/^(?:am|is|are|was|were)\b/i.test(match[0])&&!/\b(?:I|you|we|they|he|she|it|(?:the|this|that|my|our|your|their)\s+[a-z]+)\s+$/i.test(text.slice(0,match.index)))continue;
     const from=match.index+match[0].search(/\bit\s+need\s+of$/i);
     add(from,from+match[1].length,'in','The prepositional phrase is in need of');
   }
@@ -596,7 +600,10 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     add(match.index,match.index+match[0].length,match[1]+' '+match[2]+'s','A numeral above one takes a plural count abbreviation');
   }
   for(const match of text.matchAll(/\b(?:hundreds|thousands|millions) of (?:URL|API|LLM)\b(?=\s*(?:[.,!?;]|$)|\s+each\s+(?:day|week|month|year)\b)/g))add(match.index,match.index+match[0].length,match[0]+'s','A plural quantity takes a plural count abbreviation at this noun phrase boundary');
-  for(const match of text.matchAll(/\ba implemention\b/gi))add(match.index,match.index+match[0].length,'an implementation','Correct the noun and its preceding article');
+  for(const match of text.matchAll(/\ba implemention\b/gi)){
+    const replacement=match[0]===match[0].toUpperCase()?'AN IMPLEMENTATION':match[0][0]==='A'?'An implementation':'an implementation';
+    add(match.index,match.index+match[0].length,replacement,'Correct the noun and its preceding article');
+  }
   // Initialisms use the spoken letter name rather than the first written
   // letter. Restrict this to familiar initialisms with unambiguous readings.
   for(const match of text.matchAll(/\b([Aa])\s+(AI|API|AMD|ML|LLM|MRI|HTML|HTTP|SSD|SSL|SDK)\b/g)){
