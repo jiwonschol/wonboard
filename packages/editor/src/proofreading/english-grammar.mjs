@@ -6,8 +6,11 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     if(excluded.some(([a,b])=>from<b&&to>a)||personal.has(text.slice(from,to)))return;
     // Inverted questions can use the variable i as their subject. Following
     // verb matches elsewhere must not silently turn that identifier into I.
-    if(suggestion==='I'&&text.slice(from,to)==='i'&&/\b(?:can|could|should|would|will|may|might|must|do|did|does|am|was|were|have|had)\s+$/i.test(text.slice(0,from)))return;
-    if(suggestion==='I'&&text.slice(from,to)==='i'&&/\b(?:variable|index|counter|parameter|integer|identifier|symbol|value|row|column)\s+(?:(?:named|called)\s+)?$/i.test(text.slice(0,from)))return;
+    if(text[from]==='i'&&(to===from+1||/\s/.test(text[from+1]))&&/^I\b/.test(suggestion)){
+      const before=text.slice(0,from);
+      if(/\b(?:can|could|should|would|will|may|might|must|do|did|does|am|was|were|have|had|of|for|from|to|with|without|by|in|on|at)\s+$/i.test(before))return;
+      if(/\b(?:variable|index|counter|parameter|integer|identifier|symbol|value|row|column)\s+(?:(?:named|called)\s+)?$/i.test(before))return;
+    }
     if(findings.some(item=>item.from<to&&item.to>from))return;
     findings.push({from,to,original:text.slice(from,to),language:'en',type,suggestions:[suggestion],applicable:true,reason});
   };
@@ -224,7 +227,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\bupto\b(?=\s+\d)/g)){
     add(match.index,match.index+match[0].length,'up to','Up to is a two-word quantity expression','spelling');
   }
-  for(const match of text.matchAll(/\ba\s+(?:two|three|four|five|six|seven|eight|nine|ten)\s+(?:power strips|windows|doors|questions|devices|files|people)\b/gi)){
+  for(const match of text.matchAll(/\ba\s+(?:two|three|four|five|six|seven|eight|nine|ten)\s+(?:power strips|windows|doors|questions|devices|files|people)\b(?=\s*(?:[.!?;]|$))/g)){
     add(match.index,match.index+match[0].length,match[0].replace(/^a\s+/i,''),'An indefinite singular article does not modify this explicit plural count');
   }
   for(const match of text.matchAll(/\b(wouldnt|couldnt|shouldnt)\b(?=\s+(?:(?:really|ever|even|just)\s+)?(?:have|be|do|go|come|use|work|need|want|know|say|make|take|get|see|read|write)\b)/gi)){
@@ -453,6 +456,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   const pluralSubjectVerbs=new Map([['seems','seem'],['works','work'],['needs','need'],['uses','use'],['wants','want'],['has','have'],['does','do'],['goes','go'],['makes','make'],['takes','take'],['runs','run'],['opens','open'],['switches','switch'],['connects','connect'],['understands','understand']]);
   for(const match of text.matchAll(/\b([Tt]hey|[Ww]e|[Yy]ou|[Ii])\s+(seems|works|needs|uses|wants|has|does|goes|makes|takes|runs|opens|switches|connects|understands)\b/g)){
+    if(match[1].toLowerCase()==='you'&&!/(?:^|[.!?]\s*)$/.test(text.slice(0,match.index)))continue;
     if(/\bdoes(?:n['’]?t)?\s+$/i.test(text.slice(0,match.index)))continue;
     add(match.index,match.index+match[0].length,(match[1]==='i'?'I':match[1])+' '+pluralSubjectVerbs.get(match[2]),'This subject takes the uninflected present-tense verb');
   }
@@ -536,7 +540,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\bNo its not\b/g))add(match.index,match.index+match[0].length,"No it's not",'It is contracts to it’s here');
   for(const match of text.matchAll(/\b(?:get|got|gain|gained) access into\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/into$/i,'to'),'Access normally takes to in this construction');
   for(const match of text.matchAll(/\b[Bb]ut agent\b(?=\s+(?:can|could|will|would|should|must|has|had|is|was)\b)/g))add(match.index,match.index+match[0].length,match[0].replace(/agent$/,'an agent'),'This singular count noun needs an article');
-  for(const match of text.matchAll(/\baround time of\b/gi))add(match.index,match.index+match[0].length,'around the time of','This noun phrase needs the article the');
   for(const match of text.matchAll(/\bi\b(?=\s+(?:consider|find|prompt|got|wait|send|doodle)\b)/g))add(match.index,match.index+1,'I','Capitalize the first-person pronoun');
   for(const match of text.matchAll(/\bin short time\b(?=\s*(?:[.!?;]|$))/gi))add(match.index,match.index+match[0].length,match[0].replace(/ short/i,' a short'),'This completed duration phrase takes an article');
   for(const match of text.matchAll(/\b(?:use|need|spend|allocate|provide) marginal amount\b(?=\s*(?:[.!?;]|$))/gi))add(match.index,match.index+match[0].length,match[0].replace(/ marginal amount$/i,' a marginal amount'),'This completed count noun phrase needs an article');

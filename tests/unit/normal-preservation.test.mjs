@@ -19,6 +19,16 @@ test('personal phrase bases keep supported Korean particles and copulas intact',
   assert.ok(check('다음날이 확인됬어요',['다음날']).some(f=>f.suggestions.includes('확인됐어요')));
 });
 
+test('URL schemes protect paths regardless of letter casing and keep prose checkable',()=>{
+  for(const source of ['HTTPS://example.com/어짜피','HTTP://localhost/어짜피','HtTp://[::1]:8080/어짜피','HTTPS://example.com/path,teh'])assert.deepEqual(check(source),[],source);
+  for(const source of ['HTTPS://example.com,teh page','HtTp://localhost;teh page']){
+    const findings=check(source).filter(f=>f.applicable);
+    assert.equal(findings.length,1,source);
+    assert.equal(findings[0].from,source.indexOf('teh'));
+    assert.equal(findings[0].suggestions[0],'the');
+  }
+});
+
 test('compound honorific recognition validates the complete trailing expression',()=>{
   for(const text of ['담임선생님','담임선생님께서','담임선생님께서도','담임선생님들','담임선생님들이','담임선생님입니다'])assert.deepEqual(check(text),[],text);
   const text='담임선생님엉뚱꼬리';

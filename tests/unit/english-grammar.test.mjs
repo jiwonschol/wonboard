@@ -530,7 +530,6 @@ test('English grammar candidates repair attested constructions without changing 
     ["No its not.","No it's not"],
     ['They got access into the system.','got access to'],
     ['The box is a sandbox but agent can send requests.','but an agent'],
-    ['It happened around time of the event.','around the time of'],
     ['If i consider this, it changes.','I'],
     ['That is a dumping grounds.','a dumping ground'],
     ["It let's me choose.",'It lets'],
@@ -727,6 +726,25 @@ test('weak nearby words need stronger evidence than short or two-substitution di
   assert.equal(smallCheck('tommorow')[0]?.suggestions[0],'tomorrow');
 });
 
+
+test('count article removal preserves capitalized titles and following noun heads',()=>{
+  for(const text of ['We watched a Two Doors Down episode.','We discussed a Three Windows project.','We watched a two doors down episode.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('I bought a two power strips.').some(f=>f.suggestions[0]==='two power strips'));
+});
+
+test('prepositional i identifiers are preserved by token and phrase capitalization paths',()=>{
+  for(const text of ['Values of i find applications in signal processing.','The value of i works in this equation.','Expressions with i have several uses.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('i find this useful.').some(f=>f.original==='i'&&f.suggestions[0]==='I'));
+});
+
+test('time of can be a technical phrase rather than a missing temporal article',()=>{
+  for(const text of ['The discussion revolves around time of flight.','The report is organized around time of arrival.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('you before an apparent finite verb can be an indirect object before a plural noun',()=>{
+  for(const text of ['The museum shows you works from its collection.','The guide gives you examples and shows you works.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('You needs more space.').some(f=>f.suggestions[0]==='You need'));
+});
 
 test('implementation repairs retain article casing',()=>{
   for(const [text,target] of [['A implemention failed.','An implementation'],['A IMPLEMENTION FAILED.','AN IMPLEMENTATION'],['I found a implemention.','an implementation']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);

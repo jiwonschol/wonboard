@@ -370,10 +370,10 @@ export function createChecker(data) {
     // A name stated explicitly in the same input also identifies earlier
     // mentions. Keep the identity reviewable without inventing internal gaps.
     const statedKoreanNames=[...text.matchAll(/(?:이름|제품명|상표명)(?:이|은)[ \u00a0]+([가-힣]{2,}?)(?:이지만|입니다|이라고|이라서|이에요)(?=$|[^가-힣])/gu)].map(m=>m[1]);
-    const urlSpans=[...text.matchAll(/https?:\/\/[^\s]+/g)].map(m=>{
+    const urlSpans=[...text.matchAll(/https?:\/\/[^\s]+/gi)].map(m=>{
       // A comma/semicolon after a bare host separates adjacent prose.
       // Keep the same characters inside a path or query as part of the URL.
-      const bareHost=m[0].match(/^https?:\/\/(?:[^/?#@\s]*@)?(?:\[[^\]\s]+\]|[^/?#,:;@\s]+)(?::\d+)?(?=[,;])/);
+      const bareHost=m[0].match(/^https?:\/\/(?:[^/?#@\s]*@)?(?:\[[^\]\s]+\]|[^/?#,:;@\s]+)(?::\d+)?(?=[,;])/i);
       return [m.index,m.index+(bareHost?.[0].length??m[0].length)];
     });
     const excluded=[...protectedForeignPhrases,...urlSpans,...[...text.matchAll(/`[^`]*`|\b[A-Za-z0-9_-]+\.(?:md|txt|png|jpe?g|gif|webp|pdf|json|tsx?|jsx?|html|css|zip)\b|\b(?:Ctrl|Control|Alt|Option|Shift|Cmd|Command|Meta)(?:\+[A-Za-z0-9]+)+/g)].map(m=>[m.index,m.index+m[0].length])];
