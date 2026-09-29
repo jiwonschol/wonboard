@@ -67,9 +67,9 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'shown','The perfect auxiliary requires shown rather than showing','spelling');
   }
-  for(const match of text.matchAll(/\b(?:under|in)\s+(warant(?:ee|y)|warantee|warentee|warrantee)\b/gi)){
+  for(const match of text.matchAll(/\b(?:under|in)\s+(warant(?:ee|y)|warantee|warentee)\b/gi)){
     const from=match.index+match[0].lastIndexOf(match[1]);
-    add(from,from+match[1].length,'warranty','This coverage phrase refers to the warranty, not the warrantee','spelling');
+    add(from,from+match[1].length,'warranty','This misspelled coverage noun is warranty','spelling');
   }
   for(const match of text.matchAll(/\bharnesss\b/gi)){
     const before=text.slice(Math.max(0,match.index-40),match.index),after=text.slice(match.index+match[0].length);
@@ -249,6 +249,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     return /\b(?:do|does|did|don['’]t|doesn['’]t|didn['’]t|can|could|may|might|must|should|would|will|shall|can['’]?t|cannot|couldn['’]?t|mightn['’]?t|mustn['’]?t|shouldn['’]?t|wouldn['’]?t|won['’]?t|shan['’]?t|let|lets|make|makes|made|help|helps|helped|see|sees|saw|watch|watched|hear|heard|feel|felt|want|wants|wanted|need|needs|needed|expect|expects|expected|have|has|had|is|are|was|were|[a-z]+ing)\s*$/i.test(before)
       || /\b(?:suggest(?:s|ed)?|recommend(?:s|ed)?|request(?:s|ed)?|requir(?:e|es|ed)|demand(?:s|ed)?|insist(?:s|ed)?|propos(?:e|es|ed))\s+(?:that\s+)?$/i.test(before)
       || /(?:\bwould|['’]d)\s+rather\s+$/i.test(before)
+      || /\bthat\s+$/i.test(before)
       || /\b(?:suggestion|recommendation|request|demand|requirement|important|essential|necessary|vital)\s+that\s+$/i.test(before);
   };
   for(const match of text.matchAll(/\bwante['’]d\b(?=\s+to\s+[a-z])/gi)){
@@ -347,8 +348,8 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     if(match[0]!==replacement)add(match.index,match.index+match[0].length,replacement,'An age modifier before a noun uses singular year and hyphens');
   }
   const modalForms=new Map([['built','build'],['went','go'],['came','come'],['did','do'],['was','be'],['were','be'],['breaked','break'],['broke','break'],['broken','break']]);
-  for(const match of text.matchAll(/\b(?:I|you|we|they|he|she|it|(?:the|a|an|my|your|our|their|his|her|this|that)\s+[a-z]+)\s+((?:can|could|should|would|may|might|must|will)\s+(?:built|went|came|did|was|were|breaked|broke|broken))\b/gi)){
-    // A capitalized token after a noun can name its referent: our friend Will.
+  for(const match of text.matchAll(/\b(?:I|you|we|they|he|she|it)\s+((?:can|could|should|would|may|might|must|will)\s+(?:built|went|came|did|was|were|breaked|broke|broken))\b/gi)){
+    // Keep capitalized names outside modal spelling inference.
     if(/^[A-Z]/.test(match[1]))continue;
     const from=match.index+match[0].lastIndexOf(match[1]),words=match[1].split(/\s+/),replacement=words[0]+' '+modalForms.get(words[1].toLowerCase());
     add(from,from+match[1].length,replacement,'A modal verb after this subject takes the base form of the following verb');
@@ -480,9 +481,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     if(/^(?:open|close)$/.test(match[2])&&!/(?:^|[.!?]\s*)$/.test(text.slice(0,match.index)))continue;
     add(match.index,match.index+match[0].length,match[1]+' '+singularSubjectVerbs.get(match[2])+(match[3]?' '+match[3]:''),'This singular subject takes a third-person singular verb');
   }
-  for(const match of text.matchAll(/(?:^|[.!?]\s+)[Aa]ll the (?:steps|tasks|issues|files|changes|tests|features)(?:\s+(?:of|in|for|on|with)\s+(?:(?:[a-z]+)\s+){0,8}[a-z]+)?\s+(has been)\b/gim)){
-    const between=match[0].slice(match[0].indexOf(' the ')+5,match[0].lastIndexOf(match[1]));
-    if(/\b(?:that|which|who|whom|whose|he|she|it|we|they|you|has|have|had|is|are|was|were|will|would|could|should)\b/i.test(between))continue;
+  for(const match of text.matchAll(/(?:^|[.!?]\s+)[Aa]ll the (?:steps|tasks|issues|files|changes|tests|features)\s+(has been)\b/gim)){
     const from=match.index+match[0].lastIndexOf(match[1]);
     const participle=text.slice(from+match[1].length).match(/^\s+(?:[a-z]+ed|done|seen|known|shown|given|taken|made|found|built|sent|put|read)\b/i)?.[0]??'';
     add(from,from+match[1].length+participle.length,'have been'+participle,'The plural head noun governs this auxiliary');
@@ -508,7 +507,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
       add(match.index,match.index+match[0].length,value,'This contraction needs an apostrophe');
     }
   }
-  for(const match of text.matchAll(/\boaid\b/gi))add(match.index,match.index+match[0].length,'paid','Reviewed letter substitution in paid','spelling');
+  for(const match of text.matchAll(/\boaid\b/g))add(match.index,match.index+match[0].length,'paid','Reviewed letter substitution in paid','spelling');
   for(const match of text.matchAll(/\bnatual\b/gi))add(match.index,match.index+match[0].length,'natural','Reviewed missing letter in natural','spelling');
   for(const match of text.matchAll(/\bchinnese\b/gi))add(match.index,match.index+match[0].length,'Chinese','Reviewed spelling of the proper adjective Chinese','spelling');
   for(const match of text.matchAll(/\b(?:news|front page|go there|do this|work on it) everyday\b(?=\s*(?:[.!?;]|$))/gi)){
@@ -567,8 +566,8 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     if(/^(?:have|has|had)$/i.test(match[2]??''))continue;
     add(from,from+match[3].length,'set up','Set up is the verb; setup is a noun or noun modifier');
   }
-  const irregularParticiples=new Map([['went','gone'],['came','come'],['saw','seen'],['wrote','written'],['took','taken'],['broke','broken'],['ran','run'],['did','done'],['ate','eaten'],['spoke','spoken'],['knew','known'],['drank','drunk'],['gave','given']]);
-  for(const match of text.matchAll(/\b(have|has|had|haven['’]t|hasn['’]t|hadn['’]t)\s+(went|came|saw|wrote|took|broke|ran|did|ate|spoke|knew|drank|gave)\b/gi)){
+  const irregularParticiples=new Map([['went','gone'],['came','come'],['wrote','written'],['took','taken'],['ran','run'],['did','done'],['ate','eaten'],['knew','known'],['drank','drunk'],['gave','given']]);
+  for(const match of text.matchAll(/\b(have|has|had|haven['’]t|hasn['’]t|hadn['’]t)\s+(went|came|wrote|took|ran|did|ate|knew|drank|gave)\b/gi)){
     add(match.index,match.index+match[0].length,match[1]+' '+irregularParticiples.get(match[2].toLowerCase()),'Perfect aspect takes the past participle');
   }
   const singularCountNouns=new Map([['questions','question'],['devices','device'],['users','user'],['files','file'],['apps','app'],['projects','project'],['tasks','task'],['issues','issue'],['cases','case'],['options','option'],['servers','server'],['cameras','camera'],['systems','system'],['models','model'],['features','feature'],['tests','test'],['versions','version'],['reports','report'],['messages','message'],['answers','answer'],['programs','program'],['children','child']]);

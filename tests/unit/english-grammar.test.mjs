@@ -553,11 +553,11 @@ test('English grammar candidates repair attested constructions without changing 
     ['An clearer message would help.', 'A clearer'],
     ['We was linking the project.', 'We were'],
     ['They was ready.', 'They were'],
-    ['All the steps of the sign in and sign out has been done.', 'have been done'],
-    ['All the files of the project has been saved.', 'have been saved'],
+    ['All the steps has been done.', 'have been done'],
+    ['All the files has been saved.', 'have been saved'],
     ["It don't login to the service.","doesn't log in"],
     ["It don't work on Linux.","doesn't work"],
-    ['Our app will breaked at startup.', 'will break'],
+    ['It will breaked at startup.', 'will break'],
     ["It's happens often.",'It happens'],
     ['It only have one option.', 'has'],
     ['She herself have watched it.', 'has'],
@@ -727,6 +727,36 @@ test('weak nearby words need stronger evidence than short or two-substitution di
   assert.equal(smallCheck('tommorow')[0]?.suggestions[0],'tomorrow');
 });
 
+
+test('that clauses preserve possible mandative base verbs without listing governors',()=>{
+  for(const text of ['It is imperative that he work remotely.','The policy asks that she use encryption.','We stipulated that it have a backup.','It is crucial that he often work remotely.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('He work remotely.').some(f=>f.suggestions[0]==='He works'));
+});
+
+test('all the head agreement does not cross a zero-relative clause inside a modifier',()=>{
+  for(const text of ['All the tests for the software Alice has been developing have been completed.','All the files for the application Bob has been testing are ready.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('All the tests has been completed.').some(f=>f.suggestions[0]==='have been completed'));
+});
+
+test('OAID capitalization preserves an acronym rather than a paid typo',()=>{
+  for(const text of ['OAID is used as an advertising identifier.','The OAID value is stored.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('The effort was oaid for.').some(f=>f.suggestions[0]==='paid'));
+});
+
+test('warrantee remains a recipient noun in prepositional phrases',()=>{
+  for(const text of ['The asset remains under warrantee control.','We keep it in warrantee custody.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('The car is under warantee.').some(f=>f.suggestions[0]==='warranty'));
+});
+
+test('a noun phrase ending in can is not proof of a modal construction',()=>{
+  for(const text of ['The trash can broke yesterday.','The metal can was empty.','Our trash can came apart.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('We can built it.').some(f=>f.suggestions[0]==='can build'));
+});
+
+test('have can take objects with noun and adjective forms that resemble past verbs',()=>{
+  for(const text of ['We have saw blades and drill bits.','The shop has saw blades on sale.','We have spoke wheels in stock.','We have broke friends.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('She has wrote a guide.').some(f=>f.suggestions[0]==='has written'));
+});
 
 test('do support does not leave mismatched subject and auxiliary agreement',()=>{
   for(const text of ['Do it works?','Does they works?','Does I works?',"He don't works.",'Do the agent works?','Does the users works?','Do API uses this format?','Do John works?','Do the child works?'])assert.equal(check(text).some(f=>f.applicable),false,text);

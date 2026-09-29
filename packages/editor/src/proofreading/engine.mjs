@@ -370,7 +370,13 @@ export function createChecker(data) {
     // A name stated explicitly in the same input also identifies earlier
     // mentions. Keep the identity reviewable without inventing internal gaps.
     const statedKoreanNames=[...text.matchAll(/(?:이름|제품명|상표명)(?:이|은)[ \u00a0]+([가-힣]{2,}?)(?:이지만|입니다|이라고|이라서|이에요)(?=$|[^가-힣])/gu)].map(m=>m[1]);
-    const excluded=[...protectedForeignPhrases,...[...text.matchAll(/https?:\/\/[^\s]+|`[^`]*`|\b[A-Za-z0-9_-]+\.(?:md|txt|png|jpe?g|gif|webp|pdf|json|tsx?|jsx?|html|css|zip)\b|\b(?:Ctrl|Control|Alt|Option|Shift|Cmd|Command|Meta)(?:\+[A-Za-z0-9]+)+/g)].map(m=>[m.index,m.index+m[0].length])];
+    const urlSpans=[...text.matchAll(/https?:\/\/[^\s]+/g)].map(m=>{
+      // A comma/semicolon after a bare host separates adjacent prose.
+      // Keep the same characters inside a path or query as part of the URL.
+      const bareHost=m[0].match(/^https?:\/\/(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,63}(?::\d+)?(?=[,;])/);
+      return [m.index,m.index+(bareHost?.[0].length??m[0].length)];
+    });
+    const excluded=[...protectedForeignPhrases,...urlSpans,...[...text.matchAll(/`[^`]*`|\b[A-Za-z0-9_-]+\.(?:md|txt|png|jpe?g|gif|webp|pdf|json|tsx?|jsx?|html|css|zip)\b|\b(?:Ctrl|Control|Alt|Option|Shift|Cmd|Command|Meta)(?:\+[A-Za-z0-9]+)+/g)].map(m=>[m.index,m.index+m[0].length])];
     // TeX control words are identifiers, including when pasted without math
     // delimiters. Their arguments and surrounding prose remain checkable.
     for(const m of text.matchAll(/\\[A-Za-z]+/g))excluded.push([m.index,m.index+m[0].length]);

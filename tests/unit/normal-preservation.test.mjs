@@ -2,6 +2,17 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('bare URL hosts do not hide adjacent prose while path delimiters stay protected',()=>{
+  for(const source of ['Visit https://example.com,teh page','Visit https://example.com;teh page','Visit http://example.com:8080,teh page']){
+    const findings=check(source).filter(f=>f.applicable);
+    assert.equal(findings.length,1,source);
+    assert.equal(findings[0].original,'teh');
+    assert.equal(findings[0].from,source.indexOf('teh'));
+    assert.equal(findings[0].suggestions[0],'the');
+  }
+  for(const source of ['https://example.com/path,teh','https://example.com/path;teh','https://example.com?q=teh,recieve','https://example.com/#teh,recieve','https://[::1]/teh','https://example.com/컨텐츠'])assert.equal(check(source).some(f=>f.applicable),false,source);
+});
+
 test('compound honorific recognition validates the complete trailing expression',()=>{
   for(const text of ['담임선생님','담임선생님께서','담임선생님께서도','담임선생님들','담임선생님들이','담임선생님입니다'])assert.deepEqual(check(text),[],text);
   const text='담임선생님엉뚱꼬리';
