@@ -2,6 +2,23 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('complete nominals and adverbs preserve internal lexical boundaries',()=>{
+  for(const text of ['엄마한테는','어디선가','잘못인가요','잘못이지만','이른바','고려대니','무슨무슨','만원짜리','뒹굴거리다','제주어로','가죽나물이'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('잘못먹었다').some(f=>f.suggestions[0]==='잘못 먹었다'));
+});
+
+test('unknown author and product identities remain intact in explicit contexts',()=>{
+  for(const text of ['프로이슬러 지음','소고기느님','맛있는라면 라면 이름이 맛있는라면이지만'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('맛있는라면을 먹었다').some(f=>f.suggestions[0]==='맛있는 라면을'));
+  assert.ok(check('여기다하고 왔네요').some(f=>f.suggestions[0]==='여기다 하고'));
+  assert.equal(check('모으고사에서').some(f=>f.applicable),false);
+});
+
+test('elapsed time and quantities restore complete grammatical gaps',()=>{
+  for(const [text,target]of [['먹어본지가 오래된 것 같아','먹어본 지가'],['받은날','받은 날'],['한접시','한 접시'],['두번봤는데','두 번 봤는데'],['필요한건지','필요한 건지'],['치즈와함께','치즈와 함께'],['팍팍투하','팍팍 투하'],['즐기기좋은','즐기기 좋은']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['나은지','한달나라','걸걸중상','열폭하면서','오바인지','불안정인지','부담스러운지라','왜인지는','쓸만한지','습한지요'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('community endings and explicit identities retain their complete spelling',()=>{
   for(const text of ['집사람','있는데여','이해했는진 모르겠는데','재밌겠는걸','이 시기에','하늘빛나래 안식처','수도사 연맹 하다가','Maps 이 3개','크리뜨신분 이니 드림'])assert.equal(check(text).some(f=>f.applicable),false,text);
   for(const text of ['호드 고고한선비 캐릭 유저입니다.','잠행안해-도적-[길드이름] 님한테'])assert.equal(check(text).some(f=>f.applicable&&['고고한선비','잠행안해'].includes(f.original)),false,text);

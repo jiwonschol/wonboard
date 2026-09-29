@@ -1,6 +1,38 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 
+test('joined copulas retain the singular noun and a following subject clause',()=>{
+  for(const [text,target] of [['the problemis it came without instructions','problem is'],['my issueis that they left','issue is'],['the reasonis we cannot leave','reason is']]){
+    assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  }
+  for(const text of ['the problem is it came late','problemis is an identifier','the problems are resolved'])assert.equal(englishGrammar(text).length,0,text);
+  assert.equal(check('the problemis it came late',['problemis']).some(f=>f.original==='problemis'),false);
+  assert.equal(check('`the problemis it came late`').some(f=>f.applicable),false);
+});
+
+test('the long story short idiom repairs its nouns without selecting an unrelated store',()=>{
+  assert.equal(check('Long storu short, we left.').find(f=>f.original==='storu')?.suggestions[0],'story');
+  const text='Lomng storu short, the line is closing.';
+  for(const [original,target] of [['Lomng','Long'],['storu','story']]){
+    assert.equal(check(text).find(f=>f.original===original)?.suggestions[0],target);
+    assert.equal(check(text,[original]).some(f=>f.original===original&&f.applicable),false);
+  }
+  for(const source of ['Long story short, we left.','the storu short code'])assert.equal(englishGrammar(source).length,0,source);
+});
+
+test('a temporal until typo is not accepted merely because till has a dictionary entry',()=>{
+  for(const text of ['waiting untill April 2026','stay untill the end','Untill tomorrow, goodbye.'])assert.ok(check(text).some(f=>f.suggestions[0].toLowerCase()==='until'),text);
+  assert.equal(englishGrammar('untill is a variable').length,0);
+  assert.equal(check('waiting untill April',['untill']).some(f=>f.original==='untill'),false);
+  assert.equal(check('`waiting untill April`').some(f=>f.applicable),false);
+});
+
+test('service names and an explicitly named customer relationship retain their identity',()=>{
+  for(const text of ['run canva and Instagram','Canva has tools','an email address on vinted','a zzoom customer for years'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('Please zzoom in.').some(f=>f.original==='zzoom'&&f.suggestions[0]==='zoom'));
+  assert.ok(check('canva recieve').some(f=>f.suggestions[0]==='receive'));
+});
+
 test('reviewed lexical repairs preserve casing and community names',()=>{
   for(const [text,target]of [['Woudl','Would'],['Basiically','Basically'],['recommention','recommendation']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['thames','fondo','hallu'])assert.equal(check(text).some(f=>f.applicable),false,text);

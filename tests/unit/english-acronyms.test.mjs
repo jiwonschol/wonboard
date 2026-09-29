@@ -2,6 +2,16 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createChecker} from '../../packages/editor/src/proofreading/engine.mjs';
 
+test('reviewed levy and subscription misspellings survive sparse usage and edit limits',()=>{
+  const check=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:['levies','subscription','unfortunately']});
+  for(const [source,target] of [['levvies','levies'],['subscribition','subscription'],['unfortuantly','unfortunately']]){
+    assert.equal(check(source)[0]?.suggestions[0],target,source);
+    assert.equal(check(source,[source]).length,0,source);
+  }
+  const withoutTargets=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:[]});
+  assert.equal(withoutTargets('levvies').some(f=>f.applicable),false);
+});
+
 test('attested usage resolves rare neighbors without blocking strong two-edit repairs',()=>{
   const check=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:['capot','carpet','armature','amateur','simplist','simplest','flattering','faltering','custom','customer']});
   for(const [source,target]of [['capet','carpet'],['amature','amateur'],['simpliest','simplest'],['falttering','flattering'],['custome','custom']])assert.equal(check(source)[0]?.suggestions[0],target,source);

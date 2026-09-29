@@ -30,6 +30,9 @@ export function createChecker(data) {
   const knownOrthographicNoun=word=>sets.noun.has(word)||recognizedNouns.has(word)||morphology.isDerivedNominal(word);
   const candidateBoundary=(word,personal,text,from,to)=>{
     if(personal.has(word))return null;
+    // Elapsed-time context distinguishes dependent 지 from question endings.
+    const elapsed=word.match(/^(.+)지(가|는|도)?$/u),elapsedHost=elapsed&&(morphology.predicate(elapsed[1])??morphology.analyze(elapsed[1],personal));
+    if(elapsedHost?.adnominal&&elapsedHost.root!=='이'&&(elapsed[1].charCodeAt(elapsed[1].length-1)-0xac00)%28===4&&!elapsed[1].endsWith('는')&&/^[ \u00a0]+(?:얼마[ \u00a0]+(?:안|되)|오래|[0-9]+[ \u00a0]*(?:년|달|개월|일))/u.test(text.slice(to)))return {type:'spacing',suggestions:[elapsed[1]+' 지'+(elapsed[2]??'')],reason:'Elapsed-time context selects dependent 지',ambiguous:true};
     // A following existential predicate disambiguates contracted 것+이
     // from the homographic promise ending: 여쭤볼 게 있습니다.
     const contractedSubject=word.endsWith('게')?word.slice(0,-1):null;
@@ -164,7 +167,7 @@ export function createChecker(data) {
     const lower=word.toLowerCase(),alphabet='abcdefghijklmnopqrstuvwxyz',candidates=new Set();
     // Reviewed spelling repairs that weak edit-distance evidence otherwise
     // suppresses. These remain errors, never recognition-only vocabulary.
-    const lexicalRepair={especulation:'speculation',especulations:'speculations',woudl:'would',recommention:'recommendation',basiically:'basically',shiney:'shiny',monitized:'monetized',condemed:'condemned',succintly:'succinctly',asbandoned:'abandoned',debarcle:'debacle',jepardy:'jeopardy',breathble:'breathable',insectasides:'insecticides',comapss:'compass',optitician:'optician',proofreaded:'proofread',anyboby:'anybody',technicaians:'technicians',lucious:'luscious',havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth',conming:'coming',washine:'washing',opnions:'opinions',maube:'maybe',staistic:'statistic',sautee:'saute',nothwithstanding:'notwithstanding',creasote:'creosote',subtley:'subtly',harasssed:'harassed',headequarter:'headquarters',unbereable:'unbearable',diptheria:'diphtheria',communial:'communal',clobering:'clobbering',mantlepiece:'mantelpiece',spolit:'spoilt',breathelessness:'breathlessness',ancestores:'ancestors',combustable:'combustible',desparately:'desperately',predesessors:'predecessors',squeeking:'squeaking',adheasion:'adhesion',mismangement:'mismanagement',aneamic:'anaemic',duatpan:'dustpan',idiogram:'ideogram',omeprazol:'omeprazole',antogonistic:'antagonistic'}[lower];
+    const lexicalRepair={levvies:'levies',subscribition:'subscription',unfortuantly:'unfortunately',especulation:'speculation',especulations:'speculations',woudl:'would',recommention:'recommendation',basiically:'basically',shiney:'shiny',monitized:'monetized',condemed:'condemned',succintly:'succinctly',asbandoned:'abandoned',debarcle:'debacle',jepardy:'jeopardy',breathble:'breathable',insectasides:'insecticides',comapss:'compass',optitician:'optician',proofreaded:'proofread',anyboby:'anybody',technicaians:'technicians',lucious:'luscious',havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth',conming:'coming',washine:'washing',opnions:'opinions',maube:'maybe',staistic:'statistic',sautee:'saute',nothwithstanding:'notwithstanding',creasote:'creosote',subtley:'subtly',harasssed:'harassed',headequarter:'headquarters',unbereable:'unbearable',diptheria:'diphtheria',communial:'communal',clobering:'clobbering',mantlepiece:'mantelpiece',spolit:'spoilt',breathelessness:'breathlessness',ancestores:'ancestors',combustable:'combustible',desparately:'desperately',predesessors:'predecessors',squeeking:'squeaking',adheasion:'adhesion',mismangement:'mismanagement',aneamic:'anaemic',duatpan:'dustpan',idiogram:'ideogram',omeprazol:'omeprazole',antogonistic:'antagonistic'}[lower];
     if(lexicalRepair&&enLower.has(lexicalRepair))return [word===word.toUpperCase()?lexicalRepair.toUpperCase():/^[A-Z][a-z]+$/.test(word)?lexicalRepair[0].toUpperCase()+lexicalRepair.slice(1):lexicalRepair];
     if(lower==='alot')return ['a lot'];
     if(lower==='canthe')return ['can the'];
@@ -334,6 +337,9 @@ export function createChecker(data) {
     // Preserve this established French idiom as a phrase, without allowlisting
     // its component word lettres in ordinary English prose.
     const protectedForeignPhrases=[...text.matchAll(/\bhomme\s+des\s+lettres\b/gi)].map(m=>[m.index,m.index+m[0].length]);
+    // A name stated explicitly in the same input also identifies earlier
+    // mentions. Keep the identity reviewable without inventing internal gaps.
+    const statedKoreanNames=[...text.matchAll(/(?:이름|제품명|상표명)(?:이|은)[ \u00a0]+([가-힣]{2,}?)(?:이지만|입니다|이라고|이라서|이에요)(?=$|[^가-힣])/gu)].map(m=>m[1]);
     const excluded=[...protectedForeignPhrases,...[...text.matchAll(/https?:\/\/[^\s]+|`[^`]*`|\b[A-Za-z0-9_-]+\.(?:md|txt|png|jpe?g|gif|webp|pdf|json|tsx?|jsx?|html|css|zip)\b|\b(?:Ctrl|Control|Alt|Option|Shift|Cmd|Command|Meta)(?:\+[A-Za-z0-9]+)+/g)].map(m=>[m.index,m.index+m[0].length])];
     // TeX control words are identifiers, including when pasted without math
     // delimiters. Their arguments and surrounding prose remain checkable.
@@ -667,6 +673,11 @@ export function createChecker(data) {
         if(/\b(?:(?:app|tool|project|service|manager|platform|library|package)\s+(?:called|named)|(?:I|we)\s+call)\s+$/i.test(before)){
           emit(from,to,'en','unknown',[],word);continue;
         }
+        // A repeated initial in a provider name is not necessarily a typo.
+        // Preserve it when a determiner and customer relationship identify it.
+        if(/^([a-z])\1[a-z]+$/i.test(lookup)&&/\b(?:a|an|the|my|your|their)\s+$/i.test(before)&&/^\s+(?:customers?|subscribers?)\b/i.test(text.slice(to))){
+          emit(from,to,'en','unknown',[],word);continue;
+        }
         // Colloquial -in after a progressive auxiliary preserves an attested
         // -ing verb; lexical distance must not turn givin into given.
         if(/^[a-z]{3,}in$/.test(lookup)&&enLower.has(lookup+'g')&&englishSuggestions(word)[0]!==lookup+'g'&&/\b(?:am|is|are|was|were|ain['’]?t)(?:\s+not)?\s+$/i.test(before)){
@@ -693,6 +704,9 @@ export function createChecker(data) {
         emit(from,to,'en',candidates.length?'spelling':'unknown',candidates,word);
         if(shortIdentifier)Object.assign(results.at(-1),{ambiguous:true,reason:'Possible short identifier in Korean prose; no automatic replacement'});
       } else {
+        const statedName=statedKoreanNames.find(name=>word.startsWith(name)&&(!word.slice(name.length)||sets.josa.has(word.slice(name.length))||morphology.predicate(word.slice(name.length))?.root==='이'));
+        const authorName=/^[ \u00a0]+(?:지음|옮김)(?=$|[\s.,!?])/u.test(text.slice(to));
+        if(statedName||authorName){emit(from,to,'ko','unknown',[],word);results.at(-1).reason='Explicit name or author credit; preserve the complete identity for review';continue;}
         // A named avatar is an identity, even when its syllables form a
         // normal adjective/noun phrase. Keep the unknown-name review.
         const avatarName=/^[ \u00a0]+캐릭(?:터)?[ \u00a0]+유저/u.test(text.slice(to))||/^-[가-힣]+-\[[^\]\n]+\][ \u00a0]+님/u.test(text.slice(to));

@@ -7,6 +7,20 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     if(findings.some(item=>item.from<to&&item.to>from))return;
     findings.push({from,to,original:text.slice(from,to),language:'en',type,suggestions:[suggestion],applicable:true,reason});
   };
+  for(const match of text.matchAll(/\b(long|lomng)\s+(storu)\s+short\b/gi)){
+    if(match[1].toLowerCase()==='lomng')add(match.index,match.index+match[1].length,match[1][0]==='L'?'Long':'long','Restore long in the fixed expression long story short','spelling');
+    const from=match.index+match[0].indexOf(match[2]);
+    add(from,from+match[2].length,match[2][0]==='S'?'Story':'story','The fixed expression is long story short','spelling');
+  }
+  for(const match of text.matchAll(/\b(?:the|my|our|your|their|this|that)\s+((?:problem|issue|reason|question|point)is)\b(?=\s+(?:that\s+)?(?:it|they|I|we|you|he|she|there)\b)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,match[1].slice(0,-2)+' '+match[1].slice(-2),'Separate the singular subject from is before the following clause');
+  }
+  for(const match of text.matchAll(/\buntill\b/gi)){
+    const before=text.slice(Math.max(0,match.index-30),match.index),after=text.slice(match.index+match[0].length);
+    if(!/\b(?:wait|waits|waited|waiting|stay|stays|stayed|staying|delay|delays|delayed|delaying)\s+$/i.test(before)&&!/^\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|tomorrow|tonight|then|midnight|noon)\b/i.test(after))continue;
+    add(match.index,match.index+match[0].length,match[0].slice(0,-1),'The temporal preposition until has a single final l','spelling');
+  }
   for(const match of text.matchAll(/\b(?:I|we|you|they)\s+(belive)(?=\s+(?:that|this|it|you|he|she|we|they|the|in)\b)/gi)){
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'believe','This finite belief verb takes believe','spelling');
