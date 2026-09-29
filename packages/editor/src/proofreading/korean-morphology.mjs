@@ -1084,6 +1084,11 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       const left=word.slice(0,i),right=word.slice(i),host=noun(left,personal);
       if(host&&!host.unknown&&left.slice(host.base.length)==='대로'&&predicate(right)?.root==='하')return {text:left+' '+right,ambiguous:true,rule:'2'};
     }
+    // Conjunctive 하고 can attach to a noun whose spelling also looks
+    // like a quoted predicate (하자 + 하고). Preserve that complete reading.
+    const conjunctiveNominal=noun(word,personal);
+    const conjunctiveTail=conjunctiveNominal&&word.slice(conjunctiveNominal.base.length);
+    if(conjunctiveTail?.startsWith('하고')&&sets.josa.has(conjunctiveTail))return null;
     // Quotation endings precede 하다, including a following dependent noun.
     // 고하다 is a separate homograph and cannot take the 고 from 한다고.
     for(let i=2;i<word.length;i++){

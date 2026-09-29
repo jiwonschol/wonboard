@@ -111,7 +111,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,match[1].slice(0,-1)+"'s",'The singular companion determined by a possesses the following relation');
   }
-  for(const match of text.matchAll(/\bfor\s+(child)\b(?=\s*[,.;!?)])/gi)){
+  for(const match of text.matchAll(/\bfor\s+(child)\b(?=\s*[.;!?])/gi)){
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'a '+match[1],'This complete singular count noun phrase needs an article');
   }
@@ -203,10 +203,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   for(const match of text.matchAll(/\b[Ii]ts(?=\s+(?:something|nothing|anything)\s+(?:you|we|they|I|he|she)\b)/g)){
     add(match.index,match.index+match[0].length,match[0][0]==='I'?"It's":"it's",'This pronoun clause needs it is rather than possessive its');
-  }
-  for(const match of text.matchAll(/\b(?:pulled|took|pull|take|pulling|taking)\s+(?:it|them)\s+out (if)(?=\s+the\s+(?:fridge|freezer|oven|box|bag)(?:[.,!?]|$|\s+(?:this|that|yesterday|today|to)\b))/gi)){
-    const from=match.index+match[0].lastIndexOf(match[1]);
-    add(from,from+2,'of','The source-container phrase is out of');
   }
   for(const match of text.matchAll(/\bIt it(?=\s+(?:possible|safe|normal|necessary|okay|ok)\s+to\b)/g)){
     add(match.index,match.index+5,'Is it','This question uses an inverted copula, not a duplicated pronoun');
@@ -445,7 +441,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\bThere['’]s a few\b(?=\s+(?:(?:car|computer|software|local)\s+)?(?:people|things|cars|machines|devices|businesses|companies|dealerships|options|ways|files|cases|examples)\b)/gi)){
     add(match.index,match.index+match[0].length,'There are a few','Plural subject agrees with are');
   }
-  for(const match of text.matchAll(/\b([Tt])here is\b(?=\s+(?:many(?!\s+(?:a|an)\b)|several|numerous|multiple)\b)/g)){
+  for(const match of text.matchAll(/\b([Tt])here is\b(?=\s+(?:many|several|numerous|multiple)\s+(?:users|people|options|issues|files|questions|problems|devices)(?:\s+(?:online|here|available))?\s*(?:[.!?;]|$))/g)){
     add(match.index,match.index+match[0].length,match[1]+'here are','A plural quantity takes there are');
   }
   for(const match of text.matchAll(/\b(?:instruments|machines|devices|systems|programs) that only runs\b/gi)){
@@ -533,8 +529,9 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(the|a|an)\s+\1\b/g)){
     add(match.index,match.index+match[0].length,match[0].replace(/^(\S+)\s+\S+$/,'$1'),'The adjacent function word is repeated');
   }
-  for(const match of text.matchAll(/\b[Ii]t a\b(?=\s+(?:paradox|problem|mistake|feature|bug|tool|model|question)\b)/g)){
-    add(match.index,match.index+match[0].length,match[0][0]==='I'?"It's a":"it's a",'A singular subject needs is before the article');
+  for(const match of text.matchAll(/(?:^|[.!?]\s+)([Ii]t a)\b(?=\s+(?:paradox|problem|mistake|feature|bug|tool|model|question)\b)/g)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,match[1][0]==='I'?"It's a":"it's a",'This sentence-initial subject needs is before the article');
   }
   for(const match of text.matchAll(/\b[Ii]ts so\b(?=\s+(?:cheap|fast|slow|simple|easy|hard|expensive|good|bad)\b)/g)){
     add(match.index,match.index+match[0].length,match[0][0]==='I'?"It's so":"it's so",'The degree adverb follows it is');
@@ -547,11 +544,11 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\bdid they workout\b/gi))add(match.index,match.index+match[0].length,'did they work out','Work out is the verb; workout is a noun or adjective');
   for(const match of text.matchAll(/\bNo its not\b/g))add(match.index,match.index+match[0].length,"No it's not",'It is contracts to it’s here');
   for(const match of text.matchAll(/\b(?:get|got|gain|gained) access into\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/into$/i,'to'),'Access normally takes to in this construction');
-  for(const match of text.matchAll(/\bbut agent\b(?=\s+(?:can|could|will|would|should|must|has|had|is|was)\b)/gi))add(match.index,match.index+match[0].length,match[0].replace(/agent$/i,'an agent'),'This singular count noun needs an article');
+  for(const match of text.matchAll(/\b[Bb]ut agent\b(?=\s+(?:can|could|will|would|should|must|has|had|is|was)\b)/g))add(match.index,match.index+match[0].length,match[0].replace(/agent$/,'an agent'),'This singular count noun needs an article');
   for(const match of text.matchAll(/\baround time of\b/gi))add(match.index,match.index+match[0].length,'around the time of','This noun phrase needs the article the');
   for(const match of text.matchAll(/\bi\b(?=\s+(?:consider|find|prompt|got|wait|send|doodle)\b)/g))add(match.index,match.index+1,'I','Capitalize the first-person pronoun');
   for(const match of text.matchAll(/\bin short time\b(?=\s*(?:[.!?;]|$))/gi))add(match.index,match.index+match[0].length,match[0].replace(/ short/i,' a short'),'This completed duration phrase takes an article');
-  for(const match of text.matchAll(/\b(?:use|need|spend|allocate|provide) marginal amount\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/ marginal amount$/i,' a marginal amount'),'A singular count noun needs an article');
+  for(const match of text.matchAll(/\b(?:use|need|spend|allocate|provide) marginal amount\b(?=\s*(?:[.!?;]|$))/gi))add(match.index,match.index+match[0].length,match[0].replace(/ marginal amount$/i,' a marginal amount'),'This completed count noun phrase needs an article');
   for(const match of text.matchAll(/\b(?:got|get|gets|getting) couple\b(?=\s+of\b)/gi))add(match.index,match.index+match[0].length,match[0].replace(/ couple$/i,' a couple'),'A couple of needs an article');
   for(const match of text.matchAll(/\b(?:it|he|she|this|that)\s+(?:(?:itself|himself|herself)\s+)?(?:(?:only|still|also|already|usually|always|often|sometimes|never)\s+)?(have)\b/gi)){
     if(permitsBaseVerb(match.index))continue;
@@ -591,7 +588,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b([Ee]very)\s+(questions|devices|users|files|apps|projects|tasks|issues|cases|options|servers|cameras|systems|models|features|tests|versions|reports|messages|answers|programs|children)\b(?!['’])/g)){
     add(match.index,match.index+match[0].length,match[1]+' '+singularCountNouns.get(match[2]),'Every takes a singular count noun here');
   }
-  for(const match of text.matchAll(/\ba (?:dumping|testing|training) grounds\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/grounds$/i,'ground'),'A singular article takes the singular noun ground');
+  for(const match of text.matchAll(/\ba (?:dumping|testing|training) grounds\b(?=\s*(?:[.!?;]|$))/gi))add(match.index,match.index+match[0].length,match[0].replace(/grounds$/i,'ground'),'A singular article takes the singular noun ground at this phrase boundary');
   for(const match of text.matchAll(/\bit let['’]s\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/let['’]s$/i,'lets'),'Lets is the third-person verb; let’s means let us');
   for(const match of text.matchAll(/\b[Mm]ost of time\b(?=\s*(?:[.,!?;]|$))/g))add(match.index,match.index+match[0].length,match[0].replace(/time$/,'the time'),'This completed time expression needs the');
   for(const match of text.matchAll(/\b(?:the|an) agent get\b(?=\s+(?:tools|access|results|data|a|the)\b)/gi)){

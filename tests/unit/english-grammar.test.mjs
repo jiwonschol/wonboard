@@ -321,7 +321,7 @@ test('foreign parenthetical names are reviewed without English word substitution
 
 test('cultural words stay intact and explicit container and pronoun clauses are repaired',()=>{
   for(const text of ['perform umrah','pani puri','its nothing-to-lose attitude','go out if the fridge fails'])assert.equal(check(text).some(f=>f.applicable),false,text);
-  for(const [text,target]of [["its something you can do","it's"],['pulled it out if the fridge','of'],['It it possible to make this','Is it'],['a lot of recipe for pork','recipes']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const [text,target]of [["its something you can do","it's"],['It it possible to make this','Is it'],['a lot of recipe for pork','recipes']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
 });
 
 test('technical nouns, acronyms and names retain their identity in lowercase prose',()=>{
@@ -733,6 +733,40 @@ test('weak nearby words need stronger evidence than short or two-substitution di
   assert.equal(smallCheck('tommorow')[0]?.suggestions[0],'tomorrow');
 });
 
+
+test('it a can be an object complement rather than a clause missing is',()=>{
+  for(const text of ['We call it a model.','They consider it a problem.','They call it a (useful) model.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('It a paradox.').some(f=>f.suggestions[0]==="It's a"));
+});
+
+test('Agent casing can identify a proper name after but',()=>{
+  for(const text of ['The desktop is stable, but Agent can still crash.','It works, but Agent has limits.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('It works, but agent can send requests.').some(f=>f.suggestions[0]==='but an agent'));
+});
+
+test('child can modify a shared head after coordination or parentheses',()=>{
+  for(const text of ['This guidance is intended for child, adolescent, and adult readers.','This is for child (and adult) readers.','This is for child-friendly readers.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('A ticket for child.').some(f=>f.suggestions[0]==='a child'));
+});
+
+test('marginal amount can modify a following head noun',()=>{
+  for(const text of ['We use marginal amount calculations.','The model can provide marginal amount estimates.','We use marginal amount (rather than total amount) calculations.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('We need marginal amount.').some(f=>f.suggestions[0]==='need a marginal amount'));
+});
+
+test('plural grounds can modify a compound noun',()=>{
+  for(const text of ['The campus hired a training grounds manager.','It is a testing grounds-related role.','They need a training grounds (and facilities) manager.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('That is a dumping grounds.').some(f=>f.suggestions[0]==='a dumping ground'));
+});
+
+test('if retains conditional meaning across punctuation and parenthetical phrases',()=>{
+  for(const text of ['Take it out if the fridge, which is old, starts leaking.','Pull it out if the freezer (the old one) stops working.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('existential agreement requires a completed plural head rather than a quantifier-like modifier',()=>{
+  for(const text of ['There is multiple sclerosis in the family history.','There is many-valued logic here.','There is multiple (rather than single) inheritance here.','There is several users documentation here.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('There is several users online.').some(f=>f.suggestions[0]==='There are'));
+});
 
 test('seamless can modify a following noun instead of the preceding verb',()=>{
   for(const text of ['It runs perfectly seamless animations.','They run perfectly seamless transitions.'])assert.equal(check(text).some(f=>f.applicable),false,text);

@@ -1446,6 +1446,12 @@ test('lens-power 돋구다 keeps its standard meaning',()=>{
   for(const text of ['안경 도수를 돋구는 렌즈입니다','돋구는'])assert.equal(check(text).some(f=>f.applicable),false,text);
 });
 
+test('defect noun 하자 retains the conjunctive particle 하고',()=>{
+  for(const text of ['제품 하자하고 손상을 구분하세요','하자하고는 관계없습니다','하자하고도 관련이 없습니다'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('하자하고 손상을 확인됬어요').some(f=>f.suggestions.includes('확인됐어요')));
+  assert.ok(check('먹자하고').some(f=>f.suggestions.includes('먹자 하고')));
+});
+
 test('counted kinds and place names keep independent noun boundaries',()=>{
   for(const [source,target]of [['두가지중에','두 가지 중에'],['베트남남자를','베트남 남자를'],['한국여자가','한국 여자가']]){
     assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
