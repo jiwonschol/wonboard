@@ -316,12 +316,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\bit['’]s\b(?=\s+(?:account|owner|name|title|role|users|settings|source|purpose|tail|tool)\b)/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='I'?'Its':'its','A possessive determiner before this noun has no apostrophe');
   }
-  for(const match of text.matchAll(/\bits\b(?=\s+(?:summarizing|running|working|writing|using|doing)\s+(?:noise|code|work|well|fine|that|this|it|them|the|a|an)\b)/gi)){
-    add(match.index,match.index+match[0].length,match[0][0]==='I'?"It's":"it's",'The present participle here needs it is');
-  }
-  for(const match of text.matchAll(/\byour going(?=\s+to\s+be\b)/gi)){
-    add(match.index,match.index+match[0].length,match[0][0]==='Y'?"You're going":"you're going",'Use you are before going to be');
-  }
   for(const match of text.matchAll(/\b[Ii]m\b(?=\s+(?:(?:mostly|currently|really|just)\s+)?(?:a|an|back|going|doing|using|building|creating|related|split|sorry|sure|ready|glad|not|still|here|having|trying|looking|Looking|working|wondering)\b)/g)){
     add(match.index,match.index+match[0].length,"I'm",'First-person contraction needs an apostrophe');
   }
@@ -571,9 +565,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
       add(match.index,match.index+match[0].length,value,'This contraction needs an apostrophe');
     }
   }
-  for(const match of text.matchAll(/\b(?:They|they) ate(?=\s+[a-z]+ing\b)/g)){
-    add(match.index,match.index+match[0].length,match[0].replace(/ate$/,'are'),'The present participle here needs are');
-  }
   for(const match of text.matchAll(/\boaid\b/gi))add(match.index,match.index+match[0].length,'paid','Reviewed letter substitution in paid','spelling');
   for(const match of text.matchAll(/\bnatual\b/gi))add(match.index,match.index+match[0].length,'natural','Reviewed missing letter in natural','spelling');
   for(const match of text.matchAll(/\bchinnese\b/gi))add(match.index,match.index+match[0].length,'Chinese','Reviewed spelling of the proper adjective Chinese','spelling');
@@ -718,7 +709,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].lastIndexOf(match[2]);
     add(from,from+match[2].length+1,'','The adjacent auxiliary is duplicated before a noun phrase');
   }
-  for(const match of text.matchAll(/\b(around)\s+\1\b/gi))add(match.index,match.index+match[0].length,match[1],'The adjacent preposition is duplicated');
   for(const match of text.matchAll(/\b(?:have|has|had|we['’]ve|I['’]ve)\s+(book)(?=\s+(?:walking tours|flights|tickets|hotels)\b)/gi)){
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'booked','The perfect auxiliary takes the participle booked');

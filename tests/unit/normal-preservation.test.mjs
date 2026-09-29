@@ -1039,7 +1039,9 @@ test('possible nominal affixes remain reviewable without speculative interior sp
   for(const source of ['후보군','후보군이','한국판','한국판으로','차세대기는','대만족인']){
     const findings=check(source);
     assert.equal(findings.some(f=>f.applicable),false,source);
-    assert.ok(findings.some(f=>f.type==='unknown'),source);
+    // 후보군 also has the valid exclamatory copula reading 후보 + (이)군.
+    if(source==='후보군')assert.deepEqual(findings,[]);
+    else assert.ok(findings.some(f=>f.type==='unknown'),source);
   }
   assert.ok(check('후보군이 두번이나 됬어요',['후보군']).some(f=>f.suggestions.includes('두 번이나')));
   assert.ok(check('후보군이 두번이나 됬어요',['후보군']).some(f=>f.suggestions.includes('됐어요')));
@@ -1165,10 +1167,11 @@ test('derived purpose nouns and ambiguous record nouns are not split internally'
 });
 
 test('similarity alone never replaces a name and personal registration remains local',()=>{
-  for(const word of ['클로드','클로드도','제미나이','티이어를']){
+  for(const word of ['클로드','클로드도','티이어를']){
     const findings=check(word);assert.ok(findings.some(f=>f.type==='unknown'),word);
     assert.equal(findings.some(f=>f.applicable),false,word);
   }
+  assert.deepEqual(check('제미나이'),[]);
   assert.deepEqual(check('클로드도',['클로드']),[]);
   const findings=check('클로드도 학교에갔어요. 됬어요.',['클로드']);
   for(const correction of ['학교에 갔어요','됐어요'])assert.ok(findings.some(f=>f.suggestions.includes(correction)),correction);
@@ -1222,8 +1225,9 @@ test('validated predicates recover dependent nouns and negative phrase boundarie
 
 test('nominal inflections and pronouns preserve their internal boundaries',()=>{
   for(const word of ['이것입니다','그것이','무엇인가를','상황들입니다','격화됐음을','가능할지도','당당하실지요','저장했는지조차','미국인들에게','제한적','이건데','어디서든'])assert.equal(check(word).some(f=>f.applicable),false,word);
-  for(const [word,target]of [['만들어야한다','만들어야 한다'],['끊어지는걸','끊어지는 걸'],['달려있는게','달려있는 게']])assert.ok(check(word).some(f=>f.suggestions.includes(target)),word);
+  for(const [word,target]of [['만들어야한다','만들어야 한다'],['달려있는게','달려있는 게']])assert.ok(check(word).some(f=>f.suggestions.includes(target)),word);
   assert.equal(check('만들어야겠다').some(f=>f.applicable),false);
+  assert.equal(check('끊어지는걸').some(f=>f.applicable),false); // Complete exclamatory -는걸.
 });
 
 test('attested roots and irregular suffix inflections are recognized without splitting',()=>{

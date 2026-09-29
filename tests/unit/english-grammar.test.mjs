@@ -512,8 +512,6 @@ test('English grammar candidates repair attested constructions without changing 
     ['Do you have audience?','have an audience'],
     ["projects who's primary contributors are AI",'whose primary'],
     ["You can't trust it's account.",'its'],
-    ["Your going to be sorry.","You're going"],
-    ['It is loud because its summarizing noise.',"it's"],
     ['Im back at work.',"I'm"],
     ['I should have reigned in my emotions.','reined in'],
     ['You sue Claude model in an IDE.','use Claude'],
@@ -535,7 +533,6 @@ test('English grammar candidates repair attested constructions without changing 
     ['Theres a problem',"There's"],
     ['The service doesnt start.',"doesn't"],
     ['Doesnt this work?',"Doesn't"],
-    ['They ate pushing the update.','They are'],
     ['The effort was oaid for.','paid'],
     ['A natual channel.','natural'],
     ['The chinnese government','Chinese'],
@@ -767,8 +764,22 @@ test('weak nearby words need stronger evidence than short or two-substitution di
 });
 
 
+test('around can be an adverb followed by a separate approximate-time preposition',()=>{
+  for(const text of ['We drove around around noon.','They looked around around lunchtime.','We walked around around the time the shop closed.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('possessive determiners retain participial modifiers and gerund clauses',()=>{
+  for(const text of ['We inspect its running code.','Its working well surprised me.','Your going to be late worries me.','I resent your going to be late.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('Its broken.').some(f=>f.suggestions[0]==="It's"));
+});
+
+test('ate keeps noun objects whose spelling ends in ing',()=>{
+  for(const text of ['They ate pudding.','They ate something.','They ate walking tacos.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('They was eating pudding.').some(f=>f.suggestions[0]==='They were'));
+});
+
 test('historical prose restores bounded contractions, repeated words and function words',()=>{
-  for(const [text,target]of [['i ever made it','I'],['i own it','I'],['Im creating a tool',"I'm"],['Im Looking for ideas',"I'm"],['I an seeing it','I am'],['a AI tool','an'],['a ML team','an'],['an year','a'],['an YC company','a'],['how to setup','set up'],['asked Google to backup my photos','back up'],['a fortnights time',"fortnight's"],['could feedback observations','feed back'],['cant go',"can't"],['Whats the legal status?',"What's"],['Lets say',"Let's"],['looking advice','for advice'],['Have their been changes?','there'],['I have have an answer',''],['around around the door','around'],["we've book flights",'booked'],['for same price','the same price']])assert.ok(englishGrammar(text).some(f=>f.suggestions[0]===target),text);
+  for(const [text,target]of [['i ever made it','I'],['i own it','I'],['Im creating a tool',"I'm"],['Im Looking for ideas',"I'm"],['I an seeing it','I am'],['a AI tool','an'],['a ML team','an'],['an year','a'],['an YC company','a'],['how to setup','set up'],['asked Google to backup my photos','back up'],['a fortnights time',"fortnight's"],['could feedback observations','feed back'],['cant go',"can't"],['Whats the legal status?',"What's"],['Lets say',"Let's"],['looking advice','for advice'],['Have their been changes?','there'],['I have have an answer',''],["we've book flights",'booked'],['for same price','the same price']])assert.ok(englishGrammar(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['Agent A AI model','a SQL query','a UK company','an API tool','want access to setup','their children have been here','looking advice up online','we have book covers','a spyware detector','cant is a word','the setup process']){
     assert.equal(englishGrammar(text).length,0,text);
   }

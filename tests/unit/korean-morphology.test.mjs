@@ -118,8 +118,12 @@ test('nested adverbs, nominal particles and honorific auxiliaries keep complete 
 });
 
 test('colloquial ending typos are restored before speculative internal spaces',()=>{
-  for(const [text,target]of [['무서울정도내요','무서울 정도네요'],['모르게써요','모르겠어요'],['제작년에','재작년에']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const [text,target]of [['무서울정도내요','무서울 정도네요'],['모르게써요','모르겠어요']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   for(const text of ['모르게 써요','돈 내요','재작년에'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('production-year wording is not rewritten as the year before last',()=>{
+  for(const text of ['이 영화의 제작년은 2020년이다','제품 제작년: 2024','제작년에'])assert.equal(check(text).some(f=>f.applicable),false,text);
 });
 
 test('quotation and obligation phrases retain complete predicates before dependent nouns',()=>{

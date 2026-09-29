@@ -736,3 +736,9 @@ Luna 두 역할이 이뻐→예뻐를 필수 수정으로 제안한 것은 [국�
 ## 의도 표현과 간접 명령의 보존
 
 [국립국어원 FAQ8556](https://www.korean.go.kr/front/mcfaq/mcfaqView.do?mcfaq_seq=8556&mn_id=62&pageIndex=80)은 `-려 하다`의 붙여 쓰기를 허용하지 않는다. 앞말에 명사 동음이의어가 있어도 검증된 의도 어미의 경계를 합치지 않는다. [한국어기초사전 -라는데](https://krdict.korean.go.kr/eng/dicSearch/SearchView?ParaWordNo=82259&nation=eng)는 명령을 간접 인용하는 표현과 `-으라는데`의 대응을 설명한다. 완성된 동사 명령형을 확인해 이 인용형을 보존하며, 형용사 동음이의 분석으로 새 교정 후보를 만들지 않는다. [재작년](https://krdict.korean.go.kr/eng/dicSearch/SearchView?ParaWordNo=24950&nation=eng&nationCode=6)은 독립된 시간 명사로 복원하고 뒤 조사를 유지한다.
+
+## 짧은 관형구와 반복 비교 표현
+
+[온라인가나다 280046](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=280046)은 `할 말`을 별개 단어로 설명한다. 짧은 이름을 보호하는 제한이 이 표현과 `볼 책`, `받을 돈`의 경계까지 숨기지 않도록 한다. [국립국어원 실전 띄어쓰기 자료](https://www.korean.go.kr/nkview/news_pdf/2020_05.pdf)는 반복 비교 구문의 `올 듯 말 듯`을 띄어 제시한다. 연결 어미 `-듯`의 일반적인 붙임을 유지하면서 이 반복 문맥을 따로 구별한다.
+
+[국립민속박물관 한국민속예술사전](https://folkency.nfm.go.kr/api/file/download/dictionary/39)에는 춤사위 이름 `큰걸음`이 쓰인다. 해당 표현은 인식용 어휘로만 보존하며 다른 단어의 교정 후보를 만드는 재료로 확장하지 않는다.

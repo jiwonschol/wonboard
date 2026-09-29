@@ -160,7 +160,7 @@ export function createChecker(data) {
   };
   const english=new Set(data.en);
   const knownTechnicalAbbreviations=new Set(technicalAbbreviations.map(word=>word.toLowerCase()));
-  const recognizedEnglish=new Set([...englishRecognizedTerms,'carry-on','systemd']);
+  const recognizedEnglish=new Set([...englishRecognizedTerms,'carry-on','systemd','tuya','zigbee']);
   const enLower=new Set(data.en.filter(w=>w===w.toLowerCase()));
   const englishByLength=new Map();
   for(const word of enLower){const key=word.slice(0,3)+':'+word.length;const bucket=englishByLength.get(key)||[];bucket.push(word);englishByLength.set(key,bucket);}
@@ -379,7 +379,13 @@ export function createChecker(data) {
     // Bare hosts and email addresses are structured identifiers even without
     // a URL scheme. Protect the full span before grammar and token checking.
     for(const m of text.matchAll(/\b(?:[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+@)?(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,63}\b(?:\/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]*)?/g))excluded.push([m.index,m.index+m[0].length]);
-    for(const m of text.matchAll(/\b(?=[A-Za-z0-9_]*[A-Za-z])(?=[A-Za-z0-9_]*[0-9_])[A-Za-z0-9_]+\b/g))excluded.push([m.index,m.index+m[0].length]);
+    for(const m of text.matchAll(/\b(?=[A-Za-z0-9_]*[A-Za-z])(?=[A-Za-z0-9_]*[0-9_])[A-Za-z0-9_]+\b/g)){
+      const quantity=m[0].match(/^(\d+(?:[.,]\d+)*)(개월|시간|달러|유로|원|엔|년|달|일|시|분|초|세|살|개|명|회|번|kg|km|cm|mm|GB|MB|TB|KB|ml|mL|g|m|L|%)$/);
+      const after=text.slice(m.index+m[0].length);
+      const quantityTail=/^[ \u00a0]*(?:으로서|으로써|으로|로서|로써|로|인데|이고|입니다|이었다|이었|은|는|이|가|을|를|도|만|정도|짜리|쯤|이상|이하|동안|만에|전|후|에서|부터|까지)?(?=$|[\s.,!?;:)\]…])/u.test(after);
+      if(quantity&&quantityTail)continue;
+      excluded.push([m.index,m.index+m[0].length]);
+    }
     // Relative request targets are structured identifiers, including query
     // placeholders containing spaces. Do not change their path/key casing.
     for(const m of text.matchAll(/(?:^|[\s(])\/[A-Za-z0-9._~/-]+\?[A-Za-z0-9_%-]+=(?:<[^>\n]*>|[^\s)]*)/g)){
@@ -403,6 +409,14 @@ export function createChecker(data) {
     results.push(...englishGrammar(text,[...excluded,...foreignGlosses],personal));
     const quotedEnds=new Set([...text.matchAll(/"[^"\n]+"|'[^'\n]+'|“[^”\n]+”|‘[^’\n]+’|「[^」\n]+」|『[^』\n]+』|\([^()\n]+\)|\[[^\[\]\n]+\]/g)].map(m=>m.index+m[0].length));
     function emit(from,to,language,type,suggestions,base) {results.push({from,to,original:text.slice(from,to),language,type,suggestions,base,applicable:suggestions.length>0,reason:type==='unknown'?'Not in the selected vocabulary':'Prototype lexical candidate; rule source not yet verified'});}
+    // In the paired expression “~ㄹ 듯 말 듯 하다”, keep the independent
+    // boundary repair on 말듯 limited to a validated adnominal host.
+    for(const m of text.matchAll(/([가-힣]+)[ \u00a0]*듯[ \u00a0]+(말듯)(?=[ \u00a0]+하다(?:요)?(?=$|[^가-힣ㄱ-ㅎㅏ-ㅣ]))/g)){
+      const host=m[1],from=m.index+m[0].lastIndexOf(m[2]),to=from+m[2].length;
+      if(!morphology.predicate(host)?.adnominal||personal.has(m[2])||personal.has(m[0])||excluded.some(([a,b])=>from<b&&to>a))continue;
+      emit(from,to,'ko','spacing',['말 듯']);
+      results.at(-1).reason='Separate 말 듯 in the paired expression ~ㄹ 듯 말 듯 하다';
+    }
     // These boundaries require a complete preceding predicate or an explicit
     // sentence context; a bare substring could also be a lexical compound.
     for(const m of text.matchAll(/좋은[ \u00a0]+일하면(?=[ \u00a0]+좋은[ \u00a0]+곳)/g)){
@@ -726,6 +740,7 @@ export function createChecker(data) {
         // In Korean prose, a capitalized word with a close dictionary match
         // can be a name; do not replace it with that unrelated match. A word
         // with no candidate still receives the usual unknown-word review.
+        if(personal.has(word)||personal.has(lookup)||english.has(lookup)||enLower.has(lookup.toLowerCase())||recognizedEnglish.has(lookup.toLowerCase()))continue;
         const titleCandidates=mixedKorean&&/^[A-Z][a-z]/.test(word)?englishSuggestions(word):null;
         if(titleCandidates?.length)continue;
         const shortAcronym=/^[a-z]{2,4}$/.test(word)&&english.has(word.toUpperCase());

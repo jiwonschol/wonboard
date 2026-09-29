@@ -1,5 +1,31 @@
 import { test, expect } from "./fixtures";
 
+test('explicit deletion suggestions apply while an arbitrary blank replacement remains disabled',async({page})=>{
+  await page.goto('/');
+  const body=page.getByRole('textbox',{name:'Document body',exact:true});
+  const tool=page.getByRole('toolbar',{name:'Writing tools',exact:true}).getByRole('button',{name:'Check spelling',exact:true});
+  const dialog=page.getByRole('dialog',{name:'Check spelling'});
+  await body.fill('for a 3 days with my son');
+  await tool.click();
+  await expect(dialog.getByRole('button',{name:'Delete this expression',exact:true})).toBeVisible();
+  const replacement=dialog.getByRole('textbox',{name:'Replace with',exact:true});
+  const change=dialog.getByRole('button',{name:'Change',exact:true});
+  await expect(replacement).toHaveValue('');
+  await replacement.fill(' ');await expect(change).toBeDisabled();
+  await dialog.getByRole('button',{name:'Delete this expression',exact:true}).click();
+  await expect(change).toBeEnabled();await change.click();
+  await expect(dialog).toContainText('Spelling review complete.');
+  await dialog.getByRole('button',{name:'Close',exact:true}).click();
+  await expect(body).toHaveText('for 3 days with my son');
+  await body.press('ControlOrMeta+z');await expect(body).toHaveText('for a 3 days with my son');
+  await body.press('ControlOrMeta+Shift+z');await expect(body).toHaveText('for 3 days with my son');
+  await expect(page.getByRole('button',{name:'Save draft',exact:true})).toBeDisabled();
+  await page.reload();await expect(body).toHaveText('for 3 days with my son');
+  await body.fill('We can built it.');await tool.click();
+  await expect(replacement).toHaveValue('can build');
+  await replacement.fill('');await expect(change).toBeDisabled();
+});
+
 test('English grammar suggestion applies and survives undo, redo and reload',async({page})=>{
   await page.goto('/');
   const body=page.getByRole('textbox',{name:'Document body',exact:true});
@@ -555,7 +581,7 @@ test(`Korean review applies ${sample.name} and preserves normal derivation`, asy
 });
 }
 
-for (const word of ["제미나이", "유의미하다까진", "연태고량주라고", "위고비나", "위고비군", "바난자와", "이지엉클"]) {
+for (const word of ["제미누이", "유의미하다까진", "연태고량주라고", "위고비나", "위고비군", "바난자와", "이지엉클"]) {
 test(`uncertain lexical candidate can be skipped without rewriting ${word}`, async ({ page, browserName }) => {
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -566,7 +592,7 @@ test(`uncertain lexical candidate can be skipped without rewriting ${word}`, asy
   await body.fill(word);
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
-  if (["제미나이", "위고비나", "위고비군", "바난자와", "이지엉클"].includes(word)) await expect(dialog).toContainText("No reliable replacement was found.");
+  if (["제미누이", "위고비나", "위고비군", "바난자와", "이지엉클"].includes(word)) await expect(dialog).toContainText("No reliable replacement was found.");
   else await expect(dialog.getByRole("button", {
     name: word === "연태고량주라고" ? "연태 고량주라고" : "유의미하다 까진", exact: true,
   })).toHaveCount(0);
@@ -579,7 +605,7 @@ test(`uncertain lexical candidate can be skipped without rewriting ${word}`, asy
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect(body).toHaveText(word);
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
-  await expect(dialog.getByRole("textbox", { name: "Base word to add" })).toHaveValue(word === "제미나이" ? "제미나" : word);
+  await expect(dialog.getByRole("textbox", { name: "Base word to add" })).toHaveValue(word === "제미누이" ? "제미누" : word);
   // The final 이 may be part of the name; let the author choose the base.
   await dialog.getByRole("textbox", { name: "Base word to add" }).fill(word);
   await page.screenshot({ path: `test-results/wonboard-lexical-dictionary-${word}-${browserName}.png` });

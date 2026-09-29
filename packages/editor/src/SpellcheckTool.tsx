@@ -171,7 +171,7 @@ function SpellingReplacement({ word, suggestions, ko, community, disabled, repla
   }}>
     <div className="spelling-suggestions" role="group" aria-label={ko ? "추천 표현" : "Suggestions"}>
       {suggestions.map(suggestion => <button type="button" key={suggestion} disabled={disabled}
-        aria-pressed={text === suggestion} onClick={() => setText(suggestion)}>{suggestion}</button>)}
+        aria-pressed={text === suggestion} onClick={() => setText(suggestion)}>{suggestion === "" ? (ko ? "이 표현 삭제" : "Delete this expression") : suggestion}</button>)}
       {!suggestions.length && <p>{community
         ? (ko ? "인터넷 약어나 줄임말로 쓰였을 가능성이 있어 검토 대상으로 표시했습니다. 맞춤법 오류로 확정하거나 임의로 풀어 쓰지 않습니다. 의도한 표현이면 건너뛰거나 사용자 사전에 추가하세요." : "This may be an internet abbreviation or shortened expression. It has not been classified as a spelling error, and no expansion is imposed. Skip it or add it to your dictionary if intended.")
         : (ko ? "기본 사전과 활용 규칙으로 확인하지 못한 표현입니다. 신조어·이름이거나 분석 누락일 수 있으며, 오류로 확정한 것은 아닙니다. 신뢰할 수정 후보가 없어 제안하지 않습니다. 그대로 건너뛰거나 사용자 사전에 추가할 수 있습니다." : "The built-in vocabulary and inflection rules did not recognize this expression. It may be a new term, a name, or a coverage gap—not necessarily an error. No reliable replacement was found. Skip it or add it to your dictionary.")}</p>}
@@ -180,7 +180,7 @@ function SpellingReplacement({ word, suggestions, ko, community, disabled, repla
       <input value={text} maxLength={200} disabled={disabled} onChange={event => setText(event.target.value)} />
     </label>
     <div className="spelling-actions">
-      <button ref={changeButton} type="button" onClick={() => replace(text)} disabled={disabled || word.length > 200 || !text.trim() || text === word} aria-keyshortcuts="Shift+Enter">{ko ? "바꾸기" : "Change"}<kbd aria-hidden="true">Shift + Enter</kbd></button>
+      <button ref={changeButton} type="button" onClick={() => replace(text)} disabled={disabled || word.length > 200 || (!text.trim() && !(text === "" && suggestions.includes(""))) || text === word} aria-keyshortcuts="Shift+Enter">{ko ? "바꾸기" : "Change"}<kbd aria-hidden="true">Shift + Enter</kbd></button>
       <button ref={skipButton} className="spelling-secondary" type="button" disabled={disabled} onClick={next} aria-keyshortcuts="Enter">{ko ? "이번만 건너뛰기" : "Skip once"}<kbd aria-hidden="true">Enter</kbd></button>
       <button className="spelling-secondary" type="button" disabled={disabled} onClick={ignore} title={ko ? "이번 검사에서 같은 표현이 다시 나와도 모두 건너뜁니다. 사용자 사전에는 추가하지 않습니다." : "Skip every remaining occurrence of this expression in this check. Does not add it to your dictionary."}>{ko ? "같은 표현 모두 건너뛰기" : "Skip all occurrences"}</button>
     </div>

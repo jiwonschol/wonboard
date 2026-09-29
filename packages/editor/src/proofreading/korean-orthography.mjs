@@ -14,7 +14,8 @@ export function orthography(word,sets,personal,isPredicate,isKnownNoun=w=>sets.n
     const corrected=informalFuture[1]+'겠어'+(informalFuture[2]??'');
     if(isPredicate(corrected))return {suggestions:[corrected],reason:'Restore the validated -겠어 ending before attempting a word boundary',ambiguous:true};
   }
-  if(word.startsWith('제작년')&&(!word.slice(3)||sets.josa.has(word.slice(3))))return {suggestions:['재작년'+word.slice(3)],reason:'The temporal noun is 재작년; retain its particle',ambiguous:false};
+  // 제작년 can denote a production year. A token alone cannot establish
+  // that the author intended the temporal noun 재작년.
   if(word==='한동한')return {suggestions:['한동안'],reason:'Restore the lexical duration noun 한동안 before considering internal spaces',ambiguous:true};
   if(word==='뻐끔뻐금')return {suggestions:['뻐끔뻐끔'],reason:'Restore the repeated mimetic adverb without inventing an internal boundary',ambiguous:false};
   // The past form of 하다 is 했-, including action-noun compounds. Restrict
