@@ -262,6 +262,10 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     return result;
   }
   function analyzePredicate(s) {
+    // Informal -데여 preserves -데요; indirect -는진 contracts -는지는.
+    if(s.endsWith('데여')){const host=predicate(s.slice(0,-1)+'요');if(host)return {...host,adnominal:false};}
+    if(s.endsWith('는진')){const host=predicate(s.slice(0,-1)+'지');if(host)return {...host,adnominal:false};}
+
     // Colloquial prospective -ㄹ겨 retains the inflected predicate.
     // A possible typo for 겸 does not justify splitting noun + 하다.
     if(s.endsWith('겨')){const host=predicate(s.slice(0,-1));if(host?.adnominal&&final(s.slice(0,-1))===8)return {...host,adnominal:false};}
@@ -778,7 +782,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     if(requiredAuxiliaryBoundary(word))return null;
     const rest=word.slice(1),tail=predicate(rest)??analyze(rest,personal);
     if(!tail?.root||tail.root==='이')return null;
-    if(tail.root==='하'||!isRecognizedNoun(word)&&!predicate(word)&&!noun(word,personal)&&!recognizeWhole?.(word,personal))return {text:'안 '+rest,ambiguous:true,rule:'2'};
+    if(['하','좋아하','싫어하'].includes(tail.root)||!isRecognizedNoun(word)&&!predicate(word)&&!noun(word,personal)&&!recognizeWhole?.(word,personal))return {text:'안 '+rest,ambiguous:true,rule:'2'};
     return null;
   }
   function quotedHadaBoundary(word){
@@ -799,7 +803,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
         if(main)return {text:main.text+' '+right,ambiguous:true,rule:'47'};
       }
       const nested=/(?:야|게|지|기는|기도|기나|긴)$/.test(left)?dependent(right,true,personal):null;
-      const tail=predicate(nested?.text.split(' ')[0]??right);
+      const tail=left.endsWith('지')&&/^말라(?:고|는|며|니(?:까)?)?$/.test(right)?{root:'말'}:predicate(nested?.text.split(' ')[0]??right);
       const emphasis=/(?:기는|기도|기나|긴)$/.test(left)&&tail?.root==='하'&&!predicate(word);
       const copularEmphasis=emphasis&&left.match(/^(.+)(?:이기는|이기도|이기나|이긴)$/);
       const emphasisHost=copularEmphasis&&(knownNominal(copularEmphasis[1])||personal.has(copularEmphasis[1]));
@@ -822,7 +826,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       const auxiliaryRoot=aux?.root==='줄'&&/^주(?:시|셨)/.test(right)?'주':aux?.root.endsWith('고프')?aux.root.slice(0,-2):aux?.root;
       // 달라 also has a 다르다 homograph. A validated -어 main verb
       // licenses the request reading here without changing standalone 달라.
-      const requesting=/^달라(?:고|는|며)?$/.test(right);
+      const requesting=/^달라(?:고|는|며|니(?:까|깐)?)?$/.test(right);
       const prospectiveAux=main?.adnominal&&(aux?.root==='듯하'||final(left)===8&&['만하','뻔하'].includes(aux?.root));
       const causative=main?.root.endsWith('시키')&&left===main.root.slice(0,-1)+'켜';
       const contractedVowel=final(left)===0&&[6,9,14,10].includes(Math.floor((left.charCodeAt(left.length-1)-0xac00)%588/28));
@@ -844,6 +848,8 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       const tail=word.slice(adverb.length);
       if(!tail||sets.josa.has(tail)||/^(?:부터|까지)(?:인가|인지|일까|는|도|만)?$/.test(tail))return null;
     }
+    const limited=word.match(/^(기간|수량|수량별)한정(.*)$/);
+    if(limited&&(!limited[2]||sets.josa.has(limited[2])||predicate(limited[2])?.root==='이'))return {text:limited[1]+' 한정'+limited[2],ambiguous:true,rule:'2'};
     // Quoting a complete finite clause keeps 라는 attached. The
     // dependent noun still receives its own boundary.
     const directQuote=word.match(/^(.+다)라는(걸|건|거|것)(.*)$/);
@@ -961,6 +967,9 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     // These verified boundaries precede whole-form recognition; unrelated
     // lexical compounds such as 쓸데없다 remain untouched.
     for(const [host,root]of [['필요','없'],['혼자','있'],['짜증','나']])if(word.startsWith(host)&&predicate(word.slice(host.length))?.root===root)return {text:host+' '+word.slice(host.length),ambiguous:true,rule:'2'};
+    // Bare objects can omit their particle, but existing whole nominals
+    // such as 집사람 retain priority over a shorter verb analysis.
+    if(!knownNominal(word)&&!predicate(word)&&!recognizeWhole?.(word,personal))for(const [host,root]of [['집','사'],['집','살'],['내용','묻']])if(word.startsWith(host)&&predicate(word.slice(host.length))?.root===root)return {text:host+' '+word.slice(host.length),ambiguous:true,rule:'2'};
     // Descriptive adverb inventories also contain these joined phrases.
     // Keep the boundary explicit instead of splitting every adverb compound.
     const together=word.match(/^다(같이|함께)(도|만|는)?$/);
@@ -991,7 +1000,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       // 한번/한잔/한가지/한쪽 have lexical readings as well as quantities.
       // 한배 and 세배 also have nominal meanings independent of a multiplier.
       // Keep their ambiguity; other explicit numerals still need a unit gap.
-      const lexical=(quantity[1]==='한'&&['번','잔','가지','쪽'].includes(quantity[2])&&tail!=='더'&&!tail.startsWith('씩'))||quantity[1]==='여러'&&quantity[2]==='분'||quantity[2]==='배'&&knownNominal(quantity[1]+quantity[2]);
+      const lexical=(quantity[1]==='한'&&['번','잔','가지','쪽'].includes(quantity[2])&&tail!=='더'&&!tail.startsWith('씩')&&!tail.startsWith('쯤'))||quantity[1]==='여러'&&quantity[2]==='분'||quantity[2]==='배'&&knownNominal(quantity[1]+quantity[2]);
       if(unitTail&&!lexical)return {text:quantity[1]+' '+quantity[2]+(tail==='더'?' 더':tail),ambiguous:true,rule:'43'};
     }
     const distributedAdverb=word.match(/^(.{2,})씩(.*)$/);
@@ -1032,7 +1041,8 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       const left=word.slice(0,i),right=word.slice(i);
       const interrogativeCopula=left.endsWith('인가')&&knownNominal(left.slice(0,-2));
       const negativeQuote=/(?:다고|라고)$/.test(left)?negativeBoundary(left,personal):null;
-      if(!interrogativeCopula&&(!/(?:다고|라고|자|까)$/.test(left)||!predicate(left)&&!negativeQuote))continue;
+      const question=left.length>=3&&left.endsWith('가')&&(final(left.slice(0,-1))===4||left.endsWith('는가'));
+      if(!interrogativeCopula&&(!/(?:다고|라고|자|까)$/.test(left)&&!question||!predicate(left)&&!negativeQuote))continue;
       if(left.endsWith('자')&&sets.adjective.has(predicate(word)?.root))continue;
       if(predicate(right)?.root==='하')return {text:(negativeQuote?.text??left)+' '+right,ambiguous:true,rule:'2'};
       const nested=dependent(right,true,personal);
@@ -1092,7 +1102,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
     for(let i=2;i<word.length;i++){
       const left=word.slice(0,i),right=word.slice(i),tail=predicate(right);
       const main=predicate(left)??(analyze(left,personal)?.kind==='predicate'?analyze(left,personal):null);
-      if(tail?.root==='하'&&/(?:려|려고|다고|라고|자|까)$/.test(left)&&main)return {text:left+' '+right,ambiguous:true,rule:'2'};
+      if(tail?.root==='하'&&/(?:려|려고|다고|라고|아니라|볼라|자|까)$/.test(left)&&main)return {text:left+' '+right,ambiguous:true,rule:'2'};
       if(tail?.root==='싶'&&left.endsWith('고')&&main)return {text:left+' '+right,ambiguous:true,rule:'47'};
       if(left==='뭐라'&&tail?.root==='하')return {text:left+' '+right,ambiguous:true,rule:'2'};
     }

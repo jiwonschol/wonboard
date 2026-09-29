@@ -13,15 +13,30 @@ test('reviewed spelling and local grammar choose words over unrelated distance n
 });
 
 test('object adjectives and unfinished noun phrases are not finite subject clauses',()=>{
-  for(const text of ['How can I get it open','Keep it open.','They left it open.','searching for child'])assert.equal(englishGrammar(text).length,0,text);
+  for(const text of ['How can I get it open','Keep it open.','They left it open.','running downstairs with it open','without it open','searching for child'])assert.equal(englishGrammar(text).length,0,text);
   assert.ok(englishGrammar('It open every day.').some(f=>f.suggestions[0]==='It opens'));
   assert.ok(englishGrammar('A ticket for child.').some(f=>f.suggestions[0]==='a child'));
   assert.equal(check('an agent which I call magent.').some(f=>f.original==='magent'&&f.applicable),false);
 });
 
 test('counted acronyms keep singular modifiers and HTTP status descriptions',()=>{
-  for(const text of ['500 API Error','20 API requests','3 LLM providers','54 LLM-backed workflows','12 API-driven projects','3 PR-related changes','hundreds of LLM-based tools'])assert.equal(englishGrammar(text).length,0,text);
+  for(const text of ['500 API Error','20 API requests','3 LLM providers','54 LLM-backed workflows','12 API-driven projects','3 PR-related changes','hundreds of LLM-based tools','OpenAI GPT-5 API is slower','version-12 PR','version 4.2 API'])assert.equal(englishGrammar(text).length,0,text);
   assert.ok(englishGrammar('We use 20 API.').some(f=>f.suggestions[0]==='20 APIs'));
+});
+
+test('one compounds retain their consonant sound while ordinary vowel nouns keep their article repair',()=>{
+  for(const text of ['a oneoff payment','a onetime offer','a oneway trip','a onesided argument'])assert.equal(englishGrammar(text).length,0,text);
+  assert.ok(englishGrammar('a onerous task').some(f=>f.suggestions[0]==='an onerous'));
+});
+
+test('a missing negative consonant in a past copula is restored before a predicate',()=>{
+  for(const [text,target] of [["it was't ever clear","wasn't"],["They were't ready.","weren't"]]){
+    const finding=englishGrammar(text)[0];
+    assert.equal(finding?.suggestions[0],target,text);
+    assert.equal(englishGrammar(text,[[finding.from,finding.to]]).length,0);
+    assert.equal(englishGrammar(text,[],new Set([finding.original])).length,0);
+  }
+  assert.equal(englishGrammar("was't").length,0);
 });
 
 test('regional verbs and derived adjectives survive lexical correction with short-name boundaries',()=>{

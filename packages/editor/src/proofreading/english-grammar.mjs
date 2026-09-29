@@ -380,6 +380,9 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\bwasnt\b/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='W'?"Wasn't":"wasn't",'The contraction of was not needs an apostrophe');
   }
+  for(const match of text.matchAll(/\b(was|were)['’]t\b(?=\s+(?:(?:ever|really|even|very|quite|so)\s+)?(?:clear|ready|sure|available|possible|necessary|easy|happy|working|running|going)\b)/gi)){
+    add(match.index,match.index+match[0].length,match[1]+'n'+match[0].slice(match[1].length),'The negative past copula retains n before its apostrophe');
+  }
   for(const match of text.matchAll(/\bdidnt\b(?=\s+(?:(?:really|ever|even|quite|actually|just)\s+)?(?:read|write|do|have|know|think|want|need|like|see|hear|feel|go|come|get|take|make|work|use|try|find|mean|say|expect|understand|believe|notice|remember)\b|\s+(?:I|you|we|they|he|she|it)\b)/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='D'?"Didn't":"didn't",'The negative auxiliary before a verb or question subject needs an apostrophe');
   }
@@ -487,7 +490,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b([Ii]t|[Hh]e|[Ss]he)\s+(switch|work|need|use|want|make|take|run|open|close|show|respond|seem|start|stop)(?:\s+(on|off|out|up|down))?\b/g)){
     if(permitsBaseVerb(match.index))continue;
     if(match[2]==='need'&&/^\s+of\b/i.test(text.slice(match.index+match[0].length)))continue;
-    if(match[2]==='open'&&/\b(?:get|gets|got|keep|keeps|kept|leave|leaves|left|hold|holds|held)\s*$/i.test(text.slice(Math.max(0,match.index-30),match.index)))continue;
+    if(match[2]==='open'&&/\b(?:get|gets|got|keep|keeps|kept|leave|leaves|left|hold|holds|held|with|without)\s*$/i.test(text.slice(Math.max(0,match.index-30),match.index)))continue;
     add(match.index,match.index+match[0].length,match[1]+' '+singularSubjectVerbs.get(match[2])+(match[3]?' '+match[3]:''),'This singular subject takes a third-person singular verb');
   }
   for(const match of text.matchAll(/(?:^|[.!?]\s+)[Aa]ll the (?:steps|tasks|issues|files|changes|tests|features)(?:\s+(?:of|in|for|on|with)\s+(?:(?:[a-z]+)\s+){0,8}[a-z]+)?\s+(has been)\b/gim)){
@@ -618,8 +621,13 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\bbefore and agent\b/gi))add(match.index,match.index+match[0].length,'before an agent','An precedes this singular noun');
   for(const match of text.matchAll(/\btried using to generate\b/gi))add(match.index,match.index+match[0].length,'tried using it to generate','Using needs an object in this construction');
   for(const match of text.matchAll(/\blots of important bit\b/gi))add(match.index,match.index+match[0].length,'lots of important bits','The plural quantity lots of takes bits');
-  for(const match of text.matchAll(/\b([2-9]|[1-9]\d+) PR\b(?!s|[-‐‑][A-Za-z])/g))add(match.index,match.index+match[0].length,match[1]+' PRs','A numeral above one takes a plural count abbreviation');
+  for(const match of text.matchAll(/\b([2-9]|[1-9]\d+) PR\b(?!s|[-‐‑][A-Za-z])/g)){
+    if(/[\p{L}\p{N}_.\-‐‑]/u.test(text[match.index-1]??''))continue;
+    add(match.index,match.index+match[0].length,match[1]+' PRs','A numeral above one takes a plural count abbreviation');
+  }
   for(const match of text.matchAll(/\b([2-9]|[1-9]\d+) (URL|API|LLM)\b(?!s|[-‐‑][A-Za-z])/g)){
+    // A numeric component of a model/version identifier is not a quantity.
+    if(/[\p{L}\p{N}_.\-‐‑]/u.test(text[match.index-1]??''))continue;
     // HTTP status numbers and counted noun modifiers do not pluralize the
     // acronym: 500 API Error, 20 API requests, 3 LLM providers.
     if(/^\s+(?:errors?|requests?|calls?|keys?|responses?|endpoints?|providers?|models?|tokens?|parameters?|links?|addresses?)\b/i.test(text.slice(match.index+match[0].length)))continue;
@@ -692,7 +700,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     // A following a word can label an entity (Agent A, Grade A). Its
     // uppercase spelling is evidence to abstain from article agreement.
     if(match[1]==='A'&&/[\p{L}\p{N}]\s+$/u.test(text.slice(0,match.index)))continue;
-    if(/^(?:eu|ew)/.test(match[2])||/^(?:one|once|ones|oneness)$/.test(match[2]))continue;
+    if(/^(?:eu|ew)/.test(match[2])||/^(?:one(?:off|time|way|sided)?|once|ones|oneness)$/.test(match[2]))continue;
     if(['and','or','as','is','are','of','in','on','at','out','into'].includes(match[2]))continue;
     add(match.index,match.index+match[0].length,(match[1]==='A'?'An':'an')+' '+match[2],'Use an before this vowel sound');
   }

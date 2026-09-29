@@ -2,6 +2,16 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('community endings and explicit identities retain their complete spelling',()=>{
+  for(const text of ['집사람','있는데여','이해했는진 모르겠는데','재밌겠는걸','이 시기에','하늘빛나래 안식처','수도사 연맹 하다가','Maps 이 3개','크리뜨신분 이니 드림'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const text of ['호드 고고한선비 캐릭 유저입니다.','잠행안해-도적-[길드이름] 님한테'])assert.equal(check(text).some(f=>f.applicable&&['고고한선비','잠행안해'].includes(f.original)),false,text);
+  for(const [text,target]of [['기간한정','기간 한정'],['가능한가해서요','가능한가 해서요'],['산출해달라니까','산출해 달라니까'],['집산다고','집 산다고']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('complete quotation and negation hosts restore overlooked boundaries',()=>{
+  for(const [text,target]of [['한번쯤','한 번쯤'],['안좋아해서','안 좋아해서'],['내용묻는','내용 묻는'],['아니라하니까','아니라 하니까'],['해볼라하는데','해볼라 하는데'],['하지말라','하지 말라']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
 test('temporal phrases retain particle and predicate boundaries',()=>{
   for(const text of ['어느새부터인가','어느덧부터','엄마한테는','확인할겨','구매하려니깐'])assert.equal(check(text).some(f=>f.applicable),false,text);
   for(const [text,target]of [['이번주는','이번 주는'],['이번주해야하실듯','이번 주 해야 하실 듯'],['안정형일때','안정형일 때']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
@@ -799,7 +809,8 @@ test('spelling uses decomposed Hangul without changing source offsets',()=>{
   assert.ok(f.suggestions.includes('맞춤법을'));
 });
 test('ending versus dependent noun ambiguity is exposed',()=>{
-  assert.equal(check('하시는걸')[0].ambiguous,true);
+  assert.equal(check('하시는걸')[0]?.applicable??false,false);
+  assert.equal(check('하시는걸 봤어요')[0].ambiguous,true);
 });
 test('ambiguous Korean boundaries preserve the intended reading and lexical names',()=>{
   const joined=check('교회가야해서').find(f=>f.original==='교회가야해서');

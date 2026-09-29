@@ -164,7 +164,7 @@ export function createChecker(data) {
     const lower=word.toLowerCase(),alphabet='abcdefghijklmnopqrstuvwxyz',candidates=new Set();
     // Reviewed spelling repairs that weak edit-distance evidence otherwise
     // suppresses. These remain errors, never recognition-only vocabulary.
-    const lexicalRepair={woudl:'would',recommention:'recommendation',basiically:'basically',shiney:'shiny',monitized:'monetized',condemed:'condemned',succintly:'succinctly',asbandoned:'abandoned',debarcle:'debacle',jepardy:'jeopardy',breathble:'breathable',insectasides:'insecticides',comapss:'compass',optitician:'optician',proofreaded:'proofread',anyboby:'anybody',technicaians:'technicians',lucious:'luscious',havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth',conming:'coming',washine:'washing',opnions:'opinions',maube:'maybe',staistic:'statistic',sautee:'saute',nothwithstanding:'notwithstanding',creasote:'creosote',subtley:'subtly',harasssed:'harassed',headequarter:'headquarters',unbereable:'unbearable',diptheria:'diphtheria',communial:'communal',clobering:'clobbering',mantlepiece:'mantelpiece',spolit:'spoilt',breathelessness:'breathlessness',ancestores:'ancestors',combustable:'combustible',desparately:'desperately',predesessors:'predecessors',squeeking:'squeaking',adheasion:'adhesion',mismangement:'mismanagement',aneamic:'anaemic',duatpan:'dustpan',idiogram:'ideogram',omeprazol:'omeprazole',antogonistic:'antagonistic'}[lower];
+    const lexicalRepair={especulation:'speculation',especulations:'speculations',woudl:'would',recommention:'recommendation',basiically:'basically',shiney:'shiny',monitized:'monetized',condemed:'condemned',succintly:'succinctly',asbandoned:'abandoned',debarcle:'debacle',jepardy:'jeopardy',breathble:'breathable',insectasides:'insecticides',comapss:'compass',optitician:'optician',proofreaded:'proofread',anyboby:'anybody',technicaians:'technicians',lucious:'luscious',havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth',conming:'coming',washine:'washing',opnions:'opinions',maube:'maybe',staistic:'statistic',sautee:'saute',nothwithstanding:'notwithstanding',creasote:'creosote',subtley:'subtly',harasssed:'harassed',headequarter:'headquarters',unbereable:'unbearable',diptheria:'diphtheria',communial:'communal',clobering:'clobbering',mantlepiece:'mantelpiece',spolit:'spoilt',breathelessness:'breathlessness',ancestores:'ancestors',combustable:'combustible',desparately:'desperately',predesessors:'predecessors',squeeking:'squeaking',adheasion:'adhesion',mismangement:'mismanagement',aneamic:'anaemic',duatpan:'dustpan',idiogram:'ideogram',omeprazol:'omeprazole',antogonistic:'antagonistic'}[lower];
     if(lexicalRepair&&enLower.has(lexicalRepair))return [word===word.toUpperCase()?lexicalRepair.toUpperCase():/^[A-Z][a-z]+$/.test(word)?lexicalRepair[0].toUpperCase()+lexicalRepair.slice(1):lexicalRepair];
     if(lower==='alot')return ['a lot'];
     if(lower==='canthe')return ['can the'];
@@ -245,11 +245,17 @@ export function createChecker(data) {
     // target usage and rank familiar targets before prefix resemblance.
     // Strong letter-order/run evidence takes priority among attested targets.
     const usage=s=>englishUsage.get(s)??0;
+    // Allow a dictionary adverb with an internal omission even when the usage
+    // sample contains no occurrence of that particular -ly form.
+    const adverbOmission=s=>lower.length>=7&&lower.endsWith('ly')&&s.endsWith('ly')&&s.length===lower.length+1&&enLower.has(s.slice(0,-2))&&sharedPrefix(s)>=3&&nearOne(lower,s);
     // A repeated source letter alone is not proof that it should be deleted.
     // A much more frequent insertion target can preserve the intended word
     // (litte/little) instead of a rare doubled-letter deletion (lite).
     const frequentInsertion=s=>s.length===lower.length+1&&usage(s)>=20&&[...sameRuns].some(other=>other.length<lower.length&&usage(s)>=10*Math.max(1,usage(other)));
-    return [...candidates].filter(s=>spellingEvidence(s)&&(usage(s)>=1||s.length>lower.length&&sameRuns.has(s))&&(lower.length>=5||transpositions.has(s)||s.length===lower.length+1&&sameRuns.has(s)&&usage(s)>=20||/([a-z])\1{2,}/.test(lower)&&sameRuns.has(s))&&(s[0]===lower[0]||!(/^[A-Z]/.test(word))&&transpositions.has(s))).sort((a,b)=>Number(frequentInsertion(b))-Number(frequentInsertion(a))||Number(terminalKeySlip(b))-Number(terminalKeySlip(a))||Number(adjectiveEnding(b))-Number(adjectiveEnding(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||Number(transpositions.has(b))-Number(transpositions.has(a))||Number(b[0]===lower[0])-Number(a[0]===lower[0])||Number(doubled.has(b))-Number(doubled.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||usage(b)-usage(a)||sharedPrefix(b)-sharedPrefix(a)||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
+    // With equally observed candidates, prefer filling an internal omission
+    // while retaining both ends over deleting an original letter.
+    const internalInsertion=s=>s.length===lower.length+1&&usage(s)>=1&&sharedPrefix(s)>=3&&s.slice(-2)===lower.slice(-2)&&nearOne(lower,s)&&[...candidates].some(other=>other.length===lower.length-1&&usage(other)>=1&&usage(s)>=usage(other)&&nearOne(lower,other));
+    return [...candidates].filter(s=>spellingEvidence(s)&&(usage(s)>=1||adverbOmission(s)||s.length>lower.length&&sameRuns.has(s))&&(lower.length>=5||transpositions.has(s)||s.length===lower.length+1&&sameRuns.has(s)&&usage(s)>=20||/([a-z])\1{2,}/.test(lower)&&sameRuns.has(s))&&(s[0]===lower[0]||!(/^[A-Z]/.test(word))&&transpositions.has(s))).sort((a,b)=>Number(internalInsertion(b))-Number(internalInsertion(a))||Number(frequentInsertion(b))-Number(frequentInsertion(a))||Number(terminalKeySlip(b))-Number(terminalKeySlip(a))||Number(adjectiveEnding(b))-Number(adjectiveEnding(a))||Number(sameRuns.has(b))-Number(sameRuns.has(a))||Number(transpositions.has(b))-Number(transpositions.has(a))||Number(b[0]===lower[0])-Number(a[0]===lower[0])||Number(doubled.has(b))-Number(doubled.has(a))||suffixScore(b)-suffixScore(a)||Number(b===lower.slice(0,-1))-Number(a===lower.slice(0,-1))||usage(b)-usage(a)||sharedPrefix(b)-sharedPrefix(a)||Math.abs(a.length-lower.length)-Math.abs(b.length-lower.length)||a.localeCompare(b)).slice(0,5).map(s=>word===word.toUpperCase()?s.toUpperCase():/^[A-Z][a-z]+$/.test(word)?s[0].toUpperCase()+s.slice(1):s);
   }
   function formalEndingCandidate(word) {
     // Recover a mistyped ㅁ in the formal -ㅂ니다 ending only when the
@@ -595,6 +601,9 @@ export function createChecker(data) {
             // A missing repeated consonant in a familiar word is distinct
             // from weak name-like substitutions such as Amature/amateur.
             if(target.length===lower.length+1&&englishUsage.get(target)>=10&&lower.replace(/([a-z])\1+/g,'$1')===target.replace(/([a-z])\1+/g,'$1'))return true;
+            // Moving a doubled letter to another run preserves the complete
+            // letter sequence and length, unlike substituting a similar name.
+            if(lower.length>=6&&target.length===lower.length&&englishUsage.get(target)>=1&&lower.replace(/([a-z])\1+/g,'$1')===target.replace(/([a-z])\1+/g,'$1'))return true;
             // Preserve the attested -ceive spelling repair after c.
             if(/^(?:re|de|per|con)cieve(?:d|s)?$/.test(lower)&&lower.replace('cie','cei')===target)return true;
             if(lower.length>=6&&/([a-z])\1{2,}/.test(lower)&&lower.replace(/([a-z])\1+/g,'$1')===target.replace(/([a-z])\1+/g,'$1'))return true;
@@ -684,6 +693,13 @@ export function createChecker(data) {
         emit(from,to,'en',candidates.length?'spelling':'unknown',candidates,word);
         if(shortIdentifier)Object.assign(results.at(-1),{ambiguous:true,reason:'Possible short identifier in Korean prose; no automatic replacement'});
       } else {
+        // A named avatar is an identity, even when its syllables form a
+        // normal adjective/noun phrase. Keep the unknown-name review.
+        const avatarName=/^[ \u00a0]+캐릭(?:터)?[ \u00a0]+유저/u.test(text.slice(to))||/^-[가-힣]+-\[[^\]\n]+\][ \u00a0]+님/u.test(text.slice(to));
+        if(avatarName){emit(from,to,'ko','unknown',[],word);results.at(-1).reason='Explicit character-name context; preserve the whole identity';continue;}
+        // Sentence-final -는걸 is a conversational ending. Object clauses
+        // with a following predicate still use the dependent noun boundary.
+        if(word.endsWith('는걸')&&morphology.predicate(word)&&/^(?:[ \u00a0]*[.!?…~]|[ \u00a0]*$)/u.test(text.slice(to)))continue;
         if(word==='되느냐였는데')continue;
         if(word==='하다하다'){emit(from,to,'ko','unknown',[],word);continue;}
         // This gaming noun's copula form is complete; the general nominal
@@ -720,7 +736,8 @@ export function createChecker(data) {
           const stem=morphology.predicate(word+'다'),joined=word+honorific[1],complete=morphology.predicate(joined),end=to+honorific[0].length;
           // 시인 is a whole noun, not a free honorific ending. Other
           // nominal homographs need a core nominal/adverb host (새 신).
-          const independent=honorific[1]==='시인'||knownOrthographicNoun(honorific[1])&&(sets.noun.has(word)||sets.adverb.has(word));
+          const honorificNoun=morphology.analyze(honorific[1],personal);
+          const independent=honorific[1]==='시인'||(knownOrthographicNoun(honorific[1])||honorificNoun?.kind==='noun')&&(sets.noun.has(word)||sets.adverb.has(word)||['이','그','저','어느'].includes(word));
           if(!independent&&stem?.root===word&&complete?.root===word&&!excluded.some(([a,b])=>from<b&&end>a)&&!results.some(f=>f.from<end&&f.to>from)){
             emit(from,end,'ko','spacing',[joined]);
             Object.assign(results.at(-1),{ambiguous:true,reason:'Keep the validated honorific inflection attached to its stem; confirm the intended predicate'});
@@ -778,7 +795,7 @@ export function createChecker(data) {
         // the following gap so protected text and a name review stay intact.
         const demonstrativeI=word==='이'&&(()=>{
           const next=text.slice(to).match(/^[ \u00a0]+([가-힣]+)/)?.[1];
-          return next&&(knownOrthographicNoun(next)||morphology.analyze(next,personal)?.kind==='noun');
+          return /^[ \u00a0]+\d+(?:개|명|가지|권|장|대|번|곳)/.test(text.slice(to))||next&&(knownOrthographicNoun(next)||morphology.analyze(next,personal)?.kind==='noun');
         })();
         if(!demonstrativeI&&(unambiguousParticles.has(word)||['에','을','를','은','는','이','가','와','과','도','만','의','라고','이라는','라는'].includes(word))){
           const gap=text.slice(0,from).match(/[ \u00a0]+$/);
@@ -913,7 +930,8 @@ export function createChecker(data) {
         // a bare nominal, not an object phrase such as 짐을 이고.
         const connectiveCopula=!!connectiveHost&&!/[을를]$/.test(connectiveHost)&&(connectiveAnalysis?.kind==='noun'&&connectiveAnalysis.base===connectiveHost||knownOrthographicNoun(connectiveHost));
         const numericCopula=/^(?:이고|인데)(?:요)?$/.test(word)&&/(?:^|[^A-Za-z0-9_])\d+(?:[.,]\d+)*[A-Za-z]+[ \u00a0]+$/.test(text.slice(0,from));
-        const copulaBoundary=(contractedPast||connectiveCopula||numericCopula||/^(?:입니다|입니까|이었다|이었|이에요|예요|이지만|이니|이라|이던)/.test(word))&&morphology.predicate(word)?.root==='이';
+        const communityCurrency=word==='이니'&&/^[ \u00a0]+(?:드림|드려|드립|드립니다|주세요|지급|선물|나눔|보내)/.test(text.slice(to));
+        const copulaBoundary=!communityCurrency&&(contractedPast||connectiveCopula||numericCopula||/^(?:입니다|입니까|이었다|이었|이에요|예요|이지만|이니|이라|이던)/.test(word))&&morphology.predicate(word)?.root==='이';
         if(copulaBoundary){
           const preceding=text.slice(0,from).match(/([가-힣]+)([ \u00a0]+)$/);
           const nominalReview=preceding&&results.some(f=>f.type==='unknown'&&f.reviewKind==='community'&&f.from===from-preceding[0].length&&f.to===from-preceding[2].length);

@@ -46,7 +46,7 @@ test('known acronym casing precedes unrelated edit-distance candidates',()=>{
 test('misplaced letter doubling ranks the preserved letter sequence before substitutions',()=>{
   const check=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:['tommyrot','tomorrow','committee','committed']});
   assert.equal(check('tommorow')[0].suggestions[0],'tomorrow');
-  assert.deepEqual(check('Tommorow'),[]); // A capitalized unknown may be a name.
+  assert.equal(check('Tommorow')[0]?.suggestions[0],'Tomorrow');
   assert.deepEqual(check('TOMMOROW')[0].suggestions,[]); // Existing acronym review policy.
   assert.equal(check('committe')[0].suggestions[0],'committee');
   assert.deepEqual(check('tommyrot tomorrow committee committed'),[]);
@@ -90,4 +90,19 @@ test('short doubled-letter omission and reviewed adjective spelling remain repai
   for(const [source,target] of [['stil','still'],['antogonistic','antagonistic']])assert.equal(check(source)[0]?.suggestions[0],target,source);
   assert.equal(check('stil',['stil']).length,0);
   assert.equal(check('Hyenna').some(f=>f.applicable),false);
+});
+
+test('preserved letter sequence and internal omissions recover attested spellings',()=>{
+  const check=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:['speculations','superbly','superb','supplier','supper','tariff','custom','customer']});
+  for(const [source,target] of [['especulations','speculations'],['supebly','superbly'],['suppier','supplier'],['Tarrif','Tariff'],['custome','custom']]){
+    assert.equal(check(source)[0]?.suggestions[0],target,source);
+    assert.equal(check(source,[source]).length,0,source);
+  }
+  for(const text of ['Amature','Hyenna','puters'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('electronic prefixes and product names do not lose their leading vowel',()=>{
+  const check=createChecker({ko:{noun:[],verb:[],adjective:[],adverb:[],josa:[],ending:[]},en:['commerce','message','messaging','business','speculation','speculations']});
+  for(const source of ['ecommerce','imessage','imessaging','ebusiness'])assert.equal(check(source).some(f=>f.applicable),false,source);
+  for(const [source,target] of [['especulation','speculation'],['especulations','speculations']])assert.equal(check(source)[0]?.suggestions[0],target,source);
 });
