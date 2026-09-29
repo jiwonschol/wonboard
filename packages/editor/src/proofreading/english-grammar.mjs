@@ -146,7 +146,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'built','This perfect contraction takes the past participle built');
   }
-  for(const match of text.matchAll(/\b(?:have|has|had)\s+(?:it|them)\s+(setup)\b/gi)){
+  for(const match of text.matchAll(/\b(?:[Hh]ave|[Hh]as|[Hh]ad)\s+(?:it|them)\s+(setup)\b/g)){
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'set up','The object complement is the participle set up');
   }
@@ -217,10 +217,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(panner)(?=\s+tikka\b)/gi)){
     add(match.index,match.index+match[0].length,match[0][0]==='P'?'Paneer':'paneer','The cheese in this dish is paneer','spelling');
   }
-  for(const match of text.matchAll(/\bmade\s+(threw)(?=\s+a\s+coffee\s+pot\b)/gi)){
-    const from=match.index+match[0].lastIndexOf(match[1]);
-    add(from,from+match[1].length,'through','This describes the preparation route, not a throwing action');
-  }
   for(const match of text.matchAll(/\bterms\s+(contains)(?=\s+(?:this|that|the|a|an)\b)/gi)){
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'contain','The plural subject terms takes contain');
@@ -288,9 +284,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   for(const match of text.matchAll(/\b([Ii])ts\s+(reached|completed|finished|changed|improved|opened|closed|started|stopped)\b(?=\s+(?:the|a|an|this|that|my|your|our|their|its)\b)/g)){
     add(match.index,match.index+match[0].length,(match[1]==='I'?"It's":"it's")+' '+match[2],'A completed action before this object needs it has');
-  }
-  for(const match of text.matchAll(/\bit['’]s\b(?=\s+(?:account|owner|name|title|role|users|settings|source|purpose|tail|tool)\b)/gi)){
-    add(match.index,match.index+match[0].length,match[0][0]==='I'?'Its':'its','A possessive determiner before this noun has no apostrophe');
   }
   for(const match of text.matchAll(/\b[Ii]m\b(?=\s+(?:(?:mostly|currently|really|just)\s+)?(?:a|an|back|going|doing|using|building|creating|related|split|sorry|sure|ready|glad|not|still|here|having|trying|looking|Looking|working|wondering)\b)/g)){
     add(match.index,match.index+match[0].length,"I'm",'First-person contraction needs an apostrophe');
@@ -392,11 +385,8 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(?:a A\/B|a XP)\b/g)){
     add(match.index,match.index+match[0].length,'an '+match[0].slice(2),'These initialisms begin with a vowel sound');
   }
-  for(const match of text.matchAll(/\ba expert\b/gi)){
-    add(match.index,match.index+match[0].length,match[0].replace(/\ba /i,'an '),'Expert begins with a vowel sound');
-  }
-  for(const match of text.matchAll(/\ban (["“‘']?)(takeout|tool|test|time|team|thread|task|new)\b/gi)){
-    add(match.index,match.index+match[0].length,match[0].replace(/\ban /i,'a '),'This noun begins with a consonant sound');
+  for(const match of text.matchAll(/\b[Aa]n (["“‘']?)(takeout|tool|test|time|team|thread|task|new)\b/g)){
+    add(match.index,match.index+match[0].length,match[0].replace(/\b([Aa])n /,'$1 '),'This noun begins with a consonant sound');
   }
   // Forward to is prepositional here. Avoid noun homographs such as work,
   // play and travel, which are already valid after this expression.
@@ -459,6 +449,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   const pluralSubjectVerbs=new Map([['seems','seem'],['works','work'],['needs','need'],['uses','use'],['wants','want'],['has','have'],['does','do'],['goes','go'],['makes','make'],['takes','take'],['runs','run'],['opens','open'],['switches','switch'],['connects','connect'],['understands','understand']]);
   for(const match of text.matchAll(/\b([Tt]hey|[Ww]e|[Yy]ou|[Ii])\s+(seems|works|needs|uses|wants|has|does|goes|makes|takes|runs|opens|switches|connects|understands)\b/g)){
+    if(/\bdoes(?:n['’]?t)?\s+$/i.test(text.slice(0,match.index)))continue;
     add(match.index,match.index+match[0].length,(match[1]==='i'?'I':match[1])+' '+pluralSubjectVerbs.get(match[2]),'This subject takes the uninflected present-tense verb');
   }
   // Mass nouns can be modifiers in a software company or a feedback loop.
@@ -484,7 +475,9 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b([Ii]t|[Hh]e|[Ss]he)\s+(switch|work|need|use|want|make|take|run|open|close|show|respond|seem|start|stop)(?:\s+(on|off|out|up|down))?\b/g)){
     if(permitsBaseVerb(match.index))continue;
     if(match[2]==='need'&&/^\s+of\b/i.test(text.slice(match.index+match[0].length)))continue;
-    if(match[2]==='open'&&/\b(?:get|gets|got|keep|keeps|kept|leave|leaves|left|hold|holds|held|with|without)\s*$/i.test(text.slice(Math.max(0,match.index-30),match.index)))continue;
+    // Open and close can be object predicates, regardless of the governing
+    // verb. Require a sentence-initial subject instead of listing those verbs.
+    if(/^(?:open|close)$/.test(match[2])&&!/(?:^|[.!?]\s*)$/.test(text.slice(0,match.index)))continue;
     add(match.index,match.index+match[0].length,match[1]+' '+singularSubjectVerbs.get(match[2])+(match[3]?' '+match[3]:''),'This singular subject takes a third-person singular verb');
   }
   for(const match of text.matchAll(/(?:^|[.!?]\s+)[Aa]ll the (?:steps|tasks|issues|files|changes|tests|features)(?:\s+(?:of|in|for|on|with)\s+(?:(?:[a-z]+)\s+){0,8}[a-z]+)?\s+(has been)\b/gim)){
@@ -518,13 +511,8 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\boaid\b/gi))add(match.index,match.index+match[0].length,'paid','Reviewed letter substitution in paid','spelling');
   for(const match of text.matchAll(/\bnatual\b/gi))add(match.index,match.index+match[0].length,'natural','Reviewed missing letter in natural','spelling');
   for(const match of text.matchAll(/\bchinnese\b/gi))add(match.index,match.index+match[0].length,'Chinese','Reviewed spelling of the proper adjective Chinese','spelling');
-  for(const match of text.matchAll(/\b(?:news|front page|go there|do this|work on it) everyday\b/gi)){
+  for(const match of text.matchAll(/\b(?:news|front page|go there|do this|work on it) everyday\b(?=\s*(?:[.!?;]|$))/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/everyday$/i,'every day'),'Every day is the adverbial time expression');
-  }
-  for(const match of text.matchAll(/\bloose their minds\b/gi))add(match.index,match.index+match[0].length,'lose their minds','Lose means to cease to have; loose is an adjective or verb');
-  for(const match of text.matchAll(/\b(?:AI|LLM)['’]s are\b/g))add(match.index,match.index+match[0].length,match[0].replace(/['’]s are$/,'s are'),'A plural acronym has no possessive apostrophe');
-  for(const match of text.matchAll(/\b(?:AI|LLM|API|GPU|CPU)['’]s\b(?=\s+(?:exist|have)\b)/g)){
-    add(match.index,match.index+match[0].length,match[0].replace(/['’]s$/,'s'),'A plural acronym before a plural verb has no possessive apostrophe');
   }
   for(const match of text.matchAll(/\b(the|a|an)\s+\1\b/g)){
     add(match.index,match.index+match[0].length,match[0].replace(/^(\S+)\s+\S+$/,'$1'),'The adjacent function word is repeated');
@@ -560,14 +548,13 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   const doSupportForms=new Map([['tries','try'],['has','have'],['uses','use'],['works','work'],['needs','need'],['wants','want'],['seems','seem'],['worked','work'],['came','come'],['went','go'],['made','make'],['took','take'],['broke','break']]);
   for(const match of text.matchAll(/\b(do|does|did|don['’]?t|doesn['’]?t|didn['’]?t)\s+(?:(i|you|we|they|it|he|she|this|that)\s+)?(has|uses|works|needs|wants|seems|tries|worked|came|went|made|took|broke)\b/gi)){
-    if(!match[2]&&(!/n['’]?t$/i.test(match[1])||!/\b(?:I|you|we|they|it|he|she)\s+$/i.test(text.slice(0,match.index))))continue;
+    const subject=match[2]??text.slice(0,match.index).match(/\b(I|you|we|they|it|he|she)\s+$/i)?.[1];
+    if(!match[2]&&(!/n['’]?t$/i.test(match[1])||!subject))continue;
+    const auxiliary=match[1].toLowerCase().replace(/n['’]?t$/,'');
+    if(auxiliary!=='did'&&auxiliary!==(/^(?:it|he|she|this|that)$/i.test(subject)?'does':'do'))continue;
     const from=match[2]?match.index+match[0].lastIndexOf(match[3]):match.index;
     const base=doSupportForms.get(match[3].toLowerCase());
     add(from,match.index+match[0].length,match[2]?base:match[1]+' '+base,'Do-support takes the base form of the main verb');
-  }
-  for(const match of text.matchAll(/\b(?:[Dd]o|[Dd]oes|[Dd]id)\s+(?:[A-Z][A-Z0-9]{1,}(?:\s+[A-Z][A-Z0-9]{1,}){0,2}|[A-Z][a-z]+|(?:the|a|an|my|our|your|his|her|their|this|that)\s+[a-z]+)\s+(?:(?:really|ever|also|still|only|always|often)\s+)?(has|uses|works|needs|wants|seems)\b/g)){
-    const from=match.index+match[0].lastIndexOf(match[1]);
-    add(from,from+match[1].length,doSupportForms.get(match[1]),'Do-support takes the base form of the main verb');
   }
   // Restrict setup to a pronoun-led clause: the noun and noun modifier are
   // valid in phrases such as my setup, the setup process, and go to setup.
@@ -585,7 +572,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     add(match.index,match.index+match[0].length,match[1]+' '+irregularParticiples.get(match[2].toLowerCase()),'Perfect aspect takes the past participle');
   }
   const singularCountNouns=new Map([['questions','question'],['devices','device'],['users','user'],['files','file'],['apps','app'],['projects','project'],['tasks','task'],['issues','issue'],['cases','case'],['options','option'],['servers','server'],['cameras','camera'],['systems','system'],['models','model'],['features','feature'],['tests','test'],['versions','version'],['reports','report'],['messages','message'],['answers','answer'],['programs','program'],['children','child']]);
-  for(const match of text.matchAll(/\b([Ee]very)\s+(questions|devices|users|files|apps|projects|tasks|issues|cases|options|servers|cameras|systems|models|features|tests|versions|reports|messages|answers|programs|children)\b(?!['’])/g)){
+  for(const match of text.matchAll(/\b([Ee]very)\s+(questions|devices|users|files|apps|projects|tasks|issues|cases|options|servers|cameras|systems|models|features|tests|versions|reports|messages|answers|programs|children)\b(?=\s*(?:[.!?;]|$))/g)){
     add(match.index,match.index+match[0].length,match[1]+' '+singularCountNouns.get(match[2]),'Every takes a singular count noun here');
   }
   for(const match of text.matchAll(/\ba (?:dumping|testing|training) grounds\b(?=\s*(?:[.!?;]|$))/gi))add(match.index,match.index+match[0].length,match[0].replace(/grounds$/i,'ground'),'A singular article takes the singular noun ground at this phrase boundary');
