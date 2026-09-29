@@ -87,6 +87,7 @@ export function contextSuggestion(text,from,to,personal,predicate){
   if(/["'“‘「『]$/.test(left)||/^["'”’」』]/.test(right))return null;
   const next=right.match(/^[ \u00a0]+([가-힣]+)/)?.[1];
   const suggest=(replacement,reason)=>({suggestions:[replacement],ambiguous:true,reason});
+  if(word.startsWith('자주색칠'))return {type:'unknown',suggestions:[],ambiguous:true,reason:'The purple color and frequency readings need different repairs; preserve the original for review'};
   if(word.startsWith('자주')&&/(?:^|[ \u00a0])(?:이걸|그걸|저걸|이것을|그것을|이 일을|그 일을)[ \u00a0]+$/.test(left)&&predicate(word.slice(2))){
     return {...suggest('자주 '+word.slice(2),'Separate frequency adverb 자주 from 하다 when an explicit object precedes it'),type:'spacing'};
   }

@@ -2,6 +2,24 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('linked repository names remain protected before terminal sentence punctuation',()=>{
+  for(const url of ['https://github.com/acme/Recieve.','HTTPS://github.com/acme/Recieve.','https://github.com/acme/Recieve...'])assert.equal(check(`See ${url} Recieve is our repository.`).some(f=>f.applicable),false,url);
+  assert.ok(check('See https://github.com/acme/Recieve. Recieve has teh file.').some(f=>f.suggestions.includes('the')));
+});
+
+test('relative and absolute slash paths preserve directory spelling and surrounding prose',()=>{
+  for(const path of ['recieve/config.json','./recieve/config.json','../recieve/config.json','/recieve/config.json','recieve/config']){
+    const source=`Open ${path} before continuing.`,findings=check(source);
+    assert.equal(findings.some(f=>f.applicable),false,source);
+    assert.ok(check(`${path} contains teh file.`).some(f=>f.suggestions.includes('the')),path);
+  }
+});
+
+test('a purple paint reading is not forced into a frequency adverb',()=>{
+  for(const source of ['이걸 자주색칠한다','그걸 자주색칠해요'])assert.equal(check(source).some(f=>f.applicable),false,source);
+  assert.ok(check('이걸 자주한다고?').some(f=>f.suggestions.includes('자주 한다고')));
+});
+
 test('SPAC finance nouns keep their distinct spelling with nominal tails',()=>{
   for(const source of ['스팩 합병을 발표했다','스팩 상장을 추진한다','스팩에 투자했다','스팩입니다'])assert.equal(check(source).some(f=>f.applicable),false,source);
   assert.ok(check('스팩 상장을 확인됬어요').some(f=>f.suggestions.includes('확인됐어요')));

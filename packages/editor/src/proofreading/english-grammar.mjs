@@ -126,7 +126,8 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].indexOf(match[1]);
     add(from,from+match[1].length,'','A complete plural duration does not take the singular article a');
   }
-  for(const match of text.matchAll(/\b(?:start|end|middle|beginning)\s+of\s+(january|february|march|april|may|june|july|august|september|october|november|december)\b(?=\s*[,.;!?)]|$|\s+(?:for|with|and|or|in)\b)/g)){
+  // May and march can name ordinary words or commands in this same phrase.
+  for(const match of text.matchAll(/\b(?:start|end|middle|beginning)\s+of\s+(january|february|april|june|july|august|september|october|november|december)\b(?=\s*[,.;!?)]|$|\s+(?:for|with|and|or|in)\b)/g)){
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,match[1][0].toUpperCase()+match[1].slice(1),'A month name in this calendar phrase is capitalized');
   }
@@ -319,7 +320,8 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\bI`(?:m|d|ll|ve)\b/g)){
     add(match.index,match.index+match[0].length,match[0].replace('`',"'"),'A contraction uses an apostrophe, not a grave accent');
   }
-  for(const match of text.matchAll(/\bId\b(?=\s+(?:like|rather|prefer)\b)/g)){
+  for(const match of text.matchAll(/\bId\b(?=\s+(?:(?:like|prefer)\s+to\b|rather\s+(?:be|have|use|work|go|stay)\b))/g)){
+    if(!/(?:^|[.!?]\s*)$/.test(text.slice(0,match.index)))continue;
     add(match.index,match.index+2,"I'd",'I would needs an apostrophe before this preference verb');
   }
   for(const match of text.matchAll(/\bwont\b(?=\s+(?:(?:ever|even|really|just)\s+)?(?:let|allow|work|run|load|open|start|stop|be|have|do|go|come|use|show)\b)/gi)){
@@ -467,6 +469,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     add(match.index,match.index+4,match[0][0]==='M'?'Many':'many','This plural count noun takes many');
   }
   for(const match of text.matchAll(/\b(?:it|he|she)\s+(?:just|often|always|sometimes)\s+(try|work|use|need|want)\b/gi)){
+    if(!/(?:^|[.!?]\s*)$/.test(text.slice(0,match.index)))continue;
     if(permitsBaseVerb(match.index))continue;
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,match[1].toLowerCase()==='try'?'tries':match[1]+'s','This singular subject takes a third-person present verb');
@@ -479,11 +482,11 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   const singularSubjectVerbs=new Map([['switch','switches'],['work','works'],['need','needs'],['use','uses'],['want','wants'],['make','makes'],['take','takes'],['run','runs'],['open','opens'],['close','closes'],['show','shows'],['respond','responds'],['seem','seems'],['start','starts'],['stop','stops']]);
   for(const match of text.matchAll(/\b([Ii]t|[Hh]e|[Ss]he)\s+(switch|work|need|use|want|make|take|run|open|close|show|respond|seem|start|stop)(?:\s+(on|off|out|up|down))?\b/g)){
+    // Inside a clause the pronoun can be an object (call it work), and a
+    // following base form need not be a finite verb. Require a subject boundary.
+    if(!/(?:^|[.!?]\s*)$/.test(text.slice(0,match.index)))continue;
     if(permitsBaseVerb(match.index))continue;
     if(match[2]==='need'&&/^\s+of\b/i.test(text.slice(match.index+match[0].length)))continue;
-    // Open and close can be object predicates, regardless of the governing
-    // verb. Require a sentence-initial subject instead of listing those verbs.
-    if(/^(?:open|close)$/.test(match[2])&&!/(?:^|[.!?]\s*)$/.test(text.slice(0,match.index)))continue;
     add(match.index,match.index+match[0].length,match[1]+' '+singularSubjectVerbs.get(match[2])+(match[3]?' '+match[3]:''),'This singular subject takes a third-person singular verb');
   }
   for(const match of text.matchAll(/(?:^|[.!?]\s+)[Aa]ll the (?:steps|tasks|issues|files|changes|tests|features)\s+(has been)\b/gim)){
@@ -543,10 +546,8 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(?:use|need|spend|allocate|provide) marginal amount\b(?=\s*(?:[.!?;]|$))/gi))add(match.index,match.index+match[0].length,match[0].replace(/ marginal amount$/i,' a marginal amount'),'This completed count noun phrase needs an article');
   for(const match of text.matchAll(/\b(?:got|get|gets|getting) couple\b(?=\s+of\b)/gi))add(match.index,match.index+match[0].length,match[0].replace(/ couple$/i,' a couple'),'A couple of needs an article');
   for(const match of text.matchAll(/\b(?:it|he|she|this|that)\s+(?:(?:itself|himself|herself)\s+)?(?:(?:only|still|also|already|usually|always|often|sometimes|never)\s+)?(have)\b/gi)){
+    if(!/(?:^|[.!?]\s*)$/.test(text.slice(0,match.index)))continue;
     if(permitsBaseVerb(match.index))continue;
-    // That can introduce a relative clause with a plural antecedent. Only
-    // treat a demonstrative as singular at an explicit sentence boundary.
-    if(/^(?:this|that)\b/i.test(match[0])&&!/(?:^|[.!?]\s*)$/.test(text.slice(0,match.index)))continue;
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'has','This singular subject takes has');
   }

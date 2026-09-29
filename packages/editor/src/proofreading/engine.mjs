@@ -360,7 +360,10 @@ export function createChecker(data) {
     // Reuse it for repeated words; context rules and offsets stay per occurrence.
     const spacingResults=new Map();
     let auxiliaryRepairEnd=0;
-    const repositoryNames=[...text.matchAll(/https:\/\/github\.com\/[A-Za-z0-9_.-]+\/([A-Za-z0-9_.-]+)/g)].map(m=>m[1].toLowerCase());
+    const repositoryNames=[...text.matchAll(/https:\/\/github\.com\/[A-Za-z0-9_.-]+\/([A-Za-z0-9_.-]+)/gi)].flatMap(m=>{
+      const name=m[1].toLowerCase();
+      return [name,name.replace(/\.+$/,'')];
+    });
     // A parenthetical Romance-language name is not English edit-distance
     // input. Keep the words reviewable and preserve the surrounding prose.
     const foreignGlosses=[...text.matchAll(/\([a-z]+(?:\s+[a-z]+){0,2}\s+(?:de|del|du|des)\s+[a-z]+(?:\s+[a-z]+){0,2}\)/gi)].map(m=>[m.index,m.index+m[0].length]);
@@ -399,8 +402,10 @@ export function createChecker(data) {
       const start=m.index+(m[0][0]==='/'?0:1);excluded.push([start,m.index+m[0].length]);
     }
     // Slash-delimited resource paths retain identifier casing without a query.
-    for(const m of text.matchAll(/(?:^|[\s("'])\/[A-Za-z0-9._~-]+(?:\/[A-Za-z0-9._~-]+)+\/?/g)){
-      const start=m.index+(m[0][0]==='/'?0:1);excluded.push([start,m.index+m[0].length]);
+    for(const m of text.matchAll(/(?:^|[\s("'\[])((?:\/)?[A-Za-z0-9._~-]+(?:\/[A-Za-z0-9._~-]+)+\/?)/g)){
+      // Bare letter alternatives such as A/B are also ordinary prose.
+      if(/^[A-Za-z]\/[A-Za-z]$/.test(m[1]))continue;
+      const start=m.index+m[0].indexOf(m[1]);excluded.push([start,start+m[1].length]);
     }
     // CSS URL functions carry code identifiers and resource paths together.
     for(const m of text.matchAll(/\burl\(\s*(?:"[^"]*"|'[^']*'|[^\s)]*)\s*\)/gi))excluded.push([m.index,m.index+m[0].length]);

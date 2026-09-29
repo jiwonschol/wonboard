@@ -692,6 +692,21 @@ test('English predicate context distinguishes its and setup from valid noun phra
   }
 });
 
+test('singular agreement requires a subject boundary across direct adverb and have paths',()=>{
+  for(const text of ['We call it work.','We deem it work.','We stipulated he often work remotely.','We stipulated she have a backup.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target] of [['It work.','It works'],['She often work remotely.','works'],['She have a backup.','has']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('Id contractions require a first-person preference clause',()=>{
+  for(const text of ['Use an Id like 1234 for this record.','Choose the Id rather than the name.','Id like 1234 identifies the record.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const text of ['Id like to learn.','Id prefer to wait.', 'Id rather stay.'])assert.ok(check(text).some(f=>f.suggestions[0]==="I'd"),text);
+});
+
+test('month capitalization preserves may and march as words and commands',()=>{
+  for(const text of ['Compare the start of may and must clauses.','Compare the end of march and halt commands.','Compare the beginning of may with must.','Compare the middle of march with halt.'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('At the end of february.').some(f=>f.suggestions[0]==='February'));
+});
+
 test('bare domains, email addresses and identifiers protect only their own spans',()=>{
   const source='recieve at scratch.mit.edu then recieve from didnt+recieve@exampl.net; didnt_count is a key.';
   const findings=check(source).filter(f=>f.applicable);
