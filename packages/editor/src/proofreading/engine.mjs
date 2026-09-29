@@ -164,8 +164,8 @@ export function createChecker(data) {
     const lower=word.toLowerCase(),alphabet='abcdefghijklmnopqrstuvwxyz',candidates=new Set();
     // Reviewed spelling repairs that weak edit-distance evidence otherwise
     // suppresses. These remain errors, never recognition-only vocabulary.
-    const lexicalRepair={shiney:'shiny',monitized:'monetized',condemed:'condemned',succintly:'succinctly',asbandoned:'abandoned',debarcle:'debacle',jepardy:'jeopardy',breathble:'breathable',insectasides:'insecticides',comapss:'compass',optitician:'optician',proofreaded:'proofread',anyboby:'anybody',technicaians:'technicians',lucious:'luscious',havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth',conming:'coming',washine:'washing',opnions:'opinions',maube:'maybe',staistic:'statistic',sautee:'saute',nothwithstanding:'notwithstanding',creasote:'creosote',subtley:'subtly',harasssed:'harassed',headequarter:'headquarters',unbereable:'unbearable',diptheria:'diphtheria',communial:'communal',clobering:'clobbering',mantlepiece:'mantelpiece',spolit:'spoilt',breathelessness:'breathlessness',ancestores:'ancestors',combustable:'combustible',desparately:'desperately',predesessors:'predecessors',squeeking:'squeaking',adheasion:'adhesion',mismangement:'mismanagement',aneamic:'anaemic',duatpan:'dustpan',idiogram:'ideogram',omeprazol:'omeprazole',antogonistic:'antagonistic'}[lower];
-    if(lexicalRepair&&enLower.has(lexicalRepair))return [lexicalRepair];
+    const lexicalRepair={woudl:'would',recommention:'recommendation',basiically:'basically',shiney:'shiny',monitized:'monetized',condemed:'condemned',succintly:'succinctly',asbandoned:'abandoned',debarcle:'debacle',jepardy:'jeopardy',breathble:'breathable',insectasides:'insecticides',comapss:'compass',optitician:'optician',proofreaded:'proofread',anyboby:'anybody',technicaians:'technicians',lucious:'luscious',havock:'havoc',possiblilties:'possibilities',enought:'enough',boioer:'boiler',tasteledss:'tasteless',behemonth:'behemoth',conming:'coming',washine:'washing',opnions:'opinions',maube:'maybe',staistic:'statistic',sautee:'saute',nothwithstanding:'notwithstanding',creasote:'creosote',subtley:'subtly',harasssed:'harassed',headequarter:'headquarters',unbereable:'unbearable',diptheria:'diphtheria',communial:'communal',clobering:'clobbering',mantlepiece:'mantelpiece',spolit:'spoilt',breathelessness:'breathlessness',ancestores:'ancestors',combustable:'combustible',desparately:'desperately',predesessors:'predecessors',squeeking:'squeaking',adheasion:'adhesion',mismangement:'mismanagement',aneamic:'anaemic',duatpan:'dustpan',idiogram:'ideogram',omeprazol:'omeprazole',antogonistic:'antagonistic'}[lower];
+    if(lexicalRepair&&enLower.has(lexicalRepair))return [word===word.toUpperCase()?lexicalRepair.toUpperCase():/^[A-Z][a-z]+$/.test(word)?lexicalRepair[0].toUpperCase()+lexicalRepair.slice(1):lexicalRepair];
     if(lower==='alot')return ['a lot'];
     if(lower==='canthe')return ['can the'];
     if(lower==='flooplan'&&enLower.has('floor')&&enLower.has('plan'))return ['floor plan'];
@@ -501,7 +501,7 @@ export function createChecker(data) {
       if(/[A-Za-z0-9_가-힣]/.test(text[from-1]||'')||/[A-Za-z0-9_가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text[to]||'')||personal.has(m[0])||excluded.some(([a,b])=>from<b&&to>a)||results.some(f=>f.from<to&&f.to>from))continue;
       const predicate=morphology.predicate(word),nominal=morphology.analyze(word,personal);
       if(sets.josa.has(word)||predicate?.root==='이')continue;
-      const suffix=word.match(/^(가량|짜리|쯤|대|여)([가-힣]*)$/);
+      const suffix=word.match(/^(가량|짜리|쯤|대|여|권)([가-힣]*)$/);
       if(suffix&&(!suffix[2]||sets.josa.has(suffix[2])||morphology.predicate(suffix[2])?.root==='이'))continue;
       if(!predicate&&!(nominal?.kind==='noun'&&!nominal.unknown)&&!recognizedNoun(word))continue;
       emit(from,to,'ko','spacing',[m[1]+' '+word]);
@@ -591,6 +591,7 @@ export function createChecker(data) {
           const candidates=englishSuggestions(lookup),lower=lookup.toLowerCase();
           const strong=candidates.some(candidate=>{
             const target=candidate.toLowerCase();
+            if(['woudl','basiically'].includes(lower)&&(!localBefore.trim()||/[.!?][ \u00a0]*$/.test(localBefore)))return true;
             // A missing repeated consonant in a familiar word is distinct
             // from weak name-like substitutions such as Amature/amateur.
             if(target.length===lower.length+1&&englishUsage.get(target)>=10&&lower.replace(/([a-z])\1+/g,'$1')===target.replace(/([a-z])\1+/g,'$1'))return true;
@@ -926,7 +927,10 @@ export function createChecker(data) {
           }
         }
         const fullDuration=word==='만'&&/^[ \u00a0]+(?:하루|이틀|사흘|나흘|한|두|세|네|\d)/.test(text.slice(to));
-        if(!fullDuration&&!demonstrativeI&&(copulaBoundary||unambiguousParticles.has(word)||['에','을','를','은','는','이','가','와','과','도','만','의','라고','라는'].includes(word))){
+        // A letter following a numbered plan can be a group label, not
+        // the subject particle of the plan number (플랜1 가 ...).
+        const planLabel=['가','나','다'].includes(word)&&/(?:플랜|계획|안)[ \u00a0]*\d+[ \u00a0]+$/.test(text.slice(0,from));
+        if(!fullDuration&&!planLabel&&!demonstrativeI&&(copulaBoundary||unambiguousParticles.has(word)||['에','을','를','은','는','이','가','와','과','도','만','의','라고','라는'].includes(word))){
           const jamo=text.slice(0,from).match(/([ㄱ-ㅎㅏ-ㅣ]+(?:_[ㄱ-ㅎㅏ-ㅣ]+)*)([ \u00a0]+)$/);
           const standaloneJamo=jamo&&jamo[1].length>=2&&!/[A-Za-z0-9_가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text[from-jamo[0].length-1]||'');
           const preceding=text.slice(0,from).match(/([A-Za-z0-9](?:[A-Za-z0-9._+-]*[A-Za-z0-9])?)([ \u00a0]+)$/)??(standaloneJamo?jamo:null);

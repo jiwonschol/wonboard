@@ -2,6 +2,9 @@
 // Sources and limits: docs/planning/spelling-orthography-sources.md.
 export function orthography(word,sets,personal,isPredicate,isKnownNoun=w=>sets.noun.has(w),precedingAdnominal=false,followingPredicate=false) {
   if(personal.has(word))return null;
+  if(word==='갑짜기')return {suggestions:['갑자기'],reason:'Restore the complete temporal adverb before segmentation',ambiguous:false};
+  const redChange=word.match(/^빨게(지|져|졌)(.*)$/);
+  if(redChange&&isPredicate('빨개'+redChange[1]+redChange[2]))return {suggestions:['빨개'+redChange[1]+redChange[2]],reason:'Restore 빨개지다 while preserving the derived predicate',ambiguous:false};
   if(word==='어느세')return {suggestions:['어느새'],reason:'The temporal adverb 어느새 is one word',ambiguous:false};
   const informalFuture=word.match(/^(.+)게써(요)?$/);
   if(informalFuture){

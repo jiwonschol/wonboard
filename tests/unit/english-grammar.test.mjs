@@ -1,6 +1,11 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 
+test('reviewed lexical repairs preserve casing and community names',()=>{
+  for(const [text,target]of [['Woudl','Would'],['Basiically','Basically'],['recommention','recommendation']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['thames','fondo','hallu'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('reviewed spelling and local grammar choose words over unrelated distance neighbors',()=>{
   for(const [text,target]of [['a shiney new boiler','shiny'],['fixed traffi ends today','tariff'],['the bill is gping from 126 to 140','going'],['monitized','monetized'],['succintly','succinctly'],['debarcle','debacle'],['jepardy','jeopardy']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
   assert.equal(check('gping').some(f=>f.suggestions[0]==='going'),false);

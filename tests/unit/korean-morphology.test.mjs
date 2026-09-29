@@ -2,6 +2,29 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('temporal phrases retain particle and predicate boundaries',()=>{
+  for(const text of ['어느새부터인가','어느덧부터','엄마한테는','확인할겨','구매하려니깐'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['이번주는','이번 주는'],['이번주해야하실듯','이번 주 해야 하실 듯'],['안정형일때','안정형일 때']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('adnominal and indirect-question analyses survive nominal homographs',()=>{
+  for(const [text,target]of [['이상한생각은','이상한 생각은'],['할과제','할 과제'],['할따름입니다','할 따름입니다'],['될지모름','될지 모름'],['저보다빨라서','저보다 빨라서']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['인천대','인서울','스나이퍼','영업이익이','티이어를'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('subject particles precede validated state-change predicates',()=>{
+  for(const [text,target]of [['한밤이출시되면','한밤이 출시되면'],['리셋이되니','리셋이 되니'],['클릭이되는데','클릭이 되는데']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['메이플','파이터','언어이해는','이륙가능한가요'])assert.equal(check(text).some(f=>f.suggestions[0]?.includes('이 해')||f.suggestions[0]?.includes('가 능')||f.suggestions[0]?.includes('이 터')||f.suggestions[0]?.includes('이 플')),false,text);
+});
+
+test('complete causative and quotation hosts survive nested spacing',()=>{
+  assert.ok(check('통일시켜주면안되나').some(f=>f.suggestions[0]==='통일시켜 주면 안되나'));
+  assert.ok(check('온다라는걸').some(f=>f.suggestions[0]==='온다라는 걸'));
+  for(const [text,target]of [['갑짜기','갑자기'],['빨게졌어요','빨개졌어요']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['갑자기','빨개졌어요','0.1%권','플랜1 가 카의'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.equal(check('빨게졌어요',['빨게졌어요']).some(f=>f.applicable),false);
+});
+
 test('nominal honorific hosts take priority over internal predicate homographs',()=>{
   for(const text of ['사장님은','부장님께','교수님이'])assert.equal(check(text).some(f=>f.applicable),false,text);
   assert.ok(check('친절한선생님').some(f=>f.suggestions[0]==='친절한 선생님'));
