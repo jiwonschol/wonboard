@@ -397,9 +397,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\breigned in\b(?=\s+(?:my|your|his|her|their|our)\s+(?:emotions|spending|behavior|behaviour|ambitions|expectations)\b)/gi)){
     add(match.index,match.index+match[0].length,'reined in','Rein in means restrain; reign means rule');
   }
-  for(const match of text.matchAll(/\bsue (?:Claude|GPT|Gemini)\b(?=\s+models?\b)/gi)){
-    add(match.index,match.index+match[0].length,match[0].replace(/^sue/i,'use'),'Use a model in a tool; sue has a legal meaning');
-  }
   for(const match of text.matchAll(/\bsuch (?:hook|tool|feature|problem|case|app|idea)\b(?=\s*[,.;!?]|\s+(?:and|but|that|which)\b)/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/\s+/, ' a '),'Such precedes an article before this singular count noun');
   }
@@ -412,10 +409,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   for(const match of text.matchAll(/\bI rather\b(?=\s+(?:have|do|use|go|see|not|be|wait|keep|take|make)\b)/g)){
     add(match.index,match.index+match[0].length,"I'd rather",'Would rather expresses a preference');
-  }
-  for(const match of text.matchAll(/(?:^|[.!?]\s+|,\s+but\s+)(what you will do)\b(?=[^.!?]*\?)/gim)){
-    const from=match.index+match[0].lastIndexOf(match[1]);
-    add(from,from+match[1].length,'what will you do','A direct question inverts the subject and auxiliary');
   }
   for(const match of text.matchAll(/\bhave audience\b(?=\s*[,?!]|\s*$)/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/audience$/i,'an audience'),'Singular count noun audience needs an article here');
@@ -546,7 +539,9 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const participle=text.slice(from+match[1].length).match(/^\s+(?:[a-z]+ed|done|seen|known|shown|given|taken|made|found|built|sent|put|read)\b/i)?.[0]??'';
     add(from,from+match[1].length+participle.length,'have been'+participle,'The plural head noun governs this auxiliary');
   }
-  for(const match of text.matchAll(/\b([Ii])t['’]s\s+(displays|happens|seems|appears|loads|starts|fails|opens|closes)\b/g)){
+  // Ambiguous noun/verb forms such as displays and starts can instead need
+  // possessive its. Only these unambiguous finite verbs justify removing 's.
+  for(const match of text.matchAll(/\b([Ii])t['’]s\s+(happens|seems|appears)\b/g)){
     add(match.index,match.index+match[0].length,match[1]+'t '+match[2],"It's means it is or it has, not a bare finite verb");
   }
   // Keep apostrophe repairs on the token, but a perfect auxiliary can make
@@ -589,7 +584,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(?:tuning|using|training|running) it make\b(?=\s+(?:it|them|the|a|an|this|that)\b)/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/make$/i,'makes'),'The singular it takes makes');
   }
-  for(const match of text.matchAll(/\b(?:wars|battles|games) in history won\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/ won$/,' were won'),'This passive construction needs an auxiliary');
   for(const match of text.matchAll(/\bonce case\b/gi))add(match.index,match.index+match[0].length,'one case','One is the numeral before this singular noun');
   for(const match of text.matchAll(/\bsophisticated to we\b/gi))add(match.index,match.index+match[0].length,'sophisticated do we','The question uses auxiliary do before we');
   for(const match of text.matchAll(/\b(?:I am|I'm) not (?:devops|software|hardware|security) person\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/not /i,'not a '),'This singular count noun needs an article');
@@ -604,7 +598,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b(?:use|need|spend|allocate|provide) marginal amount\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/ marginal amount$/i,' a marginal amount'),'A singular count noun needs an article');
   for(const match of text.matchAll(/\b(?:got|get|gets|getting) couple\b(?=\s+of\b)/gi))add(match.index,match.index+match[0].length,match[0].replace(/ couple$/i,' a couple'),'A couple of needs an article');
   for(const match of text.matchAll(/\b(?:get|gets|getting|got) worst\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/worst$/i,'worse'),'A change in degree uses the comparative worse');
-  for(const match of text.matchAll(/\b(?:advancements|improvements|developments|results|devices) has\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/ has$/i,' have'),'A plural subject agrees with have');
   const singularMassSubjects=new Set(['luggage','baggage','equipment','information','furniture']);
   const singularVerbs=new Map([['contain','contains'],['include','includes'],['require','requires'],['need','needs'],['have','has']]);
   for(const match of text.matchAll(/\b(?:this|that)\s+([a-z]+)\s+(contain|include|require|need|have)\b/gi)){
@@ -654,7 +647,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\b([Oo]ne|[Ee]very)\s+(questions|devices|users|files|apps|projects|tasks|issues|cases|options|servers|cameras|systems|models|features|tests|versions|reports|messages|answers|programs|children)\b(?!['’])/g)){
     add(match.index,match.index+match[0].length,match[1]+' '+singularCountNouns.get(match[2]),'One and every take a singular count noun here');
   }
-  for(const match of text.matchAll(/\blifes\b/gi))add(match.index,match.index+match[0].length,'lives','The plural of life changes f to v');
   for(const match of text.matchAll(/\bMathematics have\b/g))add(match.index,match.index+match[0].length,'Mathematics has','Mathematics is singular in this sense');
   for(const match of text.matchAll(/\ba (?:dumping|testing|training) grounds\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/grounds$/i,'ground'),'A singular article takes the singular noun ground');
   for(const match of text.matchAll(/\bit let['’]s\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/let['’]s$/i,'lets'),'Lets is the third-person verb; let’s means let us');

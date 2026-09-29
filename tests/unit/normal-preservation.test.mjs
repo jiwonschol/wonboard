@@ -33,11 +33,18 @@ test('reviewed phrase corrections keep the accepted result and personal entries 
   }
   assert.equal(check('기준자체가',['기준자체가']).some(f=>f.applicable),false);
   assert.equal(check('`기준자체가`').some(f=>f.applicable),false);
-  assert.ok(check('택시를 타던가, 아니면 걸어요').some(f=>f.suggestions.includes('타든가')));
   assert.ok(!check('그때도 탔던가?').some(f=>f.suggestions.includes('탔든가')));
   const device=check('14프맥떄도');
   assert.ok(device.some(f=>f.original==='프맥'&&f.type==='unknown'));
   assert.ok(device.some(f=>f.suggestions.includes(' 때도')));
+});
+
+test('household nouns keep their meaning instead of becoming shops',()=>{
+  for(const text of ['저소득 가계들을 지원한다','가계들을 조사한다'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('recollective questions retain -던가 even when 아니면 follows',()=>{
+  for(const text of ['그날 그는 택시를 타던가, 아니면 버스를 타던가?','그때도 탔던가?','택시를 타던가, 아니면 걸어요'])assert.equal(check(text).some(f=>f.applicable),false,text);
 });
 
 test('informal expression review uses the complete phrase without hiding nearby spacing',()=>{
