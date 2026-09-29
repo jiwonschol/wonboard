@@ -141,7 +141,7 @@ export function orthography(word,sets,personal,isPredicate,isKnownNoun=w=>sets.n
     const number=personal.has('세네')?'세네':'서너';
     return {suggestions:[number+(approximate[1]?' '+approximate[1]:'')+approximate[2]],reason:'Standard quantity 서너; retain dialect if personally registered',ambiguous:true};
   }
-  const exact=new Map([['어짜피','어차피'],['웬지','왠지'],['꼼꼼이','꼼꼼히'],['뵈요','봬요'],['되요','돼요'],['구지','굳이'],['게의치','개의치'],['가기록','가기로'],['돋구는','돋우는'],['먹벅고','먹고'],['연습양','연습량'],['어떻하지','어떡하지'],['잇는데','있는데'],['깍아','깎아'],['안듬','안 듦'],['부캐엿고','부캐였고']]);
+  const exact=new Map([['어짜피','어차피'],['웬지','왠지'],['꼼꼼이','꼼꼼히'],['뵈요','봬요'],['되요','돼요'],['구지','굳이'],['게의치','개의치'],['가기록','가기로'],['먹벅고','먹고'],['연습양','연습량'],['어떻하지','어떡하지'],['잇는데','있는데'],['깍아','깎아'],['안듬','안 듦'],['부캐엿고','부캐였고']]);
   if(word==='않되요')return {suggestions:['안 돼요'],reason:'Negative adverb 안 and 되어/돼 contraction',ambiguous:false};
   if(exact.has(word))return {suggestions:[exact.get(word)],reason:'Verified lexical spelling; see source registry',ambiguous:false};
   if(word.endsWith('할려고')){

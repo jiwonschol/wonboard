@@ -1,5 +1,30 @@
 import { test, expect } from "./fixtures";
 
+for(const locale of ['ko','en'])test(`unbroken-token analysis limit is explained and personal registration works (${locale})`,async({page})=>{
+  await page.addInitScript(value=>localStorage.setItem('wonboard-locale',value),locale);
+  await page.setViewportSize({width:390,height:844});
+  await page.goto('/');
+  const ko=locale==='ko',body=page.locator('[contenteditable="true"]').first();
+  const settings=page.getByRole('button',{name:ko?'설정':'Settings',exact:true});
+  await expect(settings).toBeVisible();
+  if(await settings.getAttribute('aria-pressed')==='true')await settings.click();
+  const label=ko?'맞춤법 검사':'Check spelling';
+  const dialog=page.getByRole('dialog',{name:label});
+  for(const length of [49,64]){
+    const word='가나다라마바사아자차카타파하'.repeat(5).slice(0,length);
+    await body.fill(word);
+    await page.getByRole('button',{name:label,exact:true}).first().click();
+    await expect(dialog).toContainText(ko?'48자를 넘는 구간은 현재 분석 범위를 초과합니다. 오류 판정이 아닙니다.':'An unbroken span over 48 characters exceeds the current analysis limit. This is not an error verdict.');
+    await expect(dialog.getByRole('button',{name:ko?'바꾸기':'Change',exact:true})).toBeDisabled();
+    expect(await dialog.evaluate(node=>node.scrollWidth<=node.clientWidth)).toBe(true);
+    if(length===49)await page.screenshot({path:`test-results/wonboard-analysis-limit-${locale}.png`});
+    await dialog.getByRole('button',{name:ko?'사용자 사전에 추가':'Add to dictionary',exact:true}).click();
+    await expect(dialog).toContainText(ko?'철자 검사를 마쳤습니다.':'Spelling review complete.');
+    await dialog.getByRole('button',{name:ko?'닫기':'Close',exact:true}).click();
+    await expect(body).toHaveText(word);
+  }
+});
+
 test('explicit deletion suggestions apply while an arbitrary blank replacement remains disabled',async({page})=>{
   await page.goto('/');
   const body=page.getByRole('textbox',{name:'Document body',exact:true});

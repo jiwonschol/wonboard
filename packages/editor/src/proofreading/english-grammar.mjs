@@ -167,10 +167,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   // Complete constructions with missing function words. Bound the following
   // head/verb so fragments, names and open noun modifiers stay reviewable.
-  for(const match of text.matchAll(/\b(?:allow|allows|allowed|allowing)\s+(?:users|developers|people|us|me|them|you)\s+(disable|enable|access|create|change|select|use|edit|delete)\b/gi)){
-    const from=match.index+match[0].lastIndexOf(match[1]);
-    add(from,from+match[1].length,'to '+match[1],'Allow takes a to-infinitive after its object');
-  }
   for(const match of text.matchAll(/\b(?:I am|I['’]m|you are|you['’]re|we are|we['’]re)\s+(doing)\s+(?:a|the)\s+(?:right|wrong|good|bad)\s+choice\b/gi)){
     const from=match.index+match[0].indexOf(match[1]);
     add(from,from+match[1].length,'making','The decision construction uses make a choice');
@@ -367,7 +363,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].indexOf(match[1]);
     add(from,from+3,'have','The following plural noun controls the agreement');
   }
-  for(const match of text.matchAll(/\b(?:advices|softwares)\b/gi)){
+  for(const match of text.matchAll(/\bsoftwares\b/gi)){
     add(match.index,match.index+match[0].length,match[0].slice(0,-1),'This mass noun has no plural -s in ordinary prose');
   }
   for(const match of text.matchAll(/\b(\d+)[ -]+(?:yrs?|years?)[ -]+old\b(?=\s+(?:son|daughter|child|kid|boy|girl|person|house|car|fridge|refrigerator|washer|computer|laptop|phone|boiler|conservatory)\b)/gi)){
@@ -390,14 +386,8 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\bin past (\d+ years?)\b/gi)){
     add(match.index,match.index+match[0].length,'in the past '+match[1],'This time phrase uses the before past');
   }
-  for(const match of text.matchAll(/\ba few hundreds\b(?!\s+of)/gi)){
-    add(match.index,match.index+match[0].length,match[0].replace(/hundreds$/i,'hundred'),'A few is followed by the uninflected hundred');
-  }
   for(const match of text.matchAll(/\breigned in\b(?=\s+(?:my|your|his|her|their|our)\s+(?:emotions|spending|behavior|behaviour|ambitions|expectations)\b)/gi)){
     add(match.index,match.index+match[0].length,'reined in','Rein in means restrain; reign means rule');
-  }
-  for(const match of text.matchAll(/\bsuch (?:hook|tool|feature|problem|case|app|idea)\b(?=\s*[,.;!?]|\s+(?:and|but|that|which)\b)/gi)){
-    add(match.index,match.index+match[0].length,match[0].replace(/\s+/, ' a '),'Such precedes an article before this singular count noun');
   }
   for(const match of text.matchAll(/\b(?:bank|save|have|had|need|use) couple\b(?=\s+of\b)/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/ couple$/i,' a couple'),'A couple of needs an article here');
@@ -593,13 +583,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   for(const match of text.matchAll(/\bin short time\b(?=\s*(?:[.!?;]|$))/gi))add(match.index,match.index+match[0].length,match[0].replace(/ short/i,' a short'),'This completed duration phrase takes an article');
   for(const match of text.matchAll(/\b(?:use|need|spend|allocate|provide) marginal amount\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/ marginal amount$/i,' a marginal amount'),'A singular count noun needs an article');
   for(const match of text.matchAll(/\b(?:got|get|gets|getting) couple\b(?=\s+of\b)/gi))add(match.index,match.index+match[0].length,match[0].replace(/ couple$/i,' a couple'),'A couple of needs an article');
-  const singularMassSubjects=new Set(['luggage','baggage','equipment','information','furniture']);
-  const singularVerbs=new Map([['contain','contains'],['include','includes'],['require','requires'],['need','needs'],['have','has']]);
-  for(const match of text.matchAll(/\b(?:this|that)\s+([a-z]+)\s+(contain|include|require|need|have)\b/gi)){
-    if(!singularMassSubjects.has(match[1].toLowerCase()))continue;
-    const from=match.index+match[0].lastIndexOf(match[2]);
-    add(from,from+match[2].length,singularVerbs.get(match[2].toLowerCase()),'This singular subject takes a third-person singular verb');
-  }
   for(const match of text.matchAll(/\b(?:it|he|she|this|that)\s+(?:(?:itself|himself|herself)\s+)?(?:(?:only|still|also|already|usually|always|often|sometimes|never)\s+)?(have)\b/gi)){
     if(permitsBaseVerb(match.index))continue;
     // That can introduce a relative clause with a plural antecedent. Only
@@ -625,24 +608,18 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     // but she set up yesterday. An auxiliary makes set up unambiguous.
     if(/^(?:he|she|it)$/i.test(match[1])&&(!match[2]||/^(?:just|already)$/i.test(match[2])))continue;
     const from=match.index+match[0].lastIndexOf(match[3]);
+    // Have also takes a noun object, even before a determiner: setup this week.
+    if(/^(?:have|has|had)$/i.test(match[2]??''))continue;
     add(from,from+match[3].length,'set up','Set up is the verb; setup is a noun or noun modifier');
   }
   const irregularParticiples=new Map([['went','gone'],['came','come'],['saw','seen'],['wrote','written'],['took','taken'],['broke','broken'],['ran','run'],['did','done'],['ate','eaten'],['spoke','spoken'],['knew','known'],['drank','drunk'],['gave','given']]);
   for(const match of text.matchAll(/\b(have|has|had|haven['’]t|hasn['’]t|hadn['’]t)\s+(went|came|saw|wrote|took|broke|ran|did|ate|spoke|knew|drank|gave)\b/gi)){
     add(match.index,match.index+match[0].length,match[1]+' '+irregularParticiples.get(match[2].toLowerCase()),'Perfect aspect takes the past participle');
   }
-  const oneOfPluralHeads=new Map([['friend','friends'],['project','projects'],['movie','movies'],['student','students'],['book','books'],['team','teams'],['option','options'],['example','examples'],['issue','issues'],['university','universities'],['work','works'],['person','people'],['child','children'],['company','companies']]);
-  for(const match of text.matchAll(/\b[Oo]ne of (?:the|my|your|his|her|our|their)\s+(?:(?:best|worst|notable|greatest|favorite|favourite|biggest|first|last|newest|oldest)\s+){0,2}([a-z]+)\b(?=\s+(?:in|of|for|with|at|on|is|was|are|were|that|which|who)\b|[.,!?;:]|$)/g)){
-    const plural=oneOfPluralHeads.get(match[1]);
-    if(!plural)continue;
-    const from=match.index+match[0].lastIndexOf(match[1]);
-    add(from,from+match[1].length,plural,'One of is followed by a plural count noun');
-  }
   const singularCountNouns=new Map([['questions','question'],['devices','device'],['users','user'],['files','file'],['apps','app'],['projects','project'],['tasks','task'],['issues','issue'],['cases','case'],['options','option'],['servers','server'],['cameras','camera'],['systems','system'],['models','model'],['features','feature'],['tests','test'],['versions','version'],['reports','report'],['messages','message'],['answers','answer'],['programs','program'],['children','child']]);
-  for(const match of text.matchAll(/\b([Oo]ne|[Ee]very)\s+(questions|devices|users|files|apps|projects|tasks|issues|cases|options|servers|cameras|systems|models|features|tests|versions|reports|messages|answers|programs|children)\b(?!['’])/g)){
-    add(match.index,match.index+match[0].length,match[1]+' '+singularCountNouns.get(match[2]),'One and every take a singular count noun here');
+  for(const match of text.matchAll(/\b([Ee]very)\s+(questions|devices|users|files|apps|projects|tasks|issues|cases|options|servers|cameras|systems|models|features|tests|versions|reports|messages|answers|programs|children)\b(?!['’])/g)){
+    add(match.index,match.index+match[0].length,match[1]+' '+singularCountNouns.get(match[2]),'Every takes a singular count noun here');
   }
-  for(const match of text.matchAll(/\bMathematics have\b/g))add(match.index,match.index+match[0].length,'Mathematics has','Mathematics is singular in this sense');
   for(const match of text.matchAll(/\ba (?:dumping|testing|training) grounds\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/grounds$/i,'ground'),'A singular article takes the singular noun ground');
   for(const match of text.matchAll(/\bit let['’]s\b/gi))add(match.index,match.index+match[0].length,match[0].replace(/let['’]s$/i,'lets'),'Lets is the third-person verb; let’s means let us');
   for(const match of text.matchAll(/\bmost of time\b/gi))add(match.index,match.index+match[0].length,'most of the time','This time expression needs the');
@@ -682,16 +659,15 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'feed back','The modal takes the phrasal verb feed back');
   }
-  for(const match of text.matchAll(/\b(?:cant|cants)\b(?=\s+(?:go|figure|find|work|use|see|hear|understand|afford|remember|wait)\b)/gi))add(match.index,match.index+match[0].length,match[0][0]==='C'?"Can't":"can't",'The negative modal before this verb requires an apostrophe');
+  for(const match of text.matchAll(/\b(?:I|you|we|they|he|she|it)\s+(cant)\b(?=\s+(?:go|figure|find|work|use|see|hear|understand|afford|remember|wait)\b)/gi)){
+    const from=match.index+match[0].lastIndexOf(match[1]);
+    add(from,from+match[1].length,"can't",'The negative modal after this subject requires an apostrophe');
+  }
   for(const match of text.matchAll(/\b(?:[Ww]hats)(?=\s+the\s+(?:legal|current|official|actual)\s+(?:status|position|reason|name)\b)/g))add(match.index,match.index+match[0].length,match[0][0]==='W'?"What's":"what's",'This question needs what is');
   for(const match of text.matchAll(/\b[Ll]ets(?=\s+say\b)/g))add(match.index,match.index+match[0].length,match[0][0]==='L'?"Let's":"let's",'This invitation is the contraction let us');
   for(const match of text.matchAll(/\blooking\s+(advice)\b(?=\s+(?:on|about|regarding|for|from)\b|[.!?,;:]|$)/gi)){
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'for advice','Looking takes for before the sought object');
-  }
-  for(const match of text.matchAll(/\b(?:have|has|had)\s+(their)\s+been\b/gi)){
-    const from=match.index+match[0].indexOf(match[1]);
-    add(from,from+match[1].length,'there','The existential perfect uses there, not possessive their');
   }
   for(const match of text.matchAll(/\b([Ii])\s+have\s+(have)(?=\s+(?:a|an|the|some|no)\b)/g)){
     const from=match.index+match[0].lastIndexOf(match[2]);

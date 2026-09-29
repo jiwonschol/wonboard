@@ -6,6 +6,7 @@ import {contextSuggestion,communityExpression,communityAction,contextualProductN
 import {englishGrammar} from './english-grammar.mjs';
 import {englishUsage} from './english-usage.mjs';
 import {communityNouns,communityNominalOnly,technicalAbbreviations,englishRecognizedTerms,communityActionNouns,communityAdjectiveStems,communityVerbStems,candidatePhraseBoundaries,candidateJoinedPhrases} from './community-vocabulary.mjs';
+const analysisLimit=48;
 export function createChecker(data) {
   const sets=Object.fromEntries(Object.entries(data.ko).map(([k,v])=>[k,new Set(v)]));
   for(const word of [...communityNouns,...communityActionNouns])sets.noun.add(word);
@@ -617,7 +618,13 @@ export function createChecker(data) {
         if(!personal.has(word))emit(from,to,'ko','unknown',[],word);
         continue;
       }
-      if(word.length>48){emit(from,to,/^\p{Script=Latin}/u.test(word)?'en':'ko','unknown',[],word);results.at(-1).reason='An unbroken span longer than 48 characters needs manual review';continue;}
+      if(word.length>analysisLimit){
+        if(!personal.has(word)){
+          emit(from,to,/^\p{Script=Latin}/u.test(word)?'en':'ko','unknown',[],word);
+          Object.assign(results.at(-1),{analysisLimit,reason:`An unbroken span longer than ${analysisLimit} characters needs manual review`});
+        }
+        continue;
+      }
       if(/^\p{Script=Latin}/u.test(word)) {
         if(results.some(item=>item.language==='en'&&item.from<to&&item.to>from))continue;
         if(foreignGlosses.some(([a,b])=>from>a&&to<b)){

@@ -3,6 +3,7 @@ export type Finding = {
   type: "spelling" | "spacing" | "grammar" | "unknown"; suggestions: string[];
   base?: string; applicable: boolean; reason: string; ambiguous?: boolean;
   reviewKind?: "community";
+  analysisLimit?: number;
 };
 export function createChecker(data: {
   ko: Record<string, string[]>; en: string[];

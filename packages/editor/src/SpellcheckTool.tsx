@@ -141,7 +141,7 @@ function SpellingReview({ editor, locale, close }: { editor: Editor; locale: Loc
       <p>{current.reviewKind === "community" ? (ko ? "인터넷 표현 검토" : "Community expression review") : current.type === "unknown" ? (ko ? "사전에 없는 표현" : "Unrecognized expression") : current.type === "spacing" ? (ko ? "띄어쓰기 제안" : "Spacing suggestion") : current.type === "grammar" ? (ko ? "문법 제안" : "Grammar suggestion") : (ko ? "철자 제안" : "Spelling suggestion")}: <strong>{current.original}</strong></p>
       {current.type !== "unknown" && <p className="spelling-reason">{ko ? "검토 이유: " : "Review reason: "}{reviewReason(current, ko)}</p>}
       {current.ambiguous && <p>{ko ? "문맥에 따라 원문도 맞을 수 있습니다." : "The original may be correct in context."}</p>}
-      {current.original.length > 64 && <p>{ko ? "공백 없이 64자를 넘는 구간은 현재 분석 범위를 초과합니다. 오류 판정이 아닙니다." : "An unbroken span over 64 characters exceeds the current analysis limit. This is not an error verdict."}</p>}
+      {current.analysisLimit !== undefined && <p>{ko ? `공백 없이 ${current.analysisLimit}자를 넘는 구간은 현재 분석 범위를 초과합니다. 오류 판정이 아닙니다.` : `An unbroken span over ${current.analysisLimit} characters exceeds the current analysis limit. This is not an error verdict.`}</p>}
       <p className="spelling-context">{snapshot.current.textBetween(Math.max(0, current.from - 35), current.from, " ")}<mark>{current.original}</mark>{snapshot.current.textBetween(current.to, Math.min(snapshot.current.content.size, current.to + 35), " ")}</p>
       <SpellingReplacement key={`${current.from}:${current.original}`} word={current.original} suggestions={current.suggestions}
         ko={ko} community={current.reviewKind === "community"} disabled={stale || saving || !!error} replace={replace}

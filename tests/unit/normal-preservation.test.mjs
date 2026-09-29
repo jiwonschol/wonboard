@@ -1430,12 +1430,20 @@ test('a long contracted connective does not prove mandatory auxiliary spacing',(
 });
 
 test('long unbroken text remains reviewable without a speculative replacement',()=>{
-  const source='가나다라마바사아자차카타파하'.repeat(4);
-  const findings=check(source);
-  assert.equal(findings.length,1);
-  assert.equal(findings[0].original,source);
-  assert.equal(findings[0].type,'unknown');
-  assert.deepEqual(findings[0].suggestions,[]);
+  for(const length of [48,49,64]){
+    const source='가나다라마바사아자차카타파하'.repeat(5).slice(0,length),findings=check(source);
+    if(length===48){assert.ok(findings.every(f=>f.analysisLimit===undefined));continue;}
+    assert.equal(findings.length,1);
+    assert.equal(findings[0].original,source);
+    assert.equal(findings[0].type,'unknown');
+    assert.equal(findings[0].analysisLimit,48);
+    assert.deepEqual(findings[0].suggestions,[]);
+    assert.deepEqual(check(source,[source]),[]);
+  }
+});
+
+test('lens-power 돋구다 keeps its standard meaning',()=>{
+  for(const text of ['안경 도수를 돋구는 렌즈입니다','돋구는'])assert.equal(check(text).some(f=>f.applicable),false,text);
 });
 
 test('counted kinds and place names keep independent noun boundaries',()=>{
