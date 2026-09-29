@@ -4,6 +4,22 @@ import assert from 'node:assert/strict';
 test('how much may describe the degree of a following plural clause',()=>{
   for(const text of ['We measured how much positives outweigh negatives.','How much users contribute varies.'])assert.equal(check(text).some(f=>f.suggestions[0]==='many'),false,text);
   assert.ok(check('There are much errors.').some(f=>f.suggestions[0]==='many'));
+  for(const text of ['How much errors did you find?','How much files are missing?'])assert.ok(check(text).some(f=>f.suggestions[0]==='many'),text);
+});
+
+test('let binds a lowercase variable without creating a first-person pronoun',()=>{
+  for(const text of ['Let i find the first matching index','Let i consider each element'])assert.equal(check(text).some(f=>f.original==='i'&&f.applicable),false,text);
+  assert.ok(check('i find it useful').some(f=>f.suggestions[0]==='I'));
+});
+
+test('exact spelling repairs preserve title and upper case',()=>{
+  for(const [text,target] of [['Natual language processing is useful.','Natural'],['NATUAL LANGUAGE','NATURAL'],['CHINNESE','CHINESE'],['chinnese','Chinese']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('explicit foreign word labels protect only the quoted expression',()=>{
+  for(const text of ['The Latin word "natura" means nature','The word "natura" is Latin for nature'])assert.equal(check(text).some(f=>f.original==='natura'&&f.applicable),false,text);
+  assert.ok(check('The Latin word "natura" means teh natural world').some(f=>f.suggestions[0]==='the'));
+  assert.ok(check('The English word "natual" is misspelled').some(f=>f.suggestions[0]==='natural'));
 });
 
 test('agreement does not turn Roman numeral labels into pronouns',()=>{

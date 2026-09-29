@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
 test('linked repository names remain protected before terminal sentence punctuation',()=>{
-  for(const url of ['https://github.com/acme/Recieve.','HTTPS://github.com/acme/Recieve.','https://github.com/acme/Recieve...'])assert.equal(check(`See ${url} Recieve is our repository.`).some(f=>f.applicable),false,url);
+  for(const url of ['https://github.com/acme/Recieve.','HTTPS://github.com/acme/Recieve.','https://github.com/acme/Recieve...','http://github.com/acme/Recieve.','HTTP://github.com/acme/Recieve.'])assert.equal(check(`See ${url} Recieve is our repository.`).some(f=>f.applicable),false,url);
   assert.ok(check('See https://github.com/acme/Recieve. Recieve has teh file.').some(f=>f.suggestions.includes('the')));
 });
 

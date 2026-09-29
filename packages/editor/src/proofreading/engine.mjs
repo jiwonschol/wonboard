@@ -28,6 +28,8 @@ export function createChecker(data) {
   const knownOrthographicNoun=word=>sets.noun.has(word)||recognizedNouns.has(word)||morphology.isDerivedNominal(word);
   const candidateBoundary=(word,personal,text,from,to)=>{
     if(personal.has(word))return null;
+    const informalQuestion=word.endsWith('감')?word.slice(0,-1):null;
+    if(informalQuestion&&(informalQuestion.charCodeAt(informalQuestion.length-1)-0xac00)%28===4&&morphology.predicate(informalQuestion)?.adnominal&&/^[ \t\u00a0]*(?:[?!。！？]|$)/u.test(text.slice(to)))return {type:'unknown',suggestions:[],reason:'Preserve the informal sentence-final -ㄴ감 question ending',ambiguous:true};
     const household=word.match(/^한살림(.*)$/);
     if(household&&(!household[1]||sets.josa.has(household[1]))&&morphology.predicate(text.slice(to).match(/^[ \u00a0]+([가-힣]+)/)?.[1]??'')?.root==='차리')return {type:'spacing',suggestions:['한 '+word.slice(1)],reason:'The following household-setting predicate selects the count phrase 한 살림',ambiguous:true};
     // A common surname followed by an office title keeps the title whole.
@@ -359,7 +361,7 @@ export function createChecker(data) {
     // Reuse it for repeated words; context rules and offsets stay per occurrence.
     const spacingResults=new Map();
     let auxiliaryRepairEnd=0;
-    const repositoryNames=[...text.matchAll(/https:\/\/github\.com\/[A-Za-z0-9_.-]+\/([A-Za-z0-9_.-]+)/gi)].flatMap(m=>{
+    const repositoryNames=[...text.matchAll(/https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/([A-Za-z0-9_.-]+)/gi)].flatMap(m=>{
       const name=m[1].toLowerCase();
       return [name,name.replace(/\.+$/,'')];
     });
@@ -410,6 +412,12 @@ export function createChecker(data) {
     for(const m of text.matchAll(/\burl\(\s*(?:"[^"]*"|'[^']*'|[^\s)]*)\s*\)/gi))excluded.push([m.index,m.index+m[0].length]);
     // Explicitly introduced foreign sayings retain their quoted spelling.
     // Ordinary English quotations remain eligible for spelling checks.
+    for(const m of text.matchAll(/\b(?:Tamil|Hindi|Spanish|French|German|Italian|Portuguese|Latin|Arabic|Japanese|Korean|Chinese)\s+(?:saying|phrase|word)\s+(['"“‘])[^'"”’\n]+['"”’]/gi)){
+      const quote=m[0].indexOf(m[1]);excluded.push([m.index+quote,m.index+m[0].length]);
+    }
+    for(const m of text.matchAll(/(?:"[^"\n]+"|“[^”\n]+”|'[^'\n]+'|‘[^’\n]+’)\s+is\s+(?:Tamil|Hindi|Spanish|French|German|Italian|Portuguese|Latin|Arabic|Japanese|Korean|Chinese)\s+for\b/gi)){
+      const end=m[0].search(/\s+is\s+/i);excluded.push([m.index,m.index+end]);
+    }
     for(const m of text.matchAll(/\b(?:in|from) (?:Tamil|Hindi|Spanish|French|German|Italian|Portuguese|Latin|Arabic|Japanese|Korean|Chinese)\b[^.!?\n]{0,100}?\b(?:saying|phrase|word)\s+(['"“‘])[^'"”’\n]+['"”’]/gi)){
       const quote=m[0].indexOf(m[1]);excluded.push([m.index+quote,m.index+m[0].length]);
     }
@@ -771,7 +779,7 @@ export function createChecker(data) {
       } else {
         const statedName=statedKoreanNames.find(name=>word.startsWith(name)&&(!word.slice(name.length)||sets.josa.has(word.slice(name.length))||morphology.predicate(word.slice(name.length))?.root==='이'));
         const authorName=/^[ \u00a0]+(?:지음|옮김)(?=$|[\s.,!?])/u.test(text.slice(to));
-        if(statedName||authorName||contextualProductName(text,from,to)){
+        if(statedName||authorName||contextualProductName(text,from,to,tail=>sets.josa.has(tail)||morphology.predicate(tail)?.root==='이')){
           if(!personal.has(word)){
             emit(from,to,'ko','unknown',[],word);
             results.at(-1).reason='Name, author credit, or locally identified product; preserve the complete identity for review';

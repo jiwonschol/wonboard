@@ -1221,7 +1221,7 @@ export function createMorphology(sets,data,recognizeWhole=null) {
       // one informal name. The noun's verbal homograph cannot prove a gap.
       if(left.length===2&&left[0]===left[1]&&independentAdverb&&isRecognizedNoun(right))return null;
       if(independentAdverb&&left.endsWith('히')&&right==='진')return null;
-      if(left.length>=2&&independentAdverb&&!right.startsWith(left)&&tail&&!['하','이','되','시키'].includes(tail.root)&&!predicate(left)&&!recognizeWhole?.(word,personal))return {text:left+' '+right,ambiguous:true,rule:'2'};
+      if(left.length>=2&&independentAdverb&&!right.startsWith(left)&&tail&&!['하','이','되','시키'].includes(tail.root)&&!predicate(left)&&!predicate(word)&&!recognizeWhole?.(word,personal))return {text:left+' '+right,ambiguous:true,rule:'2'};
     }
     // 더 modifies a complete activity nominalization; its dictionary noun
     // homograph does not merge the two words. Preserve lexical 더하기.

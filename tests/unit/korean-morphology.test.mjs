@@ -13,8 +13,16 @@ test('the opening verb is not a numeral followed by all',()=>{
 });
 
 test('Hansalim is protected only in a local cooperative context',()=>{
-  for(const text of ['한살림이 오픈됐어요','한살림 매장','생협 한살림에서 구매했다'])assert.equal(check(text).some(f=>f.applicable&&f.original.startsWith('한살림')),false,text);
+  for(const text of ['한살림이 오픈됐어요','한살림 매장','생협 한살림에서 구매했다','한살림 매장입니다','한살림 조합원이 됐다','한살림 매장이 열렸다'])assert.equal(check(text).some(f=>f.applicable&&f.original.startsWith('한살림')),false,text);
   assert.ok(check('한살림을 차렸다').some(f=>f.suggestions[0]==='한 살림을'));
+});
+
+test('sentence-final informal questions retain the attached ngam ending',()=>{
+  for(const text of ['이게 아닌감?','괜찮은감?'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('lexical sweet-and-sour predicates stay whole before adverb splitting',()=>{
+  for(const text of ['새콤달콤하다','새콤달콤한 맛','새콤달콤해서','매콤달콤하다'])assert.equal(check(text).some(f=>f.applicable),false,text);
 });
 
 test('complete nominals and adverbs preserve internal lexical boundaries',()=>{

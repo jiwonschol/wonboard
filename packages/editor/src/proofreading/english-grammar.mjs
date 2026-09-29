@@ -8,7 +8,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     // verb matches elsewhere must not silently turn that identifier into I.
     if(text[from]==='i'&&(to===from+1||/\s/.test(text[from+1]))&&/^I\b/.test(suggestion)){
       const before=text.slice(0,from);
-      if(/\b(?:can|could|should|would|will|may|might|must|do|did|does|am|was|were|have|had|of|for|from|to|with|without|by|in|on|at)\s+$/i.test(before))return;
+      if(/\b(?:can|could|should|would|will|may|might|must|do|did|does|am|was|were|have|had|of|for|from|to|with|without|by|in|on|at|let)\s+$/i.test(before))return;
       if(/\b(?:variable|index|counter|parameter|integer|identifier|symbol|value|row|column)\s+(?:(?:named|called)\s+)?$/i.test(before))return;
     }
     if(findings.some(item=>item.from<to&&item.to>from))return;
@@ -17,6 +17,8 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   // These neighboring-key, letter-order and suffix errors need an attested
   // construction. Do not relax lexical matching for arbitrary unknown names.
   for(const [pattern,target,reason] of [
+    [/\b(natual)\b/gi,'natural','Reviewed missing letter in natural'],
+    [/\b(chinnese)\b/gi,'Chinese','Reviewed spelling of the proper adjective Chinese'],
     [/\b(organzies)(?=\s+(?:my|your|the|these|those|our|their)\s+(?:tabs|files|folders|data|notes|tasks|records|photos)\b)/gi,'organizes','The verb before this organized object is organizes'],
     [/\b(specificly)\b(?=\s*[,.;:!?)]|$|\s+(?:for|in|on|to|about|with|because|when|as)\b)/gi,'specifically','The adverb specifically retains the -ically suffix'],
     [/\b(?:a|the|find|finding|found|seems|seemed|is|was|be|become)\s+(nornal)\b/gi,'normal','This adjective or geometric noun is spelled normal'],
@@ -467,7 +469,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     add(match.index,match.index+match[0].length,match[0].replace(/^(?:a|an)\s+/i,''),'This mass noun does not take an indefinite article');
   }
   for(const match of text.matchAll(/\bmuch\s+(?:false\s+)?(?:positives|negatives|errors|problems|issues|people|files|users)\b/gi)){
-    if(/\bhow\s+$/i.test(text.slice(0,match.index)))continue;
+    if(/\bhow\s+$/i.test(text.slice(0,match.index))&&!/^\s+(?:(?:did|do|does|have|has|had|will|would|can|could)\s+(?:I|you|we|they|he|she|it)\b|(?:are|were)\s+(?:missing|available|remaining|present)\b)/i.test(text.slice(match.index+match[0].length)))continue;
     add(match.index,match.index+4,match[0][0]==='M'?'Many':'many','This plural count noun takes many');
   }
   for(const match of text.matchAll(/\b(?:it|he|she)\s+(?:just|often|always|sometimes)\s+(try|work|use|need|want)\b/gi)){
@@ -518,8 +520,6 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     }
   }
   for(const match of text.matchAll(/\boaid\b/g))add(match.index,match.index+match[0].length,'paid','Reviewed letter substitution in paid','spelling');
-  for(const match of text.matchAll(/\bnatual\b/gi))add(match.index,match.index+match[0].length,'natural','Reviewed missing letter in natural','spelling');
-  for(const match of text.matchAll(/\bchinnese\b/gi))add(match.index,match.index+match[0].length,'Chinese','Reviewed spelling of the proper adjective Chinese','spelling');
   for(const match of text.matchAll(/\b(?:news|front page|go there|do this|work on it) everyday\b(?=\s*(?:[.!?;]|$))/gi)){
     add(match.index,match.index+match[0].length,match[0].replace(/everyday$/i,'every day'),'Every day is the adverbial time expression');
   }

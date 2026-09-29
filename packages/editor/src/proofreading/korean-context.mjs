@@ -1,11 +1,13 @@
 // Own bounded confusion-word rules. Lexical meanings: spelling-orthography-sources.md.
 // These are review suggestions, never a claim of full sentence understanding.
-export function contextualProductName(text,from,to){
+export function contextualProductName(text,from,to,nominalTail){
   const word=text.slice(from,to),left=text.slice(Math.max(0,from-80),from).split('\n').at(-1),right=text.slice(to,to+100).split('\n')[0];
   // The cooperative name shares its spelling with the ordinary count phrase.
   if(/^한살림(?:은|이|을|도|만|의|에|에서|으로|과)?$/.test(word)){
+    const cue=right.match(/^[ \u00a0]+(?:매장|조합원|생협)([가-힣]*)(?=$|[^가-힣])/);
     return /(?:^|[^가-힣])(?:생협|소비자생활협동조합)[ \u00a0]+$/.test(left)
-      || /^[ \u00a0]+(?:매장|조합원|생협|오픈)(?=$|[^가-힣]|됐|했)/.test(right);
+      || Boolean(cue&&(!cue[1]||nominalTail(cue[1])))
+      || /^[ \u00a0]+오픈(?=$|[^가-힣]|됐|했)/.test(right);
   }
   // Both names are published by their manufacturers (Samyang / Haitai).
   // They also resemble ordinary phrases, so require a local brand cue.
