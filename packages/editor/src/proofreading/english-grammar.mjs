@@ -1,9 +1,13 @@
 // Bounded English spelling and grammar candidates; full clause structure
 // is not parsed.
+export function explicitlyNamedEnglish(text,from){
+  return /\b(?:(?:called|named)|(?:I|we)\s+call)\s+['"“‘]?$/i.test(text.slice(0,from));
+}
 export function englishGrammar(text,excluded=[],personal=new Set()) {
   const findings=[];
   const add=(from,to,suggestion,reason,type='grammar')=>{
     if(excluded.some(([a,b])=>from<b&&to>a)||personal.has(text.slice(from,to)))return;
+    if(type==='spelling'&&explicitlyNamedEnglish(text,from))return;
     // Inverted questions can use the variable i as their subject. Following
     // verb matches elsewhere must not silently turn that identifier into I.
     if(text[from]==='i'&&(to===from+1||/\s/.test(text[from+1]))&&/^I\b/.test(suggestion)){
@@ -309,7 +313,9 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   for(const match of text.matchAll(/\b(?:anyone|someone|everyone|no one)\s+(?:else\s+)?(have)\s+had\b/gi)){
     if(permitsBaseVerb(match.index))continue;
-    if(/^[^.!?\n]*\?/.test(text.slice(match.index)))continue;
+    // Internal periods in abbreviations and versions cannot establish a
+    // declarative clause. Conservatively preserve a question on this line.
+    if(/^[^?!\n]*\?/.test(text.slice(match.index)))continue;
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'has','This singular indefinite subject takes has in the perfect tense');
   }
@@ -410,6 +416,9 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
   }
   // Require a completed plural head, not a modifier in parts store.
   for(const match of text.matchAll(/\b([Ww])hat['’]s\s+(?:your|their|our)\s+favou?rite\s+(?:parts|books|games|tools|features|things|ways)\b(?=\s+of\b|\s*[?!]|$)/g)){
+    const after=text.slice(match.index+match[0].length);
+    // An open of-phrase may end in a singular compound head (speech book).
+    if(/^\s+of\b/i.test(after)&&!/^\s+of\s+[^\s?!.,;]+\s*(?:[?!]|$)/i.test(after))continue;
     const length=match[0].indexOf(' ');
     add(match.index,match.index+length,match[1]+'hat are','The plural subject in this question takes are');
   }
@@ -470,7 +479,11 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     add(match.index,match.index+match[0].length,match[0].replace(/^(?:a|an)\s+/i,''),'This mass noun does not take an indefinite article');
   }
   for(const match of text.matchAll(/\bmuch\s+(?:false\s+)?(?:positives|negatives|errors|problems|issues|people|files|users)\b/gi)){
-    if(/\bhow\s+$/i.test(text.slice(0,match.index))&&!/^\s+(?:(?:did|do|does|have|has|had|will|would|can|could)\s+(?:I|you|we|they|he|she|it)\b|(?:are|were)\s+(?:missing|available|remaining|present)\b|(?:remain|remained|joined|arrived|exist|existed)\b)/i.test(text.slice(match.index+match[0].length)))continue;
+    const before=text.slice(0,match.index),after=text.slice(match.index+match[0].length);
+    if(/\bhow\s+$/i.test(before)){
+      const directQuestion=/(?:^|[.!?]\s*)how\s+$/i.test(before)&&/^[^?!\n]*\?/.test(after);
+      if(!directQuestion||!/^\s+(?:(?:did|do|does|have|has|had|will|would|can|could)\s+(?:I|you|we|they|he|she|it)\b|(?:are|were)\s+(?:missing|available|remaining|present)\b|(?:remain|remained|joined|arrived|exist|existed)\b)/i.test(after))continue;
+    }
     add(match.index,match.index+4,match[0][0]==='M'?'Many':'many','This plural count noun takes many');
   }
   for(const match of text.matchAll(/\b(?:it|he|she)\s+(?:just|often|always|sometimes)\s+(try|work|use|need|want)\b/gi)){
@@ -574,7 +587,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     // Have also takes a noun object, even before a determiner: setup this week.
     if(/^(?:have|has|had)$/i.test(match[2]??'')){
       const after=text.slice(from+match[3].length);
-      if(!/^\s+(?:the|a|an|my|your|our|their|his|her)\s+[a-z]+\b/i.test(after)||/^\s+the\s+(?:(?:next|previous|following|same)\s+)?(?:day|week|month|year|morning|afternoon|evening|night)\b/i.test(after))continue;
+      if(!/^\s+(?:the|a|an|my|your|our|their|his|her|this|that|these|those)\s+[a-z]+\b/i.test(after)||/^\s+(?:the|this|that|these|those)\s+(?:(?:next|previous|following|same)\s+)?(?:days?|weeks?|months?|years?|mornings?|afternoons?|evenings?|nights?)\b/i.test(after))continue;
     }
     add(from,from+match[3].length,'set up','Set up is the verb; setup is a noun or noun modifier');
   }
@@ -643,6 +656,8 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     add(from,from+match[2].length+1,'','The adjacent auxiliary is duplicated before a noun phrase');
   }
   for(const match of text.matchAll(/\b(?:have|has|had|we['’]ve|I['’]ve)\s+(book)(?=\s+(?:walking tours|flights|tickets|hotels)\b)/gi)){
+    if(/^\s+walking tours\b/i.test(text.slice(match.index+match[0].length)))continue;
+    if(/^(?:have|has|had)\b/i.test(match[0]))continue;
     const from=match.index+match[0].lastIndexOf(match[1]);
     add(from,from+match[1].length,'booked','The perfect auxiliary takes the participle booked');
   }

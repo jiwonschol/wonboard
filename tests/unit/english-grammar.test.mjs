@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 
 test('how much may describe the degree of a following plural clause',()=>{
-  for(const text of ['We measured how much positives outweigh negatives.','How much users contribute varies.'])assert.equal(check(text).some(f=>f.suggestions[0]==='many'),false,text);
+  for(const text of ['We measured how much positives outweigh negatives.','How much users contribute varies.','We measured how much users joined in during the trial'])assert.equal(check(text).some(f=>f.suggestions[0]==='many'),false,text);
   assert.ok(check('There are much errors.').some(f=>f.suggestions[0]==='many'));
   for(const text of ['How much errors did you find?','How much files are missing?','How much files remain?','How much users joined?'])assert.ok(check(text).some(f=>f.suggestions[0]==='many'),text);
 });
@@ -12,13 +12,28 @@ test('mass equipment repairs retain source capitalization',()=>{
 });
 
 test('perfect indefinite subject repairs abstain when question inversion is needed',()=>{
-  assert.equal(check('Anyone have had this issue?').some(f=>f.suggestions[0]==='has'),false);
+  for(const text of ['Anyone have had this issue?','Anyone have had this issue in the U.S.?','Anyone have had this issue in v2.0?'])assert.equal(check(text).some(f=>f.suggestions[0]==='has'),false,text);
   assert.ok(check('Everyone have had this issue.').some(f=>f.suggestions[0]==='has'));
 });
 
 test('perfect setup verbs with definite objects remain distinct from setup nouns',()=>{
-  for(const text of ['I have setup the server.','We had setup the account before noon.'])assert.ok(check(text).some(f=>f.suggestions[0]==='set up'),text);
+  for(const text of ['I have setup the server.','We had setup the account before noon.','I have setup this server.','We had setup those accounts.'])assert.ok(check(text).some(f=>f.suggestions[0]==='set up'),text);
   for(const text of ['I have setup experience.','I have setup this week.','I have setup the following morning.'])assert.equal(check(text).some(f=>f.suggestions[0]==='set up'),false,text);
+});
+
+test('favorite plural modifiers before an of-phrase retain a singular compound head',()=>{
+  assert.equal(check("What's your favorite parts of speech book?").some(f=>f.suggestions[0]==='What are'),false);
+  assert.ok(check("What's your favorite parts of Cocoa?").some(f=>f.suggestions[0]==='What are'));
+});
+
+test('possessive have does not turn book-themed tours into bookings',()=>{
+  assert.equal(check('We have book walking tours available.').some(f=>f.suggestions[0]==='booked'),false);
+  assert.ok(check("we've book flights").some(f=>f.suggestions[0]==='booked'));
+});
+
+test('explicitly named spellings bypass both exact and distance spelling repairs',()=>{
+  for(const text of ['Our project is called Natual.','The app named Natual is useful.'])assert.equal(check(text).some(f=>f.original==='Natual'&&f.applicable),false,text);
+  assert.ok(check('Natual language processing is useful.').some(f=>f.suggestions[0]==='Natural'));
 });
 
 test('let binds a lowercase variable without creating a first-person pronoun',()=>{

@@ -3,7 +3,7 @@
 import {createMorphology,createActionNounSet,isPronoun} from './korean-morphology.mjs';
 import {orthography,lexicalNounRepair} from './korean-orthography.mjs';
 import {contextSuggestion,communityExpression,communityAction,contextualProductName} from './korean-context.mjs';
-import {englishGrammar} from './english-grammar.mjs';
+import {englishGrammar,explicitlyNamedEnglish} from './english-grammar.mjs';
 import {englishUsage} from './english-usage.mjs';
 import {communityNouns,communityNominalOnly,technicalAbbreviations,englishRecognizedTerms,communityActionNouns,communityAdjectiveStems,communityVerbStems,candidatePhraseBoundaries,candidateJoinedPhrases} from './community-vocabulary.mjs';
 const analysisLimit=48;
@@ -742,7 +742,7 @@ export function createChecker(data) {
         // Context selects the part of speech where a nearby dictionary
         // adjective would otherwise win over an ordinary verb/noun typo.
         const before=text.slice(Math.max(0,from-50),from);
-        if(/\b(?:(?:app|tool|project|service|manager|platform|library|package)\s+(?:called|named)|(?:I|we)\s+call)\s+$/i.test(before)){
+        if(explicitlyNamedEnglish(text,from)){
           emit(from,to,'en','unknown',[],word);continue;
         }
         // A repeated initial in a provider name is not necessarily a typo.
