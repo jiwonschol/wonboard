@@ -59,7 +59,7 @@ export function prepareAnnotatedCases(rows) {
     if (typeof row.normalSentenceEligible !== 'boolean' || row.normalSentenceEligible && row.classification !== 'normal') fail('Invalid normal sentence eligibility');
     for (const range of row.ranges) {
       validateRange(row.text,range);
-      if (!['spelling','spacing','combined','unknown'].includes(range.type) || (range.type === 'unknown' ? range.suggestions.length !== 0 : range.suggestions.length === 0)) fail('Invalid annotation event');
+      if (!['spelling','spacing','grammar','combined','unknown'].includes(range.type) || (range.type === 'unknown' ? range.suggestions.length !== 0 : range.suggestions.length === 0)) fail('Invalid annotation event');
     }
     // A correction and an unknown notice may overlap, but the same event must
     // never increase a denominator or precision numerator twice.
@@ -103,7 +103,7 @@ export async function evaluateAnnotatedRows(rows, check) {
     if (!Array.isArray(findings)) fail('Invalid checker result');
     for (const f of findings) {
       validateRange(text,f);
-      if (!['spelling','spacing','unknown'].includes(f.type) || (f.type === 'unknown' ? f.suggestions.length !== 0 : f.suggestions.length === 0)) fail('Invalid checker event');
+      if (!['spelling','spacing','grammar','unknown'].includes(f.type) || (f.type === 'unknown' ? f.suggestions.length !== 0 : f.suggestions.length === 0)) fail('Invalid checker event');
     }
     rejectDuplicateEvents(findings);
     findingsByText.set(text,findings);
@@ -112,8 +112,8 @@ export async function evaluateAnnotatedRows(rows, check) {
   const metrics = {firstSuggestions:0, correctFirstSuggestions:0, normalSentences:0, normalSentencesWithWrongSuggestions:0, normalSentencesWithUnknownNotices:0, normalUnknownNotices:0, expectedUnknown:0, detectedUnknown:0, unexpectedUnknown:0, protectedRows:0, protectedRowsWithWrongSuggestions:0};
   // Keep adjudicated event types separate from character-edit denominators.
   // Overlap measures detection only; it does not establish a correct repair.
-  const annotationDetection=Object.fromEntries(['spelling','spacing','combined'].map(type=>[type,{expected:0,detected:0,missed:0}]));
-  const annotationCorrection=Object.fromEntries(['spelling','spacing','combined'].map(type=>[type,{expected:0,top1:0,top3:0}]));
+  const annotationDetection=Object.fromEntries(['spelling','spacing','grammar','combined'].map(type=>[type,{expected:0,detected:0,missed:0}]));
+  const annotationCorrection=Object.fromEntries(['spelling','spacing','grammar','combined'].map(type=>[type,{expected:0,top1:0,top3:0}]));
   const correctionFailures=new Set(report.failures.map(f=>f.id)), reviewFailures=new Set();
   for (let i=0;i<prepared.rows.length;i++) {
     const row=prepared.rows[i], c=prepared.cases[i], findings=findingsByText.get(row.text);

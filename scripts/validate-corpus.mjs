@@ -8,14 +8,21 @@ export const digest=value=>createHash('sha256').update(value).digest('hex');
 export const partition=hash=>parseInt(hash.slice(0,8),16)%5===0?'holdout':'development';
 const fail=()=>{throw Error('VALIDATION_FAILED');};
 
+// Include the prototype's data inputs and every transitive checker rule module.
+export async function engineFingerprints(){
+  const fingerprints={};
+  for(const file of ['scripts/spelling-prototype.mjs','packages/editor/src/proofreading/engine.mjs','packages/editor/src/proofreading/korean-morphology.mjs','packages/editor/src/proofreading/korean-orthography.mjs','packages/editor/src/proofreading/korean-context.mjs','packages/editor/src/proofreading/community-vocabulary.mjs','packages/editor/src/proofreading/english-grammar.mjs','packages/editor/src/proofreading/english-usage.mjs','third_party/spelling/generated/lexicon.json','third_party/spelling/generated/morphology.json'])fingerprints[file]=digest(await readFile(join(project,file)));
+  return fingerprints;
+}
+
 export function goldReport(cases,check){
   if(!Array.isArray(cases)||!cases.length)fail();
-  const totals={cases:cases.length,expected:{spelling:0,spacing:0,unknown:0},detected:{spelling:0,spacing:0,unknown:0},top3:{spelling:0,spacing:0},unexpectedRecommendations:0,unexpectedUnknown:0};
+  const totals={cases:cases.length,expected:{spelling:0,spacing:0,grammar:0,unknown:0},detected:{spelling:0,spacing:0,grammar:0,unknown:0},top3:{spelling:0,spacing:0,grammar:0},unexpectedRecommendations:0,unexpectedUnknown:0};
   for(const c of cases){
     if(typeof c.text!=='string'||c.complete!==true||!Array.isArray(c.expected))fail();
     let end=0;
     for(const e of c.expected){
-      if(!['spelling','spacing','unknown'].includes(e.type)||!Number.isInteger(e.from)||!Number.isInteger(e.to)||e.from<end||e.to<=e.from||e.to>c.text.length)fail();
+      if(!['spelling','spacing','grammar','unknown'].includes(e.type)||!Number.isInteger(e.from)||!Number.isInteger(e.to)||e.from<end||e.to<=e.from||e.to>c.text.length)fail();
       if(e.type!=='unknown'&&(!Array.isArray(e.suggestions)||!e.suggestions.length||e.suggestions.some(s=>typeof s!=='string')))fail();
       end=e.to;
     }
@@ -92,7 +99,7 @@ export async function survey(root,{documents=100,split='development',field='orig
         }
       }
     }
-    const observations={sampledDocuments:selected.length,checkedUtterances:0,emptySkipped:0,characters:0,withRecommendations:0,withUnknown:0,spellingFindings:0,spacingFindings:0,unknownFindings:0,analysisLimits:0,checkerFailures:0,medianMs:0,p95Ms:0,maxMs:0};
+    const observations={sampledDocuments:selected.length,checkedUtterances:0,emptySkipped:0,characters:0,withRecommendations:0,withUnknown:0,spellingFindings:0,spacingFindings:0,grammarFindings:0,unknownFindings:0,analysisLimits:0,checkerFailures:0,medianMs:0,p95Ms:0,maxMs:0};
     const times=[];
     const structurallyValid=stats.parseFailures+stats.invalidDocuments+stats.duplicateDocuments+stats.duplicateUtteranceIds===0;
     if(structurallyValid)for(const doc of selected)for(const text of doc.texts){
@@ -106,6 +113,7 @@ export async function survey(root,{documents=100,split='development',field='orig
       for(const f of findings){
         if(f.type==='spelling')observations.spellingFindings++;
         if(f.type==='spacing')observations.spacingFindings++;
+        if(f.type==='grammar')observations.grammarFindings++;
         if(f.type==='unknown')observations.unknownFindings++;
         if(f.reason?.includes('longer than 64'))observations.analysisLimits++;
       }
@@ -125,8 +133,7 @@ async function main(){
   if((await lstat(local)).isSymbolicLink()||await realpath(local)!==local)fail();
   const root=join(local,'nikl');if(await realpath(root)!==root)fail();
   const {check}=await import('./spelling-prototype.mjs');
-  const fingerprints={};
-  for(const file of ['scripts/spelling-prototype.mjs','packages/editor/src/proofreading/engine.mjs','packages/editor/src/proofreading/korean-morphology.mjs','packages/editor/src/proofreading/korean-orthography.mjs','packages/editor/src/proofreading/korean-context.mjs','packages/editor/src/proofreading/community-vocabulary.mjs','third_party/spelling/generated/lexicon.json','third_party/spelling/generated/morphology.json'])fingerprints[file]=digest(await readFile(join(project,file)));
+  const fingerprints=await engineFingerprints();
   let report;
   if(opts['--labels']){
     const file=await realpath(resolve(local,opts['--labels']));if(!file.startsWith(local+sep))fail();

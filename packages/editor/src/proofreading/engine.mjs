@@ -363,7 +363,8 @@ export function createChecker(data) {
     let auxiliaryRepairEnd=0;
     const repositoryNames=[...text.matchAll(/https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/([A-Za-z0-9_.-]+)/gi)].flatMap(m=>{
       const name=m[1].toLowerCase();
-      return [name,name.replace(/\.+$/,'')];
+      const trimmed=name.replace(/\.+$/,'');
+      return [name,trimmed,trimmed.replace(/\.git$/,'')];
     });
     // A parenthetical Romance-language name is not English edit-distance
     // input. Keep the words reviewable and preserve the surrounding prose.
@@ -402,8 +403,8 @@ export function createChecker(data) {
     for(const m of text.matchAll(/(?:^|[\s(])\/[A-Za-z0-9._~/-]+\?[A-Za-z0-9_%-]+=(?:<[^>\n]*>|[^\s)]*)/g)){
       const start=m.index+(m[0][0]==='/'?0:1);excluded.push([start,m.index+m[0].length]);
     }
-    // Slash-delimited resource paths retain identifier casing without a query.
-    for(const m of text.matchAll(/(?:^|[\s("'\[])((?:\/)?[A-Za-z0-9._~-]+(?:\/[A-Za-z0-9._~-]+)+\/?)/g)){
+    // Resource paths retain identifier casing with either path separator.
+    for(const m of text.matchAll(/(?:^|[\s("'\[])((?:[A-Za-z]:)?[\\/]{0,2}[A-Za-z0-9._~-]+(?:[\\/][A-Za-z0-9._~-]+)+[\\/]?)/g)){
       // Bare letter alternatives such as A/B are also ordinary prose.
       if(/^[A-Za-z]\/[A-Za-z]$/.test(m[1]))continue;
       const start=m.index+m[0].indexOf(m[1]);excluded.push([start,start+m[1].length]);
@@ -412,16 +413,16 @@ export function createChecker(data) {
     for(const m of text.matchAll(/\burl\(\s*(?:"[^"]*"|'[^']*'|[^\s)]*)\s*\)/gi))excluded.push([m.index,m.index+m[0].length]);
     // Explicitly introduced foreign sayings retain their quoted spelling.
     // Ordinary English quotations remain eligible for spelling checks.
-    for(const m of text.matchAll(/\b(?:Tamil|Hindi|Spanish|French|German|Italian|Portuguese|Latin|Arabic|Japanese|Korean|Chinese)\s+(?:saying|phrase|word)\s+(['"“‘])[^'"”’\n]+['"”’]/gi)){
+    for(const m of text.matchAll(/\b(?!(?:[A-Z][A-Za-z]{2,}\s+)?English\b)[A-Z][A-Za-z]{2,}(?:\s+[A-Z][A-Za-z]{2,})?\s+(?:[Ss]aying|[Pp]hrase|[Ww]ord)\s+(['"“‘])[^'"”’\n]+['"”’]/g)){
       const quote=m[0].indexOf(m[1]);excluded.push([m.index+quote,m.index+m[0].length]);
     }
-    for(const m of text.matchAll(/(?:"[^"\n]+"|“[^”\n]+”|'[^'\n]+'|‘[^’\n]+’)\s+is\s+(?:Tamil|Hindi|Spanish|French|German|Italian|Portuguese|Latin|Arabic|Japanese|Korean|Chinese)\s+for\b/gi)){
+    for(const m of text.matchAll(/(?:"[^"\n]+"|“[^”\n]+”|'[^'\n]+'|‘[^’\n]+’)\s+[Ii]s\s+(?!(?:[A-Z][A-Za-z]{2,}\s+)?English\b)[A-Z][A-Za-z]{2,}(?:\s+[A-Z][A-Za-z]{2,})?\s+[Ff]or\b/g)){
       const end=m[0].search(/\s+is\s+/i);excluded.push([m.index,m.index+end]);
     }
-    for(const m of text.matchAll(/\b(?:in|from) (?:Tamil|Hindi|Spanish|French|German|Italian|Portuguese|Latin|Arabic|Japanese|Korean|Chinese)\b[^.!?\n]{0,100}?\b(?:saying|phrase|word)\s+(['"“‘])[^'"”’\n]+['"”’]/gi)){
+    for(const m of text.matchAll(/\b(?:[Ii]n|[Ff]rom) (?!(?:[A-Z][A-Za-z]{2,}\s+)?English\b)[A-Z][A-Za-z]{2,}(?:\s+[A-Z][A-Za-z]{2,})?\b[^.!?\n]{0,100}?\b(?:[Ss]aying|[Pp]hrase|[Ww]ord)\s+(['"“‘])[^'"”’\n]+['"”’]/g)){
       const quote=m[0].indexOf(m[1]);excluded.push([m.index+quote,m.index+m[0].length]);
     }
-    for(const m of text.matchAll(/(?:"[^"\n]+"|“[^”\n]+”|'[^'\n]+'|‘[^’\n]+’)\s*\((?:Tamil|Hindi|Spanish|French|German|Italian|Portuguese|Latin|Arabic|Japanese|Korean|Chinese)\s+for\b/gi)){
+    for(const m of text.matchAll(/(?:"[^"\n]+"|“[^”\n]+”|'[^'\n]+'|‘[^’\n]+’)\s*\((?!(?:[A-Z][A-Za-z]{2,}\s+)?English\b)[A-Z][A-Za-z]{2,}(?:\s+[A-Z][A-Za-z]{2,})?\s+[Ff]or\b/g)){
       const end=m[0].search(/\s*\(/);excluded.push([m.index,m.index+end]);
     }
     for(const m of text.matchAll(/\bde facto\b/gi))excluded.push([m.index,m.index+m[0].length]);

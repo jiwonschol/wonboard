@@ -1,17 +1,19 @@
 // Bounded English spelling and grammar candidates; full clause structure
 // is not parsed.
 export function explicitlyNamedEnglish(text,from){
-  return /\b(?:(?:called|named)|(?:I|we)\s+call)\s+['"“‘]?$/i.test(text.slice(0,from));
+  return /\b(?:(?:called|named)|(?:I|we)\s+call|(?:call|called|name|named)\s+(?:my|your|our|their|his|her|the|a|an|this|that)\s+(?:(?:new|old|first|next)\s+)?(?:project|app|tool|service|manager|platform|library|package|product|company|child|daughter|son|dog|cat))\s+['"“‘]?$/i.test(text.slice(0,from));
 }
 export function englishGrammar(text,excluded=[],personal=new Set()) {
   const findings=[];
   const add=(from,to,suggestion,reason,type='grammar')=>{
     if(excluded.some(([a,b])=>from<b&&to>a)||personal.has(text.slice(from,to)))return;
-    if(type==='spelling'&&explicitlyNamedEnglish(text,from))return;
+    if(explicitlyNamedEnglish(text,from))return;
     // Inverted questions can use the variable i as their subject. Following
     // verb matches elsewhere must not silently turn that identifier into I.
     if(text[from]==='i'&&(to===from+1||/\s/.test(text[from+1]))&&/^I\b/.test(suggestion)){
       const before=text.slice(0,from);
+      const statement=before.split(/[.!?\n]/).at(-1);
+      if(/\b(?:let|for each|for every|variable|index|counter|parameter|integer|identifier|symbol)\s+(?:(?:named|called)\s+)?i\b/i.test(statement))return;
       if(/\b(?:can|could|should|would|will|may|might|must|do|did|does|am|was|were|have|had|of|for|from|to|with|without|by|in|on|at|let)\s+$/i.test(before))return;
       if(/\b(?:variable|index|counter|parameter|integer|identifier|symbol|value|row|column)\s+(?:(?:named|called)\s+)?$/i.test(before))return;
     }
@@ -529,7 +531,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
         add(match.index,match.index+match[0].length,'done','The perfect auxiliary requires the past participle done','spelling');
         continue;
       }
-      const value=match[0][0]===match[0][0].toUpperCase()?replacement[0].toUpperCase()+replacement.slice(1):replacement;
+      const value=match[0]===match[0].toUpperCase()?replacement.toUpperCase():match[0][0]===match[0][0].toUpperCase()?replacement[0].toUpperCase()+replacement.slice(1):replacement;
       add(match.index,match.index+match[0].length,value,'This contraction needs an apostrophe');
     }
   }
@@ -587,7 +589,7 @@ export function englishGrammar(text,excluded=[],personal=new Set()) {
     // Have also takes a noun object, even before a determiner: setup this week.
     if(/^(?:have|has|had)$/i.test(match[2]??'')){
       const after=text.slice(from+match[3].length);
-      if(!/^\s+(?:the|a|an|my|your|our|their|his|her|this|that|these|those)\s+[a-z]+\b/i.test(after)||/^\s+(?:the|this|that|these|those)\s+(?:(?:next|previous|following|same)\s+)?(?:days?|weeks?|months?|years?|mornings?|afternoons?|evenings?|nights?)\b/i.test(after))continue;
+      if(!/^\s+(?:the|a|an|my|your|our|their|his|her|this|that|these|those)\s+[a-z]+\b/i.test(after)||/^\s+(?:the|this|that|these|those)\s+(?:(?:next|previous|following|same)\s+)?(?:days?|weeks?|months?|years?|mornings?|afternoons?|evenings?|nights?|weekends?|holidays?|spring|summer|autumn|fall|winter|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|January|February|March|April|May|June|July|August|September|October|November|December|Christmas|Easter|Thanksgiving)\b/i.test(after))continue;
     }
     add(from,from+match[3].length,'set up','Set up is the verb; setup is a noun or noun modifier');
   }

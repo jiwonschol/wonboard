@@ -32,8 +32,23 @@ test('possessive have does not turn book-themed tours into bookings',()=>{
 });
 
 test('explicitly named spellings bypass both exact and distance spelling repairs',()=>{
-  for(const text of ['Our project is called Natual.','The app named Natual is useful.'])assert.equal(check(text).some(f=>f.original==='Natual'&&f.applicable),false,text);
+  for(const text of ['Our project is called Natual.','The app named Natual is useful.','I named my project Natual.'])assert.equal(check(text).some(f=>f.original==='Natual'&&f.applicable),false,text);
+  assert.equal(check('The app is called Equipments.').some(f=>f.original==='Equipments'&&f.applicable),false);
   assert.ok(check('Natual language processing is useful.').some(f=>f.suggestions[0]==='Natural'));
+});
+
+test('scheduled setup nouns retain calendar expressions',()=>{
+  for(const text of ['I have setup this Saturday.','We have setup this weekend.','I have setup this October.','I have setup the next holiday.'])assert.equal(check(text).some(f=>f.suggestions[0]==='set up'),false,text);
+  assert.ok(check('I have setup this server.').some(f=>f.suggestions[0]==='set up'));
+});
+
+test('uppercase apostrophe repairs retain uppercase text',()=>{
+  for(const [text,target] of [['DONT PANIC',"DON'T"],['THATS ALL',"THAT'S"],['DOESNT WORK',"DOESN'T"]])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('bound lowercase variables retain later references in the statement',()=>{
+  for(const text of ['Let i = 0; i wait for the next step.','For each i, i find the first match.'])assert.equal(check(text).some(f=>f.original==='i'&&f.applicable),false,text);
+  assert.ok(check('i find it useful.').some(f=>f.suggestions[0]==='I'));
 });
 
 test('let binds a lowercase variable without creating a first-person pronoun',()=>{
@@ -47,6 +62,7 @@ test('exact spelling repairs preserve title and upper case',()=>{
 
 test('explicit foreign word labels protect only the quoted expression',()=>{
   for(const text of ['The Latin word "natura" means nature','The word "natura" is Latin for nature'])assert.equal(check(text).some(f=>f.original==='natura'&&f.applicable),false,text);
+  for(const [text,word] of [['The Greek word "techne" means art.','techne'],['The word "ruach" is Hebrew for spirit.','ruach'],['"woord" (Dutch for word) is interesting.','woord'],['In Greek, the word "techne" means art.','techne']])assert.equal(check(text).some(f=>f.original===word&&f.applicable),false,text);
   assert.ok(check('The Latin word "natura" means teh natural world').some(f=>f.suggestions[0]==='the'));
   assert.ok(check('The English word "natual" is misspelled').some(f=>f.suggestions[0]==='natural'));
 });

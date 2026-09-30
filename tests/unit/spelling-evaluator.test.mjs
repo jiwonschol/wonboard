@@ -21,6 +21,14 @@ test('unknown notices do not masquerade as detected errors',async()=>{
   assert.equal(r.totals['all/en/spelling'].detected,0);
   assert.equal(r.totals['all/en/spelling'].unknown,1);
 });
+test('grammar labels and partial grammar repairs contribute to the matching event counts',async()=>{
+  const finding={from:0,to:2,original:'ab',type:'grammar',suggestions:['ax']};
+  for(const type of ['grammar','combined']){
+    const [c]=compileCases({groups:[{language:'en',type,holdout:1,rows:[['[ab cd]','ax cy']]}]});
+    const t=(await evaluate([c],async()=>[finding])).totals[`all/en/${type}`];
+    assert.equal(t.events,2);assert.equal(t.detected,1);assert.equal(t.top1,1);assert.equal(t.top3,1);assert.equal(t.exact,0);
+  }
+});
 test('equivalent wider range correction counts; extra edits do not',async()=>{
   const [c]=compileCases({groups:[{language:'ko',type:'spacing',holdout:1,rows:[['[글을쓴다].','글을 쓴다']]}]});
   const result=async suggestion=>evaluate([c],async()=>[{from:0,to:5,original:'글을쓴다.',type:'spacing',suggestions:[suggestion]}]);

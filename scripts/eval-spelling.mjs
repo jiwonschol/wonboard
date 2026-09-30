@@ -84,10 +84,10 @@ export async function evaluate(cases, check) {
     const completeAt=new Map([1,3].map(k=>[k,c.allowed.some(target=>canProduceAnswer(c.text,target,actionable,k))]));
     let detected=0,top1=0,top3=0;
     for(const e of expected) {
-      // A compound error can be delivered as separate spelling/spacing
+      // A compound error can be delivered as separate actionable
       // findings or one combined replacement. Judge the actual source edits,
       // not whether the checker happened to choose one UI category.
-      const relevant=actionable.filter(f=>(f.type===c.type||atomic&&['spelling','spacing'].includes(f.type))&&(atomic?f.from<=e.to&&f.to>=e.from:f.from<=e.from&&f.to>=e.to));
+      const relevant=actionable.filter(f=>(f.type===c.type||atomic&&['spelling','spacing','grammar'].includes(f.type))&&(atomic?f.from<=e.to&&f.to>=e.from:f.from<=e.from&&f.to>=e.to));
       if(relevant.length||completeAt.get(3)) detected++;
       // A reachable complete accepted answer fixes every required event,
       // even when its character edits differ from the reference answer.
@@ -144,7 +144,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
   console.log('Edit-event denominator: minimum merged edits among accepted answers; lexical tie-break. Not a count of all linguistic errors.');
   console.log('set | cases | detection | top1 | top3 | exact sentences | false-recommendation cases | wrong suggestions | unknown notices');
   for(const [name,t] of Object.entries(report.totals)) console.log(`${name} | ${t.cases} | ${t.detected}/${t.events} | ${t.top1}/${t.events} | ${t.top3}/${t.events} | ${t.exact}/${t.cases} | ${t.falseCases} | ${t.falseSuggestions} | ${t.unknown}`);
-  const ko=Object.entries(report.totals).filter(([k])=>/^holdout\/ko\/(spelling|spacing)$/.test(k)).map(([,v])=>v);
+  const ko=Object.entries(report.totals).filter(([k])=>/^holdout\/ko\/(spelling|spacing|grammar)$/.test(k)).map(([,v])=>v);
   const count=ko.reduce((n,t)=>n+t.events,0), detected=ko.reduce((n,t)=>n+t.detected,0);
   const falseCases=report.totals['holdout/ko/normal']?.falseCases||0;
   console.log(`Early gate (holdout): Korean detection ${detected}/${count}; normal false-recommendation cases ${falseCases}; ${count&&detected/count>=.7&&falseCases<=3?'PASS':'FAIL'}`);

@@ -1,9 +1,10 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,writeFile,rm} from 'node:fs/promises';
+import {mkdtemp,mkdir,writeFile,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {join} from 'node:path';
-import {digest,partition,validDocument,goldReport,survey} from '../../scripts/validate-corpus.mjs';
+import {join,relative} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {digest,partition,validDocument,goldReport,survey,engineFingerprints} from '../../scripts/validate-corpus.mjs';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
 test('internet expression contract measures notices, registration and surrounding spacing',()=>{
@@ -22,7 +23,7 @@ test('internet expression contract measures notices, registration and surroundin
   );
   const r=goldReport(cases,check);
   assert.equal(r.cases,12);assert.equal(r.detected.unknown,6);
-  assert.deepEqual(r.missed,{spelling:0,spacing:0,unknown:0});
+  assert.deepEqual(r.missed,{spelling:0,spacing:0,grammar:0,unknown:0});
   assert.equal(r.top3.spacing,1);assert.equal(r.unexpectedRecommendations,0);assert.equal(r.unexpectedUnknown,0);
   assert.throws(()=>goldReport([{text:'ㅋㅋ',complete:true,personal:'ㅋㅋ',expected:[]}],check));
 });
@@ -38,6 +39,34 @@ test('gold correction metrics do not accept a missing or different suggestion',(
   const r=goldReport(cases,()=>[{from:0,to:2,type:'spelling',suggestions:['ad','ac']}]);
   assert.equal(r.top3.spelling,1);assert.equal(r.unexpectedRecommendations,1);
 });
+test('grammar gold labels measure exact type, range, misses and ranked repairs',()=>{
+  const cases=[{text:'He go.',complete:true,expected:[{from:3,to:5,type:'grammar',suggestions:['goes']}]}];
+  const found=goldReport(cases,()=>[{from:3,to:5,type:'grammar',suggestions:['went','goes']}]);
+  assert.equal(found.expected.grammar,1);assert.equal(found.detected.grammar,1);
+  assert.equal(found.top3.grammar,1);assert.equal(found.missed.grammar,0);
+  assert.equal(found.unexpectedRecommendations,1);
+  for(const findings of [[],[{from:3,to:5,type:'spelling',suggestions:['goes']}], [{from:0,to:5,type:'grammar',suggestions:['He goes']}]] ){
+    const missed=goldReport(cases,()=>findings);
+    assert.equal(missed.detected.grammar,0);assert.equal(missed.top3.grammar,0);assert.equal(missed.missed.grammar,1);
+  }
+  assert.throws(()=>goldReport([{...cases[0],expected:[{...cases[0].expected[0],suggestions:[]}]}],()=>[]));
+});
+test('engine provenance hashes every transitive checker module and rule-data input',async()=>{
+  const fingerprints=await engineFingerprints(),root=new URL('../../',import.meta.url),dependencies=new Set();
+  async function visit(url){
+    const file=relative(fileURLToPath(root),fileURLToPath(url));
+    if(dependencies.has(file))return;
+    dependencies.add(file);
+    const bytes=await readFile(url);
+    assert.equal(fingerprints[file],digest(bytes),`Missing or stale checker fingerprint: ${file}`);
+    if(!file.endsWith('.mjs'))return;
+    const source=bytes.toString('utf8');
+    for(const match of source.matchAll(/\bfrom\s+['"](\.[^'"]+)['"]|\bnew URL\(['"](\.[^'"]+)['"],import\.meta\.url\)/g))await visit(new URL(match[1]??match[2],url));
+  }
+  await visit(new URL('scripts/spelling-prototype.mjs',root));
+  assert.deepEqual(Object.keys(fingerprints).sort(),[...dependencies].sort());
+  for(const name of ['english-grammar.mjs','english-usage.mjs'])assert.ok(dependencies.has(`packages/editor/src/proofreading/${name}`));
+});
 test('schema and partition are deterministic',()=>{
   assert.equal(validDocument({id:'x',utterance:[{id:'a',form:'x',original_form:'x'}]}),true);
   assert.equal(validDocument({id:'x',utterance:[{id:'a',form:'x'}]}),false);
@@ -51,9 +80,11 @@ test('survey stays aggregate-only, samples conversations and never claims accura
       await writeFile(join(root,name,'synthetic.json'),JSON.stringify({document:[{id:'one',utterance:[{id:'u',form:'PRIVATE_SENTINEL',original_form:'PRIVATE_SENTINEL'}]}]}));
     }
     const split=partition(digest(JSON.stringify(['PRIVATE_SENTINEL'])));
-    const r=await survey(root,{documents:1,split,field:'original_form'},()=>[{type:'unknown',suggestions:[]}]);
+    const r=await survey(root,{documents:1,split,field:'original_form'},()=>[{type:'unknown',suggestions:[]},{type:'grammar',suggestions:['SAFE_SYNTHETIC_REPAIR']}]);
     assert.equal(r.accuracy,null);assert.equal(r.datasets[0].checkedUtterances,1);
     assert.equal(r.datasets[0].unknownFindings,1);assert.equal(JSON.stringify(r).includes('PRIVATE_SENTINEL'),false);
+    assert.equal(r.datasets[0].grammarFindings,1);assert.equal(r.datasets[1].grammarFindings,1);
+    assert.equal(r.datasets[0].withRecommendations,1);
     assert.equal(r.datasets[0].selectionSha256,r.datasets[1].selectionSha256);
     await writeFile(join(root,'메신저','broken.json'),'not json');
     const broken=await survey(root,{documents:1,split},()=>{throw Error('must not run on invalid input');});
