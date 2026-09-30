@@ -1,0 +1,127 @@
+{
+  "createdAt": "2026-09-28T05:50:30.228Z",
+  "expertGold": false,
+  "description": "Observed first-proposal error rate on historical bounded frames; annotation is model reviewed, not expert population quality.",
+  "totals": {
+    "all": {
+      "baseline": {
+        "suggestions": 497,
+        "clearDamage": 232,
+        "unresolved": 0,
+        "clearRate": 0.46680080482897385,
+        "conservativeRate": 0.46680080482897385
+      },
+      "candidate": {
+        "suggestions": 278,
+        "clearDamage": 11,
+        "unresolved": 0,
+        "clearRate": 0.039568345323741004,
+        "conservativeRate": 0.039568345323741004
+      },
+      "rows": 1980
+    }
+  },
+  "languages": {
+    "en": {
+      "baseline": {
+        "suggestions": 307,
+        "clearDamage": 208,
+        "unresolved": 0,
+        "clearRate": 0.6775244299674267,
+        "conservativeRate": 0.6775244299674267
+      },
+      "candidate": {
+        "suggestions": 112,
+        "clearDamage": 6,
+        "unresolved": 0,
+        "clearRate": 0.05357142857142857,
+        "conservativeRate": 0.05357142857142857
+      },
+      "rows": 1747
+    },
+    "ko": {
+      "baseline": {
+        "suggestions": 190,
+        "clearDamage": 24,
+        "unresolved": 0,
+        "clearRate": 0.12631578947368421,
+        "conservativeRate": 0.12631578947368421
+      },
+      "candidate": {
+        "suggestions": 166,
+        "clearDamage": 5,
+        "unresolved": 0,
+        "clearRate": 0.030120481927710843,
+        "conservativeRate": 0.030120481927710843
+      },
+      "rows": 233
+    }
+  },
+  "batches": {
+    "A": {
+      "baseline": {
+        "suggestions": 245,
+        "clearDamage": 115,
+        "unresolved": 0,
+        "clearRate": 0.46938775510204084,
+        "conservativeRate": 0.46938775510204084
+      },
+      "candidate": {
+        "suggestions": 136,
+        "clearDamage": 7,
+        "unresolved": 0,
+        "clearRate": 0.051470588235294115,
+        "conservativeRate": 0.051470588235294115
+      },
+      "rows": 979
+    },
+    "B": {
+      "baseline": {
+        "suggestions": 252,
+        "clearDamage": 117,
+        "unresolved": 0,
+        "clearRate": 0.4642857142857143,
+        "conservativeRate": 0.4642857142857143
+      },
+      "candidate": {
+        "suggestions": 142,
+        "clearDamage": 4,
+        "unresolved": 0,
+        "clearRate": 0.028169014084507043,
+        "conservativeRate": 0.028169014084507043
+      },
+      "rows": 1001
+    }
+  },
+  "recall": {
+    "en": {
+      "mandatoryLabels": 422,
+      "baseline": 62,
+      "candidate": 83,
+      "lost": 8,
+      "gained": 29
+    },
+    "ko": {
+      "mandatoryLabels": 330,
+      "baseline": 135,
+      "candidate": 136,
+      "lost": 6,
+      "gained": 7
+    }
+  },
+  "gates": {
+    "twoBatches": false,
+    "combined200": true,
+    "language50": true,
+    "languageRates": false,
+    "recall": true,
+    "sourceMonth": true
+  },
+  "pass": false,
+  "status": "paused-incomplete",
+  "codeCommit": "d83be35",
+  "selectedURLs": 2278,
+  "acceptedRows": 2130,
+  "evaluatedRows": 2037,
+  "pendingRows": 93
+}

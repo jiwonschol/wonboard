@@ -1,5 +1,19 @@
 # 표기 규칙 출처 / 2026-09-10
 
+## 2026-09-26 공개 문장 후속 확인
+
+[국립국어원 -는구나 답변](https://korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=98&pageIndex=1&qna_seq=327042), [-고 나서 답변](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=261&pageIndex=1&qna_seq=321071), [-고 있다 보조 용언 답변](https://korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=98&pageIndex=1&qna_seq=331002)을 확인했다. 공개 글에서 드러난 누락을 기존 어간과 연결형 검증에 한정해 보완했다. 원문이나 사전 정의를 배포 데이터로 복제하지 않았다.
+
+[한국어기초사전 남아돌다](https://krdict.korean.go.kr/m/eng/searchResultView?ParaWordNo=37337&currentPage=1&exaType=&font_size=12&mainSearchWord=%EB%8F%8C%EB%8B%A4&nation=eng&nationCode=6&proverbType=&searchType=W&sort=W&viewType=A&wordMatchFlag=N)와 [남아돈다 용례](https://krdict.korean.go.kr/kor/dicSearch/SearchView?ParaWordNo=27559), [국립국어원 의존 명사 게 답변](https://m.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=314310)을 대조했다. 이미 허용된 ㄹ 받침 동사 어간의 현재형 -ㄴ다를 생성해 `남아돈다`를 보존하고 `남아돈다는 게` 경계를 찾는다. 같은 어미를 형용사에는 적용하지 않는다.
+
+[국립국어원 안 되고 답변](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=&pageIndex=1&qna_seq=277552)은 `돼고`가 `되고`의 잘못된 표기이고 부정 부사 `안`을 앞에 띄는 예를 명시한다. 교정 후 완전한 용언이 분석되는 경우만 후보로 내고 `안돼고`의 첫 후보를 `안 되고`로 둔다.
+
+[국립국어원 2026년 뻔하다 답변](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=326735)은 `-ㄹ 뻔하다`의 띄어쓰기를 원칙으로, 경우에 따라 붙여 쓰기도 허용한다고 설명한다. 따라서 붙임 형태 자체를 오류로 신고하지 않는다. 다중 경계 표본의 뻔 앞 공백은 독립 필수 교정으로 계산하지 않는다.
+
+## 스펙 표기
+
+[국립국어원 온라인가나다 306215](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=306215)는 영어 `spec`의 한글 표기를 `스펙`으로 안내한다. 공통 인식 목록에는 `스펙`을 두고 `스팩`은 수정 후보로 제안한다. 원문과 사전 정의를 배포 자료에 복제하지 않았다. 이미 검사 결과에 노출된 개발 자료의 점수는 독립 품질 증거가 아니다.
+
 ## 후속172 — 시간·위치 명사 뒤 쯤
 
 [국립국어원 쯤 결합 상담](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=324970&searchCondition=&searchKeyword=)을 다시 읽고, [지금쯤의 파생 설명](https://m.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=312870)도 확인했다. 기존 수량 범위와 제한된 시간·위치 명사에만 접미사 결합 인식을 적용했다. 전체 명사에 무조건 파생을 허용하지 않는다. 정의·예문을 배포 데이터에 복제하지 않았다. 개발 필수343/448·정상 오제안0/744는 독립 완료 증거가 아니다.
@@ -296,9 +310,13 @@ Open Korean Text의 선택 리비전은 2024-03-12 README 수정이지만, 사�
 
 ### 수량·기술 어휘 후속 검토
 
-읽기 전용 대안 조사: [j5ng/et5-typos-corrector 모델 카드](https://huggingface.co/j5ng/et5-typos-corrector)는 Apache-2.0 표시와 ETRI-et5·모두의 말뭉치 기반을 명시한다. [파일 목록](https://huggingface.co/j5ng/et5-typos-corrector/tree/main)의 가중치는1.3GB이며 기존 Worker2MB 범위에 그대로 들어가지 않는다. 기반 모델의 연결 페이지는 이번 조회에서 오류여서 배포 권리 전체를 확인했다고 하지 않는다. 다운로드·실행·의존성 추가·원문 전송은 없었다. [PIXIE-Spell](https://huggingface.co/telepix/PIXIE-Spell-v1.5-0.6B)은 이름과 달리 검색 임베딩 모델이라 맞춤법 교정 대안으로 채택하지 않았다. 이 조사는 현 구현의 품질 통과나 모델 도입 결정이 아니다.
+읽기 전용 대안 조사: [j5ng/et5-typos-corrector 모델 카드](https://huggingface.co/j5ng/et5-typos-corrector)는 Apache-2.0 표시와 ETRI-et5·모두의 말뭉치 기반을 명시한다. [파일 목록](https://huggingface.co/j5ng/et5-typos-corrector/tree/main)의 가중치는1.3GB이며 조사 당시의 Worker2MB 범위에 그대로 들어가지 않았다. 2026-09-26에 고정 크기 상한을 폐기했지만, 이 모델의 배포 성능·권리 검증이나 도입 승인은 수행하지 않았다. 기반 모델의 연결 페이지는 이번 조회에서 오류여서 배포 권리 전체를 확인했다고 하지 않는다. 다운로드·실행·의존성 추가·원문 전송은 없었다. [PIXIE-Spell](https://huggingface.co/telepix/PIXIE-Spell-v1.5-0.6B)은 이름과 달리 검색 임베딩 모델이라 맞춤법 교정 대안으로 채택하지 않았다. 이 조사는 현 구현의 품질 통과나 모델 도입 결정이 아니다.
 
-주격 조사 뒤 있다/없다는 조사와 서술어의 경계를 유지한다. 지시어+일반 명사는 제품·방법·문제·내용·상황·경우로 한정한다. 모든 `저+명사`에 적용하면 저장소·저전력을 훼손하므로 일반화하지 않는다. 부사처럼 보이는 닉네임+서술격은 임의 분리 대신 미등록 검토를 유지한다. [던가/든가의 공식 설명](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=275630&searchCondition=&searchKeyword=)에 따라 어미 조각 `던가`를 독립 단어로 분리하지 않는다. 둘 중 맞는 표기를 모든 문맥에서 판정한다는 뜻은 아니다.
+주격 조사 뒤 있다/없다는 조사와 서술어의 경계를 유지한다. 지시어+일반 명사는 제품·방법·문제·내용·상황·경우로 한정한다. 모든 `저+명사`에 적용하면 저장소·저전력을 훼손하므로 일반화하지 않는다. 부사처럼 보이는 닉네임+서술격은 임의 분리 대신 미등록 검토를 유지한다. [던가/든가의 공식 설명](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=275630&searchCondition=&searchKeyword=)에 따라 어미 조각 `던가`를 독립 단어로 분리하지 않는다. [과거 사실을 묻는 종결 어미 설명](https://korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=322991)에 비추어, 뒤에 `아니면`이 있다는 이유만으로 `타던가`를 `타든가`로 바꾸지 않는다. 둘 중 맞는 표기를 모든 문맥에서 판정한다는 뜻은 아니다.
+
+`가계`는 살림을 나타내는 별도 명사이므로 `가계들을`을 상점 뜻의 `가게들을`로 일괄 교정하지 않는다. 뜻 구별 근거: [국립국어원 국어 순화 자료](https://www.korean.go.kr/nkview/kclean/kclean_1.htm).
+
+`돋구다`는 안경 도수를 높이는 뜻의 표준어이므로 `돋구는`을 문맥 없이 `돋우는`으로 바꾸지 않는다. [국립국어원 돋구다/돋우다 설명](https://www.korean.go.kr/front/mcfaq/mcfaqView.do?mcfaq_seq=5555)을 근거로, 해당 의미를 판별하지 못하는 단어 단위 매핑은 제외한다.
 
 미등록 어휘의 복수 `들`과 조사 `만의/보단`은 기존 허용 조사 자료에 맞추어 등록할 기본 단어의 범위를 복원한다. 등록 전에 새 표현 전체를 정상어로 인정하지 않는다. 앞말을 개인 사전에 넣어도 인접 철자·띄어쓰기 오류는 별도로 검사한다.
 
@@ -704,3 +722,27 @@ Luna 두 역할이 이뻐→예뻐를 필수 수정으로 제안한 것은 [국�
 - 새 DC 글에서 Luna 세 역할이 `-짜리`를 의존 명사라고 설명하며 띄우도록 제안했다. [한국어기초사전의 짜리 검색 본문](https://krdict.korean.go.kr/kor/dicMarinerSearch/search?mainSearchWord=%EC%A7%9C)은 이를 접사로 분류한다. 세 역할의 합의도 정답으로 간주하지 않는다. 허용 붙임 `껴줄`의 변경과 의도적인 구어체 변경은 비표준 철자 판정과 별도로 제품 보존 요구 위반으로 기록한다.
 
 위 자료는 규범 근거로 열람했다. 외부 정의·용례·사전 목록을 새 배포 자산으로 복사하거나 의존성을 추가하지 않았다. 전체 품질 판정과 현재 두 사전 payload의 라이선스 정책 검사는 별개다.
+
+## 실전 게시글 대조: 추천받다와 보조 용언
+
+[국립국어원 온라인가나다 325135](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=261&pageIndex=1&qna_seq=325135)는 피동의 접미사 `-받다`가 결합한 `추천받다`를 붙여 쓰도록 설명한다. `추천받고 싶습니다`의 첫 경계를 지키기 위해 이 한 어근을 기존의 제한된 파생 목록에 더했다.
+
+`사 놓은 거`는 보조 용언을 띄는 원칙을 따른다. [국립국어원 온라인가나다 314531](https://m.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=314531)은 이 구조에서 붙임도 허용한다고 설명하므로, `사놓은 거`를 오류로 세지 않는다. 기존 첫 판정의 좁은 단일 정답은 원문 그대로 보존하고, 비교 보고서에서 허용 대안으로 따로 감사한다.
+
+[국립국어원 교육 자료](https://www.korean.go.kr/common/download.do%3Bfront%3D052E464FB4F4D9E2EB12B90C4EBF3EC6?c_file_name=b29c6837-dee9-4f2a-918e-3f8edbb3c46a_0.pdf&file_path=reportData&o_file_name=%EC%84%B8%EC%A2%85%ED%95%9C%EA%B5%AD%EC%96%B4+2+%EA%B5%90%EC%9B%90%EC%9A%A9+%EC%A7%80%EC%B9%A8%EC%84%9C.pdf)는 이동 표현 `갔다 오다`를 별도 말로 제시한다. 이를 기존 완성 용언 두 개에 한정해 분리한다.
+
+실전 게시글에서 `놀림받지만`을 잘못 띄우라고 한 후보를 발견했다. [국립국어원 상담 사례](https://www.korean.go.kr/front/mcfaq/mcfaqView.do?mcfaq_seq=5869&mn_id=217&pageIndex=1)는 `놀림받다`를 접미사 결합으로 붙여 쓰도록 명시한다. 제한된 `-받다` 파생 목록에 `놀림`을 더해 전체 활용을 보존한다.
+
+## 공개 글 판정 감사: 좀더의 허용 붙임
+
+[국립국어원 온라인가나다 320875](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=320875&searchCondition=&searchKeyword=)는 한글 맞춤법 제46항의 연속 단음절어 예에서 `좀 더`가 원칙이고 `좀더`도 허용된다고 설명한다. 공개 글 평가표의 `좀더→좀 더`는 필수 교정으로 세지 않는다. 검사기에 이를 강제하는 규칙도 넣지 않는다. 원래 평가표와 첫 결과는 사후 수정하지 않고 감사판에서 분모를 조정한다.
+
+## 의도 표현과 간접 명령의 보존
+
+[국립국어원 FAQ8556](https://www.korean.go.kr/front/mcfaq/mcfaqView.do?mcfaq_seq=8556&mn_id=62&pageIndex=80)은 `-려 하다`의 붙여 쓰기를 허용하지 않는다. 앞말에 명사 동음이의어가 있어도 검증된 의도 어미의 경계를 합치지 않는다. [한국어기초사전 -라는데](https://krdict.korean.go.kr/eng/dicSearch/SearchView?ParaWordNo=82259&nation=eng)는 명령을 간접 인용하는 표현과 `-으라는데`의 대응을 설명한다. 완성된 동사 명령형을 확인해 이 인용형을 보존하며, 형용사 동음이의 분석으로 새 교정 후보를 만들지 않는다. [재작년](https://krdict.korean.go.kr/eng/dicSearch/SearchView?ParaWordNo=24950&nation=eng&nationCode=6)은 독립된 시간 명사로 복원하고 뒤 조사를 유지한다.
+
+## 짧은 관형구와 반복 비교 표현
+
+[온라인가나다 280046](https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=216&pageIndex=1&qna_seq=280046)은 `할 말`을 별개 단어로 설명한다. 짧은 이름을 보호하는 제한이 이 표현과 `볼 책`, `받을 돈`의 경계까지 숨기지 않도록 한다. [국립국어원 실전 띄어쓰기 자료](https://www.korean.go.kr/nkview/news_pdf/2020_05.pdf)는 반복 비교 구문의 `올 듯 말 듯`을 띄어 제시한다. 연결 어미 `-듯`의 일반적인 붙임을 유지하면서 이 반복 문맥을 따로 구별한다.
+
+[국립민속박물관 한국민속예술사전](https://folkency.nfm.go.kr/api/file/download/dictionary/39)에는 춤사위 이름 `큰걸음`이 쓰인다. 해당 표현은 인식용 어휘로만 보존하며 다른 단어의 교정 후보를 만드는 재료로 확장하지 않는다.

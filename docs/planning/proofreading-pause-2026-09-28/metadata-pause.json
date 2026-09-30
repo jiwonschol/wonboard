@@ -1,0 +1,9 @@
+{
+  "status": "paused-incomplete",
+  "reason": "User requested safe stop before travel; metadata agent interrupted after stop request. No final completion notice received.",
+  "createdAt": "2026-09-28T05:52:32.067400+00:00",
+  "completedAccessLogRows": 55,
+  "partialFrameSha256": "f30f9b7a97f7d7f87c170b422600a39a10b3c6800b88d2e82c4e5412f0823df3",
+  "resume": "Inspect fixed-listing-plan.json and ko-listing-access.ndjson; resume only unrecorded listing requests. Do not use partial frame for selection before completing and freezing it.",
+  "bodyCollectionStarted": false
+}

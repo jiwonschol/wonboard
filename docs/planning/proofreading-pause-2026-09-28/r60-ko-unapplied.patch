@@ -1,0 +1,84 @@
+--- a/packages/editor/src/proofreading/community-vocabulary.mjs
++++ b/packages/editor/src/proofreading/community-vocabulary.mjs
+@@ -5,7 +5,7 @@
+ export const communityNouns = ['제거제', '비트코인', '물가지수', '내구도', '이어버드', '라우터', '프로토타입', '워크플로', '마이그레이션', '이곳', '그곳', '저곳', '측', '더불어민주당', '파일명', '항목명', '역할명', '사용자명', '곡명', '작품명', '제품명', '저자명', '긴바지', '배송지', '특별전', '날것'];
+ // Established labels/terms recognize nominal use and particles, without
+ // granting a productive -하다 stem or adding candidate fragments.
+-export const communityNominalOnly = ['간호대', '연고서성한', '식세기', '의치대', '의치한약수', '땡땡대', '대폭등', '여친', '남친', '난타전', '선이수', '슨상님', '된찌', '아주대', '자연대', '명시지', '용과같이', '천장등', '과동아리', '해양대', '붉은사막', '님', '얼리버드', '좋아요', '싫어요', '대시보드', '플러그인', '웹사이트', '스펙', '유튜브', '팁', '정답지', '나히다', '초심배마', '호감캐', '부캐', '모루저', '샛기', '도화가', '클영상', '할모시', '클리어', '제미나이', '재미나이', '바이퍼', '데스에더', '불칸'];
++export const communityNominalOnly = ['명문대', '못남', '간호대', '연고서성한', '식세기', '의치대', '의치한약수', '땡땡대', '대폭등', '여친', '남친', '난타전', '선이수', '슨상님', '된찌', '아주대', '자연대', '명시지', '용과같이', '천장등', '과동아리', '해양대', '붉은사막', '님', '얼리버드', '좋아요', '싫어요', '대시보드', '플러그인', '웹사이트', '스펙', '유튜브', '팁', '정답지', '나히다', '초심배마', '호감캐', '부캐', '모루저', '샛기', '도화가', '클영상', '할모시', '클리어', '제미나이', '재미나이', '바이퍼', '데스에더', '불칸'];
+ // Established computing terms. Preserve the author's casing in informal prose;
+ // other acronyms and personal entries retain their existing handling.
+ export const technicalAbbreviations = ['CPU', 'GPU', 'SNS', 'RSS', 'NVMe', 'OSS'];
+@@ -22,7 +22,7 @@
+   'adblock', 'addons', 'auth', 'autocomplete', 'changelog', 'chatbot', 'chatbots', 'checkmail', 'cloudflare', 'codeberg', 'codeshare', 'cowsay', 'deserialization', 'dlss', 'downdetector', 'downvote', 'downvoted', 'dropbox', 'embeddable', 'esbuild', 'ethernet', 'favicon', 'firefox', 'github', 'gsoc', 'hackathon', 'haskell', 'healthcare', 'heatwave', 'homelabbing', 'href', 'http', 'imgur', 'infostealers', 'instagram', 'installable', 'inswing', 'jumpered', 'kubernetes', 'linkedin', 'mainboard', 'monospace', 'namespace', 'neighbourhood', 'neovim', 'netstat', 'newbie', 'ngrok', 'onboarding', 'openbsd', 'pagefile', 'pinephone', 'plugin', 'plugins', 'postgresql', 'prioritising', 'pyautogui', 'pytorch', 'repl', 'rootkit', 'schengen', 'serverless', 'sideloaded', 'sidepanel', 'signup', 'signups', 'sourcecode', 'speedrun', 'subreddits', 'sunsetting', 'taskkill', 'telehealth', 'timestamps', 'timezone', 'tmux', 'traceroute', 'undercabinet', 'upvote', 'urls', 'vscode', 'wholewheat', 'wifi', 'wirenut', 'worktrees', 'youtube',
+   'cron', 'marie', 'typst', 'args', 'gamified', 'somfy', 'lally', 'proxify', 'graphene', 'clojure', 'booch', 'larman', 'muslim', 'collab', 'espagnole', 'foie', 'gras', 'indian', 'umrah', 'pani', 'serializer', 'ctypes', 'india', 'clodex', 'synology', 'gmail', 'clippy', 'composable', 'matcha', 'blueboard', 'greenboard', 'hebel', 'atm', 'minecraft', 'railgun', 'randomisation', 'etc', 'ndas', 'cm', 'dxf', 'pareto', 'decompiled', 'subfunctions', 'voxile', 'non-technical', 'non-obvious', 're-stating', 'greps', 'mins', 'ok', 'softcores', 'dbase', 'vdos', 'unix', 'mhz', 'pcie', 'runtime', 'dialup', 'internet', 'llm', 'llms', 'slaughterbots', 'devops', 'captcha', 'stateful', 'openai', 'schelling', 'cli', 'imo', 'adversarially', 'codebase', 'frontend', 'micro-manage', 'readonly', 'env', 'gpt', 'refactor', 'off-guard', 'midwits', 're-reads', 'claude', 'tmp', 'dir', 'omp', "astra's", 'jev', 'backend', 'elmo', 're-training', 'trade-off', 'qwen', 'laya', 'real-time', 'multi', 'reranker', 'multiclass', 'vibed', 'idk', 'reddit', 'hominem', 'ollama', 'infringey', 'eval', 'grep', 'sandboxed', 'christmas', 'imho', 'hostname', 'xen', 'untrusted', 'non-stop', 'priori', 'async', 'lego', 'non-deterministic', 'non-trivial', 'ayn', 're-add', 'woulda', 'dem', 'non-programmers', 'spss', 'numpy', 'coursework', 'xlookup', 'multivalue', 'scrollbars', 'normalisation', 'rtmp', 'config', 'restreaming', 'duckdns', 'ints', 'initializers', 'png', 'sudo', 'pkg', 'yaml', 'gemini', 'todo', 'inline', 'influencer', 'linux', 'decispher', 'corp', 'params', 'hardcode', 'agentic', 'replit', 'regex'];
+ // Verified lexical stems missing from the selected inventory.
+-export const communityVerbStems = ['개기', '버벅거리'];
++export const communityVerbStems = ['못나', '개기', '버벅거리'];
+ export const communityAdjectiveStems = ['지랄맞', '찰떡같', '불꽃같', '푹신푹신하', '개빡세', '어마무시하', '자자하'];
+ // Verified productive action nouns. Shared by inflection recognition and
+ // noun + 하다 boundary checks; personal words never enter this list.
+--- a/packages/editor/src/proofreading/engine.mjs
++++ b/packages/editor/src/proofreading/engine.mjs
+@@ -73,7 +73,11 @@
+     if(!morphology.analyze(word,personal)&&!recognizedNoun(word)&&!recognizeWhole?.(word,personal))for(let i=2;i<word.length-2;i++){
+       if(word[i]!=='나')continue;
+       const left=word.slice(0,i),right=word.slice(i+1);
+-      if(knownOrthographicNoun(left)&&knownOrthographicNoun(right)&&!morphology.predicate(left+'나')&&!morphology.predicate(word.slice(i)))return {type:'spacing',suggestions:[left+'나 '+right],reason:'Separate two recognized nouns joined by the choice particle 나',ambiguous:true};
++      if(knownOrthographicNoun(left)&&knownOrthographicNoun(right)&&!morphology.predicate(left+'나')&&!morphology.predicate(word.slice(i))){
++        // A verified whole-word spelling repair precedes a speculative
++        // noun + choice-particle boundary inside the malformed word.
++        return orthography(word,sets,personal,knownOrthographicPredicate,knownOrthographicNoun)??{type:'spacing',suggestions:[left+'나 '+right],reason:'Separate two recognized nouns joined by the choice particle 나',ambiguous:true};
++      }
+     }
+     const pair=candidatePhraseBoundaries.find(([source])=>{
+       if(!word.startsWith(source))return false;
+--- a/packages/editor/src/proofreading/korean-morphology.mjs
++++ b/packages/editor/src/proofreading/korean-morphology.mjs
+@@ -35,7 +35,7 @@
+   for(const [s,e,r]of data?.forms??[])if(e==='ETM'&&naeConnectives.has(r)&&s===r.slice(0,-1)+'낸')roots.add(r);
+   // Attested suffix uses, not every noun + 드리다 (불편 드리다 differs).
+   // Expand the stems so honorific, past and connective forms share the rules.
+-  const dridaNouns=new Set(['감사','질문','답변','부탁','말씀','문의','연락','송부','추천','요청','공유','축하']);
++  const dridaNouns=new Set(['감사','질문','답변','부탁','말씀','문의','연락','송부','추천','요청','공유','축하','인사']);
+   for(const base of dridaNouns)roots.add(base+'드리');
+   // -받다 attaches to these verified abstract hosts. A concrete object
+   // (선물 받다) or a modified noun phrase remains a separate construction.
+--- a/packages/editor/src/proofreading/korean-orthography.mjs
++++ b/packages/editor/src/proofreading/korean-orthography.mjs
+@@ -190,7 +190,7 @@
+   if(uncertain&&(uncertain[1].charCodeAt(uncertain[1].length-1)-0xac00)%28===8&&isPredicate(uncertain[1]))return {suggestions:[uncertain[1]+'는지'+(uncertain[2]??'')],reason:'Standard ending -ㄹ는지 when this is a predicate; confirm intended word',ambiguous:true};
+   // A bound stem correction must still have a grammatical ending; do not
+   // replace these syllables inside a nickname or an unrelated noun.
+-  for(const [bad,good] of [['왠만','웬만'],['희안','희한'],['환골탈퇴','환골탈태']])if(word.startsWith(bad)){
++  for(const [bad,good] of [['다사나단','다사다난'],['왠만','웬만'],['희안','희한'],['환골탈퇴','환골탈태']])if(word.startsWith(bad)){
+     const tail=word.slice(bad.length);
+     const haForms=new Set(['하다','하면','하고','하지','하니','하네요','합니다','한','할','해서','해도','해요','했다','했어요','했지만']);
+     if(haForms.has(tail))return {suggestions:[good+tail],reason:'Verified bound stem spelling; see source registry',ambiguous:false};
+@@ -202,7 +202,7 @@
+   }
+   // Bounded malformed stems: validate each complete repair, and leave the
+   // choice of lexical meaning to the author when two repairs are possible.
+-  for(const [bad,alternatives]of [['겹처',['겹쳐']],['싫어아',['싫어하']],['편한하',['편안하','편하']]]){
++  for(const [bad,alternatives]of [['비꾸',['바꾸']],['겹처',['겹쳐']],['싫어아',['싫어하']],['편한하',['편안하','편하']]]){
+     if(!word.startsWith(bad)||personal.has(bad)||personal.has(bad+'다')||isKnownNoun(word)||isPredicate(word))continue;
+     const suggestions=alternatives.map(good=>good+word.slice(bad.length)).filter(isPredicate);
+     if(suggestions.length)return {suggestions,reason:'Possible spelling repair on a validated full predicate; confirm the intended meaning',ambiguous:true};
+--- a/tests/unit/korean-morphology.test.mjs
++++ b/tests/unit/korean-morphology.test.mjs
+@@ -1031,3 +1031,15 @@
+   for(const text of ['센경','삽사기','삽사기도'])assert.equal(check(text).some(f=>f.applicable),false,text);
+   for(const [text,target]of [['큰문제','큰 문제'],['책읽기','책 읽기'],['밥먹기','밥 먹기'],['머리감기','머리 감기']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+ });
++
++
++test('verified lexical stems and nominalizations keep community boundaries intact',()=>{
++  for(const text of ['인사드리고','인사드렸습니다','인사드릴게요','명문대를','명문대에서','못남과','못남을','못나다','못난'])assert.equal(check(text).some(f=>f.applicable),false,text);
++  for(const [text,target]of [['불편드려요','불편 드려요'],['못먹었다','못 먹었다']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
++});
++
++test('bounded predicate repairs precede speculative noun choice and activity gaps',()=>{
++  for(const [text,target]of [['다사나단한','다사다난한'],['다사나단했다','다사다난했다'],['비꾸기','바꾸기'],['비꾸고','바꾸고']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
++  for(const text of ['다사다난한','바꾸기','다사나단닉네임','비꾸닉네임'])assert.equal(check(text).some(f=>f.applicable),false,text);
++  for(const text of ['다사나단한','비꾸기'])assert.deepEqual(check(text,[text]),[],text);
++});

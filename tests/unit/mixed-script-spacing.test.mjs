@@ -51,6 +51,16 @@ test('quantity suffix gap repairs preserve the unit and unrelated findings',()=>
   assert.ok(findings.some(f=>f.suggestions.includes('됐어요')));
 });
 
+test('mixed numeric units retain their unit while adjacent Korean endings are repaired',()=>{
+  for(const [source,target]of [['1mm 인데','1mm인데'],['115cm으로서','115cm로서'],['73kg정도','73kg 정도'],['115cm으로서.','115cm로서.'],['73kg정도,','73kg 정도,']]){
+    const finding=check(source).find(f=>f.applicable);
+    assert.ok(finding,source);
+    assert.equal(source.slice(0,finding.from)+finding.suggestions[0]+source.slice(finding.to),target,source);
+    assert.equal(check(target).some(f=>f.applicable),false,target);
+  }
+  for(const source of ['id1mm 인데','item_115cm으로서','`73kg정도`'])assert.equal(check(source).some(f=>f.language==='ko'&&f.applicable),false,source);
+});
+
 test('written numeric scales remain separate from units with validated copula endings',()=>{
   for(const [source,target]of [['8천원이었던','8천 원이었던'],['400만원이거든요','400만 원이거든요'],['2만명이지만','2만 명이지만'],['3억달러입니다','3억 달러입니다']]){
     assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
@@ -93,15 +103,26 @@ test('attested particle chains attach after nominal and inflected hosts without 
   assert.ok(findings.some(f=>f.suggestions.includes('됐어요')));
 });
 
-test('Latin-script name notice and particle spacing are separate edits',()=>{
+test('unrecognized Latin name notice and particle spacing are separate edits',()=>{
   for(const particle of ['에','를','에서','은']){
-    const source='Imgur '+particle,findings=check(source),spacing=findings.find(f=>f.type==='spacing');
+    const source='Zzqvx '+particle,findings=check(source),spacing=findings.find(f=>f.type==='spacing');
     assert.ok(spacing);
-    assert.equal(source.slice(0,spacing.from)+spacing.suggestions[0]+source.slice(spacing.to),'Imgur'+particle);
-    assert.ok(findings.some(f=>f.original==='Imgur'&&f.to<=spacing.from));
-    assert.ok(check(source,['Imgur']).some(f=>f.type==='spacing'));
+    assert.equal(source.slice(0,spacing.from)+spacing.suggestions[0]+source.slice(spacing.to),'Zzqvx'+particle);
+    assert.ok(findings.some(f=>f.original==='Zzqvx'&&f.to<=spacing.from));
+    assert.ok(check(source,['Zzqvx']).some(f=>f.type==='spacing'));
   }
+  assert.equal(check('Imgur 에').some(f=>f.original==='Imgur'),false);
+  assert.equal(check('Tuya 기반 Zigbee 센서').some(f=>f.language==='en'),false);
   for(const source of ['Imgur\n에','https://example.com에','`Imgur`에','image.png에'])assert.equal(check(source).filter(f=>f.type==='spacing').length,0,source);
+});
+
+test('paired ~ㄹ 듯 말 듯 wording separates the second 듯 without rewriting the phrase',()=>{
+  const findings=check('올듯 말듯 하다');
+  assert.ok(findings.some(f=>f.original==='올듯'&&f.suggestions[0]==='올 듯'));
+  assert.ok(check('올 듯 말듯 하다').some(f=>f.original==='말듯'&&f.suggestions[0]==='말 듯'));
+  assert.ok(findings.some(f=>f.original==='말듯'&&f.suggestions[0]==='말 듯'));
+  assert.equal(check('올 듯 말 듯 하다').some(f=>f.applicable),false);
+  assert.equal(check('놀듯 말듯 하다',['말듯']).some(f=>f.original==='말듯'),false);
 });
 
 test('quoted and protected spans keep their content while a following particle gap is repaired',()=>{

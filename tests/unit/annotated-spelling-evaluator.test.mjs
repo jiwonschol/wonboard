@@ -30,10 +30,27 @@ test('typed detection retains misses and excludes optional edits and unknown not
   assert.deepEqual(report.annotationDetection,{
     spelling:{expected:1,detected:0,missed:1},
     spacing:{expected:1,detected:1,missed:0},
+    grammar:{expected:0,detected:0,missed:0},
     combined:{expected:1,detected:0,missed:1},
   });
   assert.equal(report.repeatedRows,1);
   assert.ok(report.firstSuggestionPrecision<1);
+});
+
+test('grammar labels and findings retain correction ranks, misses and normal-text errors',async()=>{
+  const error=row('He go.',{ranges:[range(3,'go','grammar',['goes'])]});
+  const report=await evaluateAnnotatedRows([error],()=>[range(3,'go','grammar',['went','goes'])]);
+  assert.deepEqual(report.annotationDetection.grammar,{expected:1,detected:1,missed:0});
+  assert.deepEqual(report.annotationCorrection.grammar,{expected:1,top1:0,top3:1});
+  assert.equal(report.correctionMetrics['all/ko/combined'].top3,1);
+  assert.equal(report.firstSuggestionPrecision,0);
+  const missing=await evaluateAnnotatedRows([error],()=>[]);
+  assert.deepEqual(missing.annotationDetection.grammar,{expected:1,detected:0,missed:1});
+  assert.deepEqual(missing.annotationCorrection.grammar,{expected:1,top1:0,top3:0});
+  const normal=row('He goes.',{classification:'normal',normalSentenceEligible:true});
+  const wrong=await evaluateAnnotatedRows([normal],()=>[range(3,'goes','grammar',['go'])]);
+  assert.equal(wrong.normalFalseSuggestionRate,1);
+  await assert.rejects(evaluateAnnotatedRows([error],()=>[range(3,'go','grammar')]),/Invalid checker event/);
 });
 
 test('typed correction counts complete local repairs, not mutually exclusive partial options',async()=>{

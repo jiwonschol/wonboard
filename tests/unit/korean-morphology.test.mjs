@@ -2,6 +2,378 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {check} from '../../scripts/spelling-prototype.mjs';
 
+test('lexical day nouns precede the adnominal day boundary',()=>{
+  for(const text of ['지난날을 회상했다','지난날','지난날에도'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('받은날').some(f=>f.suggestions[0]==='받은 날'));
+});
+
+test('the opening verb is not a numeral followed by all',()=>{
+  for(const text of ['문을 열다','문을 열다는 표현'])assert.equal(check(text).some(f=>f.suggestions.includes('열 다')),false,text);
+  assert.ok(check('둘다').some(f=>f.suggestions[0]==='둘 다'));
+});
+
+test('Hansalim is protected only in a local cooperative context',()=>{
+  for(const text of ['한살림이 오픈됐어요','한살림 매장','생협 한살림에서 구매했다','한살림 매장입니다','한살림 조합원이 됐다','한살림 매장이 열렸다'])assert.equal(check(text).some(f=>f.applicable&&f.original.startsWith('한살림')),false,text);
+  assert.ok(check('한살림을 차렸다').some(f=>f.suggestions[0]==='한 살림을'));
+});
+
+test('sentence-final informal questions retain the attached ngam ending',()=>{
+  for(const text of ['이게 아닌감?','괜찮은감?'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('lexical sweet-and-sour predicates stay whole before adverb splitting',()=>{
+  for(const text of ['새콤달콤하다','새콤달콤한 맛','새콤달콤해서','매콤달콤하다'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('complete nominals and adverbs preserve internal lexical boundaries',()=>{
+  for(const text of ['엄마한테는','어디선가','잘못인가요','잘못이지만','이른바','고려대니','무슨무슨','만원짜리','뒹굴거리다','제주어로','가죽나물이'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('잘못먹었다').some(f=>f.suggestions[0]==='잘못 먹었다'));
+});
+
+test('unknown author and product identities remain intact in explicit contexts',()=>{
+  for(const text of ['프로이슬러 지음','소고기느님','맛있는라면 라면 이름이 맛있는라면이지만'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('맛있는라면을 먹었다').some(f=>f.suggestions[0]==='맛있는 라면을'));
+  assert.ok(check('여기다하고 왔네요').some(f=>f.suggestions[0]==='여기다 하고'));
+  assert.equal(check('모으고사에서').some(f=>f.applicable),false);
+});
+
+test('elapsed time and quantities restore complete grammatical gaps',()=>{
+  for(const [text,target]of [['먹어본지가 오래된 것 같아','먹어본 지가'],['받은날','받은 날'],['한접시','한 접시'],['두번봤는데','두 번 봤는데'],['필요한건지','필요한 건지'],['치즈와함께','치즈와 함께'],['팍팍투하','팍팍 투하'],['즐기기좋은','즐기기 좋은']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['나은지','한달나라','걸걸중상','열폭하면서','오바인지','불안정인지','부담스러운지라','왜인지는','쓸만한지','습한지요'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('community endings and explicit identities retain their complete spelling',()=>{
+  for(const text of ['집사람','있는데여','이해했는진 모르겠는데','재밌겠는걸','이 시기에','하늘빛나래 안식처','수도사 연맹 하다가','Maps 이 3개','크리뜨신분 이니 드림'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const text of ['호드 고고한선비 캐릭 유저입니다.','잠행안해-도적-[길드이름] 님한테'])assert.equal(check(text).some(f=>f.applicable&&['고고한선비','잠행안해'].includes(f.original)),false,text);
+  for(const [text,target]of [['기간한정','기간 한정'],['가능한가해서요','가능한가 해서요'],['산출해달라니까','산출해 달라니까'],['집산다고','집 산다고']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('complete quotation and negation hosts restore overlooked boundaries',()=>{
+  for(const [text,target]of [['한번쯤','한 번쯤'],['안좋아해서','안 좋아해서'],['내용묻는','내용 묻는'],['아니라하니까','아니라 하니까'],['해볼라하는데','해볼라 하는데'],['하지말라','하지 말라']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('temporal phrases retain particle and predicate boundaries',()=>{
+  for(const text of ['어느새부터인가','어느덧부터','엄마한테는','확인할겨','구매하려니깐'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['이번주는','이번 주는'],['이번주해야하실듯','이번 주 해야 하실 듯'],['안정형일때','안정형일 때']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('adnominal and indirect-question analyses survive nominal homographs',()=>{
+  for(const [text,target]of [['이상한생각은','이상한 생각은'],['할과제','할 과제'],['할따름입니다','할 따름입니다'],['될지모름','될지 모름'],['저보다빨라서','저보다 빨라서']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['인천대','인서울','스나이퍼','영업이익이','티이어를'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('subject particles precede validated state-change predicates',()=>{
+  for(const [text,target]of [['한밤이출시되면','한밤이 출시되면'],['리셋이되니','리셋이 되니'],['클릭이되는데','클릭이 되는데']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['메이플','파이터','언어이해는','이륙가능한가요'])assert.equal(check(text).some(f=>f.suggestions[0]?.includes('이 해')||f.suggestions[0]?.includes('가 능')||f.suggestions[0]?.includes('이 터')||f.suggestions[0]?.includes('이 플')),false,text);
+});
+
+test('complete causative and quotation hosts survive nested spacing',()=>{
+  assert.ok(check('통일시켜주면안되나').some(f=>f.suggestions[0]==='통일시켜 주면 안되나'));
+  assert.ok(check('온다라는걸').some(f=>f.suggestions[0]==='온다라는 걸'));
+  for(const [text,target]of [['갑짜기','갑자기'],['빨게졌어요','빨개졌어요']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['갑자기','빨개졌어요','0.1%권','플랜1 가 카의'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.equal(check('빨게졌어요',['빨게졌어요']).some(f=>f.applicable),false);
+});
+
+test('nominal honorific hosts take priority over internal predicate homographs',()=>{
+  for(const text of ['사장님은','부장님께','교수님이'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('친절한선생님').some(f=>f.suggestions[0]==='친절한 선생님'));
+});
+
+test('permitted auxiliary compounds retain prospective promise endings',()=>{
+  for(const text of ['잘해볼게','먹어볼게','읽어볼게요'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('잘하는게').some(f=>f.suggestions[0]==='잘하는 게'));
+  assert.ok(check('여쭤볼게 있습니다.').some(f=>f.suggestions[0]==='여쭤볼 게'));
+  assert.ok(check('비만아님').some(f=>f.suggestions[0]==='비만 아님'));
+});
+
+test('mimetic past typo repair validates a whole derived predicate',()=>{
+  assert.ok(check('낑낑땠는데').some(f=>f.suggestions[0]==='낑낑댔는데'));
+  assert.equal(check('낑낑댔는데').some(f=>f.applicable),false);
+  assert.equal(check('낑낑땠는데',['낑낑땠는데']).some(f=>f.applicable),false);
+});
+
+test('negation and nominal particles retain their hosts before quoted or independent 하다',()=>{
+  for(const [text,target]of [['안돌아간다고하면','안 돌아간다고 하면'],['견적대로하면','견적대로 하면'],['계획대로하면','계획대로 하면']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['국민대까지','안 돌아간다고 하면','견적대로 하면'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('validated connective and nominalized clauses establish every internal gap',()=>{
+  for(const [text,target]of [['맞춰도괜찮을까요','맞춰도 괜찮을까요'],['구매해도상관없나요','구매해도 상관없나요'],['전부바꾸려합니다','전부 바꾸려 합니다'],['알려주시기바랍니다','알려주시기 바랍니다'],['썩어가고있다보니','썩어가고 있다 보니']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['엄마한테는','고속도로','편도선'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('purpose connectives stay separate from independently inflected motion verbs',()=>{
+  for(const [text,target]of [['보러가볼까','보러 가볼까'],['먹으러가볼까','먹으러 가볼까'],['만나러왔어요','만나러 왔어요']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['보러 가볼까','먹으러 가볼까','그러니까'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.equal(check('보러가볼까',['보러가볼까']).some(f=>f.applicable),false);
+});
+
+test('recognized nouns can precede a desire clause without becoming arbitrary fragments',()=>{
+  for(const [text,target]of [['오리고기먹고싶어지는데','오리고기 먹고 싶어지는데'],['인정받고싶다','인정받고 싶다'],['건강해지고싶다','건강해지고 싶다']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['오리고기','대가리','엄마한테는','재택하고싶어요'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.equal(check('오리고기먹고싶어지는데',['오리고기먹고싶어지는데']).some(f=>f.applicable),false);
+});
+
+test('bare recognized nouns separate from existential verbs while lexical wholes remain intact',()=>{
+  assert.ok(check('자대있지만').some(f=>f.suggestions[0]==='자대 있지만'));
+  for(const text of ['재미있지만','맛있지만','자대 있지만'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('demonstratives keep a boundary before colloquial 땜 without rewriting its spelling',()=>{
+  for(const [text,target]of [['이거땜에','이거 땜에'],['그거땜에도','그거 땜에도'],['저거땜에','저거 땜에']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['이거 땜에','땜질'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('question particles and colloquial endings remain whole while grounded clauses separate',()=>{
+  for(const text of ['샀는지와','먹었는지도','자자해서','자자한','햄부기','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['안한담서','안 한담서'],['어느세','어느새'],['적대적이지않고','적대적이지 않고'],['느낀점은','느낀 점은'],['비가왔나봐요','비가 왔나 봐요'],['영상만들때','영상 만들 때']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('intention and experiential predicates retain their existing boundaries',()=>{
+  for(const text of ['사려 합니다','먹으려 합니다','해본 적이','만든 적이','넣으라는데','읽으라면서','의치대나','의치한약수','땡땡대','대폭등','궤를 같이하는데'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('생물학 적인').some(f=>f.suggestions[0]==='생물학적인'));
+});
+
+test('nested adverbs, nominal particles and honorific auxiliaries keep complete hosts',()=>{
+  for(const [text,target]of [['잘만든것','잘 만든 것'],['어제만해도','어제만 해도'],['견적해주셨는데','견적해 주셨는데'],['괜찮다고는하는데','괜찮다고는 하는데'],['있는걸보면','있는 걸 보면'],['것처럼하길래','것처럼 하길래'],['어려운시기에','어려운 시기에'],['만들예정인','만들 예정인']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['웬만하다','기만하다','잘만','만들다'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('colloquial ending typos are restored before speculative internal spaces',()=>{
+  for(const [text,target]of [['무서울정도내요','무서울 정도네요'],['모르게써요','모르겠어요']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['모르게 써요','돈 내요','재작년에'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('production-year wording is not rewritten as the year before last',()=>{
+  for(const text of ['이 영화의 제작년은 2020년이다','제품 제작년: 2024','제작년에'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('quotation and obligation phrases retain complete predicates before dependent nouns',()=>{
+  for(const [text,target]of [['어디가야합니까','어디 가야 합니까'],['어디가야할까요','어디 가야 할까요'],['한다고할때','한다고 할 때'],['병원인가함','병원인가 함'],['지랄맞게변했음','지랄맞게 변했음']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['한다는','인가하다','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('whole lexical forms and supplementary particles do not generate damaging neighbors',()=>{
+  for(const text of ['난타전','선이수','답변드리겠습니다','이렇게까지','그렇게까지는','공보의마냥','하알라고'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('불편드려요').some(f=>f.suggestions[0]==='불편 드려요'));
+});
+
+test('contracted time and nested dependent nouns recover gaps without splitting particles',()=>{
+  for(const [text,target]of [['사용할땐','사용할 땐'],['쓰시는분중','쓰시는 분 중'],['둘중하나','둘 중 하나'],['사람들있어요','사람들 있어요'],['방법밖에없음','방법밖에 없음'],['춥게잤다고','춥게 잤다고']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['어떻게든','어떻게든지','그렇게까지는','때때로'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('lexical stems and conversational endings survive competing shorter fragments',()=>{
+  for(const text of ['어마무시했네요','버벅거림','제품명이','살고 있는걸요','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['구경만할지','구경만 할지'],['안내해줘서','안내해 줘서'],['집가는데','집 가는데']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('bounded grammatical relations recover mandatory spacing without splitting whole words',()=>{
+  for(const [text,target]of [['다를바','다를 바'],['두어시간이','두어 시간이'],['이제품','이 제품'],['풀리길기다렸는데','풀리길 기다렸는데'],['없을것같긴한데','없을 것 같긴 한데'],['즐겨하는','즐겨 하는'],['문서확인하는','문서 확인하는'],['신경쓰는','신경 쓰는']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['바다','이내용물','저전력','기만하다'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('attested connective contractions recover boundaries and nicknames stay whole',()=>{
+  for(const [text,target]of [['미쳐날뛰겠군요','미쳐 날뛰겠군요'],['흐려보입니다','흐려 보입니다']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['재미나이만','흐려','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('informal copula questions and recalled handles preserve their internal spelling',()=>{
+  for(const text of ['인증 메탄가여?','학생인가여?','여기서 느린맘인가 뭔가로 활동했다던데'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('느린맘인가').some(f=>f.suggestions[0]==='느린 맘인가'));
+  assert.ok(check('가는사람인가').some(f=>f.suggestions[0]==='가는 사람인가'));
+});
+
+test('informal titles stay whole while admissions group boundaries remain usable',()=>{
+  assert.equal(check('슨상님이').some(f=>f.applicable),false);
+  for(const [text,target]of [['가군라인과','가군 라인과'],['나군라인이','나군 라인이']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  assert.equal(check('엄마한테는').some(f=>f.applicable),false);
+});
+
+test('complete amuri adverb and prospective geoya phrases keep their boundaries',()=>{
+  for(const [text,target]of [['아무리그래도','아무리 그래도'],['학원다닐거야','학원 다닐 거야']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['아무리 그래도','이거야','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('generated spellings and auxiliary chains retain valid orthography and stem boundaries',()=>{
+  for(const [text,target]of [['됫어','됐어'],['공부해보고싶네','공부해 보고 싶네'],['빌려달라해놓고','빌려 달라 해놓고'],['헷갈리게해서','헷갈리게 해서']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['숭숭세단','된찌','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('negative and nominalized clauses keep complete predicate boundaries',()=>{
+  for(const [text,target]of [['환불해달라고하니까','환불해 달라고 하니까'],['적금넣었다고하더군요','적금 넣었다고 하더군요'],['나가기만한다고','나가기만 한다고'],['얼마안걸리잖아','얼마 안 걸리잖아'],['공부나처하지','공부나 처하지'],['나갔다들어왔다','나갔다 들어왔다']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['된찌','된찌랑','안주를','기만한다고','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('detached copulas cannot create auxiliary words inside a negative clause',()=>{
+  assert.equal(check('기회가안주어주는지').some(f=>f.suggestions.includes('기회가 안주 어주는지')),false);
+  for(const [text,target]of [['이란걸','이란 걸'],['너무화면을','너무 화면을']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['안주를','주어주는지','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('ambiguous nominal boundaries stay intact while complete required phrases remain reachable',()=>{
+  for(const text of ['색조정했는데'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['환불처리한다는','환불 처리한다는'],['끌수있긴합니다','끌 수 있긴 합니다'],['며칠전','며칠 전'],['알람소리에','알람 소리에']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('complete verbs and college nouns keep lexical and quotation boundaries',()=>{
+  for(const text of ['축하드려요','자연대','자연대에서','줄이자고','진작 잘할걸','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['늙다리뿐만아니라','늙다리뿐만 아니라'],['학과가기전','학과 가기 전']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  assert.ok(check('불편드려요').some(f=>f.suggestions[0]==='불편 드려요'));
+});
+
+test('contracted consonant stems and informal dependent endings retain their boundaries',()=>{
+  for(const [text,target]of [['건들지마','건들지 마'],['떨어지는거심','떨어지는 거심']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['건들지 마','건들고','엄마한테는','거심'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('community intensifiers, university names and plural kinship terms keep their boundaries',()=>{
+  for(const text of ['아주대를','개웃기네','형들님','명확히진'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('영입해도되지만').some(f=>f.suggestions[0]==='영입해도 되지만'));
+});
+
+test('dependent nouns preserve attached auxiliaries and required derived-verb boundaries',()=>{
+  for(const [text,target]of [['추천해주실수','추천해 주실 수'],['떼주는거임','떼주는 거임']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['추천해 주실 수','떼주는 거임','명시지로','갈아타볼까'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('concession, quantity and adjective clauses retain independently grounded boundaries',()=>{
+  for(const [text,target]of [['그렇다치고','그렇다 치고'],['농어촌받고','농어촌 받고'],['더럽게많아서','더럽게 많아서'],['한모금만','한 모금만']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['감동받아서','사랑받고','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('reported obligations retain the quotation ending and demonstrative i stays independent',()=>{
+  assert.ok(check('기다려야한다고합니다').some(f=>f.suggestions[0]==='기다려야 한다고 합니다'));
+  assert.equal(check('700W 이 사양으로').some(f=>f.applicable),false);
+  assert.ok(check('PC 가 좋아요').some(f=>f.suggestions[0]==='가'));
+});
+
+test('distributive counts, contracted possibilities and outward motion keep grammatical gaps',()=>{
+  for(const [text,target]of [['한번씩해보세요','한 번씩 해보세요'],['그런걸수도','그런 걸 수도'],['뭐라하는','뭐라 하는'],['쏟아져나와요','쏟아져 나와요']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['벌렁거려요','가끔씩만','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('whole recognized names and mimetic verbs precede speculative noun and adverb gaps',()=>{
+  for(const text of ['제미나이도','제미나이만','벌렁거려요','벌렁거렸다'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['많이보이네요','많이 보이네요'],['빨리마무리하고','빨리 마무리하고']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('copula negative particles and recognized group names stay intact',()=>{
+  for(const text of ['고정적이지가','일반적이지가','과동아리도','천장등이','용과같이 시리즈'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('잘본과목이').some(f=>f.suggestions[0]==='잘 본 과목이'));
+});
+
+test('reported speech, purpose clauses and temporal activity nouns keep their boundaries',()=>{
+  for(const [text,target]of [['있단말이죠','있단 말이죠'],['보러다니는','보러 다니는'],['이거사면','이거 사면'],['이주후','이주 후']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['조크등요','좋크등요','그저','사후','그거'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('distributive suffixes stay attached and nominalized descriptions retain their boundary',()=>{
+  for(const text of ['가끔씩만','조금씩은','가끔씩도'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['내려놓기우당탕탕','내려놓기 우당탕탕'],['쓴다는가정하에','쓴다는 가정하에'],['몇번씩','몇 번씩']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('weather predicates and irregular questions retain their meaning',()=>{
+  for(const [text,target]of [['비온다고','비 온다고'],['눈온다','눈 온다'],['얼마나더울까요','얼마나 더울까요']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['더울까요','추울까요','유신시기','고민고민하다가','비오틴'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('manner adverbs and explicit monetary and quantity phrases keep their boundaries',()=>{
+  for(const [text,target]of [['짜게주잖아','짜게 주잖아'],['현금처리할','현금 처리할'],['한방울도','한 방울도']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['방울토마토','현금화','짜게'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('expressive repetitions preserve their runs and mimetic spelling',()=>{
+  for(const text of ['똥'.repeat(26),'가나다'.repeat(4),'하하하하하'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('뻐끔뻐금').some(f=>f.suggestions[0]==='뻐끔뻐끔'));
+});
+
+test('dependent cognition and alternative clauses retain their word boundaries',()=>{
+  for(const [text,target]of [['치는줄알았는데','치는 줄 알았는데'],['수입이다보니깐','수입이다 보니깐'],['볼까말까','볼까 말까'],['출장수리불렀는데','출장 수리 불렀는데'],['먹을생각하니','먹을 생각하니']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['생각하니','수입이다','수리비','뻐끔뻐끔'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('case-marked hosts and repeated counts retain required boundaries',()=>{
+  for(const [text,target]of [['운이진짜','운이 진짜'],['빚까지내서','빚까지 내서'],['한번씩','한 번씩'],['또한번','또 한 번']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  assert.equal(check('일단 한번 해 보세요').some(f=>f.original==='한번'),false);
+});
+
+test('derived nominal suffixes retain particles and contracted transport clauses split',()=>{
+  for(const text of ['대체품이','자연풍도','해양대를','조립품은','복고풍으로'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('가져다놓는건데').some(f=>f.suggestions[0]==='가져다 놓는 건데'));
+});
+
+test('adnominal 듯이 remains distinct from a stem ending',()=>{
+  assert.ok(check('미친듯이 노력했다').some(f=>f.suggestions[0]==='미친 듯이'));
+  for(const text of ['먹듯이','날듯이','인식이 잘된답니다','서성한 라인알거 같음'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('subject particles and ambiguous amount questions preserve their meaning',()=>{
+  for(const [text,target]of [['전화가옴','전화가 옴'],['소포가옴','소포가 옴'],['새로나왔나해서','새로 나왔나 해서'],['안가봣는데','안 가봤는데']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  assert.equal(check('얼마나오나요').some(f=>f.applicable),false);
+  assert.equal(check('안내합니다').some(f=>f.applicable),false);
+});
+
+test('honorific suffixes and enumeration homographs preserve ordinary prose',()=>{
+  for(const text of ['요청드립니다','공유드립니다','스파, 철권 등등 합니다','붉은사막'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['남긴글','남긴 글'],['나가볼까봐요','나가볼까 봐요'],['한동한','한동안'],['옵션들인걸까요','옵션들인 걸까요'],['친구들인걸까요','친구들인 걸까요'],['감은있는데','감은 있는데'],['견적한번봐주실수있을까요','견적 한번 봐주실 수 있을까요'],['비싼가싶기도','비싼가 싶기도'],['좋다하긴했는데','좋다 하긴 했는데'],['이런말들이','이런 말들이']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('degree nouns remain separate from hada while complete activity phrases gain boundaries',()=>{
+  for(const text of ['어느 정도 하려고','이 정도 하면','10분 정도 하면'])assert.equal(check(text).some(f=>f.suggestions.some(s=>s.includes('정도하'))),false,text);
+  for(const [text,target]of [['배송대기중','배송 대기 중'],['주문접수중','주문 접수 중'],['추가할생각입니다','추가할 생각입니다'],['확인할내용','확인할 내용'],['구매 하려고','구매하려고']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['파일탭','볼매시네','제미나이'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('temporal ttara particles and product names remain whole words',()=>{
+  for(const text of ['오늘따라','요즘따라','그날따라','이때따라','바이퍼','바이퍼를','바이퍼는'])assert.equal(check(text).some(f=>f.suggestions.length),false,text);
+  assert.ok(check('친구따라').some(f=>f.suggestions.includes('친구 따라')));
+});
+
+test('colloquial particles, vowel copulas and connective deut keep their internal spelling',()=>{
+  for(const text of ['엄마한테는','아빠한테도','친구한테서','수급자거든요','참가자거든요','샤워하듯','이야기하듯']){
+    assert.equal(check(text).some(f=>f.suggestions.length),false,text);
+  }
+  for(const [text,target] of [['먹은듯','먹은 듯'],['할순','할 순']])assert.ok(check(text).some(f=>f.suggestions.includes(target)),text);
+});
+
+test('unrelated dictionary fragments cannot justify new internal boundaries',()=>{
+  for(const text of ['클래스입니다','걸걸중상','볼매시네','딸기코아빠','증상나타남','맞춰져있다보니']){
+    assert.equal(check(text).some(f=>f.suggestions.length),false,text);
+  }
+  for(const [text,target] of [['제친구들','제 친구들'],['문서를저장하고','문서를 저장하고'],['아는애랑','아는 애랑'],['개념없는','개념 없는'],['가능한가봅니다','가능한가 봅니다'],['필요한가봐요','필요한가 봐요']]){
+    assert.ok(check(text).some(f=>f.suggestions.includes(target)),text);
+  }
+});
+
+test('a possible name before a personal title is reviewed without a speculative split',()=>{
+  const text='미친국어 선생님 강의';
+  assert.equal(check(text).some(f=>f.original==='미친국어'&&f.suggestions.length),false);
+  assert.equal(check(text,['미친국어']).some(f=>f.original==='미친국어'),false);
+});
+
+test('dependent nouns keep particles after completed predicate inflections',()=>{
+  for(const [source,target]of [['했을때','했을 때'],['나올수도','나올 수도'],['느껴본적도','느껴본 적도'],['맞출겸','맞출 겸'],['되신걸까','되신 걸까'],['이러는거냐','이러는 거냐']]){
+    assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
+  }
+  for(const text of ['수도','적도','필수','이걸'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('validated clauses survive conservative segmentation without accepting arbitrary fragments',()=>{
+  for(const [source,target]of [['점심먹으러','점심 먹으러'],['병원갔더니','병원 갔더니'],['걷다보니','걷다 보니'],['해야하나싶은데','해야 하나 싶은데'],['죽어버리고싶네','죽어버리고 싶네'],['만들어볼까하는데','만들어볼까 하는데']]){
+    assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
+  }
+  for(const text of ['감동받아서','배송체크해준대여','경제관념챙겨야하는데'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('negative contractions and a duration followed by 동안 keep grammatical boundaries',()=>{
+  for(const [source,target]of [['하진않고','하진 않고'],['심상치않아보임','심상치 않아 보임'],['한시간동안','한 시간 동안'],['몇달동안','몇 달 동안']]){
+    assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
+    assert.deepEqual(check(source,[source]),[]);
+  }
+});
+
 test('particle typo composes a unique noun boundary without altering registered names',()=>{
   for(const [source,target] of [['상품설명에넌','상품 설명에는'],['설명에넌','설명에는'],['학교에넌','학교에는']]){
     const text='😀 '+source+' 표시가 있어요.';
@@ -17,6 +389,45 @@ test('particle typo composes a unique noun boundary without altering registered 
   }
 });
 import {createMorphology} from '../../packages/editor/src/proofreading/korean-morphology.mjs';
+
+test('public prose keeps complete endings and finds validated multiword boundaries',()=>{
+  for(const text of ['버는구나','햇빛','멜론','통째로','남아돈다는 게','먹을뻔했다'])assert.deepEqual(check(text),[],text);
+  for(const [source,target] of [
+    ['결혼하고나서','결혼하고 나서'],['해야만하는','해야만 하는'],
+    ['운동안하고','운동 안 하고'],['정리해보고있습니다','정리해보고 있습니다'],
+    ['집어올뻔했다','집어 올뻔했다'],['먹고있다','먹고 있다'],
+    ['남아돈다는게','남아돈다는 게'],
+  ])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
+});
+
+test('past ending repairs combine with word boundaries and leave unrelated nouns intact',()=>{
+  for(const [source,target] of [
+    ['불안햇던','불안했던'],['싶엇다','싶었다'],['살고싶엇다','살고 싶었다'],
+    ['메론은','멜론은'],['통채로','통째로'],['안돼고','안 되고'],
+    ['햇어서','했어서'],['좋아햇어서','좋아했어서'],['먹엇어서','먹었어서'],
+  ])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
+  for(const text of ['햇볕','햇빛','멜론은','통째로','안 되고','되고'])assert.deepEqual(check(text),[],text);
+});
+
+test('honorific doeda repair validates the whole predicate and preserves connective forms',()=>{
+  for(const [source,target]of [['돼세요','되세요'],['돼시면','되시면'],['돼십니다','되십니다'],['등록돼세요','등록되세요']]){
+    const text='😀 '+source,finding=check(text).find(f=>f.original===source);
+    assert.deepEqual(finding?.suggestions,[target],source);
+    assert.equal(text.slice(finding.from,finding.to),source);
+    assert.deepEqual(check(text,[source]),[]);
+  }
+  for(const text of ['되세요','되시면','되십니다','돼라','돼도','돼요','돼서','돼지','돼지는','`돼세요`'])assert.deepEqual(check(text),[],text);
+  assert.equal(check('아즈휼돼세요').some(f=>f.reason.startsWith('Honorific -시-')),false);
+});
+
+test('a connective and pronoun homograph do not split an unknown name plus particle',()=>{
+  for(const text of ['모아나를','모아나는','모아나에게']){
+    assert.equal(check(text).some(f=>f.applicable),false,text);
+    assert.deepEqual(check(text,['모아나']),[]);
+  }
+  assert.deepEqual(check('모아 나를 도와줘요.'),[]);
+  assert.ok(check('모아서보내요').some(f=>f.suggestions.includes('모아서 보내요')));
+});
 
 test('ro particle allomorphs preserve known nouns without licensing arbitrary endings',()=>{
   for(const text of ['이후로도','학교로도','길로도','학교로서도','학교로만'])assert.deepEqual(check(text),[],text);
@@ -150,7 +561,7 @@ test('attested nae stems expand beyond individual source surfaces',()=>{
 });
 
 test('unverified noun similarity stays review-only and keeps personal exceptions',()=>{
-  for(const word of ['제미나이','연애인이','티이어를']){
+  for(const word of ['아즈휘','연애인이','티이어를']){
     const findings=check(word);
     assert.ok(findings.some(f=>f.type==='unknown'&&!f.applicable),word);
     assert.deepEqual(check(word,[word]),[]);
@@ -168,7 +579,7 @@ test('known nominal plus particle stays attached before a copula',()=>{
   assert.equal(morphology.analyze('언제아즈휼인가',new Set()),null);
   assert.ok(morphology.analyze('아즈휼부터인가',new Set(['아즈휼'])));
   assert.ok(check('연애인이').some(f=>f.type==='unknown'));
-  assert.ok(check('제미나이를').some(f=>f.type==='unknown'));
+  assert.ok(check('아즈휘를').some(f=>f.type==='unknown'));
 });
 
 test('attested roup adjectives retain irregular inflection without internal noun splits',()=>{
@@ -199,7 +610,7 @@ test('attested meaningful adjective uses ordinary inflection without internal no
 });
 
 test('unknown name repairs cannot shift the identified particle boundary',()=>{
-  for(const [source,base]of [['아스트라도','아스트라'],['제미나이를','제미나이']]){
+  for(const [source,base]of [['아스트라도','아스트라'],['아즈휘를','아즈휘']]){
     const findings=check(source);
     assert.equal(findings.length,1);
     assert.equal(findings[0].type,'unknown');
@@ -442,7 +853,23 @@ test('spelling uses decomposed Hangul without changing source offsets',()=>{
   assert.ok(f.suggestions.includes('맞춤법을'));
 });
 test('ending versus dependent noun ambiguity is exposed',()=>{
-  assert.equal(check('하시는걸')[0].ambiguous,true);
+  assert.equal(check('하시는걸')[0]?.applicable??false,false);
+  assert.equal(check('하시는걸 봤어요')[0].ambiguous,true);
+});
+test('ambiguous Korean boundaries preserve the intended reading and lexical names',()=>{
+  const joined=check('교회가야해서').find(f=>f.original==='교회가야해서');
+  assert.deepEqual(joined?.suggestions,['교회 가야 해서']);
+  assert.equal(joined?.ambiguous,true);
+  assert.deepEqual(check('교회가 야해서'),[]);
+
+  const enumeration=check('아이등 가족손님으로');
+  const childEtc=enumeration.find(f=>f.original==='아이등');
+  assert.deepEqual(childEtc?.suggestions,['아이 등']);
+  assert.equal(childEtc?.ambiguous,true);
+  assert.equal(enumeration.some(f=>f.original==='님으로'||f.suggestions.some(s=>s.includes('님으로'))),false);
+
+  assert.equal(check('한살림이 오픈됐어요').some(f=>f.original==='한살림이'&&f.applicable),false);
+  assert.deepEqual(check('한 살림이 필요하다'),[]);
 });
 test('finite endings, plural nouns and permitted auxiliary spelling stay intact',()=>{
   for(const text of ['시작합니다','기다릴게요','남았어요','아이들이','문을 열어주세요.','알려주려고','알려주면','읽어보려고','오리보스는','어둠땅은'])assert.equal(check(text).filter(f=>f.suggestions.length).length,0,text);
@@ -473,7 +900,7 @@ test('compound English typos yield bounded candidates without replacing register
   }
 });
 test('pathological unbroken text reports an explicit analysis limitation',()=>{
-  const f=check('가'.repeat(10000));assert.equal(f.length,1);assert.match(f[0].reason,/64/);assert.equal(f[0].applicable,false);
+  const f=check('가'.repeat(10000));assert.equal(f.length,1);assert.match(f[0].reason,/48/);assert.equal(f[0].applicable,false);
 });
 
 test('verified spelling is checked independently of permissive morphology',()=>{
@@ -489,7 +916,7 @@ test('contracted demonstratives are preserved rather than expanded or respelled'
 });
 
 test('predicate boundaries do not use free-standing fragments as pre-endings',()=>{
-  for(const [source,target] of [['질문이있으면','질문이 있으면'],['문서를저장하고','문서를 저장하고'],['비가오면','비가 오면'],['할일이','할 일이'],['누구나할','누구나 할']])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
+  for(const [source,target] of [['질문이있으면','질문이 있으면'],['제친구들','제 친구들'],['문서를저장하고','문서를 저장하고'],['비가오면','비가 오면'],['할일이','할 일이'],['누구나할','누구나 할']])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
   for(const source of ['말해요','말했어요','질문이 있으면 말해요.'])assert.equal(check(source).filter(f=>f.suggestions.length).length,0,source);
 });
 
@@ -643,6 +1070,13 @@ test('ge doeda composition recovers the past ending before speculative unknown s
   assert.equal(check('알게되엇는데요',['알게되엇는데요']).length,0);
 });
 
+test('adjective-derived psychological verbs and modified honorifics keep their units',()=>{
+  for(const text of ['미안해하면서','불편해했다','아는 형님이'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('아는형님이').some(f=>f.suggestions[0]==='아는 형님이'));
+  assert.equal(check('아는형님이',['아는형님이']).length,0);
+  for(const text of ['갠적으로','데스에더'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
 test('complete nouns are not split at a coincidental dependent noun ending',()=>{
   for(const source of ['필수','이걸','이때'])assert.equal(check(source).length,0,source);
   for(const [source,target]of [['아닌것','아닌 것'],['탈일이','탈 일이'],['한군데','한 군데']])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
@@ -653,4 +1087,135 @@ test('polite connective endings and jeok derivatives retain their boundaries',()
   assert.ok(check('학교에갔어요').some(f=>f.suggestions.includes('학교에 갔어요')));
   assert.ok(check('질게에서').some(f=>f.type==='unknown'));
   for(const [source,target]of [['달아줘야해서요','달아줘야 해서요'],['만들어야하는데','만들어야 하는데']])assert.ok(check(source).some(f=>f.suggestions.includes(target)),source);
+});
+
+test('native duration plus degree separates only the mandatory degree boundary',()=>{
+  for(const [source,target]of [['한시간정도','한시간 정도'],['두달정도만','두달 정도만'],['세시간정도는','세시간 정도는']]){
+    assert.ok(check(source).some(f=>f.original===source&&f.suggestions[0]===target),source);
+    assert.ok(!check(source,[source]).some(f=>f.applicable),source);
+  }
+  assert.equal(check('한 시간 정도').filter(f=>f.applicable).length,0);
+  assert.ok(!check('한시간정도쯤').some(f=>f.suggestions.includes('한시간 정도쯤')));
+});
+
+test('independent all-adverb precedes validated adjective inflections without splitting names',()=>{
+  for(const [source,target]of [['다좋은데','다 좋은데'],['다좋아요','다 좋아요']])assert.ok(check(source).some(f=>f.original===source&&f.suggestions[0]===target),source);
+  for(const source of ['다크','다크한','다음','다 좋은데'])assert.equal(check(source).filter(f=>f.applicable).length,0,source);
+  assert.deepEqual(check('다좋은데',['다좋은데']),[]);
+});
+
+test('context resolves negative adnominal against a recognized noun homograph',()=>{
+  for(const [source,word,target]of [['집엔 안가는 법이지','안가는','안 가는'],['학교에 못가는 날','못가는','못 가는']]){
+    assert.ok(check(source).some(f=>f.original===word&&f.suggestions[0]===target),source);
+  }
+  for(const source of ['안가는','안가는 법이지','집엔 안보이는 법이지','집엔 안내는 법이지','집엔 `안가는` 법이지'])assert.equal(check(source).filter(f=>f.applicable).length,0,source);
+  assert.equal(check('집엔 안가는 법이지',['안가는']).filter(f=>f.applicable).length,0);
+});
+
+test('consecutive particles attach to a nominal while elapsed-time man remains separate',()=>{
+  for(const [source,target]of [['본인 만이 아니라','본인만이'],['학생 만이','학생만이']])assert.ok(check(source).some(f=>f.original===source.slice(0,target.length+1)&&f.suggestions[0]===target),source);
+  for(const source of ['본인만이 아니라','십 년 만이 아니다','10년 만이 아니다','두 달 만이 아니다','일주일 만이 아니다','열흘 만이 아니다','닷새 만이 아니다','세 주일 만이 아니다','오랜 만이'])assert.equal(check(source).filter(f=>f.applicable).length,0,source);
+  assert.equal(check('`본인 만이`').filter(f=>f.applicable).length,0);
+});
+
+test('rule 46 permits joined short adverbs as an author variant',()=>{
+  for(const source of ['좀더 선명하고요','좀 더 선명하고요'])assert.equal(check(source).filter(f=>f.applicable).length,0,source);
+});
+
+
+test('subject and negative particles take precedence over unrelated noun fragments',()=>{
+  for(const [source,target]of [['개학도안했는데','개학도 안 했는데'],['안준단말이야','안 준단 말이야'],['제가게이냐는','제가 게이냐는'],['잘못살까봐','잘못 살까봐']])assert.ok(check(source).some(f=>f.suggestions[0]===target),source);
+  for(const source of ['잘못된','잘못한','엄마한테는','어떻게든지'])assert.equal(check(source).some(f=>f.applicable),false,source);
+});
+
+test('historical community boundaries preserve required correction recall',()=>{
+  for(const [source,target]of [['싶어하는','싶어 하는'],['한과목','한 과목'],['한숨쉬던','한숨 쉬던'],['그런척','그런 척'],['보던앤데','보던 앤데'],['이득이라해서','이득이라 해서']])assert.ok(check(source).some(f=>f.suggestions[0]===target),source);
+  for(const source of ['미안해하면서','불편해했다','불칸으로'])assert.equal(check(source).some(f=>f.applicable),false,source);
+});
+
+
+test('whole products and names survive short fragment analyses',()=>{
+  for(const text of ['제거제','식세기','박은정','자식이거아'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['먹은밥','먹은 밥'],['받은돈','받은 돈'],['같은과','같은 과'],['할거야','할 거야']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+
+test('range suffixes and university abbreviations remain whole',()=>{
+  for(const text of ['중반대에','초중반대에','후반대는','간호대를','연고서성한'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('며칠전').some(f=>f.suggestions[0]==='며칠 전'));
+});
+
+test('complete connective clauses precede shorter negative homographs',()=>{
+  for(const [text,target]of [['안전하고나서','안전하고 나서'],['안하고나서','안 하고 나서'],['결혼하고나서','결혼하고 나서']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  assert.equal(check('안전하고 나서').some(f=>f.applicable),false);
+});
+
+test('bare imperative stems do not masquerade as dependent-noun modifiers',()=>{
+  for(const text of ['하거라','하거라고','가거라'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['할거라','할 거라'],['한거라고','한 거라고']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('short uncertain noun and nominalization homographs do not invent boundaries',()=>{
+  for(const text of ['센경','삽사기','삽사기도'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['큰문제','큰 문제'],['책읽기','책 읽기'],['밥먹기','밥 먹기'],['머리감기','머리 감기']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+
+test('verified lexical stems and nominalizations keep community boundaries intact',()=>{
+  for(const text of ['인사드리고','인사드렸습니다','인사드릴게요','명문대를','명문대에서','못남과','못남을','못난'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['불편드려요','불편 드려요'],['못먹었다','못 먹었다'],['못나가겠고','못 나가겠고'],['못나와서','못 나와서']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('bounded predicate repairs precede speculative noun choice and activity gaps',()=>{
+  for(const [text,target]of [['다사나단한','다사다난한'],['다사나단했다','다사다난했다'],['비꾸기','바꾸기'],['비꾸고','바꾸고']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['다사다난한','바꾸기','다사나단닉네임','비꾸닉네임'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const text of ['다사나단한','비꾸기'])assert.deepEqual(check(text,[text]),[],text);
+});
+
+
+test('food nouns and quantities retain lexical suffixes in community prose',()=>{
+  for(const text of ['제주시로','묵은지에','데리야키','벚꽃놀이하기','고급졌습니다','대파 한 대','미술슨상님도'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('한장짜리').some(f=>f.suggestions[0]==='한 장짜리'));
+});
+
+test('complete predicates precede auxiliary and abbreviated report boundaries',()=>{
+  for(const [text,target]of [['아른아른거렸을듯','아른아른거렸을 듯'],['지원해볼만할까요','지원해 볼만할까요'],['이렇게한다함','이렇게 한다 함'],['한다함','한다 함']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['안하도','떨어질가요'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('independent eating predicates and omitted objects recover mandatory gaps',()=>{
+  for(const [text,target]of [['구워먹을라고','구워 먹을라고'],['만들어먹겠다는','만들어 먹겠다는'],['찍어먹기','찍어 먹기'],['비벼먹으니','비벼 먹으니'],['시켜먹습니다','시켜 먹습니다'],['발라내먹어야','발라내 먹어야'],['도움받을수','도움 받을 수'],['정신나간','정신 나간']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['받아먹었다','갉아먹었다','까먹었다','다쳐먹더라고'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('whole predicates and nominal suffixes survive fragment homographs',()=>{
+  for(const text of ['짜장이기보다는','세발나물이','내세우지','때아닌','찾아다님','내신식으로','세이부가','라오쓰지','존맛','정말정말'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  for(const [text,target]of [['이와중에','이 와중에'],['그중한곳에서','그중 한 곳에서'],['한번꼴로','한 번꼴로'],['군대가기','군대 가기'],['퍽퍽해보였는데','퍽퍽해 보였는데']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('complete adnominal and colloquial motion forms recover grammatical gaps',()=>{
+  for(const [text,target]of [['한다음에','한 다음에'],['만든맛이','만든 맛이'],['구운맛입니다','구운 맛입니다'],['나온것중에','나온 것 중에'],['급식없던시절','급식 없던 시절'],['자러갈게용','자러 갈게용'],['할라하면','할라 하면'],['아님말고','아님 말고']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+});
+
+test('food actions and elliptical state phrases keep independent word boundaries',()=>{
+  for(const [text,target]of [['썰어넣은','썰어 넣은'],['건져먹고','건져 먹고'],['감당못하는','감당 못하는'],['너무행복','너무 행복']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['못생겼다','한번 해보자','엄마한테는'])assert.equal(check(text).some(f=>f.applicable),false,text);
+});
+
+test('copula and colloquial intent endings preserve the complete host',()=>{
+  for(const text of ['이거군요','그거군요','공문서란','안내서란','모을라고','먹을라고','있어야지란 생각'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.ok(check('연락오더군요').some(f=>f.suggestions[0]==='연락 오더군요'));
+});
+
+test('past and result-state typos are repaired before internal segmentation',()=>{
+  for(const [text,target]of [['일어낫는대','일어났는데'],['안갓냐는','안 갔냐는'],['되있어서','돼 있어서'],['바글바글되었지만','바글바글댔지만'],['아니먼','아니면']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['웃는대','낫는대','됐지만','되있어서'])assert.equal(check(text,[text]).some(f=>f.applicable),false,text);
+  for(const text of ['웃는대','낫는대'])assert.equal(check(text).some(f=>f.applicable),false,text);
+  assert.equal(check('타겟은').some(f=>f.applicable),false);
+  assert.ok(check('안낫네').some(f=>f.suggestions[0]==='안 낫네'));
+});
+
+test('motion nominalization and additional count units retain complete boundaries',()=>{
+  for(const [text,target]of [['이사가기 전에','이사 가기'],['한상자에','한 상자에'],['한단계','한 단계']])assert.ok(check(text).some(f=>f.suggestions[0]===target),text);
+  for(const text of ['달달구리하면서','네네가','우도나쓰는'])assert.equal(check(text).some(f=>f.applicable),false,text);
 });

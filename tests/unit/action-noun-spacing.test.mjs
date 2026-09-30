@@ -26,3 +26,8 @@ test('attested 추천드리다 inflections are not split into noun and main verb
   }
   assert.ok(check('불편드립니다').some(f=>f.suggestions.includes('불편 드립니다')));
 });
+
+
+test('ordinary 소리 하다 keeps its object boundary',()=>{
+  assert.equal(check('정신나간 소리 하는대요').some(f=>f.suggestions[0]==='소리하는대요'),false);
+});

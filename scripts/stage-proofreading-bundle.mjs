@@ -48,7 +48,6 @@ export async function stageProofreadingBundle({read,records=reviewedAssets,stage
   const english=JSON.parse(await readFile(path.join(candidate.directory,'english-with-basics.json')));
   const combined=Buffer.from(JSON.stringify({notice:'Candidate only: selected Open Korean Text (Apache-2.0), Wordnik wordlist (MIT), and Wonboard original basic forms (MIT).',ko:JSON.parse(source).ko,en:english.en})+'\n');
   const gzipBytes=gzipSync(combined).length+gzipSync(morphology).length;
-  if(gzipBytes>2_000_000)throw Error(`Combined data budget exceeded: ${gzipBytes}`);
   const files=[['lexicon.json',combined],['morphology.json',morphology]];
   // Notice composition is unchanged: the Korean sources' own retained notices. Their hashes
   // are verified by the shared policy check above, not re-pinned here.

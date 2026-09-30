@@ -1,5 +1,26 @@
 // Own bounded confusion-word rules. Lexical meanings: spelling-orthography-sources.md.
 // These are review suggestions, never a claim of full sentence understanding.
+export function contextualProductName(text,from,to,nominalTail){
+  const word=text.slice(from,to),left=text.slice(Math.max(0,from-80),from).split('\n').at(-1),right=text.slice(to,to+100).split('\n')[0];
+  // The cooperative name shares its spelling with the ordinary count phrase.
+  if(/^한살림(?:은|이|을|도|만|의|에|에서|으로|과)?$/.test(word)){
+    const cue=right.match(/^[ \u00a0]+(?:매장|조합원|생협)([가-힣]*)(?=$|[^가-힣])/);
+    return /(?:^|[^가-힣])(?:생협|소비자생활협동조합)[ \u00a0]+$/.test(left)
+      || Boolean(cue&&(!cue[1]||nominalTail(cue[1])))
+      || /^[ \u00a0]+오픈(?=$|[^가-힣]|됐|했)/.test(right);
+  }
+  // Both names are published by their manufacturers (Samyang / Haitai).
+  // They also resemble ordinary phrases, so require a local brand cue.
+  if(/^맛있는라면(?:으로|은|는|도|을|과|과는)?$/.test(word)){
+    if(/(?:^|[^가-힣])삼양(?:식품)?(?:의)?[ \u00a0]+$/.test(left))return true;
+    if(word==='맛있는라면으로'&&/(?:^|[^가-힣])(?:신라면|진라면|삼양라면|안성탕면)으로(?:는|도)?(?=$|[^가-힣])/.test(left+right))return true;
+  }
+  if(word==='갈아만든'&&/^[ \u00a0]+배(?:는|를|도|가|와|로|에)?(?=$|[^가-힣])/.test(right)){
+    return /(?:^|[^가-힣])(?:해장용|숙취해소용|해태(?:음료)?)[ \u00a0]+$/.test(left)
+      || /^[ \u00a0]+배[ \u00a0]*(?:\d+[ \u00a0]*(?:ml|mL|L)|캔|페트|음료)(?=$|[^가-힣A-Za-z])/u.test(right);
+  }
+  return false;
+}
 export function communityAction(word,predicate){
   // A reviewed action abbreviation may have a validated 하다 ending.
   // This does not make arbitrary personal nouns productive verb stems.
@@ -9,6 +30,20 @@ export function communityAction(word,predicate){
 export function communityExpression(text,from,to,personal,sets,predicate){
   const word=text.slice(from,to);
   const right=text.slice(to,to+64).split('\n')[0];
+  // A playful taste adjective is one author expression, not 달달 + 구리하다.
+  if(!personal.has(word)&&word.startsWith('달달구리')&&predicate(word.slice(4))?.root==='하')return word;
+  // The internet suffix 느님 is one playful unit, not a name ending 느 + 님.
+  if(!personal.has(word)&&/^.+느님(?:은|는|이|가|을|를|께|도|만)?$/.test(word))return word;
+  if(!personal.has(word)&&/^갠적으로(?:는|도|만)?$/.test(word))return '갠적으로';
+  // Colloquial -지다 remains an author expression, not a noun + 지다 gap.
+  if(!personal.has(word)&&/^고급(?:지|진|질|집|져|졌)/.test(word)&&predicate(word.slice(2)))return word;
+  // Preserve the intentionally altered food nickname as one expression.
+  if(!personal.has(word)&&/^햄부기(?:는|가|를|도|만|야|임)?$/.test(word))return '햄부기';
+  // Reviewed phonetic internet speech stays a whole expression for review.
+  if(!personal.has(word)&&/^(?:조크|좋크|좋거)등요$/.test(word))return word;
+  // An adnominal + 뎁니다 may contract 데입니다 in colloquial speech.
+  // Do not turn that place/circumstance reading into reported -답니다.
+  if(!personal.has(word)&&word.endsWith('뎁니다')&&predicate(word.slice(0,-3))?.adnominal)return word;
   // A model identifier disambiguates the device nickname from 개다's 갤.
   if(word==='갤'&&!personal.has(word)&&/^[ \u00a0]+(?:S|Z|A)\d+(?=$|[^A-Za-z0-9])/i.test(right))return word;
   // 넘 before a complete adjective may abbreviate 너무. Keep the bare
@@ -21,6 +56,8 @@ export function communityExpression(text,from,to,personal,sets,predicate){
   // sequence of dictionary fragments. Review the complete expression;
   // registration still belongs to the individual user's dictionary.
   if(!personal.has(word)&&/^[으우아어오와악앗헉헐하허흐히후휴호에엥음응]+$/.test(word)&&/([가-힣])\1{3,}/.test(word))return word;
+  // Crying interjections may end with a nasal coda after stretched 아.
+  if(!personal.has(word)&&/^으?아+앙$/.test(word))return word;
   // Review a possible internet intensifier without inventing a space or
   // approving it as standard. Complete lexical predicates stay intact.
   if(!personal.has(word)&&word.startsWith('개')&&!predicate(word)){
@@ -35,13 +72,14 @@ export function communityExpression(text,from,to,personal,sets,predicate){
   }
   // 갈축 is a reviewed keyboard abbreviation, not a global standard-word
   // entry. Its 갈다/가다 + 축 fragments must not become an invented fix.
-  const match=word.match(/^(질게|모공|비추|컴|업글|저렴이|갈축)(.*)$/);
+  const match=word.match(/^(질게|모공|비추|컴|업글|저렴이|갈축|음감)(.*)$/);
   if(!match||personal.has(word)||personal.has(match[1]))return null;
   const [,base,tail]=match;
   const copula=tail&&predicate(tail)?.root==='이';
   if(tail&&!sets.josa.has(tail)&&!copula)return null;
   if(base==='질게')return /^[ \u00a0]+(?:게시판|게시글|질문|답변)(?:[가-힣]*)(?=$|[\s.,!?])/u.test(right)?base:null;
   if(base==='모공')return /^[ \u00a0]+(?:게시판|게시글|올라온|올린|올렸|썼|쓴|쓰는)(?:[가-힣]*)(?=$|[\s.,!?])/u.test(right)?base:null;
+  if(base==='음감')return /^[ \u00a0]+(?:위해|듣|음악|소리)(?:[가-힣]*)(?=$|[\s.,!?])/u.test(right)?base:null;
   // 비추는 is also a complete inflection of 비추다. A nominal copula
   // signals a different use, but an ordinary verb inflection stays intact.
   if(base==='비추'&&!copula&&predicate(word))return null;
@@ -49,13 +87,20 @@ export function communityExpression(text,from,to,personal,sets,predicate){
 }
 export function contextSuggestion(text,from,to,personal,predicate){
   const word=text.slice(from,to);
-  if(personal.has(word)||!['안되고','안되는','안된다','안됩니다','어떻해','현제','현제는','현제의','금새','문안한','낳으세요','낳으면','낳아서','낳았다','낳았어요'].includes(word))return null;
+  if(personal.has(word)||!['안되고','안되는','안된','안될거','안된다','안됩니다','어떻해','현제','현제는','현제의','금새','문안한','낳으세요','낳으면','낳아서','낳았다','낳았어요'].includes(word)&&!word.startsWith('자주'))return null;
   const left=text.slice(Math.max(0,from-48),from).split('\n').at(-1);
   const right=text.slice(to,to+48).split('\n')[0];
   // Do not interpret quoted spellings or dictionary discussions as assertions.
   if(/["'“‘「『]$/.test(left)||/^["'”’」』]/.test(right))return null;
   const next=right.match(/^[ \u00a0]+([가-힣]+)/)?.[1];
   const suggest=(replacement,reason)=>({suggestions:[replacement],ambiguous:true,reason});
+  if(word.startsWith('자주색칠'))return {type:'unknown',suggestions:[],ambiguous:true,reason:'The purple color and frequency readings need different repairs; preserve the original for review'};
+  if(word.startsWith('자주')&&/(?:^|[ \u00a0])(?:이걸|그걸|저걸|이것을|그것을|이 일을|그 일을)[ \u00a0]+$/.test(left)&&predicate(word.slice(2))){
+    return {...suggest('자주 '+word.slice(2),'Separate frequency adverb 자주 from 하다 when an explicit object precedes it'),type:'spacing'};
+  }
+  if((word.startsWith('안되')||word==='안된'||word==='안될거')&&/(?:^|[ \u00a0])(?:카드|할인|감당이)(?:[ \u00a0]+|$)/.test(left)){
+    return {...suggest(word==='안될거'?'안 될 거':'안 '+word.slice(1),'Context review: separate negative 안 when payment, discount, or capacity does not work; confirm the intended meaning'),type:'spacing'};
+  }
   if(word.startsWith('안되')&&/(?:^|[ \u00a0])거래가[ \u00a0]+$/.test(left)){
     return {...suggest('안 '+word.slice(1),'Context review: when a transaction does not take place, separate negative 안 from 되다; confirm the intended meaning'),type:'spacing'};
   }
