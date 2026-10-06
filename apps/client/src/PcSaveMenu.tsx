@@ -48,7 +48,7 @@ export function PrintDocument({ draft, onError, onDone }: { draft: Draft; onErro
     })();
     return () => { active = false; window.removeEventListener("afterprint", finish); document.title = title; };
   }, []);
-  return <div className="print-root" ref={root} aria-hidden="true"><DocumentPreview document={value} mediaUrls={mediaUrls} print /></div>;
+  return <div className="print-root" ref={root}><DocumentPreview document={value} mediaUrls={mediaUrls} print /></div>;
 }
 
 function TextWarning({ locale, photos, onConfirm, onClose }: { locale: Locale; photos: number; onConfirm(): void; onClose(): void }) {
