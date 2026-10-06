@@ -149,9 +149,10 @@ test("clear formatting works at the cursor, preserves links and supports undo an
   await expect(body.locator("strong")).toHaveText("Hello world");
   await expect(body.locator("span")).toHaveCSS("font-family", /Gowun Batang/);
   await body.press("ControlOrMeta+a");
-  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("Hello world");
-  // Let the browser's selectionchange reach the editor before navigating it.
-  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  // WebKit은 문단 전체를 고른 선택을 글자로 바꿀 때 끝에 줄바꿈을 붙인다.
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString().trimEnd())).toBe("Hello world");
+  // 선택이 편집기에 닿아 자리를 잡으면 선택 서식 막대가 뜬다. 그 뒤에 커서를 옮긴다.
+  await expect(page.getByRole("toolbar", { name: "Selected text formatting", exact: true })).toBeVisible();
   await body.press("ArrowLeft");
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("");
   for (let i = 0; i < 5; i++) {
