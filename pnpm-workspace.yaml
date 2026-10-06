@@ -4,6 +4,9 @@ packages:
   - examples/*
 
 minimumReleaseAgeExclude:
+  - "@openai/sites-vite-plugin@0.2.0"
+  - "drizzle-kit@0.31.11"
+  - "drizzle-orm@0.45.3"
   - "@playwright/test@1.63.0"
   - "@tiptap/core@3.31.3"
   - "@tiptap/extension-blockquote@3.31.3"
@@ -38,5 +41,5 @@ minimumReleaseAgeExclude:
   - playwright@1.63.0
   - electron@44.3.0
 
-onlyBuiltDependencies:
-  - esbuild
+allowBuilds:
+  esbuild: true
