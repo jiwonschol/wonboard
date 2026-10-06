@@ -15,6 +15,7 @@
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "build": "node scripts/check-spelling-data-policy.mjs && tsc --noEmit && vite build",
     "build:sites": "node scripts/check-spelling-data-policy.mjs && tsc --noEmit && vite build --mode sites && vite build --config vite.sites-worker.config.ts",
+    "build:site": "node scripts/build-site.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run && node scripts/test-node-units.mjs",
     "test:e2e": "playwright test",
