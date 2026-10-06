@@ -25,3 +25,26 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build:site  # 소개 페이지 빌드와 설치 문장 대조 검사
+
+  # 브라우저 시험. 시간을 줄이려고 Chromium 하나만 돈다. Firefox·WebKit은 로컬에서 돌린다.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false  # pnpm은 다음 단계 corepack이 켠다
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      # 개발 서버의 시험용 로그인. 실행마다 새로 만든 무작위 값이고 저장소에 두지 않는다.
+      - run: printf 'WONBOARD_LOGIN_ID=e2e-%s\nWONBOARD_LOGIN_PASSWORD=%s\n' "$(openssl rand -hex 6)" "$(openssl rand -hex 24)" > .env.local
+      - run: pnpm test:e2e --project=chromium
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: test-results
+          retention-days: 7
