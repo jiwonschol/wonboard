@@ -46,9 +46,10 @@ function renderNode(
   parent = "",
   videoLinksOnly = false,
   tableImages?: TableImages,
+  eagerImages = false,
 ): ReactNode {
   const children = node.content?.map((child, i) => (
-    <Fragment key={i}>{renderNode(child, urls, portable, node.type, videoLinksOnly, tableImages)}</Fragment>
+    <Fragment key={i}>{renderNode(child, urls, portable, node.type, videoLinksOnly, tableImages, eagerImages)}</Fragment>
   ));
   const attrs = node.attrs ?? {};
   const margin = portable ? { margin: ["listItem", "tableCell", "tableHeader"].includes(parent) ? "0" : "0 0 1.35em" } : {};
@@ -156,7 +157,7 @@ function renderNode(
           <img
             src={urls[String(attrs.mediaId)]}
             alt={String(attrs.alt ?? "")}
-            loading="lazy"
+            loading={eagerImages ? "eager" : "lazy"}
             width={portable ? Number(attrs.width ?? 600) : undefined}
             style={portable ? { display: "block", width: "100%", maxWidth: "100%", height: "auto" } : undefined}
           />
@@ -175,17 +176,20 @@ export function PortableDocumentBody({ document, mediaUrls, videoLinksOnly = fal
     fontSize: "19.3642px", lineHeight: 1.4, fontWeight: 400, letterSpacing: "-0.1px",
     whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{renderNode(document.content, mediaUrls, true, "", videoLinksOnly, tableImages)}</div>;
 }
+/** `print`는 종이·PDF용이다. 영상은 링크만 남기고, 화면 밖에 있어도 사진을 바로 불러온다. */
 export function DocumentPreview({
   document,
   mediaUrls,
+  print = false,
 }: {
   document: WriterDocument;
   mediaUrls: Record<string, string>;
+  print?: boolean;
 }) {
   return (
     <article className="document-page preview-page" lang={document.locale} style={{ fontFamily: fontFamily(document.defaultFont) }}>
       <h1 className="document-title">{document.title}</h1>
-      <div className="tiptap">{renderNode(document.content, mediaUrls)}</div>
+      <div className="tiptap">{renderNode(document.content, mediaUrls, false, "", print, undefined, print)}</div>
     </article>
   );
 }

@@ -215,7 +215,7 @@ test("offline editing can be recovered explicitly after reopening online", async
   page = await context.newPage(); await page.goto("/");
   await expect(page.getByRole("button", { name: "Recover edits", exact: true })).toBeVisible();
   await expect(page.locator(".tiptap")).toHaveAttribute("contenteditable", "false");
-  await expect(page.getByRole("button", { name: "Export", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Share", exact: true })).toBeDisabled();
   await page.getByRole("tab", { name: "Attachments 0", exact: true }).click();
   await expect(page.locator(".attachments-panel").getByRole("button", {name:"File library",exact:true})).toHaveCount(0);
   await page.getByRole("button", { name: "Recover edits", exact: true }).click();

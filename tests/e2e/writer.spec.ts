@@ -10,7 +10,7 @@ test("title input stops at the document limit and remains saveable and restorabl
   await expect(page.getByRole("status").last()).toHaveText("Saved locally");
   await page.reload();
   await expect(title).toHaveValue(longTitle.slice(0, 10000));
-  await page.getByRole("button", { name: "Options", exact: true }).click();
+  await page.getByRole("button", { name: "Save to PC", exact: true }).click();
   const downloaded = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download backup (.zip)", exact: true }).click();
   await page.locator('input[accept=".zip,application/zip"]').setInputFiles((await (await downloaded).path())!);
@@ -83,7 +83,7 @@ test("real image insertion, resize, caption, backup and restore into a second do
   expect(
     await page.locator(".wb-media figure").evaluate((e) => e.style.width),
   ).toBe("320px");
-  await page.getByRole("button", { name: "Options", exact: true }).click();
+  await page.getByRole("button", { name: "Save to PC", exact: true }).click();
   const downloaded = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Download backup (.zip)", exact: true })

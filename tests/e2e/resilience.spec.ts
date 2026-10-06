@@ -58,7 +58,7 @@ test("an unsupported newest draft does not trap navigation, creation or backup r
     await page.getByRole("button", { name: "Documents", exact: true }).first().click();
   await page.locator(".document-list>button").filter({ hasText: "valid" }).click();
   await expect(page.getByRole("textbox", { name: "Add title" })).toHaveValue("valid");
-  await page.getByRole("button", { name: "Options", exact: true }).click();
+  await page.getByRole("button", { name: "Save to PC", exact: true }).click();
   const downloaded = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download backup (.zip)", exact: true }).click();
   const path = (await (await downloaded).path())!;
@@ -68,7 +68,6 @@ test("an unsupported newest draft does not trap navigation, creation or backup r
   entries["document.json"] = strToU8(JSON.stringify(futureDocument));
   const futurePath = testInfo.outputPath("future-backup.zip");
   await writeFile(futurePath, zipSync(entries));
-  await page.getByRole("dialog", { name: "Options" }).getByRole("button", { name: "Close", exact: true }).click();
   await chooseFuture();
   // 얼어붙은 초안의 백업 단추는 그것을 얼린 검증에서 다시 던져 파일을 못 냈다.
   // 사진이 든 초안에는 온전한 회수 경로가 없었다 — 검증 없는 원본 묶음으로 넘어간다.
@@ -157,7 +156,7 @@ test("quota failure never claims saved and leaves an exportable in-memory draft"
   await expect(page.getByRole("textbox", { name: "Add title" })).toHaveValue(
     "보존할 초안",
   );
-  await page.getByRole("button", { name: "Options", exact: true }).click();
+  await page.getByRole("button", { name: "Save to PC", exact: true }).click();
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download backup (.zip)" }).click();
   expect((await download).suggestedFilename()).toMatch(/\.zip$/);

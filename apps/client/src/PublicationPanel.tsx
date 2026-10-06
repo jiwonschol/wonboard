@@ -100,7 +100,7 @@ export function PublicationPanel({ locale, documentId, save, snapshot, canPublis
   const active = items.filter(item => item.published);
   return <dialog ref={panel} className="publication-dialog" aria-labelledby="publication-title"
     onCancel={event => { event.preventDefault(); if (!working) onClose(); }}>
-    <header><h2 id="publication-title">{t("prepareExport")}</h2><button disabled={working} onClick={onClose}>{t("close")}</button></header>
+    <header><h2 id="publication-title">{t("share")}</h2><button disabled={working} onClick={onClose}>{t("close")}</button></header>
     <p>{t("publishNotice")}</p>
     <label className="sites-consent"><input type="checkbox" checked={accepted} disabled={working} onChange={e => setAccepted(e.target.checked)} />{t("publishAccept")}</label>
     {hasTables ? <label className="sites-consent"><input type="checkbox" checked={tablesAsImages} disabled={working}

@@ -17,8 +17,8 @@ test("shared writing stays frozen until library update, then revokes independent
   await page.getByRole("tab", { name: "Attachments 0", exact: true }).click();
   await page.locator('.attachments-panel input[type="file"]').setInputFiles({ name: "photo.png", mimeType: "image/png", buffer: syntheticPng });
   await expect(page.locator(".tiptap .wb-media img")).toHaveCount(1);
-  await page.getByRole("button", { name: "Export", exact: true }).click();
-  const exporting = page.getByRole("dialog", { name: "Export", exact: true });
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+  const exporting = page.getByRole("dialog", { name: "Share", exact: true });
   await exporting.getByRole("checkbox").check();
   await exporting.getByRole("button", { name: "Create shared writing snapshot", exact: true }).click();
   const address = exporting.getByRole("textbox", { name: "Shared writing URL", exact: true });

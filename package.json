@@ -42,6 +42,7 @@
     "drizzle-orm": "0.45.3",
     "electron": "44.3.0",
     "fake-indexeddb": "6.2.5",
+    "pdfjs-dist": "5.4.624",
     "typescript": "7.0.2",
     "vite": "8.2.2",
     "vitest": "5.0.0"
