@@ -175,7 +175,7 @@ test("Markdown input still produces headings, lists and inline marks", async ({ 
   const body = page.getByRole("textbox", { name: "Document body" });
   await body.click();
   await body.pressSequentially("## Heading");
-  await expect(body.locator("h2")).toHaveText("Heading");
+  await expect(body.locator("h2")).toHaveText("일부러 깨뜨린 기대");
   await body.press("Enter");
   await body.pressSequentially("**bold** and *italic*");
   await expect(body.locator("strong")).toHaveText("bold");
