@@ -42,14 +42,14 @@ describe("PC 저장: 마크다운", () => {
   });
   it("사진이 있으면 ZIP이고, 글 안의 그림 경로마다 그 이름의 사진 파일이 들어 있다", async () => {
     // 이름이 겹치거나 공백·괄호가 있어도 경로와 파일이 글자 그대로 맞아야 한다.
-    const draft = await draftWith([paragraph(text("본문"))], ["바다.png", "바다.png", "해 질 녘 (1).png", `${"😀".repeat(200)}.png`, "CON.png", "바다.png.", "그림.txt"]);
+    const draft = await draftWith([paragraph(text("본문"))], ["바다.png", "바다.png", "해 질 녘 (1).png", `${"😀".repeat(200)}.png`, "COM¹.png", "바다.png.", "그림.txt"]);
     const file = await markdownFile(draft);
     expect(file.name).toBe("제주 여행.zip");
     const entries = unzipSync(new Uint8Array(await file.blob.arrayBuffer()));
     const markdown = strFromU8(entries["제주 여행.md"]);
     const paths = [...markdown.matchAll(/!\[[^\]]*\]\((?:<([^>]+)>|([^)\s]+))\)/g)].map(match => match[1] ?? match[2]);
     // 풀 수 없을 만큼 긴 이름은 확장자를 남기고 줄이고, Windows가 받지 않는 이름은 피하고, 확장자는 사진 형식을 따른다.
-    expect(paths).toEqual(["images/바다.png", "images/바다-2.png", "images/해 질 녘 (1).png", `images/${"😀".repeat(49)}.png`, "images/_CON.png", "images/바다-3.png", "images/그림.txt.png"]);
+    expect(paths).toEqual(["images/바다.png", "images/바다-2.png", "images/해 질 녘 (1).png", `images/${"😀".repeat(49)}.png`, "images/_COM¹.png", "images/바다-3.png", "images/그림.txt.png"]);
     expect(Object.keys(entries).sort()).toEqual(["제주 여행.md", ...paths].sort());
     paths.forEach((path, index) => expect([...entries[path]]).toEqual([index + 1, 2, 3]));
   });
@@ -68,7 +68,7 @@ describe("PC 저장: 마크다운", () => {
       { type: "textBox", attrs: { backgroundColor: "#fff4d6" }, content: [paragraph(text("  들여 쓴 글상자 안의 글"))] },
       { type: "table", content: [
         { type: "tableRow", content: [{ type: "tableHeader", content: [paragraph(text("이름"))] }, { type: "tableHeader", attrs: { colspan: 1, rowspan: 1, align: "right" }, content: [paragraph(text("값"))] }] },
-        { type: "tableRow", content: [{ type: "tableCell", content: [paragraph(text(" a|b"))] }, { type: "tableCell", content: [paragraph(text("1", { type: "link", attrs: { href: "https://example.com/?a|b" } }))] }] },
+        { type: "tableRow", content: [{ type: "tableCell", content: [paragraph(text(" a|b"))] }, { type: "tableCell", content: [paragraph(text("1", { type: "link", attrs: { href: "https://example.com/?a|b&copy;" } }))] }] },
       ] },
       // 머리 행을 끈 표의 첫 행은 머리 행으로 바뀌지 않는다.
       { type: "table", content: [{ type: "tableRow", content: [{ type: "tableCell", content: [paragraph(text("첫 행"))] }] }] },
@@ -78,7 +78,7 @@ describe("PC 저장: 마크다운", () => {
       "## 첫 줄<br>둘째 줄", "",
       "빨간 글 밑줄 **굵게** \\*별표\\*와 \\[괄호\\]`  값  `", "",
       "&nbsp;&nbsp;들여 쓴 글상자 안의 글", "",
-      "| 이름 | 값 |", "| --- | --: |", "| &nbsp;a\\|b | [1](https://example.com/?a%7Cb) |", "",
+      "| 이름 | 값 |", "| --- | --: |", "| &nbsp;a\\|b | [1](https://example.com/?a%7Cb\\&copy;) |", "",
       "|  |", "| --- |", "| 첫 행 |", "",
     ].join("\n"));
   });

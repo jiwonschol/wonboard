@@ -35,10 +35,10 @@ function fit(text: string, limit: number) {
   return letters.join("").trim();
 }
 
-/** Windows가 받지 않는 이름을 피한다: 끝의 점·공백을 떼고, 장치 이름(CON, NUL 등)은 앞에 _를 붙인다. */
+/** Windows가 받지 않는 이름을 피한다: 끝의 점·공백을 떼고, 장치 이름(CON, NUL, COM1, COM¹ 등)은 앞에 _를 붙인다. */
 function safeStem(stem: string) {
   const value = stem.replace(/[. ]+$/, "");
-  return /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(value.split(".")[0].trim()) ? `_${value}` : value;
+  return /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])$/i.test(value.split(".")[0].trim()) ? `_${value}` : value;
 }
 
 /** 저장할 파일의 이름(확장자 제외). 제목이 비면 제품 이름을 쓴다. */
@@ -54,7 +54,7 @@ export function imageNames(document: WriterDocument): Map<string, string> {
     const id = String(node.attrs?.mediaId);
     if (node.type !== "media" || names.has(id) || !Object.hasOwn(document.media, id)) continue;
     let raw = attachmentFilename(document, id).normalize("NFC")
-      .replace(/[\u0000-\u001f\u007f<>:"/\\|?*#%]/g, "_").trim().replace(/[. ]+$/, "");
+      .replace(/[\u0000-\u001f\u007f<>:"/\\|?*#%&]/g, "_").trim().replace(/[. ]+$/, "");
     if (!raw) raw = "image";
     // 확장자가 사진 형식과 다르면(없거나 .txt 등) 맞는 확장자를 덧붙인다. 그래야 어디서 열어도 그림으로 읽힌다.
     const dot = raw.lastIndexOf("."), png = document.media[id].mime === "image/png";
@@ -139,9 +139,10 @@ const linkOf = (node: ContentNode) => {
   const href = node.marks?.find(mark => mark.type === "link")?.attrs?.href;
   return safeLink(href) ? href : "";
 };
+// 주소 안의 &와 역슬래시는 마크다운이 문자 참조(&copy; 등)나 이스케이프로 읽으므로 역슬래시로 막는다.
 // 표 안에서는 주소의 |도 칸을 나누는 글자로 읽히므로 %7C로 바꾼다.
 const destination = (href: string, inTable: boolean) => {
-  const value = inTable ? href.replace(/\|/g, "%7C") : href;
+  const value = (inTable ? href.replace(/\|/g, "%7C") : href).replace(/[\\&]/g, "\\$&");
   return /[()<>]/.test(value) ? `<${value.replace(/[<>]/g, encodeURIComponent)}>` : value;
 };
 /** 칸 가장자리의 공백은 표 문법이 떼어 내므로 줄바꿈 없는 공백으로 바꿔 남긴다. */
