@@ -60,8 +60,8 @@ test("a rejected private-file export clears old HTML and uses server share activ
   const share = await (await request.post("/api/files/export-file/share", { headers: owner, data: { revision: 1, operationId: "create", expiresAt: new Date(Date.now() + 3600000).toISOString() } })).json();
   await page.clock.setFixedTime(new Date(Date.now() + 31 * 86400000));
   await page.goto("/");
-  await page.getByRole("button", { name: "Export", exact: true }).click();
-  const panel = page.getByRole("dialog", { name: "Export", exact: true });
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+  const panel = page.getByRole("dialog", { name: "Share", exact: true });
   await panel.getByRole("checkbox").check();
   await panel.getByRole("button", { name: "Publish photos and prepare HTML" }).click();
   await expect(panel.locator("textarea")).toBeVisible();

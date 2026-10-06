@@ -11,6 +11,14 @@ import {
   type WriterDocument,
 } from "./index";
 
+/** 압축 없이 묶는다. 사진은 이미 압축된 형식이라 다시 줄지 않는다. */
+export const zipFiles = (files: Record<string, Uint8Array>) =>
+  new Promise<Uint8Array<ArrayBuffer>>((resolve, reject) =>
+    zip(files, { level: 0 }, (error, result) =>
+      error ? reject(error) : resolve(result as Uint8Array<ArrayBuffer>),
+    ),
+  );
+
 export async function exportBackup(draft: Draft): Promise<Blob> {
   draft = withoutUnusedMedia(draft);
   const files: Record<string, Uint8Array> = {
@@ -38,11 +46,7 @@ export async function exportBackup(draft: Draft): Promise<Blob> {
     if (await sha256(bytes) !== file.sha256) throw new DocumentError("corruptBackup");
     files[`files/${file.id}`] = new Uint8Array(bytes);
   }
-  const data = await new Promise<Uint8Array<ArrayBuffer>>((resolve, reject) =>
-    zip(files, { level: 0 }, (error, result) =>
-      error ? reject(error) : resolve(result as Uint8Array<ArrayBuffer>),
-    ),
-  );
+  const data = await zipFiles(files);
   if (data.byteLength > limits.archiveBytes)
     throw new DocumentError("archiveLimit");
   return new Blob([data], { type: "application/zip" });
@@ -71,11 +75,7 @@ export async function exportRawBackup(draft: Draft): Promise<Blob> {
       await blob.arrayBuffer(),
     );
   }
-  const data = await new Promise<Uint8Array<ArrayBuffer>>((resolve, reject) =>
-    zip(files, { level: 0 }, (error, result) =>
-      error ? reject(error) : resolve(result as Uint8Array<ArrayBuffer>),
-    ),
-  );
+  const data = await zipFiles(files);
   if (data.byteLength > limits.archiveBytes)
     throw new DocumentError("archiveLimit");
   return new Blob([data], { type: "application/zip" });

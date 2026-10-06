@@ -72,8 +72,8 @@ test("owner setup, private save, photo export, anonymous embed, rename, withdraw
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Add title" })).toHaveValue("My illustrated guide");
   await expect(page.locator(".tiptap .wb-media img")).toHaveCount(1);
-  await page.getByRole("button", { name: "Export", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Export", exact: true });
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Share", exact: true });
   await expect(dialog.getByRole("button", { name: "Publish photos and prepare HTML" })).toBeDisabled();
   await dialog.getByRole("checkbox").check();
   await dialog.getByRole("button", { name: "Publish photos and prepare HTML" }).click();
@@ -111,7 +111,7 @@ test("owner setup, private save, photo export, anonymous embed, rename, withdraw
     await dialog.getByRole("button", { name: "Close", exact: true }).click();
     await page.getByRole("textbox", { name: "Add title" }).fill("Renamed guide");
     await expect(page.getByText("Saved to my Site", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Export", exact: true }).click();
+    await page.getByRole("button", { name: "Share", exact: true }).click();
     await dialog.getByRole("checkbox").check();
     await dialog.getByRole("button", { name: "Publish photos and prepare HTML" }).click();
     await expect(source).toBeVisible();
@@ -124,7 +124,7 @@ test("owner setup, private save, photo export, anonymous embed, rename, withdraw
     await expect(library.getByText("Revoked or expired", { exact: true })).toBeVisible();
     expect((await anonymous.request.get(mediaUrl)).status()).toBe(404);
     await library.getByRole("button", { name: "Close", exact: true }).click();
-    await page.getByRole("button", { name: "Export", exact: true }).click();
+    await page.getByRole("button", { name: "Share", exact: true }).click();
     await dialog.getByRole("checkbox").check();
     await dialog.getByRole("button", { name: "Publish photos and prepare HTML" }).click();
     await expect(source).toBeVisible();
@@ -133,13 +133,13 @@ test("owner setup, private save, photo export, anonymous embed, rename, withdraw
     await dialog.getByRole("button", { name: "Close", exact: true }).click();
     await page.getByRole("combobox", { name: "Interface language" }).selectOption("ko");
     await page.setViewportSize({ width: 390, height: 844 });
-    const mobileExport = page.getByRole("button", { name: "내보내기", exact: true });
+    const mobileExport = page.getByRole("button", { name: "공유하기", exact: true });
     const exportBounds = await mobileExport.boundingBox();
     const toolbarBounds = await page.locator(".topbar").boundingBox();
     expect(exportBounds!.x + exportBounds!.width).toBeLessThanOrEqual(390);
     expect(exportBounds!.y + exportBounds!.height).toBeLessThanOrEqual(toolbarBounds!.y + toolbarBounds!.height);
     await mobileExport.click();
-    await expect(page.getByRole("dialog", { name: "내보내기", exact: true })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "공유하기", exact: true })).toBeVisible();
     const bounds = await page.getByRole("dialog").boundingBox();
     expect(bounds!.x).toBeGreaterThanOrEqual(0); expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
     await expect(page.getByRole("dialog").getByRole("button", { name: "사진 공개하고 HTML 준비" })).toBeVisible();

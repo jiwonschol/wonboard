@@ -91,7 +91,7 @@ test("attachment counts and title-derived filenames track edits, toggle, reload 
     "한글.png",
     "second.png",
   ]);
-  await page.getByRole("button", { name: "Options", exact: true }).click();
+  await page.getByRole("button", { name: "Save to PC", exact: true }).click();
   const downloaded = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Download backup (.zip)", exact: true })
@@ -102,10 +102,6 @@ test("attachment counts and title-derived filenames track edits, toggle, reload 
   await expect(
     page.getByText("Backup restored as a new document."),
   ).toBeVisible();
-  await page
-    .getByRole("dialog", { name: "Options" })
-    .getByRole("button", { name: "Close", exact: true })
-    .click();
   await page.getByRole("tab", { name: "Attachments 2", exact: true }).click();
   await expect(
     page.getByLabel("Rename files using the document title"),

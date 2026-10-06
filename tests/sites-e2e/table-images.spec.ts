@@ -5,10 +5,10 @@ test.beforeEach(async ({ request }) => {
 });
 
 async function publish(page: Page, tablesAsImages: boolean) {
-  await page.getByRole("button", { name: "Export", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Export", exact: true });
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Share", exact: true });
   await dialog.getByRole("checkbox", { name: "Make the photos in this document viewable", exact: false }).check();
-  const option = dialog.getByRole("checkbox", { name: "Export tables as images", exact: false });
+  const option = dialog.getByRole("checkbox", { name: "Turn tables into images", exact: false });
   if (tablesAsImages) await option.check(); else await expect(option).not.toBeChecked();
   if (tablesAsImages) await expect(dialog).toContainText("Readers cannot search, copy or edit the text inside it.");
   await dialog.getByRole("button", { name: "Publish photos and prepare HTML" }).click();

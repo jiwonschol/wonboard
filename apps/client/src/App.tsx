@@ -35,15 +35,9 @@ import { openBrowserFileLibrary, validateLibraryInsertion, type LibraryFile, typ
 import { FileLibraryPanel } from "./FileLibraryPanel";
 import { openSitesFileLibrary } from "./sitesFileLibrary";
 import { openDesktopFileLibrary } from "./desktopFileLibrary";
+import { download } from "./pcSave";
+import { PcSaveMenu, PrintDocument } from "./PcSaveMenu";
 
-function download(blob: Blob, name: string) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
-}
 export default function App({
   onLogout,
   storageMode = "local",
@@ -66,6 +60,9 @@ export default function App({
   const [insert, setInsert] = useState(false);
   const [overview, setOverview] = useState(false);
   const [options, setOptions] = useState(false);
+  const [pcSave, setPcSave] = useState(false);
+  // 0이면 인쇄 중이 아니다. 누를 때마다 값이 바뀌어 인쇄용 본문을 새로 그린다.
+  const [printing, setPrinting] = useState(0);
   const [library, setLibrary] = useState(
     () => window.matchMedia("(min-width: 900px)").matches,
   );
@@ -383,7 +380,7 @@ export default function App({
     ).size + attached.filter((n) => n.type === "video").length +
     (writer.readOnly ? 0 : referencedFileIds(draft.document.content).length);
   return (
-    <div className="app-shell" data-storage-mode={storageMode}>
+    <div className="app-shell" data-storage-mode={storageMode} data-printing={printing ? "" : undefined}>
       <a className="skip-link" href="#document-canvas">
         {t("skip")}
       </a>
@@ -488,18 +485,22 @@ export default function App({
           >
             <Icon name="settings" />
           </button>
-          <span title={storageMode !== "sites" ? t("publishLater") : undefined}>
-            <button className="publish-button" disabled={storageMode !== "sites" || busy || writer.readOnly || writer.recovery.length > 0}
-              onClick={() => setPublication(true)}>
-              {t(storageMode === "sites" ? "prepareExport" : "publish")}
-            </button>
-          </span>
+          {/* 공유는 Sites판에서만 된다. 다른 판에서는 눌리지 않는 단추 대신 그 사실을 알린다. */}
+          <button className="publish-button" disabled={storageMode === "sites" && (busy || writer.readOnly || writer.recovery.length > 0)}
+            onClick={() => storageMode === "sites" ? setPublication(true) : setNotice("shareOnSites")}>
+            {t("share")}
+          </button>
+          <button className="pc-save-button" aria-expanded={pcSave}
+            onClick={() => { setPcSave(!pcSave); setOptions(false); }}>
+            {t("pcSave")}
+          </button>
           <button
             className="icon-button"
             aria-label={t("options")}
             aria-expanded={options}
             onClick={() => {
               setOptions(!options);
+              setPcSave(false);
               void storageInfo();
             }}
           >
@@ -628,6 +629,7 @@ export default function App({
                   writer.update({ autoRenameAttachments })
                 }
                 onStorage={() => {
+                  setPcSave(false);
                   setOptions(true);
                   void storageInfo();
                 }}
@@ -662,9 +664,6 @@ export default function App({
       {options ? (
         <div className="options-menu" role="dialog" aria-label={t("options")}>
           <button disabled={busy || !canTrash} onClick={() => void requestTrash("move", draft)}>{t("moveToTrash")}</button>
-          <button disabled={busy} onClick={() => void backup()}>
-            {t("backup")}
-          </button>
           <button disabled={busy} onClick={() => restoreInput.current?.click()}>
             {t("restore")}
           </button>
@@ -705,6 +704,12 @@ export default function App({
           <button onClick={() => setOptions(false)}>{t("close")}</button>
         </div>
       ) : null}
+      {pcSave ? <PcSaveMenu locale={locale} disabled={busy} formatsDisabled={writer.readOnly} snapshot={writer.snapshot}
+        onPdf={() => setPrinting(Date.now())} onBackup={() => void (writer.readOnly ? recoveryBackup() : backup())}
+        onNotice={setNotice} onError={report} onClose={() => setPcSave(false)} /> : null}
+      {printing && !writer.readOnly ? <PrintDocument key={printing} document={draft.document}
+        mediaUrls={Object.fromEntries(Object.keys(draft.document.media).filter(id => urls[id]).map(id => [id, urls[id]]))}
+        onDone={() => setPrinting(0)} /> : null}
       {trashDialog && <TrashDialog locale={locale} action={trashDialog.action} count={trashDialog.count} working={busy}
         message={writer.error ? t(Object.hasOwn(en, writer.error) ? writer.error as MessageKey : "storageFailed") : ""}
         onConfirm={() => executeTrash(trashDialog.action, trashDialog.value)} onClose={() => setTrashDialog(null)} />}

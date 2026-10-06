@@ -139,6 +139,19 @@ export function attachmentNodes(node: ContentNode): ContentNode[] {
     ? [node]
     : (node.content ?? []).flatMap(attachmentNodes);
 }
+/** 제목에서 파일 이름에 쓸 수 없는 글자를 뺀 것. 남는 글자가 없으면 빈 문자열이다. */
+export function fileTitle(title: string): string {
+  return Array.from(
+    title
+      .normalize("NFC")
+      .replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/[. ]+$/, ""),
+  )
+    .slice(0, 80)
+    .join("");
+}
 export function attachmentFilename(
   document: WriterDocument,
   id: string,
@@ -146,17 +159,7 @@ export function attachmentFilename(
   const media = document.media[id];
   if (!media) throw new Error("missingMedia");
   if (document.autoRenameAttachments === false) return media.originalName;
-  const title =
-    Array.from(
-      document.title
-        .normalize("NFC")
-        .replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-        .replace(/[. ]+$/, ""),
-    )
-      .slice(0, 80)
-      .join("") || "untitled";
+  const title = fileTitle(document.title) || "untitled";
   // A stable import sequence survives block moves and title edits.
   const sequence = Object.keys(document.media).indexOf(id) + 1;
   return `${title}_${String(sequence).padStart(3, "0")}.${media.mime === "image/png" ? "png" : "jpg"}`;

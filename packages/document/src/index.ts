@@ -647,4 +647,4 @@ export function withoutUnusedMedia(draft: Draft): Draft {
     ),
   };
 }
-export { exportBackup, exportRawBackup, importBackup } from "./backup";
+export { exportBackup, exportRawBackup, importBackup, zipFiles } from "./backup";
