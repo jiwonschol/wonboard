@@ -5,6 +5,7 @@ import {
   fileTitle,
   isVideo,
   safeLink,
+  sha256,
   validateDocument,
   videoSourceUrl,
   zipFiles,
@@ -24,8 +25,18 @@ export function download(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
+// 흔한 파일 시스템은 이름 하나를 UTF-8로 255바이트까지만 받는다. 확장자와 번호가 붙을 자리를 남긴다.
+const nameBytes = 200;
+const bytes = (text: string) => new TextEncoder().encode(text).byteLength;
+/** 글자를 쪼개지 않고 `limit` 바이트 안으로 줄인다. */
+function fit(text: string, limit: number) {
+  const letters = Array.from(text);
+  while (letters.length && bytes(letters.join("")) > limit) letters.pop();
+  return letters.join("").trim();
+}
+
 /** 저장할 파일의 이름(확장자 제외). 제목이 비면 제품 이름을 쓴다. */
-export const saveName = (document: WriterDocument) => fileTitle(document.title) || "wonboard";
+export const saveName = (document: WriterDocument) => fit(fileTitle(document.title), nameBytes) || "wonboard";
 
 /**
  * 본문에 나오는 순서대로 사진 ID → 파일 이름. 텍스트의 "[사진: 이름]"과 마크다운 ZIP의
@@ -39,8 +50,10 @@ export function imageNames(document: WriterDocument): Map<string, string> {
     let raw = attachmentFilename(document, id).normalize("NFC")
       .replace(/[\u0000-\u001f\u007f<>:"/\\|?*#%]/g, "_").trim();
     if (!raw || /^\.+$/.test(raw)) raw = "image";
-    const dot = raw.lastIndexOf("."), stem = dot > 0 ? raw.slice(0, dot) : raw, extension = dot > 0 ? raw.slice(dot) : "";
-    let name = raw;
+    // 확장자로 보기에 너무 긴 꼬리는 이름의 일부로 본다.
+    const dot = raw.lastIndexOf("."), split = dot > 0 && raw.length - dot <= 10;
+    const extension = split ? raw.slice(dot) : "", stem = fit(split ? raw.slice(0, dot) : raw, nameBytes - bytes(extension)) || "image";
+    let name = stem + extension;
     // 대소문자만 다른 이름은 Windows·macOS에서 같은 파일이 된다.
     for (let count = 2; taken.has(name.toLowerCase()); count++) name = `${stem}-${count}${extension}`;
     taken.add(name.toLowerCase());
@@ -87,7 +100,8 @@ const startOfLine = (line: string) => line.replace(/^[ \t]+/, "")
   .replace(/^([#>+\-=])/, "\\$1").replace(/^(\d+)([.)])/, "$1\\$2");
 function codeSpan(text: string, inTable: boolean) {
   const value = text.replace(/\n/g, " "), fence = "`".repeat(Math.max(0, ...[...value.matchAll(/`+/g)].map(run => run[0].length)) + 1);
-  const padding = /^`|`$/.test(value) ? " " : "";
+  // 양끝이 모두 공백이면 읽는 쪽이 하나씩 떼어 내므로, 그때도 한 칸씩 더 준다.
+  const padding = /^`|`$/.test(value) || (value.startsWith(" ") && value.endsWith(" ") && value.trim() !== "") ? " " : "";
   return fence + padding + (inTable ? value.replace(/\|/g, "\\|") : value) + padding + fence;
 }
 /** 강조·링크 기호는 공백이나 줄바꿈에 붙으면 제대로 읽히지 않으므로 가장자리의 그것들을 기호 밖으로 낸다. */
@@ -192,12 +206,13 @@ export function toMarkdown(document: WriterDocument): string {
         (cell.content ?? []).map(paragraph => inline(paragraph.content ?? [], "<br>", true).trim()).filter(Boolean).join("<br>")));
       const width = Math.max(1, ...rows.map(row => row.length));
       const line = (cells: string[]) => `| ${Array.from({ length: width }, (_, index) => cells[index] ?? "").join(" | ")} |`;
-      // 마크다운 표는 머리 행이 꼭 있어야 한다. 첫 행을 머리 행으로 쓴다.
       const align = Array.from({ length: width }, (_, index) => {
         const value = children[0]?.content?.[index]?.attrs?.align;
         return value === "center" ? ":-:" : value === "right" ? "--:" : "---";
       });
-      return rows.length ? [line(rows[0]), line(align), ...rows.slice(1).map(line)] : [];
+      // 마크다운 표는 머리 행이 꼭 있어야 한다. 머리 행을 끈 표는 빈 머리 행을 두어 첫 행이 머리 행으로 바뀌지 않게 한다.
+      const headed = children[0]?.content?.some(cell => cell.type === "tableHeader");
+      return rows.length ? [line(headed ? rows[0] : []), line(align), ...rows.slice(headed ? 1 : 0).map(line)] : [];
     }
     return join(blocks(children));
   };
@@ -222,8 +237,12 @@ export async function markdownFile(draft: Draft): Promise<SavedFile> {
   const files: Record<string, Uint8Array> = { [`${name}.md`]: markdown };
   for (const [id, filename] of names) {
     const blob = draft.blobs[id];
-    if (!blob || blob.size !== draft.document.media[id].size) throw new DocumentError("missingMedia");
-    files[`images/${filename}`] = new Uint8Array(await blob.arrayBuffer());
+    const media = draft.document.media[id];
+    if (!blob || blob.size !== media.size) throw new DocumentError("missingMedia");
+    // 백업과 같은 기준: 보관 중에 바뀐 사진을 성한 파일처럼 담지 않는다.
+    const buffer = await blob.arrayBuffer();
+    if ((await sha256(buffer)) !== media.sha256) throw new Error("damagedPhoto");
+    files[`images/${filename}`] = new Uint8Array(buffer);
   }
   return { blob: new Blob([await zipFiles(files)], { type: "application/zip" }), name: `${name}.zip`, photos: names.size };
 }

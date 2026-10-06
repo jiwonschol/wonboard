@@ -61,8 +61,8 @@ export default function App({
   const [overview, setOverview] = useState(false);
   const [options, setOptions] = useState(false);
   const [pcSave, setPcSave] = useState(false);
-  // 0이면 인쇄 중이 아니다. 누를 때마다 값이 바뀌어 인쇄용 본문을 새로 그린다.
-  const [printing, setPrinting] = useState(0);
+  // 인쇄할 글은 누른 순간의 것으로 붙잡아 둔다. 누를 때마다 key가 바뀌어 인쇄용 본문을 새로 그린다.
+  const [printing, setPrinting] = useState<{ key: number; draft: Draft } | null>(null);
   const [library, setLibrary] = useState(
     () => window.matchMedia("(min-width: 900px)").matches,
   );
@@ -705,11 +705,9 @@ export default function App({
         </div>
       ) : null}
       {pcSave ? <PcSaveMenu locale={locale} disabled={busy} formatsDisabled={writer.readOnly} snapshot={writer.snapshot}
-        onPdf={() => setPrinting(Date.now())} onBackup={() => void (writer.readOnly ? recoveryBackup() : backup())}
+        onPdf={() => { const snapshot = writer.snapshot(); if (snapshot) setPrinting({ key: Date.now(), draft: snapshot }); }} onBackup={() => void (writer.readOnly ? recoveryBackup() : backup())}
         onNotice={setNotice} onError={report} onClose={() => setPcSave(false)} /> : null}
-      {printing && !writer.readOnly ? <PrintDocument key={printing} document={draft.document}
-        mediaUrls={Object.fromEntries(Object.keys(draft.document.media).filter(id => urls[id]).map(id => [id, urls[id]]))}
-        onDone={() => setPrinting(0)} /> : null}
+      {printing ? <PrintDocument key={printing.key} draft={printing.draft} onDone={() => setPrinting(null)} /> : null}
       {trashDialog && <TrashDialog locale={locale} action={trashDialog.action} count={trashDialog.count} working={busy}
         message={writer.error ? t(Object.hasOwn(en, writer.error) ? writer.error as MessageKey : "storageFailed") : ""}
         onConfirm={() => executeTrash(trashDialog.action, trashDialog.value)} onClose={() => setTrashDialog(null)} />}

@@ -878,6 +878,8 @@ button:not(.icon-button):hover:enabled {
   .print-root .tiptap { min-height: 0; }
   .print-root :is(.wb-media, .wb-video-player, table, tr, pre, [data-wb-text-box]) { break-inside: avoid; }
   .print-root :is(h1, h2, h3) { break-after: avoid; }
+  /* 한 쪽보다 긴 사진은 쪼갤 수 없어 잘린다. 설명과 함께 한 쪽에 들어가도록 높이를 맞춘다. */
+  .print-root .wb-media img { max-height: 235mm; object-fit: contain; }
 }
 /* 편집 화면의 글상자와 같은 문단 간격. */
 .print-root [data-wb-text-box] > * { margin: 0 0 0.8em; }

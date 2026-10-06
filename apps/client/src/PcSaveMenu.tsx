@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Draft, Locale, WriterDocument } from "@wonboard/document";
+import { referencedFileIds, type Draft, type Locale } from "@wonboard/document";
 import { DocumentPreview } from "@wonboard/renderer";
 import { translator, type MessageKey } from "@wonboard/locales";
 import { download, imageNames, markdownFile, textFile } from "./pcSave";
@@ -7,11 +7,14 @@ import { download, imageNames, markdownFile, textFile } from "./pcSave";
 /**
  * 인쇄할 본문. 화면에서는 보이지 않는 자리에 그려 두고(글꼴과 사진을 미리 불러오려고),
  * 인쇄할 때는 style.css의 print 규칙이 이것만 남긴다. 인쇄 창이 닫히면 `onDone`을 부른다.
+ * `draft`는 누른 순간의 글이다. 준비하는 사이에 글을 고치거나 다른 글로 옮겨도 인쇄 내용은 바뀌지 않는다.
  */
-export function PrintDocument({ document: value, mediaUrls, onDone }: {
-  document: WriterDocument; mediaUrls: Record<string, string>; onDone(): void;
-}) {
+export function PrintDocument({ draft, onDone }: { draft: Draft; onDone(): void }) {
   const root = useRef<HTMLDivElement>(null);
+  const value = draft.document;
+  // 편집 화면의 사진 주소는 글이 바뀌면 거둬지므로 이 인쇄만의 주소를 따로 만든다.
+  const [mediaUrls] = useState(() => Object.fromEntries(Object.keys(value.media).filter(id => draft.blobs[id]).map(id => [id, URL.createObjectURL(draft.blobs[id])])));
+  useEffect(() => () => { for (const url of Object.values(mediaUrls)) URL.revokeObjectURL(url); }, []);
   useEffect(() => {
     let active = true;
     const title = document.title;
@@ -70,6 +73,7 @@ export function PcSaveMenu({ locale, disabled, formatsDisabled, snapshot, onPdf,
     download(file.blob, file.name);
   });
   const off = disabled || working, formatsOff = off || formatsDisabled;
+  const current = formatsDisabled ? null : snapshot();
   return <div className="options-menu pc-save-menu" role="dialog" aria-label={t("pcSave")}>
     <p>{t("pcSaveHint")}</p>
     <button disabled={formatsOff} onClick={() => { onPdf(); onClose(); }}>{t("savePdf")}</button>
@@ -87,6 +91,7 @@ export function PcSaveMenu({ locale, disabled, formatsDisabled, snapshot, onPdf,
         if (file.photos) onNotice("markdownZipSaved");
       });
     }}>{t("saveMarkdown")}</button>
+    {current && referencedFileIds(current.document.content).length ? <p>{t("attachmentsOmitted")}</p> : null}
     <hr />
     <button disabled={off} onClick={() => { onBackup(); onClose(); }}>{t("backup")}</button>
     <p>{t("backupHint")}</p>
