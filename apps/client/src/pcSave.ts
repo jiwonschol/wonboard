@@ -164,6 +164,7 @@ function codeSpan(text: string, inTable: boolean) {
   }).join(BREAK);
 }
 const isWord = (char: string | undefined) => Boolean(char) && !/[\s\u0000-\u0002\p{P}\p{S}]/u.test(char!);
+const isMark = (char: string | undefined) => char === "*" || char === "~";
 const isPunctuation = (char: string | undefined) => Boolean(char) && /[\p{P}\p{S}]/u.test(char!);
 /**
  * 강조 기호로 감싼다. `before`와 `after`는 바로 옆에 올 글이다.
@@ -173,8 +174,8 @@ function emphasize(inner: string, mark: string, before: string, after: string) {
   const [, lead, core, trail] = /^([\s\u0000\u0002]*)([\s\S]*?)([\s\u0000\u0002]*)$/.exec(inner)!;
   if (!core) return inner;
   const left = before[before.length - 1], right = after[0];
-  const open = !lead && (left === mark[0] || (isPunctuation(core[0]) && isWord(left))) ? SEPARATOR : "";
-  const close = !trail && (right === mark[0] || (isPunctuation(core[core.length - 1]) && isWord(right))) ? SEPARATOR : "";
+  const open = !lead && (isMark(left) || (isPunctuation(core[0]) && isWord(left))) ? SEPARATOR : "";
+  const close = !trail && (isMark(right) || (isPunctuation(core[core.length - 1]) && isWord(right))) ? SEPARATOR : "";
   return lead + open + mark + core + mark + close + trail;
 }
 /** 제목 줄 끝의 #은 닫는 표시로 읽혀 사라지므로 막는다. */
@@ -187,12 +188,10 @@ const linkOf = (node: ContentNode) => {
   return safeLink(attrs?.href) ? `${attrs.href}\n${typeof attrs.title === "string" ? attrs.title : ""}` : "";
 };
 const linkTitle = (title: string) => title ? ` "${escapeAttribute(title)}"` : "";
-// 주소 안의 &와 역슬래시는 마크다운이 문자 참조(&copy; 등)나 이스케이프로 읽으므로 역슬래시로 막는다.
-// 표 안에서는 주소의 |도 칸을 나누는 글자로 읽히므로 %7C로 바꾼다.
-const destination = (href: string, inTable: boolean) => {
-  const value = (inTable ? href.replace(/\|/g, "%7C") : href).replace(/[\\&]/g, "\\$&");
-  return /[()<>]/.test(value) ? `<${value.replace(/[<>]/g, encodeURIComponent)}>` : value;
-};
+// 주소는 꺾쇠 없이 쓴다. &는 문자 참조(&copy; 등)로 읽히지 않게 &amp;로, 역슬래시와 괄호는 역슬래시로 막는다.
+// 주소에 쓸 수 없는 <, >는 %로 바꾸고, 표 안에서는 칸을 나누는 |도 %7C로 바꾼다.
+const destination = (href: string, inTable: boolean) => (inTable ? href.replace(/\|/g, "%7C") : href)
+  .replace(/[<>]/g, encodeURIComponent).replace(/[\\()]/g, "\\$&").replace(/&/g, "&amp;");
 /** 이웃한 노드를 같은 값끼리 묶는다. */
 function runs<T>(nodes: ContentNode[], key: (node: ContentNode) => T): [T, ContentNode[]][] {
   const out: [T, ContentNode[]][] = [];

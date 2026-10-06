@@ -80,6 +80,25 @@ describe("PC 저장: 마크다운", () => {
       "&nbsp;가 &nbsp;나&nbsp;\\", "다", "",
     ].join("\n"));
   });
+  it("코드·링크·강조의 경계와 속성에서도 글자가 그대로 남는다", async () => {
+    const link = { type: "link", attrs: { href: "https://example.com/a(b)", title: " 풍선\n말 " } };
+    const draft = await draftWith([
+      // 코드 글자 안의 줄바꿈은 코드 표시를 나눠 남긴다.
+      paragraph(text("첫 줄\n둘째 줄", { type: "code" })),
+      // 링크는 가장자리 공백까지 걸린 글 그대로를 덮는다. 줄 가장자리의 공백은 기호 안에서도 &nbsp;다.
+      paragraph(text(" 걸린 글 ", link), text("뒤")),
+      // 강조 가장자리가 문장부호이고 옆이 글자이면 빈 주석을 두어 기호가 글자로 보이지 않게 한다.
+      paragraph(text("원보드(Wonboard)", { type: "bold" }), text("는")),
+    ], ["바다.png"]);
+    Object.assign(draft.document.content.content!.at(-1)!.attrs!, { alt: " 바다  사진\n둘째 줄 ", caption: "" });
+    expect(toMarkdown(draft.document)).toBe([
+      "# 제주 여행", "",
+      "`첫 줄`\\", "`둘째 줄`", "",
+      "[&nbsp;걸린 글 ](https://example.com/a\\(b\\) \" 풍선&#10;말 \")뒤", "",
+      "**원보드(Wonboard)**<!-- -->는", "",
+      "![ 바다  사진&#10;둘째 줄 ](images/바다.png)", "",
+    ].join("\n"));
+  });
   it("표현할 수 없는 서식은 글 내용을 잃지 않고 일반 글로 남는다", async () => {
     const { document } = await draftWith([
       { type: "heading", attrs: { level: 2 }, content: [text(" 첫  줄"), { type: "hardBreak" }, text("둘째 줄")] },
@@ -103,7 +122,7 @@ describe("PC 저장: 마크다운", () => {
       "## &nbsp;첫 &nbsp;줄<br>둘째 줄", "",
       "빨간 글 밑줄 **굵게** \\*별표\\*와 \\[괄호\\]`  값  `", "",
       "&nbsp;&nbsp;들여 쓴 글상자 안의 글", "",
-      "| 이름 | 값 |", "| --- | --: |", "| &nbsp;a\\|b | [1](https://example.com/?a%7Cb\\&copy; \"풍선 \\\"말\\\"\") |", "",
+      "| 이름 | 값 |", "| --- | --: |", "| &nbsp;a\\|b | [1](https://example.com/?a%7Cb&amp;copy; \"풍선 \\\"말\\\"\") |", "",
       "보라\\![링크](https://example.com/)", "",
       "```", "a", "```", "",
       "|  |", "| --- |", "| 첫 행 |", "",
