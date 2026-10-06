@@ -12,7 +12,7 @@ test("new drafts use Nanum Myeongjo and supplemental font notice is acknowledged
   await expect(font.locator('optgroup[label="Writing fonts"] option')).toHaveCount(7);
   await body.fill("한글로 쓰는 즐거움. Writing with Wonboard.");
   await expect(body).toHaveCSS("font-family", /Nanum Myeongjo/);
-  await page.screenshot({ path: "/private/tmp/wonboard-nanum-default.png" });
+  await page.screenshot({ path: "test-results/wonboard-nanum-default.png" });
   await body.press("ControlOrMeta+a");
   for (const id of ["system", "dotum", "nanum-gothic"]) await font.selectOption(id);
   await expect(body.locator("span")).toHaveCSS("font-family", /Nanum Gothic/);
@@ -20,15 +20,7 @@ test("new drafts use Nanum Myeongjo and supplemental font notice is acknowledged
   await expect(toolbar.getByRole("button", { name: "Got it" })).toHaveCount(0);
   await font.selectOption("soft");
   await expect(toolbar.getByRole("status")).toContainText("External communities may replace");
-  await page.screenshot({ path: "/private/tmp/wonboard-font-notice-desktop.png" });
-  await page.getByRole("button", { name: "Close Settings", exact: true }).click();
-  await page.getByRole("button", { name: "Close document list", exact: true }).click();
-  await page.setViewportSize({ width: 390, height: 844 });
-  const noticeBox = await toolbar.getByRole("status").boundingBox();
-  expect(noticeBox!.x).toBeGreaterThanOrEqual(0);
-  expect(noticeBox!.x + noticeBox!.width).toBeLessThanOrEqual(390);
-  await page.screenshot({ path: "/private/tmp/wonboard-font-notice-mobile.png" });
-  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.screenshot({ path: "test-results/wonboard-font-notice-desktop.png" });
   await toolbar.getByRole("button", { name: "Got it" }).click();
   await expect(page.getByRole("status").last()).toHaveText("Saved locally");
   await page.reload();
@@ -44,8 +36,21 @@ test("new drafts use Nanum Myeongjo and supplemental font notice is acknowledged
   const koreanToolbar = page.getByRole("toolbar", { name: "글쓰기 도구", exact: true });
   await koreanToolbar.getByRole("combobox", { name: "글꼴 선택" }).selectOption("serif");
   await expect(koreanToolbar.getByRole("status")).toContainText("글을 쓰는 즐거움");
-  await page.screenshot({ path: "/private/tmp/wonboard-font-notice-korean.png" });
+  await page.screenshot({ path: "test-results/wonboard-font-notice-korean.png" });
   await koreanToolbar.getByRole("button", { name: "알겠어요" }).click();
+  // 좁은 화면 확인은 마지막 새로 고침 뒤에 둔다. 이 Playwright WebKit은 글꼴을 바꾸고
+  // 화면 크기를 바꾼 다음 새로 고치면 시험이 끝난 뒤 창을 닫는 데 45초 넘게 걸린다.
+  await page.getByRole("combobox", { name: "화면 언어" }).selectOption("en");
+  await page.evaluate(() => localStorage.removeItem("wonboard:supplemental-font-notice:v1"));
+  await font.selectOption("soft");
+  await expect(toolbar.getByRole("status")).toContainText("External communities may replace");
+  await page.getByRole("button", { name: "Close Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Close document list", exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const noticeBox = await toolbar.getByRole("status").boundingBox();
+  expect(noticeBox!.x).toBeGreaterThanOrEqual(0);
+  expect(noticeBox!.x + noticeBox!.width).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: "test-results/wonboard-font-notice-mobile.png" });
   expect(errors).toEqual([]);
 });
 
