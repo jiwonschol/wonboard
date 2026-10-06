@@ -115,38 +115,67 @@ export function toPlainText(document: WriterDocument, photo: (name: string) => s
 }
 
 // ── 마크다운 ──
+// 기준: 편집 화면에 보이는 글자(공백과 줄바꿈 포함)가 마크다운을 읽은 결과에도 그대로 보여야 한다.
 // 공백·줄바꿈·이스케이프 규칙은 여기 한곳에 둔다. 블록마다 따로 다듬지 않는다.
 // 1. 글자: escapeText가 문법 글자를 막는다. 줄 첫머리에서만 뜻이 생기는 글자는 blockStart가 막는다.
 // 2. 줄바꿈: inline은 줄바꿈을 BREAK로만 낸다. 블록이 BREAK에서 줄을 나눈 뒤 자기 방식으로 잇는다.
-//    문단과 사진 설명은 paragraphLines(역슬래시 줄바꿈), 한 줄이어야 하는 제목과 표 칸은 oneLine(<br>)이다.
-//    어느 쪽도 줄바꿈을 버리지 않는다.
-// 3. 공백: 줄마다 keepSpaces가 가장자리 공백과 이어진 공백의 둘째부터를 &nbsp;로 바꾼다. 탭은 네 칸이다.
-//    코드 글자 안의 공백은 CODE_SPACE로 가려 두었다가 toMarkdown이 마지막에 되돌린다.
-// 일부러 남기지 않는 것은 본문의 빈 문단 하나뿐이다(문단 사이 빈 줄과 구별되지 않는다).
-const BREAK = "\u0000", CODE_SPACE = "\u0001";
-const withoutMarkers = (text: string) => text.replace(/[\u0000\u0001]/g, "");
-const escapeText = (text: string) => withoutMarkers(text).replace(/[\\`*_[\]<>~|&]/g, "\\$&").replace(/\t/g, "    ");
-const keepSpaces = (line: string) => line.replace(/^ +| +$|(?<= ) +/g, run => "&nbsp;".repeat(run.length));
+//    문단과 사진 설명은 paragraphLines(역슬래시 줄바꿈, 빈 줄은 <br>), 한 줄이어야 하는 제목과 표 칸은 oneLine(<br>)이다.
+// 3. 공백: visible이 문단을 그리기 전에, 줄 가장자리의 공백과 이어진 공백의 둘째부터를 NBSP(&nbsp;)로 표시해 둔다.
+//    서식 기호가 사이에 끼어도 보이는 글자 기준으로 센다. 탭은 네 칸이다.
+// 4. 속성(사진 대체 글, 링크 제목)은 보이는 글이 아니므로 공백을 바꾸지 않고, 줄바꿈과 탭만 문자 참조(&#10; &#9;)로 쓴다.
+// 마크다운으로 옮길 수 없어 가장 가까운 표현을 쓰는 것(글자는 잃지 않는다):
+// - 강조(굵게·기울임·취소선) 가장자리의 공백과 줄바꿈은 기호 밖으로 낸다. 기호가 공백에 붙으면 강조로 읽히지 않는다.
+// - 강조 가장자리가 문장부호이고 바로 옆이 글자이면 기호가 강조로 읽히지 않으므로 그 사이에 빈 주석(<!-- -->)을 둔다.
+// - 코드 글자 안은 글자 그대로다. 공백을 &nbsp;로 바꾸면 그 글자가 보이므로 바꾸지 않는다. 줄바꿈에서는 코드 표시를 나눈다.
+// - 본문의 빈 문단은 남기지 않는다(문단 사이 빈 줄과 구별되지 않는다).
+// - 링크 표시가 없는 주소 글자를 읽는 쪽이 링크로 만드는 것은 막지 않는다(글자는 같다).
+const BREAK = "\u0000", CODE_SPACE = "\u0001", NBSP = "\u0002", SEPARATOR = "<!-- -->";
+const withoutMarkers = (text: string) => text.replace(/[\u0000-\u0002]/g, "");
+const escapeText = (text: string) => text.replace(/[\\`*_[\]<>~|&]/g, "\\$&");
+const escapeAttribute = (text: string) => escapeText(withoutMarkers(text)).replace(/"/g, "\\\"").replace(/\r/g, "&#13;").replace(/\n/g, "&#10;").replace(/\t/g, "&#9;");
 const blockStart = (line: string) => line.replace(/^([#>+\-=])/, "\\$1").replace(/^(\d+)([.)])/, "$1\\$2");
-const oneLine = (text: string) => text.split(BREAK).map(keepSpaces).join("<br>");
+const oneLine = (text: string) => text.split(BREAK).join("<br>");
+/**
+ * 줄마다 하나씩. 글이 있는 줄 사이는 역슬래시 줄바꿈으로 잇고, 빈 줄(이어진 줄바꿈)은 그만큼의 <br>로 옆줄에 붙인다.
+ * <br>만 있는 줄이나 역슬래시로 끝나는 마지막 줄은 줄바꿈으로 읽히지 않기 때문이다.
+ */
 function paragraphLines(text: string): string[] {
   if (!text) return [];
-  const lines = text.split(BREAK).map(line => blockStart(keepSpaces(line)));
-  // 문단 끝의 줄바꿈은 역슬래시로 쓰면 글자로 보이므로 <br>로 남긴다.
-  let trailing = 0;
-  for (; lines.length > 1 && !lines[lines.length - 1]; trailing++) lines.pop();
-  return lines.map((line, index) => index < lines.length - 1 ? `${line}\\` : line + "<br>".repeat(trailing));
+  const out: string[] = [];
+  let empty = 0;
+  for (const line of text.split(BREAK)) {
+    if (!line) { empty++; continue; }
+    if (out.length) out[out.length - 1] += "\\";
+    out.push(empty ? "<br>".repeat(empty) + line : blockStart(line));
+    empty = 0;
+  }
+  // 글 뒤에 남은 빈 줄. 줄이 하나도 없으면 줄바꿈뿐인 문단이다(빈 줄 수가 줄바꿈 수보다 하나 많다).
+  if (out.length) out[out.length - 1] += "<br>".repeat(empty); else out.push("<br>".repeat(empty - 1));
+  return out;
 }
+/** 코드 글자. 줄바꿈에서는 코드 표시를 나누고 그 사이에 줄바꿈을 둔다. */
 function codeSpan(text: string, inTable: boolean) {
-  const value = withoutMarkers(text).replace(/\r?\n/g, " "), fence = "`".repeat(Math.max(0, ...[...value.matchAll(/`+/g)].map(run => run[0].length)) + 1);
-  // 양끝이 모두 공백이면 읽는 쪽이 하나씩 떼어 내므로, 그때도 한 칸씩 더 준다.
-  const padding = /^`|`$/.test(value) || (value.startsWith(" ") && value.endsWith(" ") && value.trim() !== "") ? " " : "";
-  return (fence + padding + (inTable ? value.replace(/\|/g, "\\|") : value) + padding + fence).replace(/ /g, CODE_SPACE);
+  return text.split(/\r?\n/).map(value => {
+    if (!value) return "";
+    const fence = "`".repeat(Math.max(0, ...[...value.matchAll(/`+/g)].map(run => run[0].length)) + 1);
+    // 양끝이 모두 공백이면 읽는 쪽이 하나씩 떼어 내므로, 그때도 한 칸씩 더 준다.
+    const padding = /^`|`$/.test(value) || (value.startsWith(" ") && value.endsWith(" ") && value.trim() !== "") ? " " : "";
+    return (fence + padding + (inTable ? value.replace(/\|/g, "\\|") : value) + padding + fence).replace(/ /g, CODE_SPACE);
+  }).join(BREAK);
 }
-/** 강조·링크 기호는 공백이나 줄바꿈에 붙으면 제대로 읽히지 않으므로 가장자리의 그것들을 기호 밖으로 낸다. */
-function wrap(inner: string, open: string, close = open) {
-  const [, lead, core, trail] = /^([\s\u0000]*)([\s\S]*?)([\s\u0000]*)$/.exec(inner)!;
-  return core ? lead + open + core + close + trail : inner;
+const isWord = (char: string | undefined) => Boolean(char) && !/[\s\u0000-\u0002\p{P}\p{S}]/u.test(char!);
+const isPunctuation = (char: string | undefined) => Boolean(char) && /[\p{P}\p{S}]/u.test(char!);
+/**
+ * 강조 기호로 감싼다. `before`와 `after`는 바로 옆에 올 글이다.
+ * 가장자리의 공백·줄바꿈은 기호 밖으로 내고, 기호가 강조로 읽히지 않을 자리(문장부호와 글자 사이, 같은 기호끼리 맞닿는 곳)에는 빈 주석을 둔다.
+ */
+function emphasize(inner: string, mark: string, before: string, after: string) {
+  const [, lead, core, trail] = /^([\s\u0000\u0002]*)([\s\S]*?)([\s\u0000\u0002]*)$/.exec(inner)!;
+  if (!core) return inner;
+  const left = before[before.length - 1], right = after[0];
+  const open = !lead && (left === mark[0] || (isPunctuation(core[0]) && isWord(left))) ? SEPARATOR : "";
+  const close = !trail && (right === mark[0] || (isPunctuation(core[core.length - 1]) && isWord(right))) ? SEPARATOR : "";
+  return lead + open + mark + core + mark + close + trail;
 }
 /** 제목 줄 끝의 #은 닫는 표시로 읽혀 사라지므로 막는다. */
 const headingLine = (level: number, text: string) => `${"#".repeat(level)} ${text.replace(/#+$/, run => run.replace(/#/g, "\\#"))}`;
@@ -157,8 +186,7 @@ const linkOf = (node: ContentNode) => {
   const attrs = node.marks?.find(mark => mark.type === "link")?.attrs;
   return safeLink(attrs?.href) ? `${attrs.href}\n${typeof attrs.title === "string" ? attrs.title : ""}` : "";
 };
-// 제목은 화면에 보이는 글이 아니라 속성이다. 빈 줄이 링크를 끊으므로 줄바꿈만 공백으로 바꾸고 나머지는 그대로 둔다.
-const linkTitle = (title: string) => title ? ` "${withoutMarkers(title).replace(/[\r\n]+/g, " ").replace(/[\\"&|<>]/g, "\\$&")}"` : "";
+const linkTitle = (title: string) => title ? ` "${escapeAttribute(title)}"` : "";
 // 주소 안의 &와 역슬래시는 마크다운이 문자 참조(&copy; 등)나 이스케이프로 읽으므로 역슬래시로 막는다.
 // 표 안에서는 주소의 |도 칸을 나누는 글자로 읽히므로 %7C로 바꾼다.
 const destination = (href: string, inTable: boolean) => {
@@ -176,32 +204,73 @@ function runs<T>(nodes: ContentNode[], key: (node: ContentNode) => T): [T, Conte
 }
 
 /**
+ * 그리기 전의 준비(규칙 3). 첨부 파일 이름을 글자로 바꾸고, 서식이 같은 이웃 글자를 합치고,
+ * 보이는 글자 기준으로 줄 가장자리의 공백과 이어진 공백의 둘째부터를 NBSP로 바꾼다.
+ */
+function visible(nodes: ContentNode[]): ContentNode[] {
+  const merged: ContentNode[] = [];
+  for (const node of nodes) {
+    if (node.type === "hardBreak") { merged.push({ type: "hardBreak" }); continue; }
+    const text = withoutMarkers(node.type === "fileRef" ? String(node.attrs?.label ?? "") : node.text ?? "");
+    // 글자 안의 줄바꿈도 줄바꿈 노드로 나눈다. 그래야 코드·링크·강조가 줄 단위로 닫힌다.
+    for (const [index, line] of text.split(/\r?\n/).entries()) {
+      if (index) merged.push({ type: "hardBreak" });
+      const last = merged[merged.length - 1];
+      if (!line) continue;
+      if (last?.type === "text" && JSON.stringify(last.marks ?? []) === JSON.stringify(node.marks ?? [])) last.text += line;
+      else merged.push({ type: "text", text: line, ...(node.marks?.length ? { marks: node.marks } : {}) });
+    }
+  }
+  // 앞에서 뒤로: 줄 첫머리의 공백과 공백 뒤의 공백. 뒤에서 앞으로: 줄 끝의 공백.
+  let edge = true, space = false;
+  for (const node of merged) {
+    if (node.type === "hardBreak") { edge = true; space = false; continue; }
+    if (hasMark(node, "code")) { edge = space = false; continue; }
+    node.text = node.text!.replace(/\t/g, "    ").replace(/[\s\S]/g, char => {
+      if (char === "\n") { edge = true; space = false; return char; }
+      if (char !== " ") { edge = space = false; return char; }
+      const keep = edge || space;
+      space = true;
+      return keep ? NBSP : char;
+    });
+  }
+  edge = true;
+  for (const node of [...merged].reverse()) {
+    if (node.type === "hardBreak") { edge = true; continue; }
+    if (hasMark(node, "code")) { edge = false; continue; }
+    node.text = Array.from(node.text!).reverse().map(char => {
+      if (char === "\n") { edge = true; return char; }
+      if (char === NBSP) return char;
+      if (char !== " ") { edge = false; return char; }
+      return edge ? NBSP : char;
+    }).reverse().join("");
+  }
+  return merged;
+}
+
+/**
  * 문단 안의 글. 이웃한 글자가 같은 서식이면 한 번만 감싼다. 밑줄·글자색·글꼴·크기처럼
  * 마크다운에 없는 서식은 기호 없이 글자만 남긴다. 줄바꿈은 BREAK로 낸다.
  */
-function inline(nodes: ContentNode[], inTable: boolean, level = -1): string {
-  if (level === -1) {
-    const pieces: string[] = [];
-    for (const [link, run] of runs(nodes, linkOf)) {
-      const text = inline(run, inTable, 0), cut = link.indexOf("\n"), last = pieces.length - 1;
-      const piece = link ? wrap(text, "[", `](${destination(link.slice(0, cut), inTable)}${linkTitle(link.slice(cut + 1))})`) : text;
-      // 느낌표 바로 뒤에 링크가 오면 그림(![…](…))으로 읽히므로 느낌표를 막는다.
-      if (piece.startsWith("[") && pieces[last]?.endsWith("!")) pieces[last] = `${pieces[last].slice(0, -1)}\\!`;
-      pieces.push(piece);
-    }
-    return pieces.join("");
+function inline(source: ContentNode[], inTable: boolean): string {
+  const render = (nodes: ContentNode[], level: number): string => {
+    if (level === emphasis.length)
+      return nodes.map(node => node.type === "hardBreak" ? BREAK
+        : hasMark(node, "code") ? codeSpan(node.text!, inTable) : escapeText(node.text!).replace(/\r?\n/g, BREAK)).join("");
+    const parts = runs(nodes, node => hasMark(node, emphasis[level][0])).map(([marked, run]) => ({ marked, text: render(run, level + 1) }));
+    return parts.map((part, index) => part.marked
+      ? emphasize(part.text, emphasis[level][1], parts[index - 1]?.text ?? "", parts[index + 1]?.text ?? "") : part.text).join("");
+  };
+  const pieces: string[] = [];
+  for (const [link, run] of runs(visible(source), linkOf)) {
+    const text = render(run, 0), cut = link.indexOf("\n"), last = pieces.length - 1;
+    // 링크는 공백을 포함해 걸린 글 그대로를 덮는다.
+    const piece = link && text ? `[${text}](${destination(link.slice(0, cut), inTable)}${linkTitle(link.slice(cut + 1))})` : text;
+    // 느낌표 바로 뒤에 링크가 오면 그림(![…](…))으로 읽히므로 느낌표를 막는다.
+    if (piece.startsWith("[") && pieces[last]?.endsWith("!")) pieces[last] = `${pieces[last].slice(0, -1)}\\!`;
+    pieces.push(piece);
   }
-  if (level < emphasis.length)
-    return runs(nodes, node => hasMark(node, emphasis[level][0])).map(([marked, run]) => {
-      const text = inline(run, inTable, level + 1);
-      return marked ? wrap(text, emphasis[level][1]) : text;
-    }).join("");
-  return nodes.map(node => {
-    if (node.type === "hardBreak") return BREAK;
-    if (node.type === "fileRef") return escapeText(String(node.attrs?.label ?? ""));
-    const text = node.text ?? "";
-    return hasMark(node, "code") ? codeSpan(text, inTable) : escapeText(text).replace(/\r?\n/g, BREAK);
-  }).join("");
+  return pieces.join("");
 }
 /** 서식 없는 글 한 덩이(글 제목, 사진 설명)를 같은 규칙으로 바꾼다. */
 const plain = (text: string) => text ? inline([{ type: "text", text }], false) : "";
@@ -246,8 +315,7 @@ export function toMarkdown(document: WriterDocument): string {
       });
     if (node.type === "media") {
       const name = names.get(String(attrs.mediaId));
-      // 대체 글은 화면에 보이는 글이 아니라 속성이고 한 줄이어야 한다.
-      const alt = escapeText(String(attrs.alt ?? "")).replace(/\s+/g, " ");
+      const alt = escapeAttribute(String(attrs.alt ?? ""));
       const caption = paragraphLines(plain(String(attrs.caption ?? "")));
       return [...(name ? [`![${alt}](${imagePath(name)})`] : []), ...(caption.length ? ["", ...caption] : [])];
     }
@@ -270,7 +338,7 @@ export function toMarkdown(document: WriterDocument): string {
     return join(blocks(children));
   };
   const title = oneLine(plain(document.title));
-  return (join([...(title ? [[headingLine(1, title)]] : []), ...blocks(document.content.content ?? [])]).join("\n") + "\n").replaceAll(CODE_SPACE, " ");
+  return (join([...(title ? [[headingLine(1, title)]] : []), ...blocks(document.content.content ?? [])]).join("\n") + "\n").replaceAll(CODE_SPACE, " ").replaceAll(NBSP, "&nbsp;");
 }
 
 /** 사진 원본. 백업과 같은 기준으로, 없거나 보관 중에 바뀐 사진은 성한 것처럼 내보내지 않는다. */
