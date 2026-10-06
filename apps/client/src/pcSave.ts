@@ -115,7 +115,8 @@ export function toPlainText(document: WriterDocument, photo: (name: string) => s
 }
 
 // 마크다운 문법으로 읽힐 수 있는 글자. 줄 첫머리에서만 뜻이 생기는 글자는 startOfLine이 따로 막는다.
-const escapeText = (text: string) => text.replace(/[\\`*_[\]<>~|&]/g, "\\$&");
+// 이어진 공백은 읽는 쪽이 하나로 줄이므로 둘째부터 줄바꿈 없는 공백으로 바꿔 남긴다.
+const escapeText = (text: string) => text.replace(/[\\`*_[\]<>~|&]/g, "\\$&").replace(/(?<= ) /g, "&nbsp;");
 // 줄 첫머리의 공백은 마크다운이 버리거나 코드 블록으로 읽는다. 줄바꿈 없는 공백으로 바꿔 들여쓰기를 남긴다.
 const startOfLine = (line: string) => /^[ \t]/.test(line)
   ? line.replace(/^[ \t]+/, run => run.replace(/\t/g, "    ").replace(/ /g, "&nbsp;"))
@@ -135,10 +136,12 @@ function wrap(inner: string, open: string, close = open) {
 const headingLine = (level: number, text: string) => `${"#".repeat(level)} ${text.replace(/#+$/, run => run.replace(/#/g, "\\#"))}`;
 const emphasis = [["bold", "**"], ["italic", "*"], ["strike", "~~"]] as const;
 const hasMark = (node: ContentNode, type: string) => node.marks?.some(mark => mark.type === type) ?? false;
+/** 링크의 주소와 제목(풍선 도움말)을 줄바꿈으로 이은 값. 링크가 아니면 빈 문자열이다. 주소에는 공백이 없다. */
 const linkOf = (node: ContentNode) => {
-  const href = node.marks?.find(mark => mark.type === "link")?.attrs?.href;
-  return safeLink(href) ? href : "";
+  const attrs = node.marks?.find(mark => mark.type === "link")?.attrs;
+  return safeLink(attrs?.href) ? `${attrs.href}\n${typeof attrs.title === "string" ? attrs.title.replace(/\s+/g, " ").trim() : ""}` : "";
 };
+const linkTitle = (title: string) => title ? ` "${escapeText(title).replace(/"/g, '\\"')}"` : "";
 // 주소 안의 &와 역슬래시는 마크다운이 문자 참조(&copy; 등)나 이스케이프로 읽으므로 역슬래시로 막는다.
 // 표 안에서는 주소의 |도 칸을 나누는 글자로 읽히므로 %7C로 바꾼다.
 const destination = (href: string, inTable: boolean) => {
@@ -165,9 +168,9 @@ function inline(nodes: ContentNode[], lineBreak: string, inTable: boolean, level
     return out;
   };
   if (level === -1)
-    return runs(linkOf, (run, href) => {
-      const text = inline(run, lineBreak, inTable, 0);
-      return href ? wrap(text, "[", `](${destination(href, inTable)})`) : text;
+    return runs(linkOf, (run, link) => {
+      const text = inline(run, lineBreak, inTable, 0), [href, title] = link.split("\n");
+      return href ? wrap(text, "[", `](${destination(href, inTable)}${linkTitle(title)})`) : text;
     });
   if (level < emphasis.length)
     return runs(node => hasMark(node, emphasis[level][0]), (run, marked) => {
@@ -202,8 +205,8 @@ export function toMarkdown(document: WriterDocument): string {
     }
     if (node.type === "heading") {
       // 제목은 한 줄이어야 하므로 제목 안의 줄바꿈은 <br>로 남긴다.
-      const text = inline(children, "<br>", false).replace(/\s+/g, " ").trim().replace(/(?:<br>)+$/, "");
-      return text ? [headingLine(attrs.level === 2 ? 2 : attrs.level === 3 ? 3 : 1, text)] : [];
+      const text = edgeSpaces(inline(children, "<br>", false).replace(/(?:<br>)+$/, ""));
+      return text.trim() ? [headingLine(attrs.level === 2 ? 2 : attrs.level === 3 ? 3 : 1, text)] : [];
     }
     if (node.type === "codeBlock") {
       const code = inlineText(node), language = /^[\w+#.-]{1,40}$/.test(String(attrs.language ?? "")) ? String(attrs.language) : "";

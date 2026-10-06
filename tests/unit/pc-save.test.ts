@@ -60,7 +60,7 @@ describe("PC 저장: 마크다운", () => {
   });
   it("표현할 수 없는 서식은 글 내용을 잃지 않고 일반 글로 남는다", async () => {
     const { document } = await draftWith([
-      { type: "heading", attrs: { level: 2 }, content: [text("첫 줄"), { type: "hardBreak" }, text("둘째 줄")] },
+      { type: "heading", attrs: { level: 2 }, content: [text(" 첫  줄"), { type: "hardBreak" }, text("둘째 줄")] },
       { type: "paragraph", attrs: { textAlign: "center", textColor: "#ff0000", backgroundColor: "#ffeeee" }, content: [
         text("빨간 글", { type: "textStyle", attrs: { color: "#ff0000", fontFamily: "serif", fontSize: 24 } }),
         text(" 밑줄", { type: "underline" }), text(" 굵게 ", { type: "bold" }), text("*별표*와 [괄호]"), text(" 값 ", { type: "code" }),
@@ -68,17 +68,17 @@ describe("PC 저장: 마크다운", () => {
       { type: "textBox", attrs: { backgroundColor: "#fff4d6" }, content: [paragraph(text("  들여 쓴 글상자 안의 글"))] },
       { type: "table", content: [
         { type: "tableRow", content: [{ type: "tableHeader", content: [paragraph(text("이름"))] }, { type: "tableHeader", attrs: { colspan: 1, rowspan: 1, align: "right" }, content: [paragraph(text("값"))] }] },
-        { type: "tableRow", content: [{ type: "tableCell", content: [paragraph(text(" a|b"))] }, { type: "tableCell", content: [paragraph(text("1", { type: "link", attrs: { href: "https://example.com/?a|b&copy;" } }))] }] },
+        { type: "tableRow", content: [{ type: "tableCell", content: [paragraph(text(" a|b"))] }, { type: "tableCell", content: [paragraph(text("1", { type: "link", attrs: { href: "https://example.com/?a|b&copy;", title: "풍선 \"말\"" } }))] }] },
       ] },
       // 머리 행을 끈 표의 첫 행은 머리 행으로 바뀌지 않는다.
       { type: "table", content: [{ type: "tableRow", content: [{ type: "tableCell", content: [paragraph(text("첫 행"))] }] }] },
     ]);
     expect(toMarkdown(document)).toBe([
       "# 제주 여행", "",
-      "## 첫 줄<br>둘째 줄", "",
+      "## &nbsp;첫 &nbsp;줄<br>둘째 줄", "",
       "빨간 글 밑줄 **굵게** \\*별표\\*와 \\[괄호\\]`  값  `", "",
       "&nbsp;&nbsp;들여 쓴 글상자 안의 글", "",
-      "| 이름 | 값 |", "| --- | --: |", "| &nbsp;a\\|b | [1](https://example.com/?a%7Cb\\&copy;) |", "",
+      "| 이름 | 값 |", "| --- | --: |", "| &nbsp;a\\|b | [1](https://example.com/?a%7Cb\\&copy; \"풍선 \\\"말\\\"\") |", "",
       "|  |", "| --- |", "| 첫 행 |", "",
     ].join("\n"));
   });
