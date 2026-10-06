@@ -126,9 +126,9 @@
 
 ### 로컬 검증과 아직 필요한 배포 작업
 
-`pnpm build:sites`는 `dist/client`와 Fetch API 기반 `dist/server/index.js`를 만든다. **이 결과만으로 Sites 배포용 패키지가 완성된 것은 아니다.** 프로젝트 ID나 `.openai/hosting.json`을 임의로 만들지 않았다.
+`pnpm build:sites`는 화면 `dist/client`, Worker `dist/server/index.js`, 공식 플러그인이 복사한 `dist/.openai/hosting.json`과 `dist/.openai/drizzle`을 만든다. `.openai/hosting.json`은 설치와 무관한 D1 `DB`·R2 `MEDIA` 이름만 선언한다. 정적 파일 `ASSETS`의 디렉터리와 Worker 진입점은 `wrangler.json`에 있다. Sites가 프로젝트를 연결할 때 추가하는 ID와 소유자 환경 값은 원본 저장소에 넣지 않는다.
 
-다음 실행에서는 위 Work 작업의 실제 Sites 도구와 대상 Site 상태를 먼저 확인한다. 공식 `@openai/sites-vite-plugin` 연결과 Drizzle 스키마·생성 마이그레이션 도구 추가, 신규 시험 DB의 초기 테이블 생성은 후속 승인에 포함됐다. 현재 `schema.sql`은 로컬 SQLite 시험 구조이며 운영 마이그레이션으로 적용하지 않았다. 실제 배포 시 스키마를 `db/schema.ts`로 옮겨 생성 SQL을 검사하고, 저장·배포·상태 조회를 공식 절차로 실행한다.
+새 설치의 표 정의는 `apps/server/src/sites/db/schema.ts`, 생성 SQL과 메타데이터는 `drizzle/`에 있다. 초기 SQL에는 표 정의 외에 파일·사진의 참조 무결성 트리거와 backfill 시작 행도 포함한다. `schema.sql`은 로컬 검증용이며 초기 배포 SQL과 같은 동작을 검사한다. 기존 설치에는 `apps/server/src/sites/migrations/0001-trash-provenance.sql`과 `0002-storage-sharing.sql`을 순서대로 적용하는 경로를 유지한다. 빈 DB용 초기 SQL을 기존 DB에 적용하지 않는다. 자세한 재현·업그레이드 경계는 [배포 설정 안내](../install/sites-deployment.md)를 따른다.
 
 로컬 시험은 `pnpm test:sites`로 실행한다. 해당 설정만 `tests/helpers/sites-vite.ts`를 로드한다. 소유자 헤더와 메모리 R2 대역은 loopback 전용 시험 장치이며 배포 코드에 포함하지 않는다. 기본 Chromium이 설치되지 않은 현재 환경에서는 기존 Chrome으로 `WONBOARD_TEST_CHANNEL=chrome pnpm test:sites --project=chromium`을 실행했다. 전체 수치와 화면 검증은 [진행 기록](./progress.md)에 남긴다.
 

@@ -1,5 +1,5 @@
--- Initial schema for local validation. Generate Sites migrations from this
--- schema with the supported Sites toolchain before a hosted deployment.
+-- Local validation schema. New Sites installs use drizzle/0000_sites-initial.sql.
+-- Keep its tables, integrity triggers and backfill checkpoint in sync; test the deployment SQL.
 CREATE TABLE installation (
   singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
   owner_id TEXT NOT NULL UNIQUE,
