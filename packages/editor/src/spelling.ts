@@ -19,7 +19,11 @@ export async function updatePersonalDictionary(operation: "add" | "remove", word
   // The read and write share one origin-wide lock, including other tabs.
   // Without coordination, a read-modify-write could discard another entry.
   if (!navigator.locks) throw new Error("Dictionary storage coordination unavailable");
-  return navigator.locks.request(dictionaryKey, { signal }, () => {
+  return navigator.locks.request(dictionaryKey, { signal }, async () => {
+    // Safari(WebKit)는 다른 탭이 방금 쓴 값을 약 1ms 늦게 보여 준다. 잠금을 넘겨받자마자
+    // 읽으면 낡은 목록 위에 덮어써 앞 탭의 변경이 사라진다. 전달될 시간을 두고 읽는다.
+    await new Promise(resolve => setTimeout(resolve, 20));
+    signal?.throwIfAborted();
     const saved = readPersonalDictionary();
     const key = personalWordKey(word);
     const next = operation === "remove" ? saved.filter(item => personalWordKey(item) !== key)
