@@ -70,6 +70,9 @@ describe("PC 저장: 마크다운", () => {
         { type: "tableRow", content: [{ type: "tableHeader", content: [paragraph(text("이름"))] }, { type: "tableHeader", attrs: { colspan: 1, rowspan: 1, align: "right" }, content: [paragraph(text("값"))] }] },
         { type: "tableRow", content: [{ type: "tableCell", content: [paragraph(text(" a|b"))] }, { type: "tableCell", content: [paragraph(text("1", { type: "link", attrs: { href: "https://example.com/?a|b&copy;", title: "풍선 \"말\"" } }))] }] },
       ] },
+      // 느낌표 뒤의 링크가 그림으로 읽히지 않고, 줄바꿈으로 끝나는 코드에 빈 줄이 붙지 않는다.
+      paragraph(text("보라!"), text("링크", { type: "link", attrs: { href: "https://example.com/" } })),
+      { type: "codeBlock", content: [text("a\n")] },
       // 머리 행을 끈 표의 첫 행은 머리 행으로 바뀌지 않는다.
       { type: "table", content: [{ type: "tableRow", content: [{ type: "tableCell", content: [paragraph(text("첫 행"))] }] }] },
     ]);
@@ -79,6 +82,8 @@ describe("PC 저장: 마크다운", () => {
       "빨간 글 밑줄 **굵게** \\*별표\\*와 \\[괄호\\]`  값  `", "",
       "&nbsp;&nbsp;들여 쓴 글상자 안의 글", "",
       "| 이름 | 값 |", "| --- | --: |", "| &nbsp;a\\|b | [1](https://example.com/?a%7Cb\\&copy; \"풍선 \\\"말\\\"\") |", "",
+      "보라\\![링크](https://example.com/)", "",
+      "```", "a", "```", "",
       "|  |", "| --- |", "| 첫 행 |", "",
     ].join("\n"));
   });

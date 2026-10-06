@@ -136,12 +136,13 @@ function wrap(inner: string, open: string, close = open) {
 const headingLine = (level: number, text: string) => `${"#".repeat(level)} ${text.replace(/#+$/, run => run.replace(/#/g, "\\#"))}`;
 const emphasis = [["bold", "**"], ["italic", "*"], ["strike", "~~"]] as const;
 const hasMark = (node: ContentNode, type: string) => node.marks?.some(mark => mark.type === type) ?? false;
-/** 링크의 주소와 제목(풍선 도움말)을 줄바꿈으로 이은 값. 링크가 아니면 빈 문자열이다. 주소에는 공백이 없다. */
+/** 링크의 주소와 제목(풍선 도움말)을 줄바꿈으로 이은 값. 링크가 아니면 빈 문자열이다. 주소에는 공백이 없어 첫 줄바꿈이 경계다. */
 const linkOf = (node: ContentNode) => {
   const attrs = node.marks?.find(mark => mark.type === "link")?.attrs;
-  return safeLink(attrs?.href) ? `${attrs.href}\n${typeof attrs.title === "string" ? attrs.title.replace(/\s+/g, " ").trim() : ""}` : "";
+  return safeLink(attrs?.href) ? `${attrs.href}\n${typeof attrs.title === "string" ? attrs.title : ""}` : "";
 };
-const linkTitle = (title: string) => title ? ` "${escapeText(title).replace(/"/g, '\\"')}"` : "";
+// 제목 안의 빈 줄은 링크를 끊으므로 줄바꿈만 공백으로 바꾸고, 나머지 공백은 그대로 둔다.
+const linkTitle = (title: string) => title ? ` "${title.replace(/[\r\n]+/g, " ").replace(/[\\"&|<>]/g, "\\$&")}"` : "";
 // 주소 안의 &와 역슬래시는 마크다운이 문자 참조(&copy; 등)나 이스케이프로 읽으므로 역슬래시로 막는다.
 // 표 안에서는 주소의 |도 칸을 나누는 글자로 읽히므로 %7C로 바꾼다.
 const destination = (href: string, inTable: boolean) => {
@@ -167,11 +168,17 @@ function inline(nodes: ContentNode[], lineBreak: string, inTable: boolean, level
     }
     return out;
   };
-  if (level === -1)
-    return runs(linkOf, (run, link) => {
-      const text = inline(run, lineBreak, inTable, 0), [href, title] = link.split("\n");
-      return href ? wrap(text, "[", `](${destination(href, inTable)}${linkTitle(title)})`) : text;
+  if (level === -1) {
+    let out = "";
+    runs(linkOf, (run, link) => {
+      const text = inline(run, lineBreak, inTable, 0), cut = link.indexOf("\n");
+      const piece = link ? wrap(text, "[", `](${destination(link.slice(0, cut), inTable)}${linkTitle(link.slice(cut + 1))})`) : text;
+      // 느낌표 바로 뒤에 링크가 오면 그림(![…](…))으로 읽히므로 느낌표를 막는다.
+      if (piece.startsWith("[") && out.endsWith("!")) out = `${out.slice(0, -1)}\\!`;
+      return out += piece;
     });
+    return out;
+  }
   if (level < emphasis.length)
     return runs(node => hasMark(node, emphasis[level][0]), (run, marked) => {
       const text = inline(run, lineBreak, inTable, level + 1);
@@ -211,7 +218,8 @@ export function toMarkdown(document: WriterDocument): string {
     if (node.type === "codeBlock") {
       const code = inlineText(node), language = /^[\w+#.-]{1,40}$/.test(String(attrs.language ?? "")) ? String(attrs.language) : "";
       const fence = "`".repeat(Math.max(3, ...[...code.matchAll(/`+/g)].map(run => run[0].length + 1)));
-      return [fence + language, ...code.split("\n"), fence];
+      // 닫는 표시 앞의 줄바꿈이 코드의 마지막 줄바꿈 몫을 하므로, 줄바꿈으로 끝나는 코드에 빈 줄을 더하지 않는다.
+      return [fence + language, ...(code.endsWith("\n") ? code.slice(0, -1) : code).split("\n"), fence];
     }
     if (node.type === "horizontalRule") return ["---"];
     if (node.type === "blockquote") return join(blocks(children)).map(line => line ? `> ${line}` : ">");
@@ -249,8 +257,8 @@ export function toMarkdown(document: WriterDocument): string {
     }
     return join(blocks(children));
   };
-  const title = escapeText(document.title).replace(/\s+/g, " ").trim();
-  return join([...(title ? [[headingLine(1, title)]] : []), ...blocks(document.content.content ?? [])]).join("\n") + "\n";
+  const title = edgeSpaces(escapeText(document.title.replace(/[\r\n]+/g, " ")));
+  return join([...(title.trim() ? [[headingLine(1, title)]] : []), ...blocks(document.content.content ?? [])]).join("\n") + "\n";
 }
 
 /** 사진 원본. 백업과 같은 기준으로, 없거나 보관 중에 바뀐 사진은 성한 것처럼 내보내지 않는다. */

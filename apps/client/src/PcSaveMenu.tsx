@@ -35,8 +35,10 @@ export function PrintDocument({ draft, onError, onDone }: { draft: Draft; onErro
       // 사진은 쪽 사이에서 쪼갤 수 없다. 설명과 함께 한 쪽에 들어가도록 설명의 실제 높이를 빼고 사진 높이를 맞춘다.
       // 설명이 너무 길어 사진 자리가 쪽의 3분의 1도 안 남으면 사진과 설명 사이에서 쪽을 넘기게 둔다.
       for (const media of root.current!.querySelectorAll<HTMLElement>(".wb-media")) {
-        const room = pageHeight - (media.querySelector("figcaption")?.offsetHeight ?? 0) - 1;
-        const image = media.querySelector("img");
+        const image = media.querySelector("img"), style = getComputedStyle(media);
+        // 사진 말고 이 묶음이 차지하는 높이: 설명과 묶음의 위아래 여백.
+        const rest = media.offsetHeight - (image?.offsetHeight ?? 0) + parseFloat(style.marginTop) + parseFloat(style.marginBottom);
+        const room = pageHeight - rest - 1;
         if (image) image.style.maxHeight = `${Math.max(room, pageHeight / 3)}px`;
         if (room < pageHeight / 3) media.style.breakInside = "auto";
       }
