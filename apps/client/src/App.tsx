@@ -707,7 +707,7 @@ export default function App({
       {pcSave ? <PcSaveMenu locale={locale} disabled={busy} formatsDisabled={writer.readOnly} snapshot={writer.snapshot}
         onPdf={() => { const snapshot = writer.snapshot(); if (snapshot) setPrinting({ key: Date.now(), draft: snapshot }); }} onBackup={() => void (writer.readOnly ? recoveryBackup() : backup())}
         onNotice={setNotice} onError={report} onClose={() => setPcSave(false)} /> : null}
-      {printing ? <PrintDocument key={printing.key} draft={printing.draft} onDone={() => setPrinting(null)} /> : null}
+      {printing ? <PrintDocument key={printing.key} draft={printing.draft} onError={report} onDone={() => setPrinting(null)} /> : null}
       {trashDialog && <TrashDialog locale={locale} action={trashDialog.action} count={trashDialog.count} working={busy}
         message={writer.error ? t(Object.hasOwn(en, writer.error) ? writer.error as MessageKey : "storageFailed") : ""}
         onConfirm={() => executeTrash(trashDialog.action, trashDialog.value)} onClose={() => setTrashDialog(null)} />}

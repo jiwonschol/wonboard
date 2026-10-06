@@ -867,19 +867,20 @@ button:not(.icon-button):hover:enabled {
 
 /* PDF 저장: 인쇄용 본문은 화면 밖에 그려 두고, 인쇄할 때만 그것 하나를 남긴다. */
 .print-root { position: absolute; left: -10000px; top: 0; width: 174mm; visibility: hidden; }
-@page { size: A4; margin: 16mm 18mm; }
+/* 이름 붙인 쪽이라 Ctrl+P로 하는 보통 인쇄의 용지·여백은 건드리지 않는다. 여백을 바꾸면 PcSaveMenu.tsx의 pageHeight도 바꾼다. */
+@page wonboard-pdf { size: A4; margin: 16mm 18mm; }
 @media print {
   html, body, #root { height: auto; }
   .app-shell[data-printing] { display: block; height: auto; overflow: visible; }
   .app-shell[data-printing] > :not(.print-root) { display: none !important; }
   /* 인쇄 창의 '배경 그래픽'을 켜지 않아도 글상자·형광펜·표 머리 행의 색이 남게 한다. */
-  .print-root { position: static; width: auto; visibility: visible; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .print-root { page: wonboard-pdf; position: static; width: auto; visibility: visible; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .print-root .document-page { max-width: none; margin: 0; padding: 0; }
   .print-root .tiptap { min-height: 0; }
   .print-root :is(.wb-media, .wb-video-player, table, tr, pre, [data-wb-text-box]) { break-inside: avoid; }
   .print-root :is(h1, h2, h3) { break-after: avoid; }
-  /* 한 쪽보다 긴 사진은 쪼갤 수 없어 잘린다. 설명과 함께 한 쪽에 들어가도록 높이를 맞춘다. */
-  .print-root .wb-media img { max-height: 235mm; object-fit: contain; }
+  /* 한 쪽보다 긴 사진은 PcSaveMenu.tsx가 높이를 쪽에 맞춘다. 그때 비율을 지킨다. */
+  .print-root .wb-media img { object-fit: contain; }
 }
 /* 편집 화면의 글상자와 같은 문단 간격. */
 .print-root [data-wb-text-box] > * { margin: 0 0 0.8em; }

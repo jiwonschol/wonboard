@@ -14,13 +14,14 @@ async function restoreDocument(page: Page, path: string, title: string, photos: 
   const media: Record<string, unknown> = {}, files: Record<string, Uint8Array> = {};
   await page.goto("/");
   for (let index = 0; index < photos; index++) {
-    const id = `photo-${index}`, width = 200 + index, height = 300;
+    // 첫 사진은 한 쪽보다 길게 보이는 세로 사진이다(폭 600으로 넣으면 높이가 2100이 된다).
+    const id = `photo-${index}`, width = 200 + index, height = index ? 300 : 700;
     const bytes = new Uint8Array(await page.screenshot({ clip: { x: index, y: 0, width, height }, scale: "css" }));
     media[id] = { id, originalName: `바다 ${index}.png`, mime: "image/png", width, height, size: bytes.byteLength,
       sha256: createHash("sha256").update(bytes).digest("hex") };
     files[`media/${id}`] = bytes;
   }
-  const content = build((index, caption) => ({ type: "media", attrs: { mediaId: `photo-${index}`, width: 200 + index, align: "left", alt: "", caption } }));
+  const content = build((index, caption) => ({ type: "media", attrs: { mediaId: `photo-${index}`, width: index ? 200 + index : 600, align: "left", alt: "", caption } }));
   files["document.json"] = strToU8(JSON.stringify({ schemaVersion: 1, documentId: "pc-save-fixture", revision: 0, title, locale: "ko",
     defaultFont: "nanum-serif", autoRenameAttachments: false, content: { type: "doc", content }, media, updatedAt: new Date().toISOString() }));
   await writeFile(path, zipSync(files));

@@ -56,9 +56,10 @@ export function imageNames(document: WriterDocument): Map<string, string> {
     let raw = attachmentFilename(document, id).normalize("NFC")
       .replace(/[\u0000-\u001f\u007f<>:"/\\|?*#%]/g, "_").trim().replace(/[. ]+$/, "");
     if (!raw) raw = "image";
-    // 확장자로 보기에 너무 긴 꼬리는 이름의 일부로 본다.
-    const dot = raw.lastIndexOf("."), split = dot > 0 && raw.length - dot <= 10;
-    const extension = split ? raw.slice(dot) : "", stem = safeStem(fit(split ? raw.slice(0, dot) : raw, nameBytes - bytes(extension))) || "image";
+    // 확장자가 사진 형식과 다르면(없거나 .txt 등) 맞는 확장자를 덧붙인다. 그래야 어디서 열어도 그림으로 읽힌다.
+    const dot = raw.lastIndexOf("."), png = document.media[id].mime === "image/png";
+    const split = dot > 0 && (png ? /^\.png$/i : /^\.jpe?g$/i).test(raw.slice(dot));
+    const extension = split ? raw.slice(dot) : png ? ".png" : ".jpg", stem = safeStem(fit(split ? raw.slice(0, dot) : raw, nameBytes - bytes(extension))) || "image";
     let name = stem + extension;
     // 대소문자만 다른 이름은 Windows·macOS에서 같은 파일이 된다.
     for (let count = 2; taken.has(name.toLowerCase()); count++) name = `${stem}-${count}${extension}`;
@@ -138,7 +139,13 @@ const linkOf = (node: ContentNode) => {
   const href = node.marks?.find(mark => mark.type === "link")?.attrs?.href;
   return safeLink(href) ? href : "";
 };
-const destination = (href: string) => /[()<>]/.test(href) ? `<${href.replace(/[<>]/g, encodeURIComponent)}>` : href;
+// 표 안에서는 주소의 |도 칸을 나누는 글자로 읽히므로 %7C로 바꾼다.
+const destination = (href: string, inTable: boolean) => {
+  const value = inTable ? href.replace(/\|/g, "%7C") : href;
+  return /[()<>]/.test(value) ? `<${value.replace(/[<>]/g, encodeURIComponent)}>` : value;
+};
+/** 칸 가장자리의 공백은 표 문법이 떼어 내므로 줄바꿈 없는 공백으로 바꿔 남긴다. */
+const edgeSpaces = (text: string) => text.replace(/^[ \t]+|[ \t]+$/g, run => run.replace(/\t/g, "    ").replace(/ /g, "&nbsp;"));
 
 /**
  * 문단 안의 글. 이웃한 글자가 같은 서식이면 한 번만 감싼다. 밑줄·글자색·글꼴·크기처럼
@@ -159,7 +166,7 @@ function inline(nodes: ContentNode[], lineBreak: string, inTable: boolean, level
   if (level === -1)
     return runs(linkOf, (run, href) => {
       const text = inline(run, lineBreak, inTable, 0);
-      return href ? wrap(text, "[", `](${destination(href)})`) : text;
+      return href ? wrap(text, "[", `](${destination(href, inTable)})`) : text;
     });
   if (level < emphasis.length)
     return runs(node => hasMark(node, emphasis[level][0]), (run, marked) => {
@@ -193,7 +200,8 @@ export function toMarkdown(document: WriterDocument): string {
       return text.trim() ? text.split("\n").map(startOfLine) : [];
     }
     if (node.type === "heading") {
-      const text = inline(children, " ", false).replace(/\s+/g, " ").trim();
+      // 제목은 한 줄이어야 하므로 제목 안의 줄바꿈은 <br>로 남긴다.
+      const text = inline(children, "<br>", false).replace(/\s+/g, " ").trim().replace(/(?:<br>)+$/, "");
       return text ? [headingLine(attrs.level === 2 ? 2 : attrs.level === 3 ? 3 : 1, text)] : [];
     }
     if (node.type === "codeBlock") {
@@ -224,7 +232,7 @@ export function toMarkdown(document: WriterDocument): string {
     if (node.type === "video") return isVideo(attrs) ? [`[${escapeText(videoLabel(attrs))}](${videoSourceUrl(attrs)})`] : [];
     if (node.type === "table") {
       const rows = children.map(row => (row.content ?? []).map(cell =>
-        (cell.content ?? []).map(paragraph => inline(paragraph.content ?? [], "<br>", true).trim()).filter(Boolean).join("<br>")));
+        (cell.content ?? []).map(paragraph => inline(paragraph.content ?? [], "<br>", true)).filter(text => text.trim()).map(edgeSpaces).join("<br>")));
       const width = Math.max(1, ...rows.map(row => row.length));
       const line = (cells: string[]) => `| ${Array.from({ length: width }, (_, index) => cells[index] ?? "").join(" | ")} |`;
       const align = Array.from({ length: width }, (_, index) => {
@@ -239,6 +247,15 @@ export function toMarkdown(document: WriterDocument): string {
   };
   const title = escapeText(document.title).replace(/\s+/g, " ").trim();
   return join([...(title ? [[headingLine(1, title)]] : []), ...blocks(document.content.content ?? [])]).join("\n") + "\n";
+}
+
+/** 사진 원본. 백업과 같은 기준으로, 없거나 보관 중에 바뀐 사진은 성한 것처럼 내보내지 않는다. */
+export async function photoBytes(draft: Draft, id: string): Promise<ArrayBuffer> {
+  const media = draft.document.media[id], blob = draft.blobs[id];
+  if (!blob || blob.size !== media.size) throw new DocumentError("missingMedia");
+  const buffer = await blob.arrayBuffer();
+  if ((await sha256(buffer)) !== media.sha256) throw new Error("damagedPhoto");
+  return buffer;
 }
 
 export type SavedFile = { blob: Blob; name: string; photos: number };
@@ -256,14 +273,6 @@ export async function markdownFile(draft: Draft): Promise<SavedFile> {
   const markdown = new TextEncoder().encode(toMarkdown(draft.document));
   if (!names.size) return { blob: new Blob([markdown], { type: "text/markdown;charset=utf-8" }), name: `${name}.md`, photos: 0 };
   const files: Record<string, Uint8Array> = { [`${name}.md`]: markdown };
-  for (const [id, filename] of names) {
-    const blob = draft.blobs[id];
-    const media = draft.document.media[id];
-    if (!blob || blob.size !== media.size) throw new DocumentError("missingMedia");
-    // 백업과 같은 기준: 보관 중에 바뀐 사진을 성한 파일처럼 담지 않는다.
-    const buffer = await blob.arrayBuffer();
-    if ((await sha256(buffer)) !== media.sha256) throw new Error("damagedPhoto");
-    files[`images/${filename}`] = new Uint8Array(buffer);
-  }
+  for (const [id, filename] of names) files[`images/${filename}`] = new Uint8Array(await photoBytes(draft, id));
   return { blob: new Blob([await zipFiles(files)], { type: "application/zip" }), name: `${name}.zip`, photos: names.size };
 }
