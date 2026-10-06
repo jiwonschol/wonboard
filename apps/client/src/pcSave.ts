@@ -35,8 +35,14 @@ function fit(text: string, limit: number) {
   return letters.join("").trim();
 }
 
+/** Windows가 받지 않는 이름을 피한다: 끝의 점·공백을 떼고, 장치 이름(CON, NUL 등)은 앞에 _를 붙인다. */
+function safeStem(stem: string) {
+  const value = stem.replace(/[. ]+$/, "");
+  return /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(value.split(".")[0].trim()) ? `_${value}` : value;
+}
+
 /** 저장할 파일의 이름(확장자 제외). 제목이 비면 제품 이름을 쓴다. */
-export const saveName = (document: WriterDocument) => fit(fileTitle(document.title), nameBytes) || "wonboard";
+export const saveName = (document: WriterDocument) => safeStem(fit(fileTitle(document.title), nameBytes)) || "wonboard";
 
 /**
  * 본문에 나오는 순서대로 사진 ID → 파일 이름. 텍스트의 "[사진: 이름]"과 마크다운 ZIP의
@@ -48,11 +54,11 @@ export function imageNames(document: WriterDocument): Map<string, string> {
     const id = String(node.attrs?.mediaId);
     if (node.type !== "media" || names.has(id) || !Object.hasOwn(document.media, id)) continue;
     let raw = attachmentFilename(document, id).normalize("NFC")
-      .replace(/[\u0000-\u001f\u007f<>:"/\\|?*#%]/g, "_").trim();
-    if (!raw || /^\.+$/.test(raw)) raw = "image";
+      .replace(/[\u0000-\u001f\u007f<>:"/\\|?*#%]/g, "_").trim().replace(/[. ]+$/, "");
+    if (!raw) raw = "image";
     // 확장자로 보기에 너무 긴 꼬리는 이름의 일부로 본다.
     const dot = raw.lastIndexOf("."), split = dot > 0 && raw.length - dot <= 10;
-    const extension = split ? raw.slice(dot) : "", stem = fit(split ? raw.slice(0, dot) : raw, nameBytes - bytes(extension)) || "image";
+    const extension = split ? raw.slice(dot) : "", stem = safeStem(fit(split ? raw.slice(0, dot) : raw, nameBytes - bytes(extension))) || "image";
     let name = stem + extension;
     // 대소문자만 다른 이름은 Windows·macOS에서 같은 파일이 된다.
     for (let count = 2; taken.has(name.toLowerCase()); count++) name = `${stem}-${count}${extension}`;
@@ -67,6 +73,19 @@ const inlineText = (node: ContentNode): string =>
     : node.type === "hardBreak" ? "\n"
       : node.type === "fileRef" ? String(node.attrs?.label ?? "")
         : (node.content ?? []).map(inlineText).join("");
+
+/** 번호 목록의 표시. 문서가 가진 알파벳·로마자 번호를 그대로 쓴다. */
+function orderedMarker(type: unknown, value: number) {
+  let letters = "", roman = "";
+  for (let rest = value; rest > 0; rest = Math.floor((rest - 1) / 26)) letters = String.fromCharCode(97 + (rest - 1) % 26) + letters;
+  let rest = value;
+  for (const [amount, sign] of [[1000, "m"], [900, "cm"], [500, "d"], [400, "cd"], [100, "c"], [90, "xc"], [50, "l"], [40, "xl"], [10, "x"], [9, "ix"], [5, "v"], [4, "iv"], [1, "i"]] as const)
+    for (; rest >= amount; rest -= amount) roman += sign;
+  const label = type === "a" ? letters : type === "A" ? letters.toUpperCase()
+    // 로마 숫자는 3999까지만 쓴다. 브라우저도 그 뒤로는 숫자로 보여 준다.
+    : (type === "i" || type === "I") && value <= 3999 ? (type === "i" ? roman : roman.toUpperCase()) : String(value);
+  return `${label}. `;
+}
 
 const videoLabel = (attrs: Record<string, unknown>) => `${attrs.provider === "youtube" ? "YouTube" : "Vimeo"} · ${attrs.videoId}`;
 
@@ -84,7 +103,7 @@ export function toPlainText(document: WriterDocument, photo: (name: string) => s
     if (node.type === "video") return isVideo(attrs) ? [videoSourceUrl(attrs)] : [];
     if (node.type === "bulletList" || node.type === "orderedList")
       return children.flatMap((item, index) => {
-        const marker = node.type === "bulletList" ? "- " : `${Number(attrs.start ?? 1) + index}. `;
+        const marker = node.type === "bulletList" ? "- " : orderedMarker(attrs.type, Number(attrs.start ?? 1) + index);
         return (item.content ?? []).flatMap(lines).map((line, row) => (row ? " ".repeat(marker.length) : marker) + line);
       });
     if (node.type === "table")
@@ -96,8 +115,10 @@ export function toPlainText(document: WriterDocument, photo: (name: string) => s
 
 // 마크다운 문법으로 읽힐 수 있는 글자. 줄 첫머리에서만 뜻이 생기는 글자는 startOfLine이 따로 막는다.
 const escapeText = (text: string) => text.replace(/[\\`*_[\]<>~|&]/g, "\\$&");
-const startOfLine = (line: string) => line.replace(/^[ \t]+/, "")
-  .replace(/^([#>+\-=])/, "\\$1").replace(/^(\d+)([.)])/, "$1\\$2");
+// 줄 첫머리의 공백은 마크다운이 버리거나 코드 블록으로 읽는다. 줄바꿈 없는 공백으로 바꿔 들여쓰기를 남긴다.
+const startOfLine = (line: string) => /^[ \t]/.test(line)
+  ? line.replace(/^[ \t]+/, run => run.replace(/\t/g, "    ").replace(/ /g, "&nbsp;"))
+  : line.replace(/^([#>+\-=])/, "\\$1").replace(/^(\d+)([.)])/, "$1\\$2");
 function codeSpan(text: string, inTable: boolean) {
   const value = text.replace(/\n/g, " "), fence = "`".repeat(Math.max(0, ...[...value.matchAll(/`+/g)].map(run => run[0].length)) + 1);
   // 양끝이 모두 공백이면 읽는 쪽이 하나씩 떼어 내므로, 그때도 한 칸씩 더 준다.
