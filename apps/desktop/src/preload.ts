@@ -21,3 +21,9 @@ const editing: DesktopEditing = {
   paste: () => { void ipcRenderer.invoke("edit:paste"); },
 };
 contextBridge.exposeInMainWorld("wonboardDesktopEditing", editing);
+// 종료 경고창이 화면 언어를 따르도록, 화면이 <html lang>을 바꿀 때마다 알린다.
+window.addEventListener("DOMContentLoaded", () => {
+  const report = () => { void ipcRenderer.invoke("ui:locale", document.documentElement.lang); };
+  report();
+  new MutationObserver(report).observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
+});

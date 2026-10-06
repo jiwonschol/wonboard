@@ -366,9 +366,27 @@ button:not(.icon-button):hover:enabled {
   margin-left: 12px;
   max-width: 95px;
 }
-.local-mode {
+.local-mode,
+.beta-mark {
   color: #bdbdbd;
   font-size: 11px;
+  white-space: nowrap;
+}
+.about-links p {
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 6px 0;
+}
+.about-links a {
+  color: var(--wb-accent);
+}
+.auth-card .about-links {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid #dedee2;
+}
+.auth-card .about-links p {
+  font-size: 12px;
 }
 .topbar {
   display: flex;
@@ -669,7 +687,8 @@ button:not(.icon-button):hover:enabled {
   }
 }
 @media (max-width: 700px) {
-  .local-mode {
+  .local-mode,
+  .beta-version {
     display: none;
   }
   .topbar {

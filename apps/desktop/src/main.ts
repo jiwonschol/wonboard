@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, session, shell } from "electron";
 import { join, resolve, relative, isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
+import { translator } from "@wonboard/locales";
 import { openDesktopStore } from "./store";
 
 app.setName("Wonboard");
@@ -10,6 +11,8 @@ protocol.registerSchemesAsPrivileged([{ scheme: "wonboard", privileges: {
 const ownsLock = app.requestSingleInstanceLock();
 if (!ownsLock) app.quit();
 let window: BrowserWindow | null = null;
+// 화면 언어. preload가 <html lang>을 알려 주면 바뀐다. 종료 경고창이 이 언어 하나로 나온다.
+let locale: "ko" | "en" = "ko";
 app.on("second-instance", () => { window?.show(); window?.focus(); });
 
 if (ownsLock) void app.whenReady().then(() => {
@@ -39,6 +42,7 @@ if (ownsLock) void app.whenReady().then(() => {
         !event.senderFrame.url.startsWith("wonboard://app/")) throw new Error("unauthorized");
   };
   ipcMain.handle("edit:paste", event => { authorize(event); event.sender.paste(); });
+  ipcMain.handle("ui:locale", (event, value) => { authorize(event); if (value === "ko" || value === "en") locale = value; });
   for (const operation of ["list", "load", "save", "remove", "filesList", "filesLoad", "filesUpload", "filesChange", "filesRemove"] as const) {
     ipcMain.handle(`drafts:${operation}`, (event, ...args) => {
       authorize(event);
@@ -66,9 +70,9 @@ if (ownsLock) void app.whenReady().then(() => {
     window.webContents.setWindowOpenHandler(({ url }) => { openLink(url); return { action: "deny" }; });
     window.webContents.on("will-navigate", (event, url) => { event.preventDefault(); openLink(url); });
     window.webContents.on("will-prevent-unload", event => {
-      const choice = dialog.showMessageBoxSync(window!, { type: "warning", message: "아직 저장되지 않은 글이 있습니다. / Unsaved changes",
-        detail: "저장하지 않고 종료하면 마지막 변경을 잃습니다. / Unsaved changes will be lost.",
-        buttons: ["계속 작성 / Stay", "저장하지 않고 종료 / Quit without saving"], defaultId: 0, cancelId: 0 });
+      const t = translator(locale);
+      const choice = dialog.showMessageBoxSync(window!, { type: "warning", message: t("quitUnsaved"),
+        detail: t("quitUnsavedDetail"), buttons: [t("quitStay"), t("quitDiscard")], defaultId: 0, cancelId: 0 });
       if (choice === 1) event.preventDefault();
     });
     // Electron 은 앱이 만들지 않으면 우클릭 메뉴가 없다. 편집기가 자기 메뉴를 띄우지 않은
