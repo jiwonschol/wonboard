@@ -58,6 +58,28 @@ describe("PC 저장: 마크다운", () => {
     draft.blobs["photo-0"] = new Blob([new Uint8Array([9, 9, 9])], { type: "image/png" });
     await expect(markdownFile(draft)).rejects.toThrow("damagedPhoto");
   });
+  it("공백과 줄바꿈은 어느 블록에서도 같은 규칙으로 남는다", async () => {
+    const spaced = [text("  가  나 ", { type: "bold" }), { type: "hardBreak" }, { type: "hardBreak" }];
+    const draft = await draftWith([
+      { type: "heading", attrs: { level: 3 }, content: spaced },
+      paragraph(...spaced),
+      { type: "table", content: [{ type: "tableRow", content: [
+        { type: "tableHeader", content: [paragraph(...spaced), { type: "paragraph" }, paragraph(text("다"))] },
+        // 머리 칸과 보통 칸이 섞인 첫 행은 머리 행으로 올리지 않는다.
+        { type: "tableCell", content: [paragraph(text("라"))] },
+      ] }] },
+    ], ["바다.png"]);
+    (draft.document.content.content!.at(-1)!.attrs as Record<string, unknown>).caption = " 가  나 \n다";
+    const kept = "&nbsp;&nbsp;**가 &nbsp;나**&nbsp;";
+    expect(toMarkdown(draft.document)).toBe([
+      "# 제주 여행", "",
+      `### ${kept}<br><br>`, "",
+      `${kept}<br><br>`, "",
+      "|  |  |", "| --- | --- |", `| ${kept}<br><br><br><br>다 | 라 |`, "",
+      "![](images/바다.png)", "",
+      "&nbsp;가 &nbsp;나&nbsp;\\", "다", "",
+    ].join("\n"));
+  });
   it("표현할 수 없는 서식은 글 내용을 잃지 않고 일반 글로 남는다", async () => {
     const { document } = await draftWith([
       { type: "heading", attrs: { level: 2 }, content: [text(" 첫  줄"), { type: "hardBreak" }, text("둘째 줄")] },
