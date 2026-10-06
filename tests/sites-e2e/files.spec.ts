@@ -69,7 +69,7 @@ test("a rejected private-file export clears old HTML and uses server share activ
   expect((await request.patch(`/api/file-shares/${share.id}`, { headers: owner, data: { revision: 1, action: "revoke", operationId: "revoke" } })).status()).toBe(200);
   await panel.getByRole("button", { name: "Publish photos and prepare HTML" }).click();
   await expect(panel.locator("textarea")).toHaveCount(0);
-  await expect(panel.getByText("A referenced file is private. Share it explicitly before exporting HTML.", { exact: true })).toBeVisible();
+  await expect(panel.getByText("A referenced file is private. Share it explicitly before preparing HTML.", { exact: true })).toBeVisible();
   await expect(panel.getByRole("button", { name: "Copy HTML", exact: true })).toHaveCount(0);
 });
 test.beforeEach(async ({ request, context }) => {
