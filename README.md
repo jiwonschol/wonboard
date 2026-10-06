@@ -20,7 +20,7 @@ Wonboard는 글과 사진을 한곳에서 작성하고 보관한 뒤, 원하는 
 2. 자신의 ChatGPT에 붙여넣으면 ChatGPT가 코드를 가져와 내 사이트에 배포하고, 소유자 연결까지 안내합니다.
 3. 각 단계에서 보게 될 화면, 막혔을 때 할 일, 그만 쓰는 방법은 [단계별 설치 안내](docs/install/README.md)에 있습니다.
 
-**ChatGPT Plus·Pro·Business·Enterprise·Edu 유료 요금제가 필요합니다. Free·Go에서는 Sites를 사용할 수 없습니다.** 무료 요금제에서는 베타 동안 원보드를 쓸 방법이 없습니다. [데스크톱판](#데스크톱-앱)은 구독자의 보조용이고 베타 동안 설치 파일을 배포하지 않습니다. 제공 여부와 한도는 [공식 앱 문서](https://learn.chatgpt.com/docs/sites?surface=app)를 확인하세요. [공식 도움말](https://help.openai.com/en/articles/20001339-creating-and-managing-chatgpt-sites)의 지역 안내에 따르면 출시 시점 EEA·스위스·영국에서는 사용할 수 없습니다. (2026-09-15 확인)
+**ChatGPT Plus·Pro·Business·Enterprise·Edu 유료 요금제가 필요합니다. Free·Go에서는 Sites를 사용할 수 없습니다.** 무료 요금제에서는 베타 동안 원보드를 쓸 방법이 없습니다. [데스크톱판](#데스크톱-앱)은 구독자의 보조용이고 베타 동안 설치 파일을 배포하지 않습니다. 제공 여부와 한도는 [공식 앱 문서](https://learn.chatgpt.com/docs/sites?surface=app)를 확인하세요. 출시 시점 EEA·스위스·영국에서는 Sites 사용이나 공개 게시에 제한이 있었고, 제한 범위는 요금제에 따라 다를 수 있습니다. [공식 도움말](https://help.openai.com/en/articles/20001339-creating-and-managing-chatgpt-sites)의 지역 안내를 확인하세요.
 
 **다른 계정에서 확인되지 않음.** 지금까지 실제 설치는 만든 사람의 계정에서 한 번 한 것이 전부입니다. 다른 계정에서의 설치는 베타 참가자의 첫 설치로 확인합니다.
 
