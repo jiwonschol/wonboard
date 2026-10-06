@@ -12,12 +12,17 @@ const manifest = JSON.parse(read("package.json"));
 const serverTypes = read("apps/server/src/sites/types.ts");
 const worker = read("apps/server/src/sites/worker.ts");
 const viteConfig = read("vite.config.ts") + read("vite.sites-worker.config.ts");
+const hosting = JSON.parse(read(".openai/hosting.json"));
+const assets = JSON.parse(read("wrangler.json")).assets;
+const workerBuild = read("vite.sites-worker.config.ts");
+const drizzleConfig = read("drizzle.config.ts");
+const journal = JSON.parse(read("drizzle/meta/_journal.json"));
 const korean = read("packages/locales/src/index.ts");
 const problems = [];
 
 // 설치 문장에서 `…`로 적은 것은 모두 아래 목록에 근거가 있어야 한다.
 const grounded = {
-  "pnpm install": manifest.packageManager.startsWith("pnpm@"),
+  "pnpm install --frozen-lockfile": manifest.packageManager.startsWith("pnpm@"),
   "pnpm build:sites": Boolean(manifest.scripts["build:sites"]),
   "dist/client": viteConfig.includes('"dist/client"'),
   "dist/server/index.js": viteConfig.includes('outDir: "dist/server"') && viteConfig.includes('entryFileNames: "index.js"'),
@@ -27,9 +32,15 @@ const grounded = {
   "apps": true, "packages": true,
   "DB": /\bDB: Database;/.test(serverTypes),
   "MEDIA": /\bMEDIA: ObjectStore;/.test(serverTypes),
-  "ASSETS": /\bASSETS\?:/.test(serverTypes),
+  "ASSETS": /\bASSETS\?:/.test(serverTypes) && assets.binding === "ASSETS" && assets.directory === "dist/client",
   "WONBOARD_OWNER_ID": serverTypes.includes("WONBOARD_OWNER_ID?: string") && worker.includes("env.WONBOARD_OWNER_ID"),
-  ".openai/hosting.json": true, // Sites 공식 문서가 정한 파일 이름. 이 저장소에는 없다.
+  ".openai/hosting.json": hosting.d1 === "DB" && hosting.r2 === "MEDIA",
+  "vite.sites-worker.config.ts": workerBuild.includes("sites()"),
+  "@openai/sites-vite-plugin": Boolean(manifest.devDependencies["@openai/sites-vite-plugin"]) && workerBuild.includes('from "@openai/sites-vite-plugin"'),
+  "wrangler.json": assets.binding === "ASSETS" && assets.directory === "dist/client",
+  "drizzle": drizzleConfig.includes('out: "./drizzle"') && journal.entries.length > 0 && journal.entries.every(entry => existsSync(new URL(`drizzle/${entry.tag}.sql`, root))),
+  "dist/.openai/hosting.json": workerBuild.includes("sites()"),
+  "dist/.openai/drizzle": workerBuild.includes("sites()") && drizzleConfig.includes('out: "./drizzle"'),
 };
 for (const [, token] of prompt.matchAll(/`([^`]+)`/g))
   if (!grounded[token]) problems.push(`설치 문장의 \`${token}\`가 저장소에서 확인되지 않습니다.`);
