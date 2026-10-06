@@ -78,7 +78,9 @@ textarea:focus-visible {
 .top nav a:hover {
   text-decoration: underline;
 }
-main > section {
+/* .wrap의 좌우 여백 선언이 위아래 여백을 0으로 덮지 않도록 .wrap인 구역도 함께 적는다. */
+main > section,
+main > section.wrap {
   padding-top: 56px;
   padding-bottom: 56px;
 }
@@ -217,4 +219,28 @@ textarea {
 }
 .foot p {
   margin-bottom: 6px;
+}
+/* 개인정보·저장 안내(privacy.html)의 긴 글 */
+a.name {
+  color: inherit;
+  text-decoration: none;
+}
+.prose > p,
+.prose > ul {
+  max-width: 46em;
+}
+.prose ul {
+  padding-left: 20px;
+}
+.prose li {
+  margin-bottom: 6px;
+}
+.prose h2 {
+  margin-top: 40px;
+}
+.prose > :first-child {
+  margin-top: 0;
+}
+.prose h3 {
+  margin-top: 20px;
 }
