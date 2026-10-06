@@ -129,10 +129,16 @@ export function toPlainText(document: WriterDocument, photo: (name: string) => s
 // - 코드 글자 안은 글자 그대로다. 공백을 &nbsp;로 바꾸면 그 글자가 보이므로 바꾸지 않는다. 줄바꿈에서는 코드 표시를 나눈다.
 // - 본문의 빈 문단은 남기지 않는다(문단 사이 빈 줄과 구별되지 않는다).
 // - 링크 표시가 없는 주소 글자를 읽는 쪽이 링크로 만드는 것은 막지 않는다(글자는 같다).
-const BREAK = "\u0000", CODE_SPACE = "\u0001", NBSP = "\u0002", SEPARATOR = "<!-- -->";
-const withoutMarkers = (text: string) => text.replace(/[\u0000-\u0002]/g, "");
+const BREAK = "\u0000", CODE_SPACE = "\u0001", NBSP = "\u0002", ESCAPE = "\u0003", SEPARATOR = "<!-- -->";
+// 위 네 글자는 변환하는 동안의 표시로 쓴다. 글에 같은 글자가 들어 있으면 protect가 ESCAPE+숫자로 바꿔 두고
+// restore가 맨 마지막에 원래 글자로 되돌리므로, 글의 글자와 표시가 섞이지 않고 글자도 지워지지 않는다.
+const protect = (text: string) => text.replace(/[\u0000-\u0003]/g, char => ESCAPE + char.charCodeAt(0));
+const restore = (text: string) => text.replaceAll(CODE_SPACE, " ").replaceAll(NBSP, "&nbsp;")
+  .replace(/\u0003([0-3])/g, (_, code) => String.fromCharCode(Number(code)));
+// 화면에서 줄을 바꾸는 글자: 줄바꿈, 혼자 있는 CR, 유니코드 줄·문단 구분자.
+const lineBreaks = /\r\n|[\r\n\u2028\u2029]/;
 const escapeText = (text: string) => text.replace(/[\\`*_[\]<>~|&]/g, "\\$&");
-const escapeAttribute = (text: string) => escapeText(withoutMarkers(text)).replace(/"/g, "\\\"").replace(/\r/g, "&#13;").replace(/\n/g, "&#10;").replace(/\t/g, "&#9;");
+const escapeAttribute = (text: string) => escapeText(protect(text)).replace(/"/g, "\\\"").replace(/\r/g, "&#13;").replace(/\n/g, "&#10;").replace(/\t/g, "&#9;");
 const blockStart = (line: string) => line.replace(/^([#>+\-=])/, "\\$1").replace(/^(\d+)([.)])/, "$1\\$2");
 const oneLine = (text: string) => text.split(BREAK).join("<br>");
 /**
@@ -155,7 +161,7 @@ function paragraphLines(text: string): string[] {
 }
 /** 코드 글자. 줄바꿈에서는 코드 표시를 나누고 그 사이에 줄바꿈을 둔다. */
 function codeSpan(text: string, inTable: boolean) {
-  return text.split(/\r?\n/).map(value => {
+  return text.split(lineBreaks).map(value => {
     if (!value) return "";
     const fence = "`".repeat(Math.max(0, ...[...value.matchAll(/`+/g)].map(run => run[0].length)) + 1);
     // 양끝이 모두 공백이면 읽는 쪽이 하나씩 떼어 내므로, 그때도 한 칸씩 더 준다.
@@ -210,9 +216,10 @@ function visible(nodes: ContentNode[]): ContentNode[] {
   const merged: ContentNode[] = [];
   for (const node of nodes) {
     if (node.type === "hardBreak") { merged.push({ type: "hardBreak" }); continue; }
-    const text = withoutMarkers(node.type === "fileRef" ? String(node.attrs?.label ?? "") : node.text ?? "");
+    // 폼 피드는 읽는 쪽이 공백처럼 합치는 글자라 공백으로 센다.
+    const text = protect(node.type === "fileRef" ? String(node.attrs?.label ?? "") : node.text ?? "").replace(/\f/g, " ");
     // 글자 안의 줄바꿈도 줄바꿈 노드로 나눈다. 그래야 코드·링크·강조가 줄 단위로 닫힌다.
-    for (const [index, line] of text.split(/\r?\n/).entries()) {
+    for (const [index, line] of text.split(lineBreaks).entries()) {
       if (index) merged.push({ type: "hardBreak" });
       const last = merged[merged.length - 1];
       if (!line) continue;
@@ -255,7 +262,7 @@ function inline(source: ContentNode[], inTable: boolean): string {
   const render = (nodes: ContentNode[], level: number): string => {
     if (level === emphasis.length)
       return nodes.map(node => node.type === "hardBreak" ? BREAK
-        : hasMark(node, "code") ? codeSpan(node.text!, inTable) : escapeText(node.text!).replace(/\r?\n/g, BREAK)).join("");
+        : hasMark(node, "code") ? codeSpan(node.text!, inTable) : escapeText(node.text!)).join("");
     const parts = runs(nodes, node => hasMark(node, emphasis[level][0])).map(([marked, run]) => ({ marked, text: render(run, level + 1) }));
     return parts.map((part, index) => part.marked
       ? emphasize(part.text, emphasis[level][1], parts[index - 1]?.text ?? "", parts[index + 1]?.text ?? "") : part.text).join("");
@@ -293,7 +300,7 @@ export function toMarkdown(document: WriterDocument): string {
       return text ? [headingLine(attrs.level === 2 ? 2 : attrs.level === 3 ? 3 : 1, text)] : [];
     }
     if (node.type === "codeBlock") {
-      const code = withoutMarkers(inlineText(node)), language = /^[\w+#.-]{1,40}$/.test(String(attrs.language ?? "")) ? String(attrs.language) : "";
+      const code = protect(inlineText(node)), language = /^[\w+#.-]{1,40}$/.test(String(attrs.language ?? "")) ? String(attrs.language) : "";
       const fence = "`".repeat(Math.max(3, ...[...code.matchAll(/`+/g)].map(run => run[0].length + 1)));
       // 닫는 표시 앞의 줄바꿈이 코드의 마지막 줄바꿈 몫을 하므로, 줄바꿈으로 끝나는 코드에 빈 줄을 더하지 않는다.
       return [fence + language, ...(code.endsWith("\n") ? code.slice(0, -1) : code).split("\n"), fence];
@@ -304,12 +311,13 @@ export function toMarkdown(document: WriterDocument): string {
       return children.flatMap((item, index) => {
         const marker = node.type === "bulletList" ? "- " : `${Number(attrs.start ?? 1) + index}. `;
         // 문단 바로 뒤의 하위 목록은 빈 줄 없이 붙여야 목록 전체가 느슨한 목록으로 바뀌지 않는다.
-        const body = (item.content ?? []).reduce<string[]>((lines, child) => {
+        const body: string[] = [];
+        for (const child of item.content ?? []) {
           const next = block(child);
-          if (!next.length) return lines;
-          const nested = child.type === "bulletList" || child.type === "orderedList";
-          return lines.length ? [...lines, ...(nested ? [] : [""]), ...next] : next;
-        }, []);
+          if (!next.length) continue;
+          if (body.length && child.type !== "bulletList" && child.type !== "orderedList") body.push("");
+          for (const line of next) body.push(line);
+        }
         return (body.length ? body : [""]).map((line, row) => row ? (line ? " ".repeat(marker.length) + line : "") : (marker + line).trimEnd());
       });
     if (node.type === "media") {
@@ -337,7 +345,7 @@ export function toMarkdown(document: WriterDocument): string {
     return join(blocks(children));
   };
   const title = oneLine(plain(document.title));
-  return (join([...(title ? [[headingLine(1, title)]] : []), ...blocks(document.content.content ?? [])]).join("\n") + "\n").replaceAll(CODE_SPACE, " ").replaceAll(NBSP, "&nbsp;");
+  return restore(join([...(title ? [[headingLine(1, title)]] : []), ...blocks(document.content.content ?? [])]).join("\n") + "\n");
 }
 
 /** 사진 원본. 백업과 같은 기준으로, 없거나 보관 중에 바뀐 사진은 성한 것처럼 내보내지 않는다. */

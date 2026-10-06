@@ -89,6 +89,8 @@ describe("PC 저장: 마크다운", () => {
       paragraph(text(" 걸린 글 ", link), text("뒤")),
       // 강조 가장자리가 문장부호이고 옆이 글자이면 빈 주석을 두어 기호가 글자로 보이지 않게 한다.
       paragraph(text("원보드(Wonboard)", { type: "bold" }), text("는")),
+      // 혼자 있는 CR도 줄바꿈이고, 변환이 안에서 표시로 쓰는 제어 글자가 글에 있어도 지워지지 않는다.
+      paragraph(text("가\r나\u0000\u0001\u0002\u0003다")),
     ], ["바다.png"]);
     Object.assign(draft.document.content.content!.at(-1)!.attrs!, { alt: " 바다  사진\n둘째 줄 ", caption: "" });
     expect(toMarkdown(draft.document)).toBe([
@@ -96,6 +98,7 @@ describe("PC 저장: 마크다운", () => {
       "`첫 줄`\\", "`둘째 줄`", "",
       "[&nbsp;걸린 글 ](https://example.com/a\\(b\\) \" 풍선&#10;말 \")뒤", "",
       "**원보드(Wonboard)**<!-- -->는", "",
+      "가\\", "나\u0000\u0001\u0002\u0003다", "",
       "![ 바다  사진&#10;둘째 줄 ](images/바다.png)", "",
     ].join("\n"));
   });
