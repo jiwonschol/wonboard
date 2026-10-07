@@ -78,7 +78,7 @@ Sites 기능은 다음 문서를 정본으로 참조합니다. 원보드의 저�
 1. **내 글을 모아 둡니다.** 글 목록에서 초안을 찾고 이어 씁니다.
 2. **글에 집중합니다.** 워드프로세서처럼 서식을 지정하고 사진을 원하는 위치에 넣어 크기를 조절합니다.
 3. **필요한 만큼만 다듬습니다.** 한영 통합 맞춤법 검사는 수정안을 제시하되 문체를 대신 결정하지 않습니다. 그대로 두고 넘어가는 것도 자연스러운 선택입니다.
-4. **원하는 곳으로 옮깁니다.** 「공유하기」가 게시용 이미지 URL과 HTML을 준비해 같은 글을 여러 커뮤니티에 옮기는 수고를 줄입니다. 「PC 저장」은 글을 PDF·텍스트·마크다운 파일이나 백업(.zip)으로 남깁니다.
+4. **원하는 곳으로 옮깁니다.** 「공유하기」가 게시용 이미지 URL과 HTML을 준비해 같은 글을 여러 커뮤니티에 옮기는 수고를 줄입니다. 「PC 저장」은 글을 PDF·워드·텍스트·마크다운 파일이나 백업(.zip)으로 남깁니다.
 
 외부 사이트가 허용하는 HTML·글꼴·이미지 정책은 서로 다릅니다. 문단과 사진 배치를 가능한 한 잘 유지하는 것이 목표이며 모든 커뮤니티에서 완전히 동일한 표시를 보장하지 않습니다.
 
@@ -91,7 +91,7 @@ Sites판, 데스크톱판, 개발자용 로컬 웹은 편집기·문서 형식·
 ## 개발 상태
 
 - **버전:** 0.1.0-beta.1. 화면 위쪽 막대와 「더 보기」에 베타 표시와 버전 번호가 나옵니다.
-- **편집기(세 판 공통):** 글 목록, 서식, 글상자·표, 사진 삽입·크기 조절, 영상 링크, 미리보기, 휴지통, 파일 보관함, 「PC 저장」(PDF·텍스트·마크다운·ZIP 백업)과 「백업 가져오기」를 구현했습니다.
+- **편집기(세 판 공통):** 글 목록, 서식, 글상자·표, 사진 삽입·크기 조절, 영상 링크, 미리보기, 휴지통, 파일 보관함, 「PC 저장」(PDF·워드·텍스트·마크다운·ZIP 백업)과 「백업 가져오기」를 구현했습니다.
 - **Sites판:** 개인 문서 저장, 비공개 원본과 공개 게시 이미지 분리, 「공유하기」(사진 공개와 HTML 준비)를 구현했습니다. 실제 설치와 동작은 만든 사람의 계정에서만 확인했고, 다른 계정과 운영 안정성 검증은 남아 있습니다.
 - **데스크톱판:** 공유 편집기와 이 컴퓨터 저장을 구현했습니다. 확인 범위와 빠진 것은 [데스크톱판](#데스크톱판)에 적었습니다.
 - **한영 통합 검사:** 자체 검사기가 한국어 철자·띄어쓰기와 영어 철자·일부 문법 수정안을 제공합니다. [정확도 재점검](https://github.com/jiwonschol/wonboard/issues/6)이 진행 중이며 문맥 전체를 판단하지는 못합니다.
@@ -118,7 +118,7 @@ pnpm install
 pnpm dev
 ```
 
-Open http://127.0.0.1:5173. Korean/English writing, a collapsible document list, image insertion and resizing, an attachment sidebar, YouTube/Vimeo links, browser draft storage, preview, Save to PC (PDF, text, Markdown) and ZIP backup/restore are implemented locally. Share works only in the Sites edition. Browser data can be removed by the browser or user: download backups of important drafts.
+Open http://127.0.0.1:5173. Korean/English writing, a collapsible document list, image insertion and resizing, an attachment sidebar, YouTube/Vimeo links, browser draft storage, preview, Save to PC (PDF, Word, text, Markdown) and ZIP backup/restore are implemented locally. Share works only in the Sites edition. Browser data can be removed by the browser or user: download backups of important drafts.
 
 Attachment filenames follow the current document title by default; switching this off preserves the original filename. These are publishing names, not an upload: cloud hosting is not connected. Video playback options are saved with the document; external players load only in Preview and remain subject to the provider's embed permissions and browser autoplay policy.
 

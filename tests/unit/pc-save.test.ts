@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { newDraft, sha256, type ContentNode, type Draft } from "@wonboard/document";
 import { unzipSync, strFromU8 } from "../../packages/document/node_modules/fflate";
 import { markdownFile, textFile, toMarkdown } from "../../apps/client/src/pcSave";
+import { wordFile } from "../../apps/client/src/wordSave";
 
 const text = (value: string, ...marks: { type: string; attrs?: Record<string, unknown> }[]): ContentNode =>
   ({ type: "text", text: value, ...(marks.length ? { marks } : {}) });
@@ -130,5 +131,71 @@ describe("PC 저장: 마크다운", () => {
       "```", "a", "```", "",
       "|  |", "| --- |", "| 첫 행 |", "",
     ].join("\n"));
+  });
+});
+
+describe("PC 저장: 워드", () => {
+  const parts = async (draft: Draft) => {
+    const file = await wordFile(draft), entries = unzipSync(new Uint8Array(await file.blob.arrayBuffer()));
+    return { file, entries, body: strFromU8(entries["word/document.xml"]), relations: strFromU8(entries["word/_rels/document.xml.rels"]) };
+  };
+  it("제목·문단·소제목·목록·인용·표·링크·사진이 문서와 같은 순서로 들어 있다", async () => {
+    const { file, entries, body, relations } = await parts(await draftWith([
+      paragraph(text("첫 문단")),
+      { type: "heading", attrs: { level: 2 }, content: [text("소제목")] },
+      { type: "orderedList", attrs: { start: 3, type: "a" }, content: [{ type: "listItem", content: [paragraph(text("목록 항목"))] }] },
+      { type: "blockquote", content: [paragraph(text("인용한 글"))] },
+      { type: "table", content: [{ type: "tableRow", content: [
+        { type: "tableHeader", content: [paragraph(text("머리 칸"))] }, { type: "tableCell", content: [paragraph(text("보통 칸"))] }] }] },
+      paragraph(text("걸린 글", { type: "link", attrs: { href: "https://example.com/?a=1&b=2" } })),
+    ], ["바다.png"]));
+    expect(file.name).toBe("제주 여행.docx");
+    expect(file.photos).toBe(1);
+    // 워드가 읽는 순서대로: 글자는 <w:t>에, 구조는 그 문단·표의 요소에 있다.
+    const order = [
+      '<w:pStyle w:val="Title"/></w:pPr><w:r><w:t xml:space="preserve">제주 여행</w:t>',
+      '<w:p><w:r><w:t xml:space="preserve">첫 문단</w:t>',
+      '<w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t xml:space="preserve">소제목</w:t>',
+      '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>', "목록 항목",
+      '<w:pBdr><w:left ', "인용한 글",
+      "<w:tbl>", "<w:tc>", "머리 칸", "</w:tc><w:tc>", "보통 칸", "</w:tc></w:tr></w:tbl>",
+      '<w:hyperlink r:id="rId4" w:history="1">', "걸린 글", "</w:hyperlink>",
+      '<w:drawing>', '<a:blip r:embed="rId3"/>', "</w:drawing>", "바닷가",
+    ];
+    let from = 0;
+    for (const piece of order) {
+      const at = body.indexOf(piece, from);
+      expect(at, piece).toBeGreaterThanOrEqual(0);
+      from = at + piece.length;
+    }
+    // 번호 목록은 문서의 번호 모양(a, b, c)과 시작 번호를 갖고, 링크와 사진은 관계 파일을 거쳐 주소와 원본을 가리킨다.
+    expect(strFromU8(entries["word/numbering.xml"])).toContain('<w:num w:numId="1"><w:abstractNumId w:val="2"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="3"/>');
+    expect(relations).toContain('Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.com/?a=1&amp;b=2" TargetMode="External"');
+    expect(relations).toContain('Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"');
+    expect([...entries["word/media/image1.png"]]).toEqual([1, 2, 3]);
+    // 워드는 목차 파일이 맨 앞에 있어야 읽는다.
+    expect(Object.keys(entries)[0]).toBe("[Content_Types].xml");
+  });
+  it("굵게·기울임·밑줄·취소선·글자색·글자 크기·글꼴 이름이 남는다", async () => {
+    const { body } = await parts(await draftWith([paragraph(
+      text("굵게", { type: "bold" }), text("기울임", { type: "italic" }), text("밑줄", { type: "underline" }), text("취소선", { type: "strike" }),
+      text("꾸민 글", { type: "textStyle", attrs: { color: "#ff0000", fontSize: 24, fontFamily: "nanum-gothic" } }),
+    )]));
+    const font = "나눔고딕";
+    expect(body).toContain([
+      '<w:r><w:rPr><w:b/><w:bCs/></w:rPr><w:t xml:space="preserve">굵게</w:t></w:r>',
+      '<w:r><w:rPr><w:i/><w:iCs/></w:rPr><w:t xml:space="preserve">기울임</w:t></w:r>',
+      '<w:r><w:rPr><w:u w:val="single"/></w:rPr><w:t xml:space="preserve">밑줄</w:t></w:r>',
+      '<w:r><w:rPr><w:strike/></w:rPr><w:t xml:space="preserve">취소선</w:t></w:r>',
+      // 글자 크기는 반 포인트 단위다. 24px = 18pt = 36.
+      `<w:r><w:rPr><w:rFonts w:ascii="${font}" w:hAnsi="${font}" w:eastAsia="${font}" w:cs="${font}"/><w:color w:val="FF0000"/><w:sz w:val="36"/><w:szCs w:val="36"/></w:rPr><w:t xml:space="preserve">꾸민 글</w:t></w:r>`,
+    ].join(""));
+  });
+  it("공백·줄바꿈·특수 문자는 글자 그대로 남고, XML에 쓸 수 없는 글자만 빠진다", async () => {
+    const draft = await draftWith([paragraph(text("  가  나 \t<다> & \"라\"\r\n마\u2028바\u0000\u0001\u000b\uffff사"), { type: "hardBreak" }, text(" "))]);
+    draft.document.title = "";
+    const { body } = await parts(draft);
+    expect(body).toContain('<w:body><w:p><w:r><w:t xml:space="preserve">  가  나 </w:t><w:tab/><w:t xml:space="preserve">&lt;다&gt; &amp; "라"</w:t><w:br/>'
+      + '<w:t xml:space="preserve">마</w:t><w:br/><w:t xml:space="preserve">바사</w:t></w:r><w:r><w:br/></w:r><w:r><w:t xml:space="preserve"> </w:t></w:r></w:p>');
   });
 });

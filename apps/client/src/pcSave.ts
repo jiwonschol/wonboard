@@ -88,7 +88,7 @@ function orderedMarker(type: unknown, value: number) {
   return `${label}. `;
 }
 
-const videoLabel = (attrs: Record<string, unknown>) => `${attrs.provider === "youtube" ? "YouTube" : "Vimeo"} · ${attrs.videoId}`;
+export const videoLabel = (attrs: Record<string, unknown>) => `${attrs.provider === "youtube" ? "YouTube" : "Vimeo"} · ${attrs.videoId}`;
 
 /** 서식 없는 글. 사진 자리에는 `photo(파일 이름)`이 돌려준 표시만 남는다. */
 export function toPlainText(document: WriterDocument, photo: (name: string) => string): string {
@@ -136,7 +136,7 @@ const protect = (text: string) => text.replace(/[\u0000-\u0003]/g, char => ESCAP
 const restore = (text: string) => text.replaceAll(CODE_SPACE, " ").replaceAll(NBSP, "&nbsp;")
   .replace(/\u0003([0-3])/g, (_, code) => String.fromCharCode(Number(code)));
 // 화면에서 줄을 바꾸는 글자: 줄바꿈, 혼자 있는 CR, 유니코드 줄·문단 구분자.
-const lineBreaks = /\r\n|[\r\n\u2028\u2029]/;
+export const lineBreaks = /\r\n|[\r\n\u2028\u2029]/;
 const escapeText = (text: string) => text.replace(/[\\`*_[\]<>~|&]/g, "\\$&");
 const escapeAttribute = (text: string) => escapeText(protect(text)).replace(/"/g, "\\\"").replace(/\r/g, "&#13;").replace(/\n/g, "&#10;").replace(/\t/g, "&#9;");
 const blockStart = (line: string) => line.replace(/^([#>+\-=])/, "\\$1").replace(/^(\d+)([.)])/, "$1\\$2");
@@ -189,7 +189,7 @@ const headingLine = (level: number, text: string) => `${"#".repeat(level)} ${tex
 const emphasis = [["bold", "**"], ["italic", "*"], ["strike", "~~"]] as const;
 const hasMark = (node: ContentNode, type: string) => node.marks?.some(mark => mark.type === type) ?? false;
 /** 링크의 주소와 제목(풍선 도움말)을 줄바꿈으로 이은 값. 링크가 아니면 빈 문자열이다. 주소에는 공백이 없어 첫 줄바꿈이 경계다. */
-const linkOf = (node: ContentNode) => {
+export const linkOf = (node: ContentNode) => {
   const attrs = node.marks?.find(mark => mark.type === "link")?.attrs;
   return safeLink(attrs?.href) ? `${attrs.href}\n${typeof attrs.title === "string" ? attrs.title : ""}` : "";
 };
@@ -199,7 +199,7 @@ const linkTitle = (title: string) => title ? ` "${escapeAttribute(title)}"` : ""
 const destination = (href: string, inTable: boolean) => (inTable ? href.replace(/\|/g, "%7C") : href)
   .replace(/[<>]/g, encodeURIComponent).replace(/[\\()]/g, "\\$&").replace(/&/g, "&amp;");
 /** 이웃한 노드를 같은 값끼리 묶는다. */
-function runs<T>(nodes: ContentNode[], key: (node: ContentNode) => T): [T, ContentNode[]][] {
+export function runs<T>(nodes: ContentNode[], key: (node: ContentNode) => T): [T, ContentNode[]][] {
   const out: [T, ContentNode[]][] = [];
   for (const node of nodes) {
     const value = key(node), last = out[out.length - 1];

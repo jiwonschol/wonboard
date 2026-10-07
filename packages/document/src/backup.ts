@@ -1,4 +1,4 @@
-import { zip, unzip, strToU8, strFromU8 } from "fflate";
+import { zip, unzip, strToU8, strFromU8, type Zippable } from "fflate";
 import {
   DocumentError,
   limits,
@@ -11,8 +11,11 @@ import {
   type WriterDocument,
 } from "./index";
 
-/** 압축 없이 묶는다. 사진은 이미 압축된 형식이라 다시 줄지 않는다. */
-export const zipFiles = (files: Record<string, Uint8Array>) =>
+/**
+ * 압축 없이 묶는다. 사진은 이미 압축된 형식이라 다시 줄지 않는다.
+ * 글처럼 줄어드는 파일만 `[바이트, { level }]`로 넘겨 따로 압축한다.
+ */
+export const zipFiles = (files: Zippable) =>
   new Promise<Uint8Array<ArrayBuffer>>((resolve, reject) =>
     zip(files, { level: 0 }, (error, result) =>
       error ? reject(error) : resolve(result as Uint8Array<ArrayBuffer>),
