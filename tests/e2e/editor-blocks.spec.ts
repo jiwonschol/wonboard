@@ -236,7 +236,7 @@ for (const locale of ["ko", "en"] as const)
       await page.keyboard.press("/");
       await expectInside(page.locator(".inserter"), width);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      await page.screenshot({ path: `/private/tmp/wonboard-editor-blocks-${locale}-${width}.png` });
+      await page.screenshot({ path: `test-results/wonboard-editor-blocks-${locale}-${width}.png` });
     });
 
 test("copied text box and table keep their color and cells when pasted back", async ({ page, browserName }) => {

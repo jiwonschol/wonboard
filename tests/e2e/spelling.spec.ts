@@ -22,6 +22,11 @@ for(const locale of ['ko','en'])test(`unbroken-token analysis limit is explained
     await expect(dialog).toContainText(ko?'철자 검사를 마쳤습니다.':'Spelling review complete.');
     await dialog.getByRole('button',{name:ko?'닫기':'Close',exact:true}).click();
     await expect(body).toHaveText(word);
+    // 닫기는 다음 화면 갱신 때 본문으로 초점과 커서를 돌려놓는다. 그 전에 다음 글을
+    // 채우면 전체 선택이 풀려 앞 글 뒤에 이어 붙는다. Safari는 초점만 먼저 옮기므로
+    // 초점이 아니라 화면 갱신을 기다린다.
+    await expect(body).toBeFocused();
+    await page.evaluate(()=>new Promise<void>(done=>requestAnimationFrame(()=>requestAnimationFrame(()=>done()))));
   }
 });
 
@@ -357,7 +362,10 @@ test(`particle correction preserves actual ${mark} content through undo and save
     const protectedHtml = kind === "code" ? "<code>아즈휼</code>" : '<a href="https://example.com/path?source=proofread">아즈휼</a>';
     transfer.setData("text/html", `<p>${protectedHtml} 에서 됬어요.</p>`);
     transfer.setData("text/plain", "아즈휼 에서 됬어요.");
-    node.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: transfer }));
+    const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: transfer });
+    // Firefox는 만들어 낸 붙여넣기 이벤트에 넘긴 clipboardData를 버린다.
+    if (!event.clipboardData?.getData("text/html")) Object.defineProperty(event, "clipboardData", { value: transfer });
+    node.dispatchEvent(event);
   }, mark);
   const protectedNode = body.locator(mark === "code" ? "code" : "a");
   await expect(protectedNode).toHaveText("아즈휼");
@@ -974,6 +982,9 @@ test("Korean spelling applies only chosen words and persists personal exceptions
   await expect(dialog).toContainText("Spelling review complete.");
   await dialog.getByText("Personal dictionary (1)", { exact: true }).click();
   await dialog.getByRole("button", { name: "Remove 실바나스", exact: true }).click();
+  // 삭제가 저장된 것을 본 뒤 닫는다. 저장 전에 닫고 다시 열면 뒤늦은 저장이 새 검사를
+  // 처음부터 다시 시작시켜 건너뛴 자리가 어긋난다.
+  await expect(dialog.getByText("Personal dictionary (0)", { exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await tool.click();
   await expect(dialog.getByRole("button", { name: "됐어요", exact: true })).toBeVisible();
