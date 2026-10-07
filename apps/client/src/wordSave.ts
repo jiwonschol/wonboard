@@ -138,7 +138,8 @@ export function toWordParts(document: WriterDocument): { files: Record<string, s
   relation("styles", "styles.xml");
   for (const [index, id] of [...names.keys()].entries()) pictures.set(id, `word/media/image${index + 1}.${document.media[id].mime === "image/png" ? "png" : "jpeg"}`);
   const pictureIds = new Map([...pictures].map(([id, path]) => [id, relation("image", path.slice("word/".length))]));
-  const linkId = (href: string) => linkIds.get(href) ?? linkIds.set(href, relation("hyperlink", href, true)).get(href)!;
+  // 관계 파일의 주소는 URI여야 한다. 브라우저가 링크를 열 때 쓰는 꼴(한글 등은 %로 바꾼 것)로 적는다.
+  const linkId = (href: string) => linkIds.get(href) ?? linkIds.set(href, relation("hyperlink", new URL(href).href, true)).get(href)!;
   const hyperlink = (href: string, title: string, inner: string) =>
     `<w:hyperlink r:id="${linkId(href)}"${title ? ` w:tooltip="${escapeAttribute(title)}"` : ""} w:history="1">${inner}</w:hyperlink>`;
 
