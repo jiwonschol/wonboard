@@ -25,3 +25,4 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build:site  # 소개 페이지 빌드와 설치 문장 대조 검사
+      - run: pnpm build:desktop  # 데스크톱판 빌드. 설치 파일은 만들지 않는다

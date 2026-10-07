@@ -1,6 +1,8 @@
 # Desktop client
 
-The Windows and macOS clients share `apps/desktop`. Its renderer imports the existing `apps/client/src/App.tsx`; the editor, document format, renderer, and translations remain shared with the web app.
+The desktop edition lives in `apps/desktop`. Its renderer imports the existing `apps/client/src/App.tsx`; the editor, document format, renderer, and translations remain shared with the web app.
+
+Status in 0.1.0-beta.1: the desktop edition is a companion for ChatGPT subscribers who need a desktop app, and during the beta it is for people who build it themselves. No installer, signed build or notarized build is distributed, and it is not published to the Mac App Store. Windows is excluded from the beta because it has never been checked on a real device.
 
 ## Build and run
 
@@ -13,15 +15,17 @@ pnpm desktop
 pnpm package:desktop
 ```
 
-Packaging creates a local application under `dist/desktop` for the current OS and architecture. The first target is macOS 13+ (Apple Silicon and Intel) and Windows 10/11 x64. Other platform builds and signed distribution require separate verification. These commands do not publish or deploy anything.
+Requires Node.js 22.13+ and pnpm 11.19.0. Packaging creates an unsigned local application under `dist/desktop` for the current OS and architecture. The only checked target is an Apple Silicon Mac (see the verification record below); Intel Mac and Windows builds are unverified. These commands do not publish or deploy anything. CI runs `pnpm build:desktop` on every pull request; it does not package or launch the app.
 
 ## Storage and privacy
 
 Electron's user-data directory contains `library/documents.sqlite` and `library/images/<sha256>`. On macOS this is normally `~/Library/Application Support/Wonboard/`. The renderer has no filesystem access: a sandboxed preload exposes only document list, load, and save operations. The main process validates documents, checks photo hashes, and rejects stale revisions. Photos are written before the SQLite transaction commits. Unreferenced photos are retained for now rather than risking deletion of a needed file.
 
-Documents save automatically and through the existing Save button. The status says “Saved to this device”, not saved to Sites. Closing with pending changes keeps the window open. Local data is not encrypted; the OS account controls access. Export backups using the editor's existing backup command.
+Documents save automatically and through the existing Save button. The status says “Saved to this device”, not saved to Sites. Closing with pending changes shows a warning in the current interface language and keeps the window open unless the user chooses to quit. Local data is not encrypted; the OS account controls access.
 
-Sites synchronization and public image hosting are not connected in this first desktop milestone. Publication remains disabled; installing this app does not silently upload documents or photos. The browser and desktop currently have separate libraries.
+The desktop edition uploads nothing. The Share button is visible, but outside the Sites edition it only shows a notice that sharing works in Wonboard installed on a ChatGPT site. Save to PC writes PDF, text, Markdown or a ZIP backup to this computer.
+
+The desktop library and a Sites installation are separate and are not synchronized. To move a document, download a backup (.zip) from Save to PC on one side and open it with Restore backup on the other. `tests/unit/desktop-backup-restore.test.ts` checks that a backup made from the desktop store opens through the browser-side restore with the same title, body and photo. The user-facing description of what is stored and what leaves is the [privacy and storage guide](https://jiwonschol.github.io/wonboard/privacy.html#english).
 
 ## Acceptance
 

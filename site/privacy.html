@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1e1e1e" />
+    <meta name="description" content="원보드가 글과 사진을 어디에 저장하는지, 무엇이 밖으로 나가는지, 무엇을 수집하지 않는지 판별로 설명합니다." />
+    <title>원보드 개인정보·저장 안내 / Wonboard privacy and storage</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="wrap top-row">
+        <a class="name" href="./">Wonboard</a>
+        <span class="beta">베타</span>
+        <nav aria-label="바로가기">
+          <a href="#english">English</a>
+          <a href="./">소개</a>
+          <a href="https://github.com/jiwonschol/wonboard">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="wrap prose">
+        <h1>개인정보·저장 안내</h1>
+        <p class="lead">원보드는 중앙 서버, 회원 DB, 분석 도구를 두지 않습니다. 글과 사진은 내가 설치한 곳에만 저장되고, 원보드를 만든 쪽으로는 아무것도 오지 않습니다.</p>
+        <p>이 안내는 원보드 <!--VERSION--> 기준이며, 판(版)마다 저장 위치와 밖으로 나가는 것이 다릅니다. 내가 쓰는 판은 넓은 화면에서 편집 화면 위쪽 막대 오른쪽에 적혀 있습니다. “내 ChatGPT Site”는 Sites판, “이 기기에 보관”은 데스크톱판, “이 브라우저에 보관”은 로컬 웹입니다.</p>
+      </section>
+
+      <section class="band">
+        <div class="wrap prose">
+          <h2>Sites판 — 내 ChatGPT 사이트에 설치한 원보드</h2>
+          <h3>저장 위치</h3>
+          <ul>
+            <li>글, 원본 사진, 첨부 파일은 내 ChatGPT 사이트에 딸린 데이터베이스와 파일 저장소에 저장됩니다. 이 저장소는 OpenAI가 운영하는 Sites에 있고, 원보드를 만든 쪽은 접근할 수 없습니다.</li>
+            <li>같은 데이터베이스에 소유자의 ChatGPT 사용자 ID, 시작 안내를 확인한 시각, 그때 고른 화면 언어가 한 줄 저장됩니다. 소유자 계정을 가려내는 데 씁니다.</li>
+            <li>브라우저에는 화면 언어, 개인 맞춤법 사전, 글꼴 안내를 본 기록이 남습니다. 사이트에 저장하지 못한 편집 내용이 있으면 복구용 사본도 이 브라우저에 남습니다.</li>
+          </ul>
+          <h3>밖으로 나가는 것</h3>
+          <ul>
+            <li><strong>공유한 사진.</strong> 「공유하기」에서 공개를 확인한 사진에만 외부 주소가 생깁니다. 주소를 아는 사람은 누구나 사진을 보거나 복사할 수 있습니다. 표를 이미지로 바꿔 공유하면 그 이미지도 같습니다. 초안 자체는 공개되지 않습니다.</li>
+            <li><strong>공유 글 사본과 공개 파일 링크.</strong> 직접 만든 경우에만 생기고, 링크를 아는 사람이 볼 수 있습니다. 파일 보관함에서 철회하거나 지울 수 있습니다.</li>
+            <li><strong>미리보기의 영상.</strong> 글에 넣은 YouTube·Vimeo 영상은 편집 중에는 링크 카드로만 보입니다. 「미리보기」를 열면 플레이어를 불러오고, 이때 내 브라우저가 영상 제공자(youtube-nocookie.com 또는 player.vimeo.com)에 연결됩니다.</li>
+            <li><strong>외부 이미지 불러오기는 하지 않습니다.</strong> 원보드 화면은 다른 사이트의 이미지를 불러오지 않습니다. 붙여넣은 글에 들어 있는 원격 이미지는 받지 않고, 내가 넣은 사진 파일만 표시합니다.</li>
+            <li>공유한 사진을 게시판에 붙이면, 그 글을 읽는 사람의 브라우저가 내 사이트에서 사진을 받아 갑니다. 이 요청은 OpenAI의 Sites가 처리합니다.</li>
+            <li>로그인은 ChatGPT 로그인입니다. 사이트는 로그인한 방문자의 ChatGPT 사용자 ID를 소유자 확인에 쓰고, 전달되는 이름·이메일은 화면에 보여 주는 데만 쓰며 저장하지 않습니다.</li>
+          </ul>
+          <h3>알아둘 것</h3>
+          <ul>
+            <li>워크스페이스에서 사이트 편집자로 초대한 사람은 초안을 포함한 실제 데이터를 읽을 수 있습니다. 원보드의 소유자 확인은 이 접근을 막지 못합니다.</li>
+            <li>호스팅, 접속 기록, 방문 통계는 OpenAI가 자체 약관에 따라 운영합니다. <a href="https://openai.com/policies/chatgpt-sites-terms/">ChatGPT Sites 이용약관</a>과 <a href="https://learn.chatgpt.com/docs/sites?surface=app#review-site-analytics">Sites 방문 통계 안내</a>를 확인하세요.</li>
+            <li>사이트를 다른 사람이 방문하게 한다면, 방문자에게 정보의 수집·이용을 설명할 책임은 사이트를 설치한 본인에게 있습니다.</li>
+            <li>공개를 철회하면 사진 주소가 꺼지지만, 이미 내려받았거나 다른 곳에 복사된 사본은 회수되지 않습니다.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="wrap prose">
+        <h2>데스크톱판 — 직접 빌드해 쓰는 Mac 앱</h2>
+        <h3>저장 위치</h3>
+        <ul>
+          <li>글과 사진은 이 컴퓨터에만 저장됩니다. macOS에서는 보통 <code>~/Library/Application Support/Wonboard/library/</code>입니다.</li>
+          <li>자료는 암호화하지 않습니다. 이 컴퓨터의 사용자 계정에 접근할 수 있는 사람은 읽을 수 있습니다.</li>
+          <li>로그인이 없고 계정 정보를 받지 않습니다.</li>
+        </ul>
+        <h3>밖으로 나가는 것</h3>
+        <ul>
+          <li><strong>공유한 사진: 없습니다.</strong> 데스크톱판에는 공유 기능이 없어 사진이나 글을 어디에도 올리지 않습니다. 「PC 저장」은 이 컴퓨터에 파일을 만들 뿐입니다.</li>
+          <li><strong>미리보기의 영상.</strong> Sites판과 같습니다. 「미리보기」를 열 때만 영상 제공자에 연결됩니다.</li>
+          <li><strong>외부 이미지 불러오기는 하지 않습니다.</strong> Sites판과 같습니다.</li>
+          <li>글 안의 링크나 이 안내를 누르면 기본 브라우저가 그 주소를 엽니다.</li>
+          <li>우클릭 메뉴의 맞춤법 추천은 macOS의 맞춤법 검사기를 씁니다.</li>
+        </ul>
+        <p>데스크톱판에서 Sites판으로, 또는 그 반대로 글을 옮기는 길은 ZIP 백업과 「백업 가져오기」입니다. 두 곳의 글은 자동으로 맞춰지지 않습니다.</p>
+      </section>
+
+      <section class="band">
+        <div class="wrap prose">
+          <h2>로컬 웹 — 개발자가 자기 컴퓨터에서 띄우는 미리보기</h2>
+          <h3>저장 위치</h3>
+          <ul>
+            <li>글과 사진은 그 브라우저의 저장 공간에만 저장됩니다. 암호화하지 않으며, 브라우저나 사용자가 저장 공간을 비우면 사라집니다.</li>
+            <li>로그인은 같은 컴퓨터에서 도는 개발 서버가 확인하는 1인용 테스트 로그인입니다. 아이디와 비밀번호는 그 컴퓨터의 설정 파일에 있습니다.</li>
+          </ul>
+          <h3>밖으로 나가는 것</h3>
+          <ul>
+            <li><strong>공유한 사진: 없습니다.</strong> 공유 기능이 없습니다.</li>
+            <li><strong>미리보기의 영상</strong>과 <strong>외부 이미지</strong>는 다른 판과 같습니다.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="wrap prose">
+        <h2>어느 판에서도 수집하지 않는 것</h2>
+        <ul>
+          <li>원보드를 만든 쪽 서버로 가는 글, 사진, 계정 정보, 사용 기록이 없습니다. 그런 서버가 없습니다.</li>
+          <li>분석 도구, 광고, 추적 코드가 없습니다.</li>
+          <li>원보드 회원 가입과 회원 DB가 없습니다.</li>
+          <li>맞춤법 검사는 내 브라우저(또는 앱) 안에서 돌고, 글을 밖으로 보내지 않습니다.</li>
+          <li>글꼴은 원보드에 들어 있는 파일을 쓰고, 외부 글꼴 서버에 연결하지 않습니다.</li>
+        </ul>
+        <p>이 안내 페이지와 원보드 소개 페이지는 GitHub Pages에 있습니다. 이 페이지를 열면 GitHub이 접속을 처리합니다.</p>
+
+        <h2>지우는 방법</h2>
+        <ul>
+          <li>Sites판: 중요한 글을 ZIP으로 백업한 뒤 ChatGPT의 Sites에서 사이트를 지웁니다. 순서는 <a href="https://github.com/jiwonschol/wonboard/blob/main/docs/install/README.md#그만-쓰는-방법">그만 쓰는 방법</a>에 있습니다.</li>
+          <li>데스크톱판: 앱을 지우고 위 저장 폴더를 지웁니다.</li>
+          <li>로컬 웹: 브라우저에서 그 주소의 사이트 데이터를 지웁니다.</li>
+        </ul>
+
+        <h2>문의</h2>
+        <p>궁금한 점이나 문제는 <a href="https://github.com/jiwonschol/wonboard/issues">GitHub Issues</a>에 남겨 주세요. GitHub Issues는 공개된 곳이니 연결 ID, 이메일, 사이트 주소처럼 나를 가리키는 값은 지우고 올려 주세요.</p>
+      </section>
+
+      <section class="band" id="english" lang="en">
+        <div class="wrap prose">
+          <h1>Privacy and storage</h1>
+          <p class="lead">Wonboard has no central server, no member database and no analytics. Your writing and photos stay where you installed Wonboard; nothing is sent to the people who make it.</p>
+          <p>This page describes Wonboard <!--VERSION-->. Storage differs by edition. On a wide screen, the right side of the top bar in the editor shows yours: “My ChatGPT Site” is the Sites edition, “On this device” is the desktop edition, and “Saved in this browser” is the local web preview.</p>
+
+          <h2>Sites edition — Wonboard installed on your own ChatGPT site</h2>
+          <h3>Where data is stored</h3>
+          <ul>
+            <li>Documents, original photos and attached files are stored in the database and file storage attached to your ChatGPT site. OpenAI operates that storage as part of Sites. The makers of Wonboard cannot reach it.</li>
+            <li>The same database keeps one row with the owner's ChatGPT user ID, the time the owner acknowledged the start notice, and the interface language chosen then. It is used to recognise the owner account.</li>
+            <li>Your browser keeps the interface language, your personal spelling dictionary and whether you have seen the font notice. If edits could not be saved to the site, a recovery copy is also kept in this browser.</li>
+          </ul>
+          <h3>What leaves</h3>
+          <ul>
+            <li><strong>Photos you share.</strong> Only photos you confirm in Share get public URLs. Anyone with a URL can view or copy the photo. Tables shared as images work the same way. The draft itself is not published.</li>
+            <li><strong>Shared writing copies and public file links.</strong> They exist only if you create them, and anyone with the link can open them. You can revoke or delete them in the file library.</li>
+            <li><strong>Videos in Preview.</strong> YouTube and Vimeo videos appear as link cards while you edit. Opening Preview loads the player, and your browser then connects to the provider (youtube-nocookie.com or player.vimeo.com).</li>
+            <li><strong>External images are not loaded.</strong> Wonboard's screens do not load images from other sites. Remote images in pasted content are not accepted; only photo files you add are shown.</li>
+            <li>When you paste shared photos into a community post, readers' browsers fetch them from your site. OpenAI's Sites serves those requests.</li>
+            <li>Sign-in is ChatGPT sign-in. The site uses a signed-in visitor's ChatGPT user ID to check ownership. An available name or email is used for display only and is not stored.</li>
+          </ul>
+          <h3>Good to know</h3>
+          <ul>
+            <li>People you invite as workspace editors of the site can read its live data, including drafts. Wonboard's owner check does not prevent this.</li>
+            <li>OpenAI operates hosting, access logs and visit statistics under its own terms. See the <a href="https://openai.com/policies/chatgpt-sites-terms/">ChatGPT Sites terms</a> and the <a href="https://learn.chatgpt.com/docs/sites?surface=app#review-site-analytics">Sites analytics guide</a>.</li>
+            <li>If you let other people visit your site, you, the person who installed it, are responsible for explaining to them what is collected and how it is used.</li>
+            <li>Withdrawing a photo turns its URL off. Copies already downloaded or cached elsewhere cannot be recalled.</li>
+          </ul>
+
+          <h2>Desktop edition — a Mac app you build yourself</h2>
+          <h3>Where data is stored</h3>
+          <ul>
+            <li>Documents and photos are stored on this computer only, normally in <code>~/Library/Application Support/Wonboard/library/</code> on macOS.</li>
+            <li>Data is not encrypted. Anyone with access to this computer's user account can read it.</li>
+            <li>There is no sign-in and no account information is received.</li>
+          </ul>
+          <h3>What leaves</h3>
+          <ul>
+            <li><strong>Photos you share: none.</strong> The desktop edition has no sharing, so it uploads nothing. Save to PC only writes a file on this computer.</li>
+            <li><strong>Videos in Preview.</strong> Same as the Sites edition: a connection to the provider is made only when Preview opens.</li>
+            <li><strong>External images are not loaded.</strong> Same as the Sites edition.</li>
+            <li>Clicking a link in a document or in this guide opens that address in your default browser.</li>
+            <li>Spelling suggestions in the right-click menu come from the macOS spell checker.</li>
+          </ul>
+          <p>To move a document between the desktop edition and the Sites edition, download a ZIP backup and open it with Restore backup. The two are not kept in sync automatically.</p>
+
+          <h2>Local web — a preview developers run on their own computer</h2>
+          <h3>Where data is stored</h3>
+          <ul>
+            <li>Documents and photos are stored only in that browser's storage. They are not encrypted, and they disappear if the browser or the user clears the storage.</li>
+            <li>Sign-in is a single-user test login checked by the development server on the same computer. The ID and password live in a settings file on that computer.</li>
+          </ul>
+          <h3>What leaves</h3>
+          <ul>
+            <li><strong>Photos you share: none.</strong> There is no sharing.</li>
+            <li><strong>Videos in Preview</strong> and <strong>external images</strong> behave as in the other editions.</li>
+          </ul>
+
+          <h2>Not collected in any edition</h2>
+          <ul>
+            <li>No writing, photos, account information or usage records go to a server run by the makers of Wonboard. No such server exists.</li>
+            <li>No analytics, advertising or tracking code.</li>
+            <li>No Wonboard sign-up and no member database.</li>
+            <li>Spell checking runs inside your browser or app and does not send your text anywhere.</li>
+            <li>Fonts are bundled with Wonboard; no external font server is contacted.</li>
+          </ul>
+          <p>This page and the Wonboard introduction page are hosted on GitHub Pages. Opening this page is handled by GitHub.</p>
+
+          <h2>Deleting your data</h2>
+          <ul>
+            <li>Sites edition: back up important documents as ZIP, then delete the site in ChatGPT Sites. The steps are in the Korean guide, <a href="https://github.com/jiwonschol/wonboard/blob/main/docs/install/README.md#그만-쓰는-방법">How to stop using Wonboard</a>.</li>
+            <li>Desktop edition: remove the app and delete the storage folder above.</li>
+            <li>Local web: clear the site data for that address in the browser.</li>
+          </ul>
+
+          <h2>Contact</h2>
+          <p>Ask questions or report problems at <a href="https://github.com/jiwonschol/wonboard/issues">GitHub Issues</a>. Issues are public, so remove values that identify you, such as a connection ID, an email address or your site address.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="wrap foot">
+      <p>원보드는 MIT 라이선스의 오픈소스입니다. <a href="https://github.com/jiwonschol/wonboard">소스 코드</a> · <a href="https://github.com/jiwonschol/wonboard/issues">문제와 제안</a> · <a href="./">소개 페이지</a></p>
+      <p>ChatGPT와 Sites는 OpenAI의 서비스이고, 원보드는 OpenAI와 관계없는 별도의 프로젝트입니다.</p>
+    </footer>
+  </body>
+</html>

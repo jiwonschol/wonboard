@@ -37,6 +37,7 @@ import { openSitesFileLibrary } from "./sitesFileLibrary";
 import { openDesktopFileLibrary } from "./desktopFileLibrary";
 import { download } from "./pcSave";
 import { PcSaveMenu, PrintDocument } from "./PcSaveMenu";
+import { AboutLinks, appVersion } from "./AboutLinks";
 
 export default function App({
   onLogout,
@@ -393,6 +394,7 @@ export default function App({
           W
         </button>
         <button onClick={() => setLibrary(true)}>Wonboard</button>
+        <span className="beta-mark">{t("beta")}<span className="beta-version"> {appVersion}</span></span>
         <button disabled={busy} onClick={() => void writer.create()}>
           <Icon name="plus" />
           {t("newDocument")}
@@ -701,6 +703,9 @@ export default function App({
             {t("requestPersistence")}
           </button>
           </>}
+          <hr />
+          <h2>{t("about")}</h2>
+          <AboutLinks locale={locale} />
           <button onClick={() => setOptions(false)}>{t("close")}</button>
         </div>
       ) : null}

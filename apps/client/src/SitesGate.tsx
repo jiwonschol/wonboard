@@ -4,6 +4,7 @@ import type { Locale } from "@wonboard/document";
 import App from "./App";
 import { initialLocale } from "./locale";
 import { sitesRequest } from "./draftRepository";
+import { AboutLinks, installGuideUrl } from "./AboutLinks";
 
 type Session = { mode: "sites"; authenticated: boolean; owner: boolean;
   configured: boolean; username: string; setupRequired: boolean };
@@ -85,6 +86,7 @@ export default function SitesGate() {
         : !session.configured ? <>
           <p role="status">{t("sitesNotConfigured")}</p>
           <p>{t("sitesSetupHelp")}</p>
+          <p><a href={installGuideUrl} target="_blank" rel="noopener noreferrer">{t("installGuide")}</a></p>
           <button disabled={checking || pending} onClick={() => void check()}>
             {t(checking ? "sitesCheckingSetup" : "sitesCheckSetup")}
           </button>
@@ -110,6 +112,7 @@ export default function SitesGate() {
           <label className="sites-consent"><input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} />{t("sitesAccept")}</label>
           <button disabled={!accepted || pending} onClick={() => void setup()}>{t(pending ? "saving" : "sitesStart")}</button>
         </>}
+      <AboutLinks locale={locale} />
     </section></main>}
   </>;
 }

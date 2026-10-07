@@ -7,5 +7,5 @@ await build({ configFile: false, logLevel: "warn", root: resolve("apps/desktop")
 for (const entry of ["main", "preload"]) {
   await build({ configFile: false, build: { ssr: `apps/desktop/src/${entry}.ts`, outDir: "apps/desktop/dist", emptyOutDir: false,
     rollupOptions: { external: [/^node:/, "electron"], output: { format: "cjs", entryFileNames: `${entry}.cjs` } } },
-    ssr: { noExternal: ["@wonboard/document", "fflate"] } });
+    ssr: { noExternal: ["@wonboard/document", "@wonboard/locales", "fflate", "i18next"] } });
 }
