@@ -1,4 +1,14 @@
+import type { Locator } from "@playwright/test";
 import { test, expect } from "./fixtures";
+
+// 맞춤법 창은 열 때마다 새 Worker를 띄워 사전(약 7.5MB)을 읽고 검사기를 만든다.
+// 리눅스 Chromium에서 worker 둘로 돌리면 결과가 나오기까지 3~7초가 걸려 기본 5초를
+// 넘기도 한다. 창이 뜬 뒤 "검사 중…"이 사라질 때(분석 끝)를 기다린다. 20초는 이
+// 파일이 첫 검사에 이미 주던 시간으로, 잰 최댓값(worker 넷에서 약 9초)의 두 배 남짓이다.
+async function analyzed(dialog: Locator) {
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("status").filter({ hasText: /^(Checking…|검사 중…)$/ })).toHaveCount(0, { timeout: 20000 });
+}
 
 for(const locale of ['ko','en'])test(`unbroken-token analysis limit is explained and personal registration works (${locale})`,async({page})=>{
   await page.addInitScript(value=>localStorage.setItem('wonboard-locale',value),locale);
@@ -14,6 +24,7 @@ for(const locale of ['ko','en'])test(`unbroken-token analysis limit is explained
     const word='가나다라마바사아자차카타파하'.repeat(5).slice(0,length);
     await body.fill(word);
     await page.getByRole('button',{name:label,exact:true}).first().click();
+    await analyzed(dialog);
     await expect(dialog).toContainText(ko?'48자를 넘는 구간은 현재 분석 범위를 초과합니다. 오류 판정이 아닙니다.':'An unbroken span over 48 characters exceeds the current analysis limit. This is not an error verdict.');
     await expect(dialog.getByRole('button',{name:ko?'바꾸기':'Change',exact:true})).toBeDisabled();
     expect(await dialog.evaluate(node=>node.scrollWidth<=node.clientWidth)).toBe(true);
@@ -37,6 +48,7 @@ test('explicit deletion suggestions apply while an arbitrary blank replacement r
   const dialog=page.getByRole('dialog',{name:'Check spelling'});
   await body.fill('for a 3 days with my son');
   await tool.click();
+  await analyzed(dialog);
   await expect(dialog.getByRole('button',{name:'Delete this expression',exact:true})).toBeVisible();
   const replacement=dialog.getByRole('textbox',{name:'Replace with',exact:true});
   const change=dialog.getByRole('button',{name:'Change',exact:true});
@@ -51,7 +63,7 @@ test('explicit deletion suggestions apply while an arbitrary blank replacement r
   await body.press('ControlOrMeta+Shift+z');await expect(body).toHaveText('for 3 days with my son');
   await expect(page.getByRole('button',{name:'Save draft',exact:true})).toBeDisabled();
   await page.reload();await expect(body).toHaveText('for 3 days with my son');
-  await body.fill('We can built it.');await tool.click();
+  await body.fill('We can built it.');await tool.click();await analyzed(dialog);
   await expect(replacement).toHaveValue('can build');
   await replacement.fill('');await expect(change).toBeDisabled();
 });
@@ -961,7 +973,8 @@ test("Korean spelling applies only chosen words and persists personal exceptions
   const tool = page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true });
   await tool.click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
-  await expect(dialog.getByRole("button", { name: "됐어요", exact: true })).toBeVisible({ timeout: 20000 });
+  await analyzed(dialog);
+  await expect(dialog.getByRole("button", { name: "됐어요", exact: true })).toBeVisible();
   await expect(dialog.getByRole("textbox", { name: "Replace with" })).toHaveValue("됐어요");
   await dialog.getByRole("button", { name: "됐어요", exact: true }).click();
   await expect(body).toHaveText("됬어요 맞춥법 실바나스");
@@ -974,8 +987,11 @@ test("Korean spelling applies only chosen words and persists personal exceptions
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await body.press("ControlOrMeta+z");
   await expect(body).toHaveText("됬어요 맞춥법 실바나스");
+  // 되돌린 글이 저장된 뒤 새로 고친다. 저장 전에 새로 고치면 고친 글("됐어요")이 다시 열린다.
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
   await page.reload();
   await tool.click();
+  await analyzed(dialog);
   await expect(dialog.getByRole("button", { name: "됐어요", exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "Skip once" }).click();
   await dialog.getByRole("button", { name: "Skip once" }).click();
@@ -987,6 +1003,7 @@ test("Korean spelling applies only chosen words and persists personal exceptions
   await expect(dialog.getByText("Personal dictionary (0)", { exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await tool.click();
+  await analyzed(dialog);
   await expect(dialog.getByRole("button", { name: "됐어요", exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "Skip once" }).click();
   await dialog.getByRole("button", { name: "Skip once" }).click();
@@ -1488,6 +1505,7 @@ for(const word of ['갈축','타건'])test(`community term ${word} registration 
   await manager.getByRole('textbox').fill(word);
   await manager.getByRole('button',{name:'Add to dictionary',exact:true}).click();
   await expect(manager).toContainText('Already in your dictionary.');
+  await analyzed(dialog);
   await expect(dialog.getByRole('button',{name:'쓸 때',exact:true})).toBeVisible();
   await dialog.getByRole('button',{name:'Change',exact:true}).click();
   await expect(dialog).toContainText('Spelling review complete.');
@@ -1496,6 +1514,7 @@ for(const word of ['갈축','타건'])test(`community term ${word} registration 
   await page.reload();
   await expect(body).toHaveText(`${word}이나 쓸 때`);
   await tool.click();
+  await analyzed(dialog);
   await expect(dialog).toContainText('Spelling review complete.');
   await manager.locator('summary').click();
   await expect(manager).toContainText('Personal dictionary (1)');
