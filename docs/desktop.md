@@ -23,7 +23,7 @@ Electron's user-data directory contains `library/documents.sqlite` and `library/
 
 Documents save automatically and through the existing Save button. The status says “Saved to this device”, not saved to Sites. Closing with pending changes shows a warning in the current interface language and keeps the window open unless the user chooses to quit. Local data is not encrypted; the OS account controls access.
 
-The desktop edition uploads nothing. The Share button is visible, but outside the Sites edition it only shows a notice that sharing works in Wonboard installed on a ChatGPT site. Save to PC writes PDF, text, Markdown or a ZIP backup to this computer.
+The desktop edition uploads nothing. The Share button is visible, but outside the Sites edition it only shows a notice that sharing works in Wonboard installed on a ChatGPT site. Save to PC writes PDF, Word, text, Markdown or a ZIP backup to this computer.
 
 The desktop library and a Sites installation are separate and are not synchronized. To move a document, download a backup (.zip) from Save to PC on one side and open it with Restore backup on the other. `tests/unit/desktop-backup-restore.test.ts` checks that a backup made from the desktop store opens through the browser-side restore with the same title, body and photo. The user-facing description of what is stored and what leaves is the [privacy and storage guide](https://jiwonschol.github.io/wonboard/privacy.html#english).
 

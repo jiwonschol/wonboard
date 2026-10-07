@@ -3,6 +3,7 @@ import { referencedFileIds, type Draft, type Locale } from "@wonboard/document";
 import { DocumentPreview } from "@wonboard/renderer";
 import { translator, type MessageKey } from "@wonboard/locales";
 import { download, imageNames, markdownFile, photoBytes, textFile } from "./pcSave";
+import { wordFile } from "./wordSave";
 
 // 한 쪽에 들어가는 본문 높이(px). style.css의 @page(A4, 위아래 여백 16mm)와 같아야 한다.
 const pageHeight = (297 - 2 * 16) * 96 / 25.4;
@@ -93,6 +94,14 @@ export function PcSaveMenu({ locale, disabled, formatsDisabled, snapshot, onPdf,
     <p>{t("pcSaveHint")}</p>
     <button disabled={formatsOff} onClick={() => { onPdf(); onClose(); }}>{t("savePdf")}</button>
     <p>{t("savePdfHint")}</p>
+    <button disabled={formatsOff} onClick={() => {
+      const draft = snapshot();
+      if (draft) void run(async () => {
+        const file = await wordFile(draft);
+        download(file.blob, file.name);
+      });
+    }}>{t("saveWord")}</button>
+    <p>{t("saveWordHint")}</p>
     <button disabled={formatsOff} onClick={() => {
       const draft = snapshot();
       if (!draft) return;
