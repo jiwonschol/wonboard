@@ -3,6 +3,7 @@ import { translator, type MessageKey } from "@wonboard/locales";
 import type { Locale } from "@wonboard/document";
 import App from "./App";
 import { initialLocale } from "./locale";
+import { AboutLinks } from "./AboutLinks";
 
 type Session = { authenticated: true; username: string; expiresAt: number };
 type AuthResponse = Session | { authenticated: false };
@@ -199,6 +200,7 @@ export default function AuthGate() {
               <option value="ko">한국어</option>
               <option value="en">English</option>
             </select>
+            <AboutLinks locale={locale} />
           </section>
         </main>
       )}
