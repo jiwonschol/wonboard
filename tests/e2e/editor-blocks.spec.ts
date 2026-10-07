@@ -7,7 +7,11 @@ async function paste(page: Page, data: Record<string, string>) {
   await page.locator(".tiptap").evaluate((element, data) => {
     const transfer = new DataTransfer();
     for (const [type, value] of Object.entries(data)) transfer.setData(type, value);
-    element.dispatchEvent(new ClipboardEvent("paste", { clipboardData: transfer, bubbles: true, cancelable: true }));
+    const event = new ClipboardEvent("paste", { clipboardData: transfer, bubbles: true, cancelable: true });
+    // Firefox는 만들어 낸 붙여넣기 이벤트에 넘긴 clipboardData를 버린다(spelling.spec.ts와 같은 우회).
+    if (Object.entries(data).some(([type, value]) => event.clipboardData?.getData(type) !== value))
+      Object.defineProperty(event, "clipboardData", { value: transfer });
+    element.dispatchEvent(event);
   }, data);
 }
 async function slash(page: Page, query: string) {
@@ -145,8 +149,7 @@ test("block handle moves and duplicates blocks", async ({ page }) => {
   await expect(body.locator("p")).toHaveText(["둘", "하나", "하나"]);
 });
 
-test("markdown paste converts markdown but keeps community plain text", async ({ page, browserName }) => {
-  test.skip(browserName === "firefox", "Firefox ignores clipboardData given to a synthetic paste event");
+test("markdown paste converts markdown but keeps community plain text", async ({ page }) => {
   await page.goto("/");
   const body = bodyOf(page);
   await body.click();
@@ -239,8 +242,7 @@ for (const locale of ["ko", "en"] as const)
       await page.screenshot({ path: `test-results/wonboard-editor-blocks-${locale}-${width}.png` });
     });
 
-test("copied text box and table keep their color and cells when pasted back", async ({ page, browserName }) => {
-  test.skip(browserName === "firefox", "Firefox ignores clipboardData given to a synthetic paste event");
+test("copied text box and table keep their color and cells when pasted back", async ({ page }) => {
   await page.goto("/");
   const body = bodyOf(page);
   await body.click();
