@@ -24,8 +24,9 @@
 
 1. `package.json`의 `version`을 새 버전으로 바꾼다.
 2. `pnpm build:site --write-tag`로 설치 문장의 태그와 작업공간(`pnpm-workspace.yaml`의 `apps/*`·`packages/*`·`examples/*`) manifest의 버전을 맞춘다. 데스크톱판 패키징은 `apps/desktop/package.json`의 버전을 쓴다. 태그나 버전이 어긋난 채로 두면 `pnpm build:site`(CI의 `check`)가 실패한다.
-3. 이 변경이 main에 들어가면 그 커밋에 `v<version>` 태그를 만든다.
-4. main push로 도는 pages 워크플로는 원격에 그 태그가 없으면 `build-site.mjs`에서 실패하고 배포하지 않는다. 그동안 소개 페이지는 이미 있는 이전 태그를 가리키는 지난 판으로 남는다. 태그를 만든 뒤 pages 워크플로를 다시 실행(Run workflow)해 새 태그의 소개 페이지를 배포한다.
+3. 사람이 읽는 버전 문구를 새 버전으로 바꾼다: `README.md`(맨 위 베타 안내, 개발 상태의 버전, English 절)와 `docs/desktop.md`의 상태 문구. 두 파일에 새 버전 문자열이 없으면 `pnpm build:site`가 실패한다.
+4. 이 변경이 main에 들어가면 그 커밋에 `v<version>` 태그를 만들고, 같은 태그로 GitHub 릴리스를 발행한다. README는 새 버전 소식을 Releases와 릴리스 RSS로 알린다고 안내하는데, 태그만으로는 릴리스가 생기지 않는다. 릴리스 본문에는 DB 변경(새 `drizzle` SQL) 여부와 [새 버전으로 올리기](./README.md#새-버전으로-올리기) 링크를 적는다.
+5. main push로 도는 pages 워크플로는 원격에 그 태그가 없으면 `build-site.mjs`에서 실패하고 배포하지 않는다. 그동안 소개 페이지는 이미 있는 이전 태그를 가리키는 지난 판으로 남는다. 태그를 만든 뒤 pages 워크플로를 다시 실행(Run workflow)해 새 태그의 소개 페이지를 배포한다.
 
 ## 기존 설치 업그레이드
 

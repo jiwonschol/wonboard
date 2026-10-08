@@ -93,6 +93,9 @@ for (const [name, text] of [["설치 문장", prompt], ["설치 안내", guide],
     if (found !== tag) problems.push(`${name}의 태그 ${found}가 package.json 버전의 태그(${tag})와 다릅니다. pnpm build:site --write-tag로 설치 문장을 맞추세요.`);
   if (text.includes("/archive/refs/heads/")) problems.push(`${name}에 브랜치 ZIP 주소가 있습니다. 설치 문장의 태그 ZIP을 쓰세요.`);
 }
+// 사람이 읽는 문서의 현재 버전 문구도 새 릴리스 때 함께 바꿔야 한다. 새 버전 문자열이 없으면 실패한다.
+for (const path of ["README.md", "docs/desktop.md"])
+  if (!read(path).includes(manifest.version)) problems.push(`${path}에 현재 버전 ${manifest.version}이 없습니다. 버전 문구를 새 버전으로 바꾸세요.`);
 for (const path of workspaceManifests) {
   const { version } = JSON.parse(read(path));
   if (version !== manifest.version) problems.push(`${path}의 버전 ${version}이 package.json(${manifest.version})과 다릅니다. pnpm build:site --write-tag로 맞추세요.`);
