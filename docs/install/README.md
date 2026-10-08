@@ -117,7 +117,9 @@ ChatGPT가 알려 준 주소를 브라우저에서 엽니다.
 
 ### 새 버전이 나왔는지 알기
 
-가장 최근 버전의 이름(태그, `v`로 시작합니다)은 [소개 페이지](https://jiwonschol.github.io/wonboard/)의 설치 방법에 나옵니다. 지금까지의 버전은 [태그 목록](https://github.com/jiwonschol/wonboard/tags)에서 볼 수 있습니다. 내 사이트의 버전은 원보드 화면 위쪽 막대와 「더 보기」에 나오는 버전 번호로 확인합니다. 두 번호가 같으면 올릴 것이 없습니다.
+가장 최근 버전의 이름(태그, `v`로 시작합니다)은 [소개 페이지](https://jiwonschol.github.io/wonboard/)의 설치 방법에 나옵니다. 지금까지의 버전은 [태그 목록](https://github.com/jiwonschol/wonboard/tags)에서 볼 수 있습니다. 내 사이트의 버전은 원보드 화면 위쪽 막대와 「더 보기」에 나오는 버전 번호로 확인합니다. 설치 문장이 태그를 가리키게 된 뒤에 설치했다면, 두 번호가 같을 때 올릴 것이 없습니다.
+
+**설치 문장이 태그를 가리키기 전에 설치한 사이트는 예외입니다.** 그때의 설치 문장은 그날의 main 브랜치 코드를 가져왔고, 버전 번호는 여러 커밋 동안 `0.1.0-beta.1`로 같았습니다. 그래서 번호가 같아도 첫 태그(버전 `0.1.0-beta.1`)의 코드와 다를 수 있습니다. 설치 문장의 「저장소」 줄에 「main 브랜치」라고 적혀 있던 때 설치했다면, 번호가 같아도 아래 절차로 소개 페이지에 나온 버전을 한 번 올리세요. Sites는 로컬 프로젝트로 저장한 버전을 빌드에 쓴 Git 커밋과 연결해 두므로([Understand projects, versions, and deployments](https://learn.chatgpt.com/docs/sites?surface=app#understand-projects-versions-and-deployments)), ChatGPT에 「지금 배포된 버전이 어느 원보드 커밋으로 만든 것인지 알려 주세요」라고 물어 확인할 수도 있습니다.
 
 ### 1. 올리기 전에 ZIP 백업 받기
 

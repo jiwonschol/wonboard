@@ -2,8 +2,9 @@
 // 있고, 여기서 페이지에 넣는다. 설치 문장과 설치 안내가 가리키는 명령·파일·환경 값·화면 문구가
 // 저장소에 실제로 있는지도 함께 검사해, 어긋나면 빌드를 실패시킨다.
 // 설치 문장이 가져오는 코드의 태그는 package.json의 version 한 곳에서 정한다(v + version). 새 릴리스 때
-// version만 바꾸고 `pnpm build:site --write-tag`를 돌리면 설치 문장의 태그가 따라온다.
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+// version만 바꾸고 `pnpm build:site --write-tag`를 돌리면 설치 문장의 태그와 작업공간 manifest의 버전이 따라온다.
+import { execFileSync } from "node:child_process";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const root = new URL("../", import.meta.url);
@@ -13,8 +14,15 @@ const tag = `v${manifest.version}`;
 // 태그 모양(v1.2.3, v0.1.0-beta.1). 뒤따르는 `.zip`은 포함하지 않는다.
 const tagPattern = /\bv\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:\.\d+)*)?/g;
 const promptPath = "docs/install/install-prompt.txt";
-if (process.argv.includes("--write-tag"))
+// apps/desktop처럼 manifest로 직접 패키징되는 것이 있어 작업공간 manifest도 같은 버전을 쓴다.
+const workspaceManifests = ["apps", "packages"]
+  .flatMap(dir => readdirSync(new URL(`${dir}/`, root)).map(name => `${dir}/${name}/package.json`))
+  .filter(path => existsSync(new URL(path, root)) && JSON.parse(read(path)).version !== undefined);
+if (process.argv.includes("--write-tag")) {
   writeFileSync(new URL(promptPath, root), read(promptPath).replace(tagPattern, tag));
+  for (const path of workspaceManifests)
+    writeFileSync(new URL(path, root), read(path).replace(/"version": "[^"]*"/, () => `"version": "${manifest.version}"`));
+}
 const prompt = read(promptPath).trim();
 const guide = read("docs/install/README.md");
 const serverTypes = read("apps/server/src/sites/types.ts");
@@ -80,6 +88,16 @@ for (const [name, text] of [["설치 문장", prompt], ["설치 안내", guide],
   for (const found of new Set(Array.from(text.matchAll(tagPattern), match => match[0])))
     if (found !== tag) problems.push(`${name}의 태그 ${found}가 package.json 버전의 태그(${tag})와 다릅니다. pnpm build:site --write-tag로 설치 문장을 맞추세요.`);
   if (text.includes("/archive/refs/heads/")) problems.push(`${name}에 브랜치 ZIP 주소가 있습니다. 설치 문장의 태그 ZIP을 쓰세요.`);
+}
+for (const path of workspaceManifests) {
+  const { version } = JSON.parse(read(path));
+  if (version !== manifest.version) problems.push(`${path}의 버전 ${version}이 package.json(${manifest.version})과 다릅니다. pnpm build:site --write-tag로 맞추세요.`);
+}
+// Pages 배포(pages 워크플로)에서는 태그가 원격에 이미 있어야 한다. 없으면 여기서 실패해 배포를 멈추고,
+// 이미 있는 태그를 가리키는 지난 페이지를 그대로 둔다. 태그를 만든 뒤 pages 워크플로를 다시 실행한다.
+if (process.env.GITHUB_WORKFLOW === "pages") {
+  try { execFileSync("git", ["ls-remote", "--exit-code", "--tags", "origin", `refs/tags/${tag}`], { stdio: "ignore" }); }
+  catch { problems.push(`원격 저장소에 ${tag} 태그가 없습니다. 태그를 만든 뒤 pages 워크플로를 다시 실행하세요.`); }
 }
 // 앱 화면의 개인정보 안내 링크가 이 페이지를 가리키고, 페이지의 버전은 package.json에서 채운다.
 const versionSlot = "<!--VERSION-->";
