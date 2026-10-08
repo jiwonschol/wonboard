@@ -10,12 +10,17 @@ import { fileURLToPath } from "node:url";
 const root = new URL("../", import.meta.url);
 const read = path => readFileSync(new URL(path, root), "utf8");
 const manifest = JSON.parse(read("package.json"));
+const problems = [];
 const tag = `v${manifest.version}`;
 // 태그 모양(v1.2.3, v0.1.0-beta.1). 뒤따르는 `.zip`은 포함하지 않는다.
 const tagPattern = /\bv\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:\.\d+)*)?/g;
 const promptPath = "docs/install/install-prompt.txt";
 // apps/desktop처럼 manifest로 직접 패키징되는 것이 있어 작업공간 manifest도 같은 버전을 쓴다.
-const workspaceManifests = ["apps", "packages"]
+// 작업공간 목록은 pnpm-workspace.yaml의 packages(`- dir/*` 꼴)에서 읽는다.
+const [, workspaceBlock = ""] = /^packages:\n((?:[ \t]+-.*\n?)*)/m.exec(read("pnpm-workspace.yaml")) ?? [];
+const workspaceDirs = Array.from(workspaceBlock.matchAll(/-\s*["']?([^"'\s*]+)\/\*["']?/g), match => match[1]);
+if (!workspaceDirs.length) problems.push("pnpm-workspace.yaml에서 작업공간 디렉터리를 읽지 못했습니다.");
+const workspaceManifests = workspaceDirs
   .flatMap(dir => readdirSync(new URL(`${dir}/`, root)).map(name => `${dir}/${name}/package.json`))
   .filter(path => existsSync(new URL(path, root)) && JSON.parse(read(path)).version !== undefined);
 if (process.argv.includes("--write-tag")) {
@@ -34,7 +39,6 @@ const workerBuild = read("vite.sites-worker.config.ts");
 const drizzleConfig = read("drizzle.config.ts");
 const journal = JSON.parse(read("drizzle/meta/_journal.json"));
 const korean = read("packages/locales/src/index.ts");
-const problems = [];
 
 // 설치 문장에서 `…`로 적은 것은 모두 아래 목록에 근거가 있어야 한다.
 const grounded = {

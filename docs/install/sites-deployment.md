@@ -23,7 +23,7 @@
 태그 이름은 `package.json`의 `version` 한 곳에서 정한다. 설치 문장(`docs/install/install-prompt.txt`)의 저장소 줄과 ZIP 주소가 그 태그를 적고, 소개 페이지는 빌드 때 같은 태그를 넣는다. 설치 안내는 태그를 직접 적지 않는다.
 
 1. `package.json`의 `version`을 새 버전으로 바꾼다.
-2. `pnpm build:site --write-tag`로 설치 문장의 태그와 `apps/*`·`packages/*` manifest의 버전을 맞춘다. 데스크톱판 패키징은 `apps/desktop/package.json`의 버전을 쓴다. 태그나 버전이 어긋난 채로 두면 `pnpm build:site`(CI의 `check`)가 실패한다.
+2. `pnpm build:site --write-tag`로 설치 문장의 태그와 작업공간(`pnpm-workspace.yaml`의 `apps/*`·`packages/*`·`examples/*`) manifest의 버전을 맞춘다. 데스크톱판 패키징은 `apps/desktop/package.json`의 버전을 쓴다. 태그나 버전이 어긋난 채로 두면 `pnpm build:site`(CI의 `check`)가 실패한다.
 3. 이 변경이 main에 들어가면 그 커밋에 `v<version>` 태그를 만든다.
 4. main push로 도는 pages 워크플로는 원격에 그 태그가 없으면 `build-site.mjs`에서 실패하고 배포하지 않는다. 그동안 소개 페이지는 이미 있는 이전 태그를 가리키는 지난 판으로 남는다. 태그를 만든 뒤 pages 워크플로를 다시 실행(Run workflow)해 새 태그의 소개 페이지를 배포한다.
 
