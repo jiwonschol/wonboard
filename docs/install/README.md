@@ -137,8 +137,8 @@ Sites 공식 문서는 이전 버전 복원을 편집자는 할 수 없는 소�
 - 올릴 사이트: <내 사이트 주소>
 - 가져올 코드: https://github.com/jiwonschol/wonboard 저장소의 태그 <새 버전>. 저장소를 직접 가져올 수 없으면 멈추고, 제가 https://github.com/jiwonschol/wonboard/archive/refs/tags/<새 버전>.zip 파일을 첨부하도록 안내해 주세요.
 
-1. 위 사이트의 기존 Sites 프로젝트에 새 버전을 저장해 주세요. 기존 프로젝트 ID와 D1 `DB`, R2 `MEDIA` 연결을 그대로 쓰고, 새 프로젝트나 새 DB·파일 저장소를 만들지 마세요.
-2. 설치 때처럼 `pnpm install --frozen-lockfile`과 `pnpm build:sites`로 빌드하고, 코드와 설정은 고치지 마세요.
+1. 위 사이트의 기존 Sites 프로젝트에 새 버전을 저장해 주세요. 태그의 `.openai/hosting.json`에는 프로젝트 ID가 없으니, 기존 사이트의 프로젝트 ID를 `project_id`로 넣어 연결해 주세요. D1 `DB`, R2 `MEDIA` 연결은 그대로 쓰고, 새 프로젝트나 새 DB·파일 저장소를 만들지 마세요.
+2. 설치 때처럼 `pnpm install --frozen-lockfile`과 `pnpm build:sites`로 빌드해 주세요. 1번의 `project_id` 말고는 코드와 설정을 고치지 마세요.
 3. 이 사이트의 DB에 이미 적용된 마이그레이션과 새 버전의 `drizzle` 폴더를 비교해, 아직 적용되지 않은 것만 적용 대상으로 삼아 주세요. `0000_sites-initial.sql`은 빈 DB 전용이라 이 사이트에 다시 적용하면 안 됩니다. 이미 적용된 파일과 새 버전의 같은 이름 파일 내용이 다르면 배포하지 말고 멈춰 주세요.
 4. 환경 값 `WONBOARD_OWNER_ID`와 사이트 접근 범위는 바꾸지 마세요.
 5. 배포하기 전에 저장한 버전과 적용할 마이그레이션 목록(없으면 없다고)을 보여 주고, 제가 확인한 뒤에 배포해 주세요.
