@@ -1,14 +1,22 @@
 // 소개 페이지와 개인정보 안내(site/)를 site/dist로 만든다. 설치 문장은 docs/install/install-prompt.txt 한 곳에만
 // 있고, 여기서 페이지에 넣는다. 설치 문장과 설치 안내가 가리키는 명령·파일·환경 값·화면 문구가
 // 저장소에 실제로 있는지도 함께 검사해, 어긋나면 빌드를 실패시킨다.
+// 설치 문장이 가져오는 코드의 태그는 package.json의 version 한 곳에서 정한다(v + version). 새 릴리스 때
+// version만 바꾸고 `pnpm build:site --write-tag`를 돌리면 설치 문장의 태그가 따라온다.
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const root = new URL("../", import.meta.url);
 const read = path => readFileSync(new URL(path, root), "utf8");
-const prompt = read("docs/install/install-prompt.txt").trim();
-const guide = read("docs/install/README.md");
 const manifest = JSON.parse(read("package.json"));
+const tag = `v${manifest.version}`;
+// 태그 모양(v1.2.3, v0.1.0-beta.1). 뒤따르는 `.zip`은 포함하지 않는다.
+const tagPattern = /\bv\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:\.\d+)*)?/g;
+const promptPath = "docs/install/install-prompt.txt";
+if (process.argv.includes("--write-tag"))
+  writeFileSync(new URL(promptPath, root), read(promptPath).replace(tagPattern, tag));
+const prompt = read(promptPath).trim();
+const guide = read("docs/install/README.md");
 const serverTypes = read("apps/server/src/sites/types.ts");
 const worker = read("apps/server/src/sites/worker.ts");
 const viteConfig = read("vite.config.ts") + read("vite.sites-worker.config.ts");
@@ -58,6 +66,21 @@ for (const [name, text] of [["설치 문장", prompt], ["설치 안내", guide],
 const page = read("site/index.html");
 const slot = "<!--INSTALL_PROMPT-->";
 if (page.split(slot).length !== 2) problems.push("site/index.html에 설치 문장 자리가 정확히 하나 있어야 합니다.");
+const tagSlot = "<!--TAG-->";
+if (!page.includes(tagSlot)) problems.push("site/index.html에 설치 문장이 가져오는 태그 자리가 있어야 합니다.");
+
+// 설치 문장은 package.json 버전의 태그를 가져오고, ZIP 주소도 같은 태그를 가리킨다. 안내와 소개 페이지는
+// 태그를 직접 적지 않고 설치 문장과 위 자리를 따른다. main 브랜치 ZIP은 설치한 날마다 코드가 달라지므로 쓰지 않는다.
+const repository = "https://github.com/jiwonschol/wonboard";
+if (!prompt.includes(`저장소: ${repository} (태그 ${tag})`))
+  problems.push(`설치 문장의 저장소 줄이 package.json 버전의 태그(${tag})를 가리키지 않습니다. 새 릴리스라면 pnpm build:site --write-tag로 맞추세요.`);
+if (!prompt.includes(`${repository}/archive/refs/tags/${tag}.zip`))
+  problems.push(`설치 문장의 ZIP 주소가 ${tag} 태그를 가리키지 않습니다.`);
+for (const [name, text] of [["설치 문장", prompt], ["설치 안내", guide], ["소개 페이지", page]]) {
+  for (const found of new Set(Array.from(text.matchAll(tagPattern), match => match[0])))
+    if (found !== tag) problems.push(`${name}의 태그 ${found}가 package.json 버전의 태그(${tag})와 다릅니다. pnpm build:site --write-tag로 설치 문장을 맞추세요.`);
+  if (text.includes("/archive/refs/heads/")) problems.push(`${name}에 브랜치 ZIP 주소가 있습니다. 설치 문장의 태그 ZIP을 쓰세요.`);
+}
 // 앱 화면의 개인정보 안내 링크가 이 페이지를 가리키고, 페이지의 버전은 package.json에서 채운다.
 const versionSlot = "<!--VERSION-->";
 if (!privacy.includes(versionSlot)) problems.push("site/privacy.html에 버전 자리가 있어야 합니다.");
@@ -72,6 +95,6 @@ const out = new URL("site/dist/", root);
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 for (const name of ["style.css", "install.js"]) cpSync(new URL(`site/${name}`, root), new URL(name, out));
-writeFileSync(new URL("index.html", out), page.replace(slot, () => escaped));
+writeFileSync(new URL("index.html", out), page.replaceAll(tagSlot, tag).replace(slot, () => escaped));
 writeFileSync(new URL("privacy.html", out), privacy.replaceAll(versionSlot, manifest.version));
-console.log(`소개 페이지를 ${fileURLToPath(out)}에 만들었습니다. 설치 문장 ${prompt.length}자.`);
+console.log(`소개 페이지를 ${fileURLToPath(out)}에 만들었습니다. 설치 문장 ${prompt.length}자, 태그 ${tag}.`);

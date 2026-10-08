@@ -14,6 +14,18 @@
 
 빈 DB에는 `dist/.openai/drizzle`의 초기 마이그레이션을 Sites가 적용한다. 별도 `schema.sql`이나 기존 설치용 `0001`·`0002`를 중복 적용하지 않는다. 저장·배포 전에 초기 SQL과 메타데이터가 포함됐는지 확인한다. `WONBOARD_OWNER_ID`는 지금 소유자 연결 방식 그대로 Sites 환경 값으로 저장한다. 프로젝트 ID·소유자 ID·사이트 주소·비밀값을 원본 저장소로 커밋하지 않는다.
 
+## 설치 문장으로 만든 사이트를 새 버전으로 올리기
+
+설치 문장은 `package.json`의 `version`에 `v`를 붙인 태그의 코드를 가져온다. 이렇게 설치한 사이트의 DB에는 `drizzle/`의 초기 마이그레이션만 적용돼 있다. 새 버전은 같은 Sites 프로젝트(기존 프로젝트 ID와 `DB`·`MEDIA` 연결)에 저장·배포하고, 기존 사이트의 적용 이력에 없는 `drizzle/` SQL만 적용 대상으로 삼는다. `0000_sites-initial.sql`은 다시 적용하지 않는다. 사용자용 절차와 ChatGPT에 보내는 요청은 [설치 안내의 새 버전으로 올리기](./README.md#새-버전으로-올리기)에 있다. 이 절차는 실제 사이트에서 검증되지 않았다.
+
+## 새 버전 내보내기(관리자)
+
+태그 이름은 `package.json`의 `version` 한 곳에서 정한다. 설치 문장(`docs/install/install-prompt.txt`)의 저장소 줄과 ZIP 주소가 그 태그를 적고, 소개 페이지는 빌드 때 같은 태그를 넣는다. 설치 안내는 태그를 직접 적지 않는다.
+
+1. `package.json`의 `version`을 새 버전으로 바꾼다.
+2. `pnpm build:site --write-tag`로 설치 문장의 태그를 맞춘다. 태그가 어긋난 채로 두면 `pnpm build:site`(CI의 `check`)가 실패한다.
+3. 이 변경이 main에 들어가면 바로 그 커밋에 `v<version>` 태그를 만든다. 소개 페이지는 main에 들어가는 즉시 새 태그를 가리키므로, 태그를 만들기 전에는 설치 문장의 코드 주소가 열리지 않는다.
+
 ## 기존 설치 업그레이드
 
 `drizzle/0000_sites-initial.sql`은 빈 DB 전용이다. 이미 표가 있는 DB에는 적용하지 않는다. 기존 배포에서 적용한 Drizzle SQL과 journal/snapshot을 보존하고, 이 저장소의 빈 DB용 `drizzle/`로 덮어쓰지 않는다. 이 저장소의 새 설치 꾸러미를 기존 사이트에 바로 배포하지 않는다.
