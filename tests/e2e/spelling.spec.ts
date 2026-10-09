@@ -1319,7 +1319,9 @@ test("dictionary manager protects composition and invalidates an in-flight check
   await manager.locator("summary").click();
   const input = manager.getByRole("textbox");
   await input.fill("아즈휼");
-  await expect.poll(() => page.evaluate(() => typeof (window as typeof window & { releaseFirstCheck?: () => void }).releaseFirstCheck)).toBe("function");
+  // releaseFirstCheck는 첫 분석 결과가 Worker에서 돌아와야 생긴다. 붙잡아 두므로
+  // analyzed()는 쓸 수 없고, 분석 끝을 기다리는 시간은 analyzed()와 같게 준다.
+  await expect.poll(() => page.evaluate(() => typeof (window as typeof window & { releaseFirstCheck?: () => void }).releaseFirstCheck), { timeout: 20000 }).toBe("function");
   await input.dispatchEvent("compositionstart");
   await manager.getByRole("button", { name: "Add to dictionary", exact: true }).click();
   expect(await page.evaluate(() => localStorage.getItem("wonboard.spelling.personal.v1"))).toBeNull();
