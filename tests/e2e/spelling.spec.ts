@@ -75,6 +75,7 @@ test('English grammar suggestion applies and survives undo, redo and reload',asy
   const tool=page.getByRole('toolbar',{name:'Writing tools',exact:true}).getByRole('button',{name:'Check spelling',exact:true});
   await tool.click();
   const dialog=page.getByRole('dialog',{name:'Check spelling'});
+  await analyzed(dialog);
   await expect(dialog).toContainText('Grammar suggestion: can built');
   await expect(dialog.getByRole('button',{name:'can build',exact:true})).toBeVisible();
   await dialog.getByRole('button',{name:'Change',exact:true}).click();
@@ -94,6 +95,7 @@ for(const [expression,label,context] of [['으아아아아악','Community expres
   const tool=page.getByRole('toolbar',{name:'Writing tools',exact:true}).getByRole('button',{name:'Check spelling',exact:true});
   await tool.click();
   const dialog=page.getByRole('dialog',{name:'Check spelling'});
+  await analyzed(dialog);
   await expect(dialog).toContainText(`${label}: ${expression}`);
   const manager=dialog.locator('details').filter({hasText:'Personal dictionary'});
   await manager.locator('summary').click();
@@ -107,7 +109,7 @@ for(const [expression,label,context] of [['으아아아아악','Community expres
   await body.press('ControlOrMeta+Shift+z');await expect(body).toHaveText(`${context??expression}. 됐어요.`);
   await expect(page.getByRole('button',{name:'Save draft',exact:true})).toBeDisabled();
   await page.reload();await expect(body).toHaveText(`${context??expression}. 됐어요.`);
-  await tool.click();await expect(dialog).toContainText('Spelling review complete.');
+  await tool.click();await analyzed(dialog);await expect(dialog).toContainText('Spelling review complete.');
   await manager.locator('summary').click();
   await manager.getByRole('button',{name:`Remove ${expression}`,exact:true}).click();
   await expect(dialog).toContainText(`${label}: ${expression}`);
@@ -123,6 +125,7 @@ for(const sample of [
   const tool=page.getByRole('toolbar',{name:'Writing tools',exact:true}).getByRole('button',{name:'Check spelling',exact:true});
   await tool.click();
   const dialog=page.getByRole('dialog',{name:'Check spelling'});
+  await analyzed(dialog);
   await expect(dialog).toContainText('Unrecognized expression: 모험러');
   const manager=dialog.locator('details').filter({hasText:'Personal dictionary'});
   await manager.locator('summary').click();
@@ -141,7 +144,7 @@ for(const sample of [
   await expect(body).toHaveText(sample.target+'. 됐어요.');
   await expect(page.getByRole('button',{name:'Save draft',exact:true})).toBeDisabled();
   await page.reload();await expect(body).toHaveText(sample.target+'. 됐어요.');
-  await tool.click();await expect(dialog).toContainText('Spelling review complete.');
+  await tool.click();await analyzed(dialog);await expect(dialog).toContainText('Spelling review complete.');
   await manager.locator('summary').click();
   await manager.getByRole('button',{name:'Remove 모험러',exact:true}).click();
   await expect(dialog).toContainText('Unrecognized expression: 모험러');
@@ -154,6 +157,7 @@ test('skipping a community expression retains its copula gap through undo and sa
   const tool=page.getByRole('toolbar',{name:'Writing tools',exact:true}).getByRole('button',{name:'Check spelling',exact:true});
   await tool.click();
   const dialog=page.getByRole('dialog',{name:'Check spelling'});
+  await analyzed(dialog);
   await expect(dialog).toContainText('Community expression review: 비추');
   await dialog.getByRole('button',{name:'Skip once',exact:true}).click();
   for(const candidate of ['입니다','됐어요']){
@@ -167,7 +171,7 @@ test('skipping a community expression retains its copula gap through undo and sa
   for(let i=0;i<2;i++)await body.press('ControlOrMeta+Shift+z');
   await expect(page.getByRole('button',{name:'Save draft',exact:true})).toBeDisabled();
   await page.reload();await expect(body).toHaveText('비추입니다. 됐어요.');
-  await tool.click();await expect(dialog).toContainText('Community expression review: 비추');
+  await tool.click();await analyzed(dialog);await expect(dialog).toContainText('Community expression review: 비추');
 });
 
 test('direct adnominal repairs survive undo and saved reinspection',async({page,browserName})=>{
@@ -179,6 +183,7 @@ test('direct adnominal repairs survive undo and saved reinspection',async({page,
   const tool=page.getByRole('toolbar',{name:'Writing tools',exact:true}).getByRole('button',{name:'Check spelling',exact:true});
   await tool.click();
   const dialog=page.getByRole('dialog',{name:'Check spelling'});
+  await analyzed(dialog);
   for(const candidate of ['남기는 건지','남기는 건데','남기는 것','째려보고','째려봤어요','째려보는','짜증 나게','짜증 났다','안경다리를','아무것도','큰 문제는','한 사람만을','두 배로','느끼실','먹으시면','전 세계에','이 말이네요','그 앞에서','3칸 정도면','3일 전입니다','9월 달','4일 날','산보다','이 녀석보다','가졌네요','푹신푹신한','호환될 것','깨달은 게','블로그에','제품들마다','날마다','느낌이고','인데','맞추어지네요','추천드립니다','기초적인','안전하다는','멀쩡했는데','냉탕조차도','그마저도','됐어요']){
     await expect(dialog.getByRole('button',{name:candidate,exact:true})).toBeVisible();
     if(candidate==='남기는 건지')await page.screenshot({path:`test-results/wonboard-direct-adnominal-${browserName}.png`});
@@ -193,7 +198,7 @@ test('direct adnominal repairs survive undo and saved reinspection',async({page,
   await expect(body).toHaveText(corrected);
   await expect(page.getByRole('button',{name:'Save draft',exact:true})).toBeDisabled();
   await page.reload();await expect(body).toHaveText(corrected);
-  await tool.click();await expect(dialog).toContainText('Spelling review complete.');
+  await tool.click();await analyzed(dialog);await expect(dialog).toContainText('Spelling review complete.');
 });
 
 test('attested delivery derivation remains normal through neighboring correction and save',async({page,browserName})=>{
@@ -203,6 +208,7 @@ test('attested delivery derivation remains normal through neighboring correction
   const tool=page.getByRole('toolbar',{name:'Writing tools',exact:true}).getByRole('button',{name:'Check spelling',exact:true});
   await tool.click();
   const dialog=page.getByRole('dialog',{name:'Check spelling'});
+  await analyzed(dialog);
   await expect(dialog.getByRole('button',{name:'배송 됩니다',exact:true})).toHaveCount(0);
   await page.screenshot({path:`test-results/wonboard-derivational-review-${browserName}.png`});
   await expect(dialog.getByRole('button',{name:'됐어요',exact:true})).toBeVisible();
@@ -214,7 +220,7 @@ test('attested delivery derivation remains normal through neighboring correction
   await body.press('ControlOrMeta+Shift+z');await expect(body).toHaveText('배송됩니다. 됐어요.');
   await expect(page.getByRole('button',{name:'Save draft',exact:true})).toBeDisabled();
   await page.reload();await expect(body).toHaveText('배송됩니다. 됐어요.');
-  await tool.click();await expect(dialog).toContainText('Spelling review complete.');
+  await tool.click();await analyzed(dialog);await expect(dialog).toContainText('Spelling review complete.');
 });
 
 test('polite Korean endings and nominal boundaries survive correction undo and saved reinspection',async({page,browserName})=>{
@@ -224,6 +230,7 @@ test('polite Korean endings and nominal boundaries survive correction undo and s
   const tool=page.getByRole('toolbar',{name:'Writing tools',exact:true}).getByRole('button',{name:'Check spelling',exact:true});
   await tool.click();
   const dialog=page.getByRole('dialog',{name:'Check spelling'});
+  await analyzed(dialog);
   await expect(dialog.getByRole('button',{name:'됐어요',exact:true})).toBeVisible();
   await expect(dialog).not.toContainText('않았지 만요');
   await expect(dialog.getByRole('button',{name:'먹어야지',exact:true})).toHaveCount(0);
@@ -238,7 +245,7 @@ test('polite Korean endings and nominal boundaries survive correction undo and s
   await expect(body).toHaveText('않았지만요. 먹어야죠. 제가 하고. 계속 했네요. 기능인 만큼. 결론지었습니다. 쏟아부은. 더해지니. 좋아한다면서. 좋다길래. 그러자니. 아침이었던 만큼. 뛰어나서가. 좋아서가. 긴바지를. 배송지에서. 특별전이었던 만큼. 재정의합니다. 재분석을. 얼리버드로. 좋아요도. 싫어요를. 않아서인데. 먹어서입니다. 좋아서이다. 더워요. 추워요. 어려워요. 도와요. 고와요. 더우세요. 잡아요. 좁아요. 됐어요.');
   await expect(page.getByRole('button',{name:'Save draft',exact:true})).toBeDisabled();
   await page.reload();await expect(body).toHaveText('않았지만요. 먹어야죠. 제가 하고. 계속 했네요. 기능인 만큼. 결론지었습니다. 쏟아부은. 더해지니. 좋아한다면서. 좋다길래. 그러자니. 아침이었던 만큼. 뛰어나서가. 좋아서가. 긴바지를. 배송지에서. 특별전이었던 만큼. 재정의합니다. 재분석을. 얼리버드로. 좋아요도. 싫어요를. 않아서인데. 먹어서입니다. 좋아서이다. 더워요. 추워요. 어려워요. 도와요. 고와요. 더우세요. 잡아요. 좁아요. 됐어요.');
-  await tool.click();await expect(dialog).toContainText('Spelling review complete.');
+  await tool.click();await analyzed(dialog);await expect(dialog).toContainText('Spelling review complete.');
 });
 
 test('registering a base name enables its copula boundary without hiding neighboring errors',async({page,browserName})=>{
@@ -248,6 +255,7 @@ test('registering a base name enables its copula boundary without hiding neighbo
   const tool=page.getByRole('toolbar',{name:'Writing tools',exact:true}).getByRole('button',{name:'Check spelling',exact:true});
   await tool.click();
   const dialog=page.getByRole('dialog',{name:'Check spelling'});
+  await analyzed(dialog);
   await expect(dialog).toContainText('Unrecognized expression: 아즈휼인거죠');
   const manager=dialog.locator('details').filter({hasText:'Personal dictionary'});
   await manager.locator('summary').click();
@@ -267,7 +275,7 @@ test('registering a base name enables its copula boundary without hiding neighbo
   await expect(body).toHaveText('아즈휼인 거죠. 됐어요.');
   await expect(page.getByRole('button',{name:'Save draft',exact:true})).toBeDisabled();
   await page.reload();await expect(body).toHaveText('아즈휼인 거죠. 됐어요.');
-  await tool.click();await expect(dialog).toContainText('Spelling review complete.');
+  await tool.click();await analyzed(dialog);await expect(dialog).toContainText('Spelling review complete.');
   await manager.locator('summary').click();
   await expect(manager.getByRole('button',{name:'Remove 아즈휼',exact:true})).toBeVisible();
 });
@@ -279,6 +287,7 @@ test('registering a jamo name retains its particle repair and persists after rel
   const tool=page.getByRole('toolbar',{name:'Writing tools',exact:true}).getByRole('button',{name:'Check spelling',exact:true});
   await tool.click();
   const dialog=page.getByRole('dialog',{name:'Check spelling'});
+  await analyzed(dialog);
   await expect(dialog).toContainText('Unrecognized expression: ㅁㅈㅌㄹㅇ');
   await dialog.getByRole('button',{name:'Add to dictionary',exact:true}).first().click();
   for(const candidate of ['를','됐어요']){
@@ -295,7 +304,7 @@ test('registering a jamo name retains its particle repair and persists after rel
   await expect(body).toHaveText('ㅁㅈㅌㄹㅇ를 됐어요.');
   await expect(page.getByRole('button',{name:'Save draft',exact:true})).toBeDisabled();
   await page.reload();await expect(body).toHaveText('ㅁㅈㅌㄹㅇ를 됐어요.');
-  await tool.click();await expect(dialog).toContainText('Spelling review complete.');
+  await tool.click();await analyzed(dialog);await expect(dialog).toContainText('Spelling review complete.');
   const manager=dialog.locator('details').filter({hasText:'Personal dictionary'});
   await manager.locator('summary').click();
   await expect(manager.getByRole('button',{name:'Remove ㅁㅈㅌㄹㅇ',exact:true})).toBeVisible();
@@ -307,6 +316,7 @@ test('repaired Latin particle keeps the following derivational repair through sa
   await body.fill('CPU 를 테스트 합니다.');
   await page.getByRole('toolbar',{name:'Writing tools',exact:true}).getByRole('button',{name:'Check spelling',exact:true}).click();
   const dialog=page.getByRole('dialog',{name:'Check spelling'});
+  await analyzed(dialog);
   for(const candidate of ['를','테스트합니다']){
     await expect(dialog.getByRole('button',{name:candidate,exact:true})).toBeVisible();
     await dialog.getByRole('button',{name:candidate,exact:true}).click();
@@ -334,6 +344,7 @@ test('registering an unknown name preserves the following 측 spacing repair thr
   const tool=page.getByRole('toolbar',{name:'Writing tools',exact:true}).getByRole('button',{name:'Check spelling',exact:true});
   await tool.click();
   const dialog=page.getByRole('dialog',{name:'Check spelling'});
+  await analyzed(dialog);
   await expect(dialog).toContainText('Unrecognized expression: 아즈휼');
   const manager=dialog.locator('details').filter({hasText:'Personal dictionary'});
   await manager.locator('summary').click();
@@ -357,6 +368,7 @@ test('registering an unknown name preserves the following 측 spacing repair thr
   await page.reload();
   await expect(body).toHaveText('아즈휼 측에서 됐어요.');
   await tool.click();
+  await analyzed(dialog);
   await expect(dialog).toContainText('Spelling review complete.');
   await manager.locator('summary').click();
   await manager.getByRole('button',{name:'Remove 아즈휼',exact:true}).click();
@@ -384,6 +396,7 @@ test(`particle correction preserves actual ${mark} content through undo and save
   await expect(body).toHaveText("아즈휼 에서 됬어요.");
   await page.getByRole("button", { name: "맞춤법 검사", exact: true }).first().click();
   const dialog = page.getByRole("dialog", { name: "맞춤법 검사" });
+  await analyzed(dialog);
   await expect(dialog.getByRole("button", { name: "에서", exact: true })).toBeVisible();
   await page.screenshot({ path: `test-results/wonboard-marked-${mark}-particle-${browserName}.png` });
   await dialog.getByRole("button", { name: "바꾸기", exact: true }).click();
@@ -417,6 +430,7 @@ test("community review registers a base word and preserves a skipped expression 
   const tool = page.getByRole("button", { name: "맞춤법 검사", exact: true }).first();
   await tool.click();
   const dialog = page.getByRole("dialog", { name: "맞춤법 검사" });
+  await analyzed(dialog);
   await expect(dialog).toContainText("인터넷 표현 검토: 컴");
   await expect(dialog).toContainText("맞춤법 오류로 확정하거나 임의로 풀어 쓰지 않습니다.");
   await page.setViewportSize({ width: 390, height: 900 });
@@ -439,6 +453,7 @@ test("community review registers a base word and preserves a skipped expression 
   // The existing narrow-screen inspector overlays the writing toolbar.
   await page.getByRole("button", { name: "설정", exact: true }).click();
   await tool.click();
+  await analyzed(dialog);
   await expect(dialog).toContainText("인터넷 표현 검토: 비추");
   const manager = dialog.locator("details").filter({ hasText: "사용자 사전" }).first();
   await manager.locator("summary").click();
@@ -456,6 +471,7 @@ test("registering an action abbreviation survives reload and recognizes another 
   const tool = page.getByRole("button", { name: "맞춤법 검사", exact: true }).first();
   await tool.click();
   const dialog = page.getByRole("dialog", { name: "맞춤법 검사" });
+  await analyzed(dialog);
   await expect(dialog).toContainText("인터넷 표현 검토: 업글");
   await expect(dialog.getByRole("textbox", { name: "등록할 기본 단어", exact: true }).first()).toHaveValue("업글");
   await page.screenshot({ path: `test-results/wonboard-community-action-ko-${browserName}.png` });
@@ -473,6 +489,7 @@ test("registering an action abbreviation survives reload and recognizes another 
   await expect(body).toHaveText("업글한 기기예요. 됐어요.");
   await body.fill("업글했어요.");
   await tool.click();
+  await analyzed(dialog);
   await expect(dialog).toContainText("철자 검사를 마쳤습니다.");
   const manager = dialog.locator("details").filter({ hasText: "사용자 사전" }).first();
   await manager.locator("summary").click();
@@ -495,6 +512,7 @@ test(`review keyboard actions ${config.locale} ${config.width}`, async ({ page, 
   await body.fill(source);
   await page.getByRole("button", { name: ko ? "맞춤법 검사" : "Check spelling", exact: true }).first().click();
   const dialog = page.getByRole("dialog", { name: ko ? "맞춤법 검사" : "Check spelling" });
+  await analyzed(dialog);
   const skip = dialog.getByRole("button", { name: ko ? "이번만 건너뛰기" : "Skip once", exact: true });
   const change = dialog.getByRole("button", { name: ko ? "바꾸기" : "Change", exact: true });
   await expect(skip).toBeFocused();
@@ -605,6 +623,7 @@ test(`Korean review applies ${sample.name} and preserves normal derivation`, asy
   await body.fill(source);
   await page.getByRole("button", { name: "맞춤법 검사", exact: true }).first().click();
   const dialog = page.getByRole("dialog", { name: "맞춤법 검사" });
+  await analyzed(dialog);
   await expect(dialog.getByRole("button", { name: "이번만 건너뛰기", exact: true })).toBeFocused();
   if (sample.reason) await expect(dialog.locator(".spelling-reason")).toContainText(sample.reason);
   await dialog.getByRole("button", { name: sample.suggestion, exact: true }).click();
@@ -637,6 +656,7 @@ test(`uncertain lexical candidate can be skipped without rewriting ${word}`, asy
   await body.fill(word);
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
   if (["제미누이", "위고비나", "위고비군", "바난자와", "이지엉클"].includes(word)) await expect(dialog).toContainText("No reliable replacement was found.");
   else await expect(dialog.getByRole("button", {
     name: word === "연태고량주라고" ? "연태 고량주라고" : "유의미하다 까진", exact: true,
@@ -650,6 +670,7 @@ test(`uncertain lexical candidate can be skipped without rewriting ${word}`, asy
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect(body).toHaveText(word);
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  await analyzed(dialog);
   await expect(dialog.getByRole("textbox", { name: "Base word to add" })).toHaveValue(word === "제미누이" ? "제미누" : word);
   // The final 이 may be part of the name; let the author choose the base.
   await dialog.getByRole("textbox", { name: "Base word to add" }).fill(word);
@@ -669,6 +690,7 @@ test(`uncertain lexical candidate can be skipped without rewriting ${word}`, asy
   await page.reload();
   await expect(body).toHaveText(word);
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  await analyzed(dialog);
   await expect(dialog).toContainText("Spelling review complete.");
   await dialog.getByText("Personal dictionary (1)", { exact: true }).click();
   await expect(dialog).toContainText(word);
@@ -688,6 +710,7 @@ test("normal inflection and numeral survive a nearby spelling correction", async
   await body.fill(original);
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
   await dialog.getByRole("button", { name: "보고 싶어요", exact: true }).click();
   await expect(body).toHaveText(original);
   await dialog.getByRole("button", { name: "Change", exact: true }).click();
@@ -711,6 +734,7 @@ test("particle typo and noun boundary apply together and survive reload", async 
   await body.fill("상품설명에넌 색상이 달라요.");
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
   await expect(dialog.getByRole("button", { name: "Skip once", exact: true })).toBeFocused();
   await dialog.getByRole("button", { name: "상품 설명에는", exact: true }).click();
   await expect(body).toHaveText("상품설명에넌 색상이 달라요.");
@@ -735,6 +759,7 @@ test("particle boundary correction applies explicitly and survives reload", asyn
   await body.fill("화면에서보이는 색이에요.");
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
   await expect(dialog.getByRole("button", { name: "Skip once", exact: true })).toBeFocused();
   await dialog.getByRole("button", { name: "화면에서 보이는", exact: true }).click();
   await expect(body).toHaveText("화면에서보이는 색이에요.");
@@ -761,6 +786,7 @@ test("adverb and negative spacing apply together without changing compound words
   await body.fill(original);
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
   await expect(dialog.getByRole("button", { name: "Skip once", exact: true })).toBeFocused();
   await dialog.getByRole("button", { name: "잘 알려지지 않은", exact: true }).click();
   await expect(dialog).toContainText("The original may be correct in context.");
@@ -784,6 +810,7 @@ test("successive inflection and noun-boundary changes preserve offsets and saved
   await body.fill("소설이였으면 찾아볼건데. 고민중입니다. 검색 했다가. 잠궈서 오염되서 해야함.");
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
   for (const suggestion of ["소설이었으면", "찾아볼 건데", "고민 중입니다", "검색했다가", "잠가서", "오염돼서", "해야 함"]) {
     await expect(dialog.getByRole("button", { name: "Skip once", exact: true })).toBeFocused();
     const before = await body.textContent();
@@ -806,6 +833,7 @@ test("skipping a Latin name still allows particle spacing and ending review", as
   await body.fill("Zzqvx 에 좋더라구요 10년넘게");
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
   await expect(dialog).toContainText("Unrecognized expression: Zzqvx");
   await dialog.getByRole("button", { name: "Skip once", exact: true }).click();
   for (const suggestion of ["에", "좋더라고요", "10년 넘게"]) {
@@ -831,6 +859,7 @@ test("adverb acronym and ending corrections are explicit and survive reload", as
   await body.fill("어짜피 api 감사합니나");
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
   for (const suggestion of ["어차피", "API", "감사합니다"]) {
     await expect(dialog.getByRole("button", { name: "Skip once", exact: true })).toBeFocused();
     const before = await body.textContent();
@@ -855,6 +884,7 @@ test("combined spacing corrections preserve normal endings through save and relo
   await body.fill("이런게 세네개 있는데 뭘 해야할런지 모르겠더라고요.");
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
   for (const suggestion of ["이런 게", "서너 개", "해야 할는지"]) {
     await expect(dialog.getByRole("button", { name: suggestion, exact: true })).toBeVisible();
     const before = await body.textContent();
@@ -881,6 +911,7 @@ test("new noun and stem corrections apply through the Worker and survive reload"
   await body.fill("키보드 메세지를 티이어를 제테크는 부딛히면");
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
   for (const suggestion of ["메시지를", "타이어를", "재테크는", "부딪히면"]) {
     if (suggestion === "타이어를") {
       await expect(dialog).toContainText("No reliable replacement was found.");
@@ -911,6 +942,7 @@ test("reviewed phrase boundaries apply through the Worker without altering acron
   await body.fill("기준자체가 sns짜증이 스팩에");
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
   for (const suggestion of ["기준 자체가", "sns 짜증이"]) {
     await expect(dialog.getByRole("button", { name: suggestion, exact: true })).toBeVisible();
     await dialog.getByRole("button", { name: "Change", exact: true }).click();
@@ -938,6 +970,7 @@ test("context suggestions require Change and survive save, reload and undo", asy
   await body.fill(source);
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
   for (const suggestion of ["어떻게", "금세", "무난한", "나으세요"]) {
     const before = await body.textContent();
     await expect(dialog.getByRole("button", { name: suggestion, exact: true })).toBeVisible();
@@ -1019,6 +1052,7 @@ test("spacing applies, then registers a base term without suppressing spacing", 
   await body.fill("질게에서답변하시는걸");
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
   await expect(dialog.getByRole("button", { name: "질게에서 답변하시는 걸", exact: true })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Skip once" })).toBeFocused();
   await dialog.getByRole("button", { name: "Change", exact: true }).click();
@@ -1030,6 +1064,7 @@ test("spacing applies, then registers a base term without suppressing spacing", 
   await body.press("ControlOrMeta+z");
   await expect(body).toHaveText("질게에서답변하시는걸");
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  await analyzed(dialog);
   await expect(dialog.getByRole("button", { name: "질게에서 답변하시는 걸", exact: true })).toBeVisible();
 });
 
@@ -1048,6 +1083,7 @@ test(`English suggestions share the review flow: ${sample.id}`, async ({ page, b
   await body.fill(sample.source);
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
   await expect(dialog.getByRole("button", { name: sample.suggestion, exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: sample.suggestion, exact: true }).click();
   await expect(body).toHaveText(sample.source);
@@ -1070,6 +1106,7 @@ test("the complete source sentence can be corrected while its community term is 
   await body.fill("평소에 질게에서답변하시는걸 뵌걸로보면 제가 조언할 수준은 아닌것 같지만");
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
   await expect(dialog.getByRole("button", { name: "질게에서 답변하시는 걸", exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "Change", exact: true }).click();
   await expect(dialog).toContainText("Community expression review: 질게");
@@ -1093,6 +1130,7 @@ test("unreadable personal dictionary reports a failure without changing or reset
   await page.getByRole("textbox", { name: "Document body", exact: true }).fill("됬어요");
   await page.getByRole("button", { name: "Check spelling", exact: true }).first().click();
   const dialog = page.getByRole("dialog");
+  await analyzed(dialog);
   await expect(dialog.getByRole("alert")).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Check again", exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem("wonboard.spelling.personal.v1"))).toBe("{broken");
@@ -1105,6 +1143,7 @@ test("composition Enter does not apply a replacement or skip a result", async ({
   await body.fill("됬어요");
   await page.getByRole("button", { name: "Check spelling", exact: true }).first().click();
   const dialog = page.getByRole("dialog");
+  await analyzed(dialog);
   const skip = dialog.getByRole("button", { name: "Skip once", exact: true });
   await expect(skip).toBeFocused();
   const prevented = await skip.evaluate(node => !node.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true, isComposing: true })));
@@ -1119,6 +1158,7 @@ test("changing the document invalidates suggestions and rechecks the new text", 
   await body.fill("됬어요");
   await page.getByRole("button", { name: "Check spelling", exact: true }).first().click();
   const dialog = page.getByRole("dialog");
+  await analyzed(dialog);
   await expect(dialog.getByRole("button", { name: "됐어요", exact: true })).toBeVisible();
   await body.evaluate(node => (node as HTMLElement & { editor: { commands: { setContent(text: string): void } } }).editor.commands.setContent("<p>역활을 맡았어요.</p>"));
   await expect(dialog.getByRole("alert")).toContainText("Document changed");
@@ -1167,6 +1207,7 @@ for (const locale of ["ko", "en"]) test(`review remains usable at 390px (${local
   await body.fill("질게에서답변하시는걸");
   await page.getByRole("button", { name: locale === "ko" ? "맞춤법 검사" : "Check spelling", exact: true }).first().click();
   const dialog = page.getByRole("dialog");
+  await analyzed(dialog);
   const suggestion = dialog.getByRole("button", { name: "질게에서 답변하시는 걸", exact: true });
   await expect(suggestion).toBeVisible();
   const bounds = await dialog.boundingBox();
@@ -1187,6 +1228,7 @@ test("dictionary manager deduplicates, survives reload and preserves neighboring
   const tool = page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true });
   await tool.click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
   await expect(dialog.getByRole("button", { name: "질게에서 답변하시는 걸", exact: true })).toBeVisible();
   const manager = dialog.locator("details").filter({ hasText: "Personal dictionary" });
   await manager.locator("summary").click();
@@ -1204,6 +1246,7 @@ test("dictionary manager deduplicates, survives reload and preserves neighboring
   await page.reload();
   await expect(body).toHaveText("질게에서 답변하시는 걸 됐어요");
   await tool.click();
+  await analyzed(dialog);
   await expect(dialog).toContainText("Spelling review complete.");
   await manager.locator("summary").click();
   await expect(manager).toContainText("Personal dictionary (1)");
@@ -1217,6 +1260,7 @@ test("dictionary save failure preserves stored entries and document", async ({ p
   await body.fill("아즈휼");
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
   await expect(dialog).toContainText("Unrecognized expression: 아즈휼");
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;
@@ -1237,6 +1281,7 @@ test("dictionary updates from another tab refresh the open review", async ({ pag
   await body.fill("아즈휼에서");
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
   await expect(dialog).toContainText("Unrecognized expression: 아즈휼");
   const other = await context.newPage();
   await other.goto("/");
@@ -1274,7 +1319,9 @@ test("dictionary manager protects composition and invalidates an in-flight check
   await manager.locator("summary").click();
   const input = manager.getByRole("textbox");
   await input.fill("아즈휼");
-  await expect.poll(() => page.evaluate(() => typeof (window as typeof window & { releaseFirstCheck?: () => void }).releaseFirstCheck)).toBe("function");
+  // releaseFirstCheck는 첫 분석 결과가 Worker에서 돌아와야 생긴다. 붙잡아 두므로
+  // analyzed()는 쓸 수 없고, 분석 끝을 기다리는 시간은 analyzed()와 같게 준다.
+  await expect.poll(() => page.evaluate(() => typeof (window as typeof window & { releaseFirstCheck?: () => void }).releaseFirstCheck), { timeout: 20000 }).toBe("function");
   await input.dispatchEvent("compositionstart");
   await manager.getByRole("button", { name: "Add to dictionary", exact: true }).click();
   expect(await page.evaluate(() => localStorage.getItem("wonboard.spelling.personal.v1"))).toBeNull();
@@ -1295,6 +1342,7 @@ test("skip once, skip all and permanent registration have distinct lifetimes", a
   const tool = page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true });
   await tool.click();
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
   await dialog.getByRole("button", { name: "Skip once", exact: true }).click();
   await expect(dialog).toContainText("Unrecognized expression: 아즈휼");
   await dialog.getByRole("button", { name: "Skip all occurrences", exact: true }).click();
@@ -1302,6 +1350,7 @@ test("skip once, skip all and permanent registration have distinct lifetimes", a
   expect(await page.evaluate(() => localStorage.getItem("wonboard.spelling.personal.v1"))).toBeNull();
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await tool.click();
+  await analyzed(dialog);
   await expect(dialog).toContainText("Unrecognized expression: 아즈휼");
   await dialog.getByRole("button", { name: "Add to dictionary", exact: true }).click();
   await expect(dialog).toContainText("Spelling review complete.");
@@ -1317,6 +1366,7 @@ test('normal words survive correction undo and persisted reload',async({page})=>
   await body.fill(source);
   await page.getByRole('button',{name:'맞춤법 검사',exact:true}).first().click();
   const dialog=page.getByRole('dialog',{name:'맞춤법 검사'});
+  await analyzed(dialog);
   await expect(dialog.getByRole('button',{name:'됐어요',exact:true})).toBeVisible();
   await expect(body).toHaveText(source);
   await dialog.getByRole('button',{name:'이번만 건너뛰기',exact:true}).press('Shift+Enter');
@@ -1339,6 +1389,7 @@ test('registered laughter and emoticons preserve adjacent correction after reloa
   const tool=page.getByRole('toolbar',{name:'Writing tools',exact:true}).getByRole('button',{name:'Check spelling',exact:true});
   await tool.click();
   const dialog=page.getByRole('dialog',{name:'Check spelling'});
+  await analyzed(dialog);
   await expect(dialog.getByRole('button',{name:'됐어요',exact:true})).toBeVisible();
   const manager=dialog.locator('details').filter({hasText:'Personal dictionary'});
   await manager.locator('summary').click();
@@ -1355,6 +1406,7 @@ test('registered laughter and emoticons preserve adjacent correction after reloa
   await page.reload();
   await expect(body).toHaveText('됐어요ㅋㅋㅋ ㅠ_ㅠ');
   await tool.click();
+  await analyzed(dialog);
   await expect(dialog).toContainText('Spelling review complete.');
   await manager.locator('summary').click();
   await manager.getByRole('button',{name:'Remove ㅠ_ㅠ',exact:true}).click();
@@ -1368,6 +1420,7 @@ test('skipping an unknown name preserves its separate copula spacing repair',asy
   const tool=page.getByRole('toolbar',{name:'Writing tools',exact:true}).getByRole('button',{name:'Check spelling',exact:true});
   await tool.click();
   const dialog=page.getByRole('dialog',{name:'Check spelling'});
+  await analyzed(dialog);
   await expect(dialog).toContainText('Unrecognized expression: 아즈휼');
   await dialog.getByRole('button',{name:'Skip once',exact:true}).click();
   for(const suggestion of ['입니다만','됐어요']){
@@ -1392,6 +1445,7 @@ test('plural review offers the base for registration and keeps neighboring corre
   const tool=page.getByRole('toolbar',{name:'Writing tools',exact:true}).getByRole('button',{name:'Check spelling',exact:true});
   await tool.click();
   const dialog=page.getByRole('dialog',{name:'Check spelling'});
+  await analyzed(dialog);
   await expect(dialog.getByRole('textbox',{name:'Base word to add',exact:true})).toHaveValue('아즈휼');
   await dialog.getByRole('button',{name:'Add to dictionary',exact:true}).click();
   await expect(dialog.getByRole('button',{name:'됐어요',exact:true})).toBeVisible();
@@ -1402,6 +1456,7 @@ test('plural review offers the base for registration and keeps neighboring corre
   await page.reload();
   await expect(body).toHaveText('아즈휼들만의 아즈휼보단 됐어요');
   await tool.click();
+  await analyzed(dialog);
   await expect(dialog).toContainText('Spelling review complete.');
   const manager=dialog.locator('details').filter({hasText:'Personal dictionary'});
   await manager.locator('summary').click();
@@ -1416,6 +1471,7 @@ test('registered base with a particle survives recheck while neighboring quantit
   const tool=page.getByRole('toolbar',{name:'Writing tools',exact:true}).getByRole('button',{name:'Check spelling',exact:true});
   await tool.click();
   const dialog=page.getByRole('dialog',{name:'Check spelling'});
+  await analyzed(dialog);
   await expect(dialog.getByRole('button',{name:'몇 가지를',exact:true})).toBeVisible();
   const manager=dialog.locator('details').filter({hasText:'Personal dictionary'});
   await manager.locator('summary').click();
@@ -1431,6 +1487,7 @@ test('registered base with a particle survives recheck while neighboring quantit
   await page.reload();
   await expect(body).toHaveText('몇가지를 두 번이나 확인했어요. 됐어요.');
   await tool.click();
+  await analyzed(dialog);
   await expect(dialog).toContainText('Spelling review complete.');
   await manager.locator('summary').click();
   await manager.getByRole('button',{name:'Remove 몇가지',exact:true}).click();
@@ -1445,6 +1502,7 @@ test("dictionary changes in two tabs serialize and closing cancels a queued save
     await tab.goto("/");
     await tab.getByRole("textbox", { name: "Document body", exact: true }).fill("아즈휼 됬어요.");
     await tab.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+    await analyzed(tab.getByRole("dialog"));
     await tab.getByRole("dialog").locator("details").filter({ hasText: "Personal dictionary" }).locator("summary").click();
   }
   const managers = pages.map(tab => tab.getByRole("dialog").locator("details").filter({ hasText: "Personal dictionary" }));
@@ -1489,6 +1547,7 @@ test("dictionary changes in two tabs serialize and closing cancels a queued save
   await other.reload();
   expect(await saved()).toEqual(["ㅠ_ㅠ", "뷁큘"]);
   await other.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  await analyzed(other.getByRole("dialog"));
   await expect(other.getByRole("dialog")).toContainText("Unrecognized expression: 아즈휼");
   await other.close();
 });
