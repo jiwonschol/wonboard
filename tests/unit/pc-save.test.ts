@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { newDraft, sha256, type ContentNode, type Draft } from "@wonboard/document";
 import { unzipSync, strFromU8 } from "../../packages/document/node_modules/fflate";
+import { Marked } from "../../packages/editor/node_modules/marked";
 import { markdownFile, textFile, toMarkdown } from "../../apps/client/src/pcSave";
 import { wordFile } from "../../apps/client/src/wordSave";
 
@@ -8,6 +9,7 @@ const text = (value: string, ...marks: { type: string; attrs?: Record<string, un
   ({ type: "text", text: value, ...(marks.length ? { marks } : {}) });
 const paragraph = (...content: ContentNode[]): ContentNode => ({ type: "paragraph", content });
 const photo = (name: string) => `[사진: ${name}]`;
+const reader = new Marked({ gfm: true });
 
 async function draftWith(content: ContentNode[], photos: string[] = []): Promise<Draft> {
   const draft = newDraft();
@@ -36,6 +38,61 @@ describe("PC 저장: 텍스트", () => {
 });
 
 describe("PC 저장: 마크다운", () => {
+  it("코드 블록의 모든 지원 줄바꿈을 같은 규칙으로 나누고 끝에 빈 줄을 더하지 않는다", async () => {
+    for (const ending of ["\n", "\r", "\r\n", "\u2028", "\u2029"]) {
+      const draft = await draftWith([{ type: "codeBlock", attrs: { language: "txt" }, content: [text(`a${ending}b${ending}`)] }]);
+      const output = await (await markdownFile(draft)).blob.text();
+      expect(output).toBe("# 제주 여행\n\n```txt\na\nb\n```\n");
+      expect(reader.parse(output)).toContain('<pre><code class="language-txt">a\nb\n</code></pre>');
+    }
+  });
+  it("링크 주소의 DEL을 퍼센트 인코딩해 링크로 남긴다", async () => {
+    const link = { type: "link", attrs: { href: "https://example.com/a\u007fb", title: "주소" } };
+    const draft = await draftWith([
+      paragraph(text("링크", link)),
+      { type: "table", content: [{ type: "tableRow", content: [{ type: "tableCell", content: [paragraph(text("칸 링크", link))] }] }] },
+    ]);
+    const output = await (await markdownFile(draft)).blob.text();
+    expect(output).not.toContain("\u007f");
+    expect(output).toContain('[링크](https://example.com/a%7Fb "주소")');
+    expect(output).toContain('[칸 링크](https://example.com/a%7Fb "주소")');
+    expect(reader.parse(output)).toContain('<a href="https://example.com/a%7Fb" title="주소">링크</a>');
+  });
+  it("이모지 앞뒤의 강조 경계는 Unicode 코드 포인트로 판단한다", async () => {
+    for (const [mark, delimiter, tag] of [["bold", "**", "strong"], ["italic", "*", "em"], ["strike", "~~", "del"]]) {
+      for (const [left, core, right, wrapped] of [
+        ["", "😀", "text", `${delimiter}😀${delimiter}<!-- -->`],
+        ["text", "😀", "", `<!-- -->${delimiter}😀${delimiter}`],
+        ["😀", "문자", "😀", `${delimiter}문자${delimiter}`],
+        ["😀", "!", "😀", `<!-- -->${delimiter}!${delimiter}<!-- -->`],
+      ]) {
+        const draft = await draftWith([paragraph(
+          ...(left ? [text(left)] : []), text(core, { type: mark }), ...(right ? [text(right)] : []),
+        )]);
+        const output = await (await markdownFile(draft)).blob.text();
+        expect(output).toContain(left + wrapped + right);
+        expect(reader.parse(output)).toContain(`<${tag}>${core}</${tag}>`);
+      }
+    }
+  });
+  it("색·밑줄이 다른 이웃 코드 글자를 합치고 줄바꿈과 링크 경계는 남긴다", async () => {
+    const code = { type: "code" }, link = { type: "link", attrs: { href: "https://example.com/" } };
+    const red = { type: "textStyle", attrs: { color: "#ff0000" } };
+    const blue = { type: "textStyle", attrs: { color: "#0000ff" } };
+    const draft = await draftWith([
+      paragraph(text("a", code, red), text("b", code, blue, { type: "underline" })),
+      paragraph(text("a` ", code, red), text(" b", code, blue), { type: "hardBreak" }, text("c", code)),
+      paragraph(text("a", code, red, link), text("b", code, blue)),
+      { type: "table", content: [{ type: "tableRow", content: [{ type: "tableCell", content: [paragraph(text("a|", code, red), text("b", code, blue))] }] }] },
+    ]);
+    const output = await (await markdownFile(draft)).blob.text();
+    expect(output).toContain("\n\n`ab`\n\n");
+    expect(output).toContain("\n\n``a`  b``\\\n`c`\n\n");
+    expect(output).toContain("[`a`](https://example.com/)`b`");
+    expect(output).toContain("| `a\\|b` |");
+    expect(reader.parse(output)).toContain("<p><code>ab</code></p>");
+    expect(reader.parse(output)).toContain("<code>a`  b</code><br><code>c</code>");
+  });
   it("사진이 없으면 .md 하나다", async () => {
     const file = await markdownFile(await draftWith([paragraph(text("본문"))]));
     expect(file.name).toBe("제주 여행.md");

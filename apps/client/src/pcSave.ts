@@ -125,7 +125,7 @@ export function toPlainText(document: WriterDocument, photo: (name: string) => s
 // 4. 속성(사진 대체 글, 링크 제목)은 보이는 글이 아니므로 공백을 바꾸지 않고, 줄바꿈과 탭만 문자 참조(&#10; &#9;)로 쓴다.
 // 마크다운으로 옮길 수 없어 가장 가까운 표현을 쓰는 것(글자는 잃지 않는다):
 // - 강조(굵게·기울임·취소선) 가장자리의 공백과 줄바꿈은 기호 밖으로 낸다. 기호가 공백에 붙으면 강조로 읽히지 않는다.
-// - 강조 가장자리가 문장부호이고 바로 옆이 글자이면 기호가 강조로 읽히지 않으므로 그 사이에 빈 주석(<!-- -->)을 둔다.
+// - 강조 가장자리가 문장부호이고 바로 옆에 글자나 문장부호가 붙으면 읽는 쪽이 강조를 놓칠 수 있어 빈 주석(<!-- -->)을 둔다.
 // - 코드 글자 안은 글자 그대로다. 공백을 &nbsp;로 바꾸면 그 글자가 보이므로 바꾸지 않는다. 줄바꿈에서는 코드 표시를 나눈다.
 // - 본문의 빈 문단은 남기지 않는다(문단 사이 빈 줄과 구별되지 않는다).
 // - 링크 표시가 없는 주소 글자를 읽는 쪽이 링크로 만드는 것은 막지 않는다(글자는 같다).
@@ -179,9 +179,10 @@ const isPunctuation = (char: string | undefined) => Boolean(char) && /[\p{P}\p{S
 function emphasize(inner: string, mark: string, before: string, after: string) {
   const [, lead, core, trail] = /^([\s\u0000\u0002]*)([\s\S]*?)([\s\u0000\u0002]*)$/.exec(inner)!;
   if (!core) return inner;
-  const left = before[before.length - 1], right = after[0];
-  const open = !lead && (isMark(left) || (isPunctuation(core[0]) && isWord(left))) ? SEPARATOR : "";
-  const close = !trail && (isMark(right) || (isPunctuation(core[core.length - 1]) && isWord(right))) ? SEPARATOR : "";
+  const letters = Array.from(core), left = Array.from(before).at(-1), right = Array.from(after)[0];
+  // Marked는 일부 이모지를 글자로 판단하므로 문장부호끼리 맞닿는 경계도 빈 주석으로 가른다.
+  const open = !lead && (isMark(left) || (isPunctuation(letters[0]) && (isWord(left) || isPunctuation(left)))) ? SEPARATOR : "";
+  const close = !trail && (isMark(right) || (isPunctuation(letters.at(-1)) && (isWord(right) || isPunctuation(right)))) ? SEPARATOR : "";
   return lead + open + mark + core + mark + close + trail;
 }
 /** 제목 줄 끝의 #은 닫는 표시로 읽혀 사라지므로 막는다. */
@@ -195,9 +196,9 @@ export const linkOf = (node: ContentNode) => {
 };
 const linkTitle = (title: string) => title ? ` "${escapeAttribute(title)}"` : "";
 // 주소는 꺾쇠 없이 쓴다. &는 문자 참조(&copy; 등)로 읽히지 않게 &amp;로, 역슬래시와 괄호는 역슬래시로 막는다.
-// 주소에 쓸 수 없는 <, >는 %로 바꾸고, 표 안에서는 칸을 나누는 |도 %7C로 바꾼다.
+// 주소에 쓸 수 없는 <, >, DEL은 %로 바꾸고, 표 안에서는 칸을 나누는 |도 %7C로 바꾼다.
 const destination = (href: string, inTable: boolean) => (inTable ? href.replace(/\|/g, "%7C") : href)
-  .replace(/[<>]/g, encodeURIComponent).replace(/[\\()]/g, "\\$&").replace(/&/g, "&amp;");
+  .replace(/[<>\u007f]/g, encodeURIComponent).replace(/[\\()]/g, "\\$&").replace(/&/g, "&amp;");
 /** 이웃한 노드를 같은 값끼리 묶는다. */
 export function runs<T>(nodes: ContentNode[], key: (node: ContentNode) => T): [T, ContentNode[]][] {
   const out: [T, ContentNode[]][] = [];
@@ -261,8 +262,10 @@ function visible(nodes: ContentNode[]): ContentNode[] {
 function inline(source: ContentNode[], inTable: boolean): string {
   const render = (nodes: ContentNode[], level: number): string => {
     if (level === emphasis.length)
-      return nodes.map(node => node.type === "hardBreak" ? BREAK
-        : hasMark(node, "code") ? codeSpan(node.text!, inTable) : escapeText(node.text!)).join("");
+      // 색·밑줄처럼 마크다운에서 빠지는 서식만 다르면 코드 글자는 하나의 표시로 합친다.
+      return runs(nodes, node => node.type === "text" && hasMark(node, "code")).map(([code, run]) => code
+        ? codeSpan(run.map(node => node.text!).join(""), inTable)
+        : run.map(node => node.type === "hardBreak" ? BREAK : escapeText(node.text!)).join("")).join("");
     const parts = runs(nodes, node => hasMark(node, emphasis[level][0])).map(([marked, run]) => ({ marked, text: render(run, level + 1) }));
     return parts.map((part, index) => part.marked
       ? emphasize(part.text, emphasis[level][1], parts[index - 1]?.text ?? "", parts[index + 1]?.text ?? "") : part.text).join("");
@@ -303,7 +306,9 @@ export function toMarkdown(document: WriterDocument): string {
       const code = protect(inlineText(node)), language = /^[\w+#.-]{1,40}$/.test(String(attrs.language ?? "")) ? String(attrs.language) : "";
       const fence = "`".repeat(Math.max(3, ...[...code.matchAll(/`+/g)].map(run => run[0].length + 1)));
       // 닫는 표시 앞의 줄바꿈이 코드의 마지막 줄바꿈 몫을 하므로, 줄바꿈으로 끝나는 코드에 빈 줄을 더하지 않는다.
-      return [fence + language, ...(code.endsWith("\n") ? code.slice(0, -1) : code).split("\n"), fence];
+      const lines = code.split(lineBreaks);
+      if (lines.length > 1 && lines.at(-1) === "") lines.pop();
+      return [fence + language, ...lines, fence];
     }
     if (node.type === "horizontalRule") return ["---"];
     if (node.type === "blockquote") return join(blocks(children)).map(line => line ? `> ${line}` : ">");
