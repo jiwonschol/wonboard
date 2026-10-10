@@ -5,9 +5,15 @@ import { test, expect } from "./fixtures";
 // 리눅스 Chromium에서 worker 둘로 돌리면 결과가 나오기까지 3~7초가 걸려 기본 5초를
 // 넘기도 한다. 창이 뜬 뒤 "검사 중…"이 사라질 때(분석 끝)를 기다린다. 20초는 이
 // 파일이 첫 검사에 이미 주던 시간으로, 잰 최댓값(worker 넷에서 약 9초)의 두 배 남짓이다.
-async function analyzed(dialog: Locator) {
+// 검사가 실패해도 "검사 중…"은 사라지므로, 실패 안내가 떠 있으면 그 자리에서 문구를
+// 말하며 실패한다(#60). 실패가 기대값인 시험만 { failure: "expected" }를 넘긴다.
+const failureNotice = /^(Check or dictionary storage failed\. Close and retry\.|검사 또는 사전 저장에 실패했습니다\. 닫고 다시 시도하세요\.)$/;
+async function analyzed(dialog: Locator, { failure }: { failure?: "expected" } = {}) {
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("status").filter({ hasText: /^(Checking…|검사 중…)$/ })).toHaveCount(0, { timeout: 20000 });
+  if (failure === "expected") return;
+  const alert = dialog.getByRole("alert").filter({ hasText: failureNotice });
+  if (await alert.count()) throw new Error(`Spelling check failed instead of finishing: ${JSON.stringify(await dialog.getByRole("alert").allInnerTexts())}`);
 }
 
 for(const locale of ['ko','en'])test(`unbroken-token analysis limit is explained and personal registration works (${locale})`,async({page})=>{
@@ -1130,7 +1136,7 @@ test("unreadable personal dictionary reports a failure without changing or reset
   await page.getByRole("textbox", { name: "Document body", exact: true }).fill("됬어요");
   await page.getByRole("button", { name: "Check spelling", exact: true }).first().click();
   const dialog = page.getByRole("dialog");
-  await analyzed(dialog);
+  await analyzed(dialog, { failure: "expected" });
   await expect(dialog.getByRole("alert")).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Check again", exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem("wonboard.spelling.personal.v1"))).toBe("{broken");
