@@ -13,6 +13,8 @@ export default defineConfig({
     locale: "en-US",
     viewport: { width: 948, height: 815 },
     screenshot: "only-on-failure",
+    // 드물게 나는 실패의 원인(콘솔·요청·DOM)을 남긴다(#60). 통과한 시험의 trace는 지운다.
+    trace: "retain-on-failure",
   },
   webServer: {
     command: "npm run dev",
