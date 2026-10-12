@@ -4,7 +4,7 @@
 
 Wonboard는 글과 사진을 한곳에서 작성하고 보관한 뒤, 원하는 커뮤니티로 옮기기 위한 오픈소스 글쓰기 작업 공간입니다. 한국어와 영어를 함께 쓰는 사람, 사진이 많은 공략·사용기·여행기처럼 오래 남길 글을 쓰는 사람을 위해 만들고 있습니다.
 
-> **베타입니다 (0.1.0-beta.1).** 안내를 따라 자신의 ChatGPT 사이트에 직접 설치할 수 있는 사람을 위한 첫 공개 버전입니다. 정식 버전은 1.0.0이고, 간편 설치는 정식 버전에서 다룹니다. 아래 [베타에서 되는 것과 안 되는 것](#베타에서-되는-것과-안-되는-것)을 먼저 읽어 주세요.
+> **베타입니다 (0.1.0-beta.2).** 안내를 따라 자신의 ChatGPT 사이트에 직접 설치할 수 있는 사람을 위한 공개 베타 버전입니다. 정식 버전은 1.0.0이고, 간편 설치는 정식 버전에서 다룹니다. 아래 [베타에서 되는 것과 안 되는 것](#베타에서-되는-것과-안-되는-것)을 먼저 읽어 주세요.
 
 ## 베타에서 되는 것과 안 되는 것
 
@@ -93,7 +93,7 @@ Sites판, 데스크톱판, 개발자용 로컬 웹은 편집기·문서 형식·
 
 ## 개발 상태
 
-- **버전:** 0.1.0-beta.1. 화면 위쪽 막대와 「더 보기」에 베타 표시와 버전 번호가 나옵니다.
+- **버전:** 0.1.0-beta.2. 화면 위쪽 막대와 「더 보기」에 베타 표시와 버전 번호가 나옵니다.
 - **편집기(세 판 공통):** 글 목록, 서식, 글상자·표, 사진 삽입·크기 조절, 영상 링크, 미리보기, 휴지통, 파일 보관함, 「PC 저장」(PDF·워드·텍스트·마크다운·ZIP 백업)과 「백업 가져오기」를 구현했습니다.
 - **Sites판:** 개인 문서 저장, 비공개 원본과 공개 게시 이미지 분리, 「공유하기」(사진 공개와 HTML 준비)를 구현했습니다. 실제 설치와 동작은 만든 사람의 계정에서만 확인했고, 다른 계정과 운영 안정성 검증은 남아 있습니다.
 - **데스크톱판:** 공유 편집기와 이 컴퓨터 저장을 구현했습니다. 확인 범위와 빠진 것은 [데스크톱판](#데스크톱판)에 적었습니다.
@@ -107,7 +107,7 @@ Sites판, 데스크톱판, 개발자용 로컬 웹은 편집기·문서 형식·
 
 Wonboard is an open-source workspace for people who write thoughtful, image-rich posts and publish them to their communities. Write in a familiar editor, keep drafts together, and reduce repeated formatting and attachment work across forums.
 
-Wonboard is in beta (0.1.0-beta.1). It is free and will stay free, and it has no sign-up of its own. You install it on your own ChatGPT site (Sites), which requires a paid ChatGPT plan; during the beta there is no way to use Wonboard on a free plan. Wonboard restricts drafts and originals to the owner; invited workspace editors can read the live database. Images you confirm in Share receive public URLs for the HTML you paste into a community. Installation starts from the [introduction page](https://jiwonschol.github.io/wonboard/) and a Korean [step-by-step guide](docs/install/README.md). The first account to sign in on a newly installed site becomes its owner, so sign in yourself before widening access to the site. Installation has not yet been verified on an account other than the maintainer's.
+Wonboard is in beta (0.1.0-beta.2). It is free and will stay free, and it has no sign-up of its own. You install it on your own ChatGPT site (Sites), which requires a paid ChatGPT plan; during the beta there is no way to use Wonboard on a free plan. Wonboard restricts drafts and originals to the owner; invited workspace editors can read the live database. Images you confirm in Share receive public URLs for the HTML you paste into a community. Installation starts from the [introduction page](https://jiwonschol.github.io/wonboard/) and a Korean [step-by-step guide](docs/install/README.md). The first account to sign in on a newly installed site becomes its owner, so sign in yourself before widening access to the site. Installation has not yet been verified on an account other than the maintainer's.
 
 The desktop edition is a companion for ChatGPT subscribers who need a desktop app. It stores writing on the computer without sign-in and has no sharing. No installer is distributed during the beta, so you [build it yourself](docs/desktop.md); it has been checked by hand once on an Apple Silicon Mac, and Windows is excluded from the beta because it has never been checked on a real device. Documents move between the desktop edition and the Sites edition through ZIP backup and restore; there is no automatic synchronization. Where data is stored and what leaves is described in the [privacy and storage guide](https://jiwonschol.github.io/wonboard/privacy.html#english). Permanent hosting and identical rendering across all communities are not guaranteed.
 

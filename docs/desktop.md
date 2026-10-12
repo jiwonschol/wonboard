@@ -2,7 +2,7 @@
 
 The desktop edition lives in `apps/desktop`. Its renderer imports the existing `apps/client/src/App.tsx`; the editor, document format, renderer, and translations remain shared with the web app.
 
-Status in 0.1.0-beta.1: the desktop edition is a companion for ChatGPT subscribers who need a desktop app, and during the beta it is for people who build it themselves. No installer, signed build or notarized build is distributed, and it is not published to the Mac App Store. Windows is excluded from the beta because it has never been checked on a real device.
+Status in 0.1.0-beta.2: the desktop edition is a companion for ChatGPT subscribers who need a desktop app, and during the beta it is for people who build it themselves. No installer, signed build or notarized build is distributed, and it is not published to the Mac App Store. Windows is excluded from the beta because it has never been checked on a real device.
 
 ## Build and run
 
