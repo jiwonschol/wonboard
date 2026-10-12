@@ -17,6 +17,11 @@ export function sitesTestPlugin(): Plugin {
       if (path === "/__sites-test/reset" && req.method === "POST") {
         runtime.close(); runtime = createSitesTestRuntime(); res.writeHead(204); res.end(); return;
       }
+      // A freshly installed Site: empty database and no owner environment value.
+      if (path === "/__sites-test/unowned" && req.method === "POST") {
+        runtime.close(); runtime = createSitesTestRuntime(); runtime.env.WONBOARD_OWNER_ID = undefined;
+        res.writeHead(204); res.end(); return;
+      }
       const advanceClock = /^\/__sites-test\/advance-clock\/(\d+)$/.exec(path);
       if (advanceClock && req.method === "POST") {
         const offset = Number(advanceClock[1]);
