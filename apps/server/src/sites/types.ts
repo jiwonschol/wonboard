@@ -21,7 +21,9 @@ export type SitesEnv = {
   DB: Database;
   MEDIA: ObjectStore;
   ASSETS?: { fetch(request: Request): Promise<Response> };
-  // Set by the installer after verifying the owner in the private Site.
+  // Optional. A new Site records its first signed-in account as the owner in the
+  // database. When this value is set it decides the owner instead, which keeps
+  // earlier installs working and lets the installer correct a wrong owner.
   // This is the Site-scoped authenticated user ID, not email or an account ID.
   WONBOARD_OWNER_ID?: string;
 };

@@ -15,37 +15,54 @@ test("sign-in and owner checks use the platform flow, not a claim button", async
   await expect(page.getByText("This writing space belongs to another account.", { exact: false })).toBeVisible();
 });
 
-test("unfinished setup can recheck and identify the signed-in account without claiming ownership", async ({ page, context }) => {
-  let authenticated = false;
-  let configured = false;
-  const writes: string[] = [];
-  page.on("request", request => { if (!["GET", "HEAD"].includes(request.method())) writes.push(request.url()); });
-  await page.route("**/api/sites/session", route => configured ? route.continue() : route.fulfill({
-    json: { mode: "sites", authenticated, configured: false, owner: false, username: "", setupRequired: false },
-  }));
+test("the first sign-in on an unowned Site becomes its owner and a later account is refused", async ({ page, context, request }) => {
+  expect((await request.post("/__sites-test/unowned")).status()).toBe(204);
   await page.goto("/");
-  await expect(page.getByText("Wonboard setup is not finished yet.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Sign in with ChatGPT" })).toBeVisible();
-  await expect(page.getByText("Account connection details", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("This Site has no owner yet.", { exact: false })).toBeVisible();
   await page.getByRole("combobox", { name: "Interface language" }).selectOption("ko");
-  await expect(page.getByText("원보드 설치가 아직 끝나지 않았어요.")).toBeVisible();
-  authenticated = true;
-  await context.setExtraHTTPHeaders({ "X-Wonboard-Test-User": "owner-fixture" });
-  await page.getByRole("button", { name: "설치 상태 다시 확인" }).click();
-  await expect(page.getByRole("link", { name: "ChatGPT로 로그인" })).toHaveCount(0);
+  await expect(page.getByText("이 사이트에는 아직 소유자가 없어요.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("link", { name: "ChatGPT로 로그인" })).toHaveAttribute("href", "/signin-with-chatgpt?return_to=%2F");
+  // Signing in is the whole step: no connection ID to copy and no return to the ChatGPT conversation.
+  await context.setExtraHTTPHeaders({ "X-Wonboard-Test-User": "first-account" });
+  await page.reload();
+  await expect(page.getByText("Test Author, 시작 전에 확인해주세요.")).toBeVisible();
+  await expect(page.getByText("계정 연결 정보", { exact: true })).toHaveCount(0);
+  const start = page.getByRole("button", { name: "내 글쓰기 공간 열기" });
+  await expect(start).toBeDisabled();
+  await page.getByRole("checkbox").check();
+  await start.click();
+  await expect(page.locator(".tiptap")).toHaveCount(1);
+
+  await context.setExtraHTTPHeaders({ "X-Wonboard-Test-User": "second-account" });
+  await page.reload();
+  await expect(page.getByText("다른 계정의 글쓰기 공간입니다.", { exact: false })).toBeVisible();
+  await expect(page.locator(".tiptap")).toHaveCount(0);
+  expect((await request.get("/api/documents", { headers: { "X-Wonboard-Test-User": "second-account" } })).status()).toBe(403);
+  // The refused account can still read its own connection ID, which the installer needs to correct the owner.
   await page.getByText("계정 연결 정보", { exact: true }).click();
   await page.getByRole("button", { name: "연결 정보 확인", exact: true }).click();
-  await expect(page.getByLabel("사이트 계정 연결 ID")).toHaveText("owner-fixture");
-  await expect(page.locator(".tiptap")).toHaveCount(0);
+  await expect(page.getByLabel("사이트 계정 연결 ID")).toHaveText("second-account");
   await page.setViewportSize({ width: 390, height: 844 });
   const bounds = await page.getByLabel("사이트 계정 연결 ID").boundingBox();
   expect(bounds!.x).toBeGreaterThanOrEqual(0);
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
-  configured = true;
-  await page.getByRole("button", { name: "설치 상태 다시 확인" }).click();
-  await expect(page.getByRole("checkbox")).not.toBeChecked();
-  await expect(page.getByRole("button", { name: "내 글쓰기 공간 열기" })).toBeDisabled();
+  expect(await (await request.get("/api/sites/session", { headers: { "X-Wonboard-Test-User": "first-account" } })).json())
+    .toMatchObject({ owner: true, setupRequired: false });
+});
+
+test("a sign-in that delivers no account ID records no owner and says the account could not be checked", async ({ page, request }) => {
+  expect((await request.post("/__sites-test/unowned")).status()).toBe(204);
+  const writes: string[] = [];
+  page.on("request", sent => { if (!["GET", "HEAD"].includes(sent.method())) writes.push(sent.url()); });
+  // The platform sends the visitor back to the Site, but no user ID reaches the server.
+  await page.route("**/signin-with-chatgpt?*", route => route.fulfill({ contentType: "text/html", body: "<script>location.replace('/')</script>" }));
+  await page.goto("/");
+  await expect(page.getByText("Could not check this account.", { exact: false })).toHaveCount(0);
+  await page.getByRole("link", { name: "Sign in with ChatGPT" }).click();
+  await expect(page.getByText("Could not check this account.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Sign in with ChatGPT" })).toBeVisible();
   expect(writes).toEqual([]);
+  expect(await (await request.get("/api/sites/session")).json()).toMatchObject({ authenticated: false, configured: false, owner: false });
 });
 
 test("owner setup, private save, photo export, anonymous embed, rename, withdrawal and restore", async ({ page, context, browser }, testInfo) => {

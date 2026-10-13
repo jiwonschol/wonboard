@@ -2,9 +2,11 @@
 import { sql } from "drizzle-orm";
 import { check, integer, primaryKey, sqliteTable, unique, text } from "drizzle-orm/sqlite-core";
 
+// One row: the owner of this Site. It is written when the first account signs in.
 export const installation = sqliteTable("installation", {
   singleton: integer("singleton").primaryKey(),
   owner_id: text("owner_id").notNull(),
+  // Empty until the owner acknowledges the start notice.
   accepted_at: text("accepted_at").notNull(),
   locale: text("locale").notNull(),
 }, (table) => [

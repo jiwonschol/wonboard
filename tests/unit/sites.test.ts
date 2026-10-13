@@ -466,11 +466,82 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
     }
   });
 
-  it("fails closed before owner binding and prevents public first-visitor ownership claims", async () => {
+  const claim = (user: string | null, from = origin) => call("/api/sites/claim", "POST", { locale: "ko" }, user, from);
+  const session = async (user: string | null) => (await call("/api/sites/session", "GET", undefined, user)).json();
+  const accept = (user: string) => call("/api/sites/setup", "POST", { accepted: true, locale: "ko" }, user);
+  const owners = () => runtime.sqlite.prepare("SELECT owner_id FROM installation").all().map(row => row.owner_id);
+  it("records the first signed-in account as owner of an unowned Site and then asks for acknowledgement", async () => {
     runtime.env.WONBOARD_OWNER_ID = undefined;
-    expect((await (await call("/api/sites/session")).json()).configured).toBe(false);
-    expect((await call("/api/sites/setup", "POST", { accepted: true, locale: "ko" })).status).toBe(403);
-    expect(runtime.sqlite.prepare("SELECT count(*) AS count FROM installation").get()!.count).toBe(0);
+    expect(await session("first")).toMatchObject({ configured: false, owner: false });
+    expect((await accept("first")).status).toBe(403);
+    expect(owners()).toEqual([]);
+    expect(await (await claim("first")).json()).toEqual({ owner: true });
+    expect(await session("first")).toMatchObject({ configured: true, owner: true, setupRequired: true });
+    expect((await call("/api/documents", "GET", undefined, "first")).status).toBe(403);
+    expect((await accept("first")).status).toBe(200);
+    expect(await session("first")).toMatchObject({ owner: true, setupRequired: false });
+    expect((await call("/api/documents", "GET", undefined, "first")).status).toBe(200);
+  });
+  it("refuses another account once an owner is recorded", async () => {
+    runtime.env.WONBOARD_OWNER_ID = undefined;
+    await claim("first");
+    await accept("first");
+    expect(await (await claim("second")).json()).toEqual({ owner: false });
+    expect(await session("second")).toMatchObject({ configured: true, owner: false, username: "" });
+    for (const [path, method, body] of [["/api/documents", "GET"], ["/api/media/photo", "GET"], ["/api/media/photo", "PUT", syntheticPng], ["/api/sites/setup", "POST", { accepted: true, locale: "ko" }]] as const)
+      expect((await call(path, method, body, "second")).status).toBe(403);
+    expect(owners()).toEqual(["first"]);
+  });
+  it("records a single owner when two accounts sign in first at the same time", async () => {
+    runtime.env.WONBOARD_OWNER_ID = undefined;
+    // The second account has already seen an unowned Site when the first account's record lands.
+    const prepare = runtime.env.DB.prepare.bind(runtime.env.DB);
+    let raced = false;
+    runtime.env.DB.prepare = sql => {
+      const statement = prepare(sql);
+      if (sql.startsWith("INSERT INTO installation") && !raced) {
+        raced = true;
+        const run = statement.run.bind(statement);
+        statement.run = async () => { expect(await (await claim("first")).json()).toEqual({ owner: true }); return run(); };
+      }
+      return statement;
+    };
+    expect(await (await claim("second")).json()).toEqual({ owner: false });
+    expect(owners()).toEqual(["first"]);
+    expect([(await session("first")).owner, (await session("second")).owner]).toEqual([true, false]);
+  });
+  it("records no owner without a platform user ID or from a foreign origin", async () => {
+    runtime.env.WONBOARD_OWNER_ID = undefined;
+    expect((await claim(null)).status).toBe(401);
+    expect((await claim("first", "https://evil.test")).status).toBe(403);
+    expect(owners()).toEqual([]);
+    expect(await session(null)).toMatchObject({ authenticated: false, configured: false, owner: false });
+  });
+  it("lets the environment value decide the owner over a recorded one", async () => {
+    expect(await (await claim("another-user")).json()).toEqual({ owner: false });
+    expect(owners()).toEqual([]);
+    runtime.env.WONBOARD_OWNER_ID = undefined;
+    await claim("wrong-account");
+    await accept("wrong-account");
+    runtime.env.WONBOARD_OWNER_ID = "owner-fixture";
+    expect(await session("wrong-account")).toMatchObject({ configured: true, owner: false });
+    expect((await call("/api/documents", "GET", undefined, "wrong-account")).status).toBe(403);
+    expect(await session("owner-fixture")).toMatchObject({ owner: true, setupRequired: true });
+    await setup();
+    expect(owners()).toEqual(["owner-fixture"]);
+    expect((await call("/api/documents")).status).toBe(200);
+  });
+  it("keeps the owner, writing and photos of an install made by an earlier version", async () => {
+    runtime.sqlite.exec("INSERT INTO installation VALUES(1,'owner-fixture','2026-09-01T00:00:00.000Z','en')");
+    const document = await photoDocument();
+    expect(runtime.sqlite.prepare("SELECT accepted_at FROM installation").get()!.accepted_at).toBe("2026-09-01T00:00:00.000Z");
+    // Even if the environment value is lost, the recorded owner stays and nobody else can take over.
+    runtime.env.WONBOARD_OWNER_ID = undefined;
+    expect(await (await claim("another-user")).json()).toEqual({ owner: false });
+    expect((await call("/api/documents", "GET", undefined, "another-user")).status).toBe(403);
+    expect(await session("owner-fixture")).toMatchObject({ owner: true, setupRequired: false });
+    expect((await (await call("/api/documents")).json()).documents[0].documentId).toBe(document.documentId);
+    expect((await call("/api/media/photo")).status).toBe(200);
   });
   it("requires acknowledgement and owner authorization on every private operation", async () => {
     expect((await call("/api/documents")).status).toBe(403);
@@ -481,8 +552,6 @@ describe("personal Sites API with real SQLite and simulated R2/identity", () => 
         expect((await call(path, method, body, user)).status).toBe(user ? 403 : 401);
       }
     }
-    runtime.env.WONBOARD_OWNER_ID = "another-user";
-    expect((await call("/api/sites/session", "GET", undefined, "another-user").then(r => r.json())).owner).toBe(false);
   });
   it("rejects foreign origins and does not implement platform sign-in routes", async () => {
     expect((await call("/api/sites/setup", "POST", { accepted: true, locale: "en" }, "owner-fixture", "https://evil.test")).status).toBe(403);

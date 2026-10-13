@@ -58,9 +58,18 @@ async function tableIds(document: WriterDocument) {
   return [...new Set(await Promise.all(tableNodes(document.content)
     .map(node => tableImageId(node, document.defaultFont))))];
 }
+/** The single owner row. `accepted_at` stays empty until that owner acknowledges the start notice. */
 async function installation(env: SitesEnv) {
   return env.DB.prepare("SELECT owner_id, accepted_at FROM installation WHERE singleton = 1")
     .first<{ owner_id: string; accepted_at: string }>();
+}
+function sameOrigin(request: Request, url: URL) {
+  if (request.headers.get("origin") !== url.origin) throw new HttpError(403, "forbidden");
+}
+async function readLocale(request: Request) {
+  const body = await readJson(request);
+  if (!["ko", "en"].includes(body?.locale)) throw new HttpError(400, "invalidDocument");
+  return body as { locale: "ko" | "en"; accepted?: unknown };
 }
 function displayName(request: Request) {
   const name = request.headers.get("oai-authenticated-user-full-name");
@@ -112,28 +121,48 @@ export async function handleSitesRequest(request: Request, env: SitesEnv): Promi
       return env.ASSETS ? await env.ASSETS.fetch(request) : json({ error: "notFound" }, 404);
     }
     const userId = request.headers.get("oai-authenticated-user-id");
-    const candidate = Boolean(env.WONBOARD_OWNER_ID && userId === env.WONBOARD_OWNER_ID);
-    const installed = candidate ? await installation(env) : null;
-    const owner = candidate && (!installed || installed.owner_id === userId);
+    // The environment value, when set, decides the owner and overrides the recorded
+    // one. It is the only way to correct an owner recorded for the wrong account.
+    const envOwner = env.WONBOARD_OWNER_ID || null;
+    // Anonymous requests reach the database only for the session check, which
+    // must report whether this Site already has an owner.
+    const recorded = (envOwner ? userId === envOwner : userId || path === "/api/sites/session")
+      ? await installation(env) : null;
+    const ownerId = envOwner ?? recorded?.owner_id ?? null;
+    const owner = Boolean(userId && userId === ownerId);
+    const installed = owner && recorded?.owner_id === userId && recorded.accepted_at !== "";
     if (path === "/api/sites/session" && request.method === "GET")
       return json({ mode: "sites", authenticated: Boolean(userId), owner,
-        configured: Boolean(env.WONBOARD_OWNER_ID),
+        configured: Boolean(ownerId),
         username: owner ? displayName(request) : "",
         setupRequired: owner ? !installed : false });
-    // The installer reads the platform-confirmed ID while Site access is private.
-    // This endpoint grants no ownership and makes no persistent change.
+    // Shows a signed-in account its own platform-confirmed ID, which the installer
+    // needs to correct the owner. It grants no ownership and changes nothing.
     if (path === "/api/sites/identity" && request.method === "GET") {
       if (!userId) throw new HttpError(401, "signInRequired");
       return json({ userId });
     }
+    // The first account to sign in on a Site without an owner becomes its owner.
+    // The singleton row makes concurrent first sign-ins leave exactly one owner,
+    // and a missing platform ID records nothing.
+    if (path === "/api/sites/claim" && request.method === "POST") {
+      if (!userId) throw new HttpError(401, "signInRequired");
+      sameOrigin(request, url);
+      const { locale } = await readLocale(request);
+      if (!ownerId) await env.DB.prepare("INSERT INTO installation (singleton, owner_id, accepted_at, locale) VALUES (1, ?, '', ?) ON CONFLICT(singleton) DO NOTHING")
+        .bind(userId, locale).run();
+      return json({ owner: (ownerId ?? (await installation(env))?.owner_id) === userId });
+    }
     if (!owner) throw new HttpError(userId ? 403 : 401, "signInRequired");
-    if (!["GET", "HEAD"].includes(request.method) && request.headers.get("origin") !== url.origin)
-      throw new HttpError(403, "forbidden");
+    if (!["GET", "HEAD"].includes(request.method)) sameOrigin(request, url);
     if (path === "/api/sites/setup" && request.method === "POST") {
-      const body = await readJson(request);
-      if (body?.accepted !== true || !["ko", "en"].includes(body.locale))
-        throw new HttpError(400, "invalidDocument");
-      await env.DB.prepare("INSERT INTO installation (singleton, owner_id, accepted_at, locale) VALUES (1, ?, ?, ?) ON CONFLICT(singleton) DO NOTHING")
+      const body = await readLocale(request);
+      if (body.accepted !== true) throw new HttpError(400, "invalidDocument");
+      // Keeps the first acknowledgement of the same owner. When the environment
+      // value names another account, the record moves to that account.
+      await env.DB.prepare(`INSERT INTO installation (singleton, owner_id, accepted_at, locale) VALUES (1, ?, ?, ?)
+        ON CONFLICT(singleton) DO UPDATE SET owner_id = excluded.owner_id, accepted_at = excluded.accepted_at, locale = excluded.locale
+        WHERE installation.owner_id <> excluded.owner_id OR installation.accepted_at = ''`)
         .bind(userId, new Date().toISOString(), body.locale).run();
       return json({ accepted: true });
     }
