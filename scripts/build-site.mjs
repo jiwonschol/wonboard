@@ -1,10 +1,10 @@
-// 소개 페이지와 개인정보 안내(site/)를 site/dist로 만든다. 설치 문장은 docs/install/install-prompt.txt 한 곳에만
+// 소개 페이지, 설치 마법사, 개인정보 안내(site/)를 site/dist로 만든다. 설치 문장은 docs/install/install-prompt.txt 한 곳에만
 // 있고, 여기서 페이지에 넣는다. 설치 문장과 설치 안내가 가리키는 명령·파일·환경 값·화면 문구가
 // 저장소에 실제로 있는지도 함께 검사해, 어긋나면 빌드를 실패시킨다.
 // 설치 문장이 가져오는 코드의 태그는 package.json의 version 한 곳에서 정한다(v + version). 새 릴리스 때
 // version만 바꾸고 `pnpm build:site --write-tag`를 돌리면 설치 문장의 태그와 작업공간 manifest의 버전이 따라온다.
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const root = new URL("../", import.meta.url);
@@ -69,17 +69,32 @@ if (!prompt.includes(`pnpm ${pnpmVersion}`)) problems.push(`설치 문장의 pnp
 const nodeVersion = manifest.engines.node.replace(/^>=/, "").replace(/\.0$/, "");
 if (!prompt.includes(`Node.js ${nodeVersion} 이상`)) problems.push(`설치 문장의 Node.js 버전이 package.json(${nodeVersion})과 다릅니다.`);
 
-// “…”로 적은 것은 원보드 화면에 실제로 나오는 문구여야 한다.
+// “…”로 적은 것은 원보드 화면에 실제로 나오는 문구여야 한다. ChatGPT·Sites 화면의 문구는 「…」로 적는다.
 const privacy = read("site/privacy.html");
-for (const [name, text] of [["설치 문장", prompt], ["설치 안내", guide], ["개인정보 안내", privacy]])
+const page = read("site/index.html");
+const wizard = read("site/install.html");
+for (const [name, text] of [["설치 문장", prompt], ["설치 안내", guide], ["개인정보 안내", privacy], ["소개 페이지", page], ["설치 마법사", wizard]])
   for (const [, phrase] of text.matchAll(/“([^”]+)”/g))
     if (!korean.includes(phrase)) problems.push(`${name}의 화면 문구 “${phrase}”가 packages/locales에 없습니다.`);
 
-const page = read("site/index.html");
+// 설치 문장은 설치 마법사(install.html)의 2단계에서 복사한다.
 const slot = "<!--INSTALL_PROMPT-->";
-if (page.split(slot).length !== 2) problems.push("site/index.html에 설치 문장 자리가 정확히 하나 있어야 합니다.");
+if (wizard.split(slot).length !== 2) problems.push("site/install.html에 설치 문장 자리가 정확히 하나 있어야 합니다.");
+if (page.includes(slot)) problems.push("설치 문장 자리는 site/install.html에만 둡니다.");
 const tagSlot = "<!--TAG-->";
-if (!page.includes(tagSlot)) problems.push("site/index.html에 설치 문장이 가져오는 태그 자리가 있어야 합니다.");
+for (const [path, text] of [["site/index.html", page], ["site/install.html", wizard]])
+  if (!text.includes(tagSlot)) problems.push(`${path}에 설치 문장이 가져오는 태그 자리가 있어야 합니다.`);
+// 마법사의 화면 이미지(site/install/)는 모두 있어야 하고, 한 장 150KB·합계 1.5MB를 넘지 않는다.
+const shots = Array.from(new Set(Array.from(wizard.matchAll(/\bsrc="(install\/[^"]+)"/g), match => match[1])));
+let shotBytes = 0;
+for (const shot of shots) {
+  const url = new URL(`site/${shot}`, root);
+  if (!existsSync(url)) { problems.push(`site/install.html이 가리키는 site/${shot}이 없습니다.`); continue; }
+  const { size } = statSync(url);
+  shotBytes += size;
+  if (size > 150 * 1024) problems.push(`site/${shot}이 ${Math.ceil(size / 1024)}KB입니다. 한 장 150KB 이하로 줄이세요.`);
+}
+if (shotBytes > 1.5 * 1024 * 1024) problems.push(`설치 마법사 이미지가 합계 ${Math.ceil(shotBytes / 1024)}KB입니다. 1.5MB 이하로 줄이세요.`);
 
 // 설치 문장은 package.json 버전의 태그를 가져오고, ZIP 주소도 같은 태그를 가리킨다. 안내와 소개 페이지는
 // 태그를 직접 적지 않고 설치 문장과 위 자리를 따른다. main 브랜치 ZIP은 설치한 날마다 코드가 달라지므로 쓰지 않는다.
@@ -88,7 +103,7 @@ if (!prompt.includes(`저장소: ${repository} (태그 ${tag})`))
   problems.push(`설치 문장의 저장소 줄이 package.json 버전의 태그(${tag})를 가리키지 않습니다. 새 릴리스라면 pnpm build:site --write-tag로 맞추세요.`);
 if (!prompt.includes(`${repository}/archive/refs/tags/${tag}.zip`))
   problems.push(`설치 문장의 ZIP 주소가 ${tag} 태그를 가리키지 않습니다.`);
-for (const [name, text] of [["설치 문장", prompt], ["설치 안내", guide], ["소개 페이지", page]]) {
+for (const [name, text] of [["설치 문장", prompt], ["설치 안내", guide], ["소개 페이지", page], ["설치 마법사", wizard]]) {
   for (const found of new Set(Array.from(text.matchAll(tagPattern), match => match[0])))
     if (found !== tag) problems.push(`${name}의 태그 ${found}가 package.json 버전의 태그(${tag})와 다릅니다. pnpm build:site --write-tag로 설치 문장을 맞추세요.`);
   if (text.includes("/archive/refs/heads/")) problems.push(`${name}에 브랜치 ZIP 주소가 있습니다. 설치 문장의 태그 ZIP을 쓰세요.`);
@@ -119,7 +134,10 @@ const escaped = prompt.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g
 const out = new URL("site/dist/", root);
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
-for (const name of ["style.css", "install.js"]) cpSync(new URL(`site/${name}`, root), new URL(name, out));
-writeFileSync(new URL("index.html", out), page.replaceAll(tagSlot, tag).replace(slot, () => escaped));
+for (const name of ["style.css", "install-wizard.js"]) cpSync(new URL(`site/${name}`, root), new URL(name, out));
+mkdirSync(new URL("install/", out));
+for (const shot of shots) cpSync(new URL(`site/${shot}`, root), new URL(shot, out));
+writeFileSync(new URL("index.html", out), page.replaceAll(tagSlot, tag));
+writeFileSync(new URL("install.html", out), wizard.replaceAll(tagSlot, tag).replace(slot, () => escaped));
 writeFileSync(new URL("privacy.html", out), privacy.replaceAll(versionSlot, manifest.version));
 console.log(`소개 페이지를 ${fileURLToPath(out)}에 만들었습니다. 설치 문장 ${prompt.length}자, 태그 ${tag}.`);
