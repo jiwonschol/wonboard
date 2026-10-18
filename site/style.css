@@ -244,3 +244,104 @@ a.name {
 .prose h3 {
   margin-top: 20px;
 }
+/* 설치 마법사(install.html) */
+.wizard {
+  padding-top: 40px;
+  padding-bottom: 40px;
+}
+.wizard > .lead,
+.wizard > p,
+.wstep > p,
+.wstep > ol {
+  max-width: 44em;
+}
+.wprogress {
+  font-weight: 600;
+  min-height: 1.7em;
+}
+.wstep {
+  border-top: 1px solid var(--wb-border);
+  padding: 28px 0 8px;
+}
+.wstep h2:focus {
+  outline: none;
+}
+.wstep h2:focus-visible {
+  outline: 2px solid var(--wb-accent);
+  outline-offset: 4px;
+}
+.wstep figure {
+  margin: 0 0 20px;
+}
+.wstep img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--wb-border);
+  border-radius: 6px;
+}
+.wstep figcaption {
+  color: var(--muted);
+  font-size: 14px;
+  margin-top: 6px;
+}
+.figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 0 24px;
+  align-items: start;
+}
+.wcheck {
+  background: var(--panel);
+  border: 1px solid var(--wb-border);
+  border-radius: 6px;
+  padding: 16px;
+  margin: 8px 0 16px;
+  max-width: 44em;
+}
+.wq {
+  font-weight: 600;
+  margin-bottom: 0;
+}
+.wcheck .actions {
+  display: none;
+  margin: 12px 0 0;
+}
+.js .wcheck .actions {
+  display: flex;
+}
+.whelp {
+  max-width: 44em;
+}
+.whelp ul,
+.whelp ol {
+  padding-left: 20px;
+}
+.whelp li {
+  margin-bottom: 10px;
+}
+.whelp figure {
+  margin-top: 10px;
+}
+.wfoot {
+  font-size: 14px;
+}
+.linklike {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--action);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+button.linklike:focus-visible {
+  outline: 2px solid var(--wb-accent);
+  outline-offset: 2px;
+}
+.wstep code {
+  font-size: 0.9em;
+  background: var(--panel);
+  padding: 0 4px;
+  border-radius: 3px;
+}
