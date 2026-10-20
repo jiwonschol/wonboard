@@ -6,6 +6,31 @@ test.beforeEach(async ({ request }) => {
   expect((await request.post("/__sites-test/reset")).status()).toBe(204);
 });
 
+test("a missing export module fails before any photo is published", async ({ page, context }) => {
+  await context.setExtraHTTPHeaders({ "X-Wonboard-Test-User": "owner-fixture" });
+  await page.route("**/apps/client/src/htmlExport.tsx*", route => route.abort());
+  const publicWrites: string[] = [];
+  page.on("request", request => {
+    if (request.method() !== "GET" && /\/(publish|variant)(?:\?|$)/.test(request.url())) publicWrites.push(request.url());
+  });
+  await page.goto("/");
+  await page.getByRole("checkbox", { name: "I understand where my data is stored", exact: false }).check();
+  await page.getByRole("button", { name: "Open my writing space" }).click();
+  await page.getByRole("textbox", { name: "Add title" }).fill("Private photo fixture");
+  await page.getByRole("textbox", { name: "Document body" }).fill("This stays private.");
+  await page.getByRole("tab", { name: "Attachments 0", exact: true }).click();
+  await page.locator('.attachments-panel input[type="file"]').setInputFiles({ name: "photo.png", mimeType: "image/png", buffer: syntheticPng });
+  await expect(page.locator(".tiptap .wb-media img")).toHaveCount(1);
+  await expect(page.getByText("Saved to my Site", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Share", exact: true });
+  await dialog.getByRole("checkbox").check();
+  await dialog.getByRole("button", { name: "Publish photos and prepare HTML" }).click();
+  await expect(dialog.getByRole("status")).toContainText("No new photos were published by this attempt.");
+  expect(publicWrites).toEqual([]);
+  await expect(dialog.getByRole("textbox", { name: "HTML for your community" })).toHaveCount(0);
+});
+
 test("sign-in and owner checks use the platform flow, not a claim button", async ({ page, context }) => {
   await page.goto("/");
   await expect(page.getByRole("link", { name: "Sign in with ChatGPT" })).toHaveAttribute("href", "/signin-with-chatgpt?return_to=%2F");
