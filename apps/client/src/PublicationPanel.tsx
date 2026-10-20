@@ -39,7 +39,7 @@ export function PublicationPanel({ locale, documentId, save, snapshot, canPublis
     try { await action(); }
     catch (error) {
       const reason = error instanceof Error ? error.message : "";
-      setMessage(t(reason === "tooManyTables" || reason === "tableTooLarge" || reason === "fontUnavailable" ? reason : "publishFailed"));
+      setMessage(t(reason === "tooManyTables" || reason === "tableTooLarge" || reason === "fontUnavailable" || reason === "siteUpdated" ? reason : "publishFailed"));
     }
     finally { setWorking(false); onBusy(false); }
   }
@@ -59,10 +59,11 @@ export function PublicationPanel({ locale, documentId, save, snapshot, canPublis
         fileUrls[id] = new URL(share.url, location.origin).href;
       }
     }
+    // Load before making photos public: an older tab can reference a chunk that
+    // disappeared in a newer deployment. It must fail before any public write.
+    const { exportHtml } = await import("./htmlExport").catch(() => { throw new Error("siteUpdated"); });
     const published = await publishImages(draft, tablesAsImages);
     const urls = { ...published.urls, ...fileUrls };
-    // The HTML serializer is needed only after an explicit export action.
-    const { exportHtml } = await import("./htmlExport");
     setHtml(exportHtml(draft.document, urls, published.tableImages));
     draftText.current = plainText(draft.document.content);
     setItems(await publications(documentId));
