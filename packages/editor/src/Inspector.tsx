@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { Editor } from "@tiptap/react";
-import { limits, type Locale, type FontId } from "@wonboard/document";
+import { limits, documentStyleNames, documentTextStyle, writingFonts, type DocumentStyles, type DocumentStyleName, type Locale, type FontId } from "@wonboard/document";
 
 // alt·caption 은 validateDocument 가 limits.attributeText 로 거른다. 그 한도를 넘긴 값이
 // 문서에 들어가면 이후 모든 자동 저장과 백업이 실패하고, 사용자는 어느 칸을 줄여야
@@ -11,9 +11,18 @@ import { translator, type MessageKey } from "@wonboard/locales";
 import { Icon } from "./icons";
 import { WritingToolbar } from "./WritingToolbar";
 
+function StyleNumber({ label, value, min, max, step = 1, onChange }: { label: string; value: number; min: number; max: number; step?: number; onChange(value: number): void }) {
+  const [text, setText] = useState(String(Number(value.toFixed(2))));
+  useEffect(() => setText(String(Number(value.toFixed(2)))), [value]);
+  const apply = () => { const next = Number(text); if (text !== "" && Number.isFinite(next) && next >= min && next <= max) onChange(next); else setText(String(Number(value.toFixed(2)))); };
+  return <input aria-label={label} type="number" min={min} max={max} step={step} value={text} onChange={e => setText(e.target.value)} onBlur={apply} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); apply(); } }} />;
+}
+
 export function Inspector({
   editor,
   defaultFont,
+  styles,
+  onStylesChange,
   locale,
   onClose,
   attachments,
@@ -24,11 +33,13 @@ export function Inspector({
 }: {
   editor: Editor;
   defaultFont?: FontId;
+  styles?: DocumentStyles;
+  onStylesChange?(styles: DocumentStyles): void;
   locale: Locale;
   onClose(): void;
   attachments?: ReactNode;
   attachmentCount?: number;
-  initialTab?: "block" | "attachments";
+  initialTab?: "post" | "block" | "attachments";
   composing?: boolean;
   onLink(): void;
 }) {
@@ -46,6 +57,9 @@ export function Inspector({
       .updateAttributes(type, { [key]: value })
       .run();
   const [tab, setTab] = useState<"post" | "block" | "attachments">(initialTab);
+  const [styleName, setStyleName] = useState<DocumentStyleName>("paragraph");
+  const style = documentTextStyle(styles, styleName, defaultFont);
+  const updateStyle = (patch: Partial<typeof style>) => onStylesChange?.({ ...styles, [styleName]: { ...styles?.[styleName], ...patch } });
   const [color, setColor] = useState<string | null>(null);
   const [gradient, setGradient] = useState(false);
   const [sectionOptions, setSectionOptions] = useState<string | null>(null);
@@ -120,9 +134,20 @@ export function Inspector({
         attachments
       ) : tab === "post" ? (
         <section>
-          <h2>{t("post")}</h2>
-          <p>{t("localOnly")}</p>
-          <p>{t("publishLater")}</p>
+          <h2>{t("documentStyles")}</h2>
+          <p>{t("documentStylesHint")}</p>
+          <fieldset className="document-style-controls" disabled={!editor.isEditable || composing}>
+            <label>{t("styleName")}<select aria-label={t("styleName")} value={styleName} onChange={e => setStyleName(e.target.value as DocumentStyleName)}>
+              {documentStyleNames.map(name => <option key={name} value={name}>{name === "title" ? t("addTitle") : name === "paragraph" ? t("bodyStyle") : name === "blockquote" ? t("blockquote") : `${t("heading")} ${name.slice(1)}`}</option>)}
+            </select></label>
+            <label>{t("writingFont")}<select aria-label={t("styleFont")} value={style.fontFamily ?? "sans"} onChange={e => updateStyle({ fontFamily: e.target.value as FontId })}>
+              {writingFonts.map(font => <option key={font.id} value={font.id}>{font.name}</option>)}
+            </select></label>
+            <label>{t("writingSize")}<StyleNumber key={`${styleName}-size`} label={t("styleSize")} min={12} max={96} value={style.fontSize} onChange={fontSize => updateStyle({ fontSize })} /></label>
+            <label>{t("lineHeight")}<StyleNumber key={`${styleName}-spacing`} label={t("lineHeight")} min={1} max={3} step={0.1} value={style.lineHeight} onChange={lineHeight => updateStyle({ lineHeight })} /></label>
+            <label>{t("writingColor")}<input aria-label={t("styleColor")} type="color" value={style.color} onChange={e => updateStyle({ color: e.target.value })} /></label>
+            <button onClick={() => { const next = { ...styles }; delete next[styleName]; onStylesChange?.(next); }}>{t("resetDocumentStyle")}</button>
+          </fieldset>
         </section>
       ) : editor.isActive("video") ? (
         <section>
@@ -216,7 +241,7 @@ export function Inspector({
               </section>
               <section>
                 <h2>{t("inspectorWritingTools")}</h2>
-                <WritingToolbar editor={editor} defaultFont={defaultFont} locale={locale} composing={composing} onLink={onLink} expanded />
+                <WritingToolbar styles={styles} editor={editor} defaultFont={defaultFont} locale={locale} composing={composing} onLink={onLink} expanded />
               </section>
               <section>
                 {heading("background")}

@@ -1,6 +1,7 @@
 import type { Editor } from "@tiptap/core";
 import type { Transaction } from "@tiptap/pm/state";
 import { closeHistory } from "@tiptap/pm/history";
+import { bodyStart } from "./editorDocument";
 import type { ContentNode } from "@wonboard/document";
 
 export function insertAttachmentContent(editor: Editor, content: ContentNode[]) {
@@ -14,6 +15,7 @@ export function insertAttachmentContent(editor: Editor, content: ContentNode[]) 
 // Map the captured selection through document edits, not through later clicks.
 // A newly selected document must explicitly fail the caller's identity check.
 export function captureAttachmentSelection(editor: Editor) {
+  if (editor.isActive("documentTitle")) editor.commands.setTextSelection(bodyStart(editor));
   let bookmark = editor.state.selection.getBookmark(), closed = false;
   const marks = editor.state.storedMarks;
   const map = ({ transaction }: { transaction: Transaction }) => {

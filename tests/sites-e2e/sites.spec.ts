@@ -6,6 +6,30 @@ test.beforeEach(async ({ request }) => {
   expect((await request.post("/__sites-test/reset")).status()).toBe(204);
 });
 
+test("a missing export module fails before any photo is published", async ({ page, context, request }) => {
+  const owner = { "X-Wonboard-Test-User": "owner-fixture", Origin: "http://127.0.0.1:5174" };
+  await context.setExtraHTTPHeaders(owner);
+  expect((await request.post("/api/sites/setup", { headers: owner, data: { accepted: true, locale: "en" } })).status()).toBe(200);
+  await page.route("**/apps/client/src/htmlExport.tsx*", route => route.abort());
+  const publicWrites: string[] = [];
+  page.on("request", request => {
+    if (request.method() !== "GET" && /\/(publish|variant)(?:\?|$)/.test(request.url())) publicWrites.push(request.url());
+  });
+  await page.goto("/");
+  await page.getByRole("textbox", { name: "Add title" }).fill("Private photo fixture");
+  await page.getByRole("textbox", { name: "Document body" }).fill("This stays private.");
+  await page.locator('input[type="file"][aria-label="Insert images"]').setInputFiles({ name: "photo.png", mimeType: "image/png", buffer: syntheticPng });
+  await expect(page.locator(".tiptap .wb-media img")).toHaveCount(1);
+  await expect(page.getByText("Saved to my Site", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Export", exact: true });
+  await dialog.getByRole("checkbox").check();
+  await dialog.getByRole("button", { name: "Publish photos and prepare HTML" }).click();
+  await expect(dialog.getByRole("status")).toContainText("No new photos were published by this attempt.");
+  expect(publicWrites).toEqual([]);
+  await expect(dialog.getByRole("textbox", { name: "HTML for your community" })).toHaveCount(0);
+});
+
 test("sign-in and owner checks use the platform flow, not a claim button", async ({ page, context }) => {
   await page.goto("/");
   await expect(page.getByRole("link", { name: "Sign in with ChatGPT" })).toHaveAttribute("href", "/signin-with-chatgpt?return_to=%2F");
@@ -70,7 +94,7 @@ test("owner setup, private save, photo export, anonymous embed, rename, withdraw
   await expect(page.locator(".tiptap .wb-media img")).toHaveCount(1);
   await expect(page.getByText("Saved to my Site", { exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("textbox", { name: "Add title" })).toHaveValue("My illustrated guide");
+  await expect(page.getByRole("textbox", { name: "Add title" })).toHaveText("My illustrated guide");
   await expect(page.locator(".tiptap .wb-media img")).toHaveCount(1);
   await page.getByRole("button", { name: "Export", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Export", exact: true });
@@ -89,6 +113,7 @@ test("owner setup, private save, photo export, anonymous embed, rename, withdraw
     expect(imageResponse.status()).toBe(200);
     expect(imageResponse.headers()["content-type"]).toBe("image/png");
     expect(imageResponse.headers()["cache-control"]).toBe("no-store");
+    expect(decodeURIComponent(imageResponse.headers()["content-disposition"])).toContain("My illustrated guide_001.png");
     expect((await anonymous.request.get("http://127.0.0.1:5174/api/documents")).status()).toBe(401);
     const external = await anonymous.newPage();
     external.on("console", message => { if (["error", "warning"].includes(message.type())) consoleMessages.push(`External: ${message.text()}`); });
@@ -116,6 +141,7 @@ test("owner setup, private save, photo export, anonymous embed, rename, withdraw
     await dialog.getByRole("button", { name: "Publish photos and prepare HTML" }).click();
     await expect(source).toBeVisible();
     expect(await source.inputValue()).toContain(mediaUrl);
+    expect(decodeURIComponent((await anonymous.request.get(mediaUrl)).headers()["content-disposition"])).toContain("Renamed guide_001.png");
     await dialog.getByRole("button", { name: "Close", exact: true }).click();
     await page.locator(".writing-library").getByRole("button", { name: "File library", exact: true }).click();
     const library = page.getByRole("dialog", { name: "File library", exact: true });

@@ -86,13 +86,13 @@
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
-.tiptap > * {
+.tiptap > *, .wb-body > * {
   margin: 0 0 1.35em;
 }
-.tiptap > p:first-child {
+.tiptap > p:first-child, .wb-body > p:first-child {
   margin-top: 0;
 }
-.tiptap p.is-editor-empty:first-child::before {
+.tiptap p.is-editor-empty:first-child::before, .document-title.is-empty::before {
   content: attr(data-placeholder);
   float: left;
   color: #707070;
@@ -775,3 +775,14 @@
     max-width: calc(100% - 16px);
   }
 }
+
+.document-page { font-family: var(--wb-paragraph-fontFamily); font-size: var(--wb-paragraph-fontSize, 19.3642px); color: var(--wb-paragraph-color, #111); line-height: var(--wb-paragraph-lineHeight, 1.4); }
+.tiptap > .document-title, .preview-page > .document-title { font-family: var(--wb-title-fontFamily, inherit); font-size: var(--wb-title-fontSize, 39.0388px); line-height: var(--wb-title-lineHeight, 1.125); color: var(--wb-title-color, inherit); margin: 0 0 26.156px; }
+.wb-body { margin: 0; min-height: 180px; }
+.tiptap h1 { font-family: var(--wb-h1-fontFamily, inherit); font-size: var(--wb-h1-fontSize, 2em); color: var(--wb-h1-color, inherit); line-height: var(--wb-h1-lineHeight, 1.2); }
+.tiptap h2 { font-family: var(--wb-h2-fontFamily, inherit); font-size: var(--wb-h2-fontSize, 1.65em); color: var(--wb-h2-color, inherit); line-height: var(--wb-h2-lineHeight, 1.2); }
+.tiptap h3 { font-family: var(--wb-h3-fontFamily, inherit); font-size: var(--wb-h3-fontSize, 1.3em); color: var(--wb-h3-color, inherit); line-height: var(--wb-h3-lineHeight, 1.2); }
+.tiptap blockquote { font-family: var(--wb-blockquote-fontFamily, inherit); font-size: var(--wb-blockquote-fontSize, inherit); color: var(--wb-blockquote-color, inherit); line-height: var(--wb-blockquote-lineHeight, inherit); }
+.document-style-controls { display: grid; gap: 12px; min-width: 0; }
+.document-style-controls label { display: grid; gap: 5px; }
+.document-style-controls input, .document-style-controls select { width: 100%; min-width: 0; box-sizing: border-box; }

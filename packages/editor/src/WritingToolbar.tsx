@@ -4,6 +4,8 @@ import { writingFonts, primaryFontIds, type FontId, type Locale } from "@wonboar
 import { translator } from "@wonboard/locales";
 import { Icon } from "./icons";
 import { SpellcheckTool } from "./SpellcheckTool";
+import { documentTextStyle, type DocumentStyles } from "@wonboard/document";
+import { setBodyStyle } from "./bodyStyle";
 import pretendardLicense from "./licenses/Pretendard-OFL.txt?url";
 import serifLicense from "@fontsource-variable/noto-serif-kr/LICENSE?url";
 import softLicense from "@fontsource/gowun-dodum/LICENSE?url";
@@ -20,20 +22,22 @@ const supplementalNoticeKey = "wonboard:supplemental-font-notice:v1";
 const primaryFonts = primaryFontIds.map(id => writingFonts.find(font => font.id === id)!);
 const supplementalFonts = writingFonts.filter(font => !primaryFontIds.includes(font.id));
 
-export function WritingToolbar({ editor, defaultFont = "sans", locale, composing, onLink, expanded = false, actions }: {
+export function WritingToolbar({ editor, defaultFont = "sans", locale, composing, onLink, styles, expanded = false, actions }: {
   editor: Editor; locale: Locale; composing: boolean; onLink(): void;
   defaultFont?: FontId;
+  styles?: DocumentStyles;
   expanded?: boolean; actions?: ReactNode;
 }) {
   const t = translator(locale);
   const attrs = editor.getAttributes("textStyle");
   const blockType = editor.isActive("heading") ? "heading" : "paragraph";
   const block = editor.getAttributes(blockType);
-  const disabled = !editor.isEditable || composing || editor.isActive("media") || editor.isActive("video");
-  const effectiveSize = attrs.fontSize ?? block.fontSize;
+  const disabled = !editor.isEditable || composing || editor.isActive("media") || editor.isActive("video") || editor.isActive("documentTitle");
+  const shared = documentTextStyle(styles, editor.isActive("heading") ? `h${block.level as 1 | 2 | 3}` : editor.isActive("blockquote") ? "blockquote" : "paragraph", defaultFont);
+  const effectiveSize = attrs.fontSize ?? block.fontSize ?? (styles ? shared.fontSize : undefined);
   const [size, setSize] = useState(String(effectiveSize ?? ""));
   const [showFontNotice, setShowFontNotice] = useState(false);
-  const selectedFont = attrs.fontFamily ?? defaultFont;
+  const selectedFont = attrs.fontFamily ?? shared.fontFamily ?? defaultFont;
   function selectFont(id: string) {
     setStyle("fontFamily", id);
     if (!primaryFontIds.includes(id as FontId)) {
@@ -85,10 +89,10 @@ export function WritingToolbar({ editor, defaultFont = "sans", locale, composing
           onChange={e => {
             const chain = editor.chain().focus();
             if (e.target.value === "codeBlock") chain.setCodeBlock().run();
-            else if (e.target.value === "paragraph") chain.setParagraph().run();
+            else if (e.target.value === "paragraph") setBodyStyle(editor);
             else chain.setHeading({ level: Number(e.target.value.slice(1)) as 1 | 2 | 3 }).run();
           }}>
-          <option value="paragraph">{t("paragraph")}</option>
+          <option value="paragraph">{t("bodyStyle")}</option>
           {[1, 2, 3].map(level => <option key={level} value={`h${level}`}>{t("heading")} {level}</option>)}
           <option value="codeBlock">{t("codeBlock")}</option>
         </select>

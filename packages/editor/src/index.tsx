@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Extension, type Editor as EditorType } from "@tiptap/core";
-import { Plugin } from "@tiptap/pm/state";
+import { AllSelection, Plugin } from "@tiptap/pm/state";
+import { closeHistory } from "@tiptap/pm/history";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -9,7 +10,8 @@ import {
   isComposingKey,
   safeLink,
   limits,
-  fontFamily,
+  documentStyleVariables,
+  type DocumentStyles,
   type FontId,
   markAttrsFitDocument,
   nodeAttrsFitDocument,
@@ -26,6 +28,10 @@ import { Icon } from "./icons";
 import { VideoNode } from "./VideoNode";
 import { TextStyle } from "./TextStyle";
 import { WritingToolbar } from "./WritingToolbar";
+import { WritingHistory } from "./history";
+import { bodyStyleAttributes, setBodyStyle } from "./bodyStyle";
+import { WritingDocument, DocumentTitle, DocumentBody, editingDocument, documentBodyContent, editingTitle, bodyStart } from "./editorDocument";
+export { documentBodyContent, bodyStart } from "./editorDocument";
 import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 import "@fontsource-variable/noto-serif-kr";
 import "@fontsource/gowun-dodum";
@@ -45,6 +51,8 @@ export { Icon };
 export interface WonboardEditorProps {
   content: ContentNode;
   defaultFont?: FontId;
+  styles?: DocumentStyles;
+  onStylesChange?(styles: DocumentStyles): void;
   title: string;
   locale: Locale;
   documentLocale: Locale;
@@ -196,7 +204,7 @@ export const hasValidMarkAttributes = (doc: TraversableDoc) => {
 export const hasValidNodeAttributes = (doc: TraversableDoc) => {
   let valid = true;
   doc.descendants((node) => {
-    if (!nodeAttrsFitDocument(node.type.name, node.attrs)) {
+    if (!["documentTitle", "documentBody"].includes(node.type.name) && !nodeAttrsFitDocument(node.type.name, node.attrs)) {
       valid = false;
       return false;
     }
@@ -210,13 +218,24 @@ export const DocumentLimits = Extension.create({
       new Plugin({
         filterTransaction: (transaction, state) =>
           !transaction.docChanged ||
-          (allowsTextChange(transaction.doc, state.doc) &&
+          ((transaction.doc.firstChild?.type.name !== "documentTitle" ||
+            transaction.doc.firstChild.textBetween(0, transaction.doc.firstChild.content.size, "", "\n").length <= limits.title) &&
+            allowsTextChange(transaction.doc.firstChild?.type.name === "documentTitle" ? transaction.doc.lastChild! : transaction.doc, state.doc.firstChild?.type.name === "documentTitle" ? state.doc.lastChild! : state.doc) &&
             hasValidOrderedListStarts(transaction.doc) &&
             hasValidNodeAttributes(transaction.doc) &&
             hasValidMarkAttributes(transaction.doc) &&
-            hasValidDocumentStructure(transaction.doc)),
+            hasValidDocumentStructure(transaction.doc.firstChild?.type.name === "documentTitle" ? transaction.doc.lastChild! : transaction.doc)),
       }),
     ];
+  },
+});
+const SelectionHistory = Extension.create({
+  name: "wonboardSelectionHistory",
+  addProseMirrorPlugins() {
+    return [new Plugin({ filterTransaction(transaction, state) {
+      if (transaction.docChanged && state.selection instanceof AllSelection) closeHistory(transaction);
+      return true;
+    } })];
   },
 });
 const insertTypes = [
@@ -236,11 +255,13 @@ export function WonboardEditor(props: WonboardEditorProps) {
   const t = translator(props.locale);
   const [tick, setTick] = useState(0);
   const [slash, setSlash] = useState(false);
+  const isInsert = props.insertOpen || slash;
+  const insertGrid = useRef<HTMLDivElement>(null);
   const [linkOpen, setLinkOpen] = useState(false);
   const [link, setLink] = useState("");
   const [linkError, setLinkError] = useState(false);
   const [composing, setComposing] = useState(false);
-  const [toolPanel, setToolPanel] = useState<"block" | "attachments" | null>(null);
+  const [toolPanel, setToolPanel] = useState<"post" | "block" | "attachments" | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!toolPanel) return;
@@ -261,10 +282,15 @@ export function WonboardEditor(props: WonboardEditorProps) {
     return () => { resize.disconnect(); document.removeEventListener("pointerdown", dismiss); };
   }, [toolPanel]);
   const fileInput = useRef<HTMLInputElement>(null);
-  const title = useRef<HTMLTextAreaElement>(null);
-  const editor = useEditor({
+
+  const editor: EditorType | null = useEditor({
     extensions: [
+      WritingDocument,
+      DocumentTitle.configure({ locale: () => latest.current.locale }),
+      DocumentBody.configure({ locale: () => latest.current.locale }),
       StarterKit.configure({
+        document: false,
+        undoRedo: false,
         heading: { levels: [1, 2, 3] },
         link: {
           openOnClick: false,
@@ -282,11 +308,14 @@ export function WonboardEditor(props: WonboardEditorProps) {
       Formatting,
       TextStyle,
       DocumentLimits,
+      SelectionHistory,
+      WritingHistory,
       Placeholder.configure({
-        placeholder: () => translator(latest.current.locale)("placeholder"),
+        includeChildren: true,
+        placeholder: ({ node }) => translator(latest.current.locale)(node.type.name === "documentTitle" ? "addTitle" : "placeholder"),
       }),
     ],
-    content: props.content,
+    content: editingDocument(props.title, props.content),
     editable: !props.readOnly,
     immediatelyRender: false,
     shouldRerenderOnTransaction: false,
@@ -294,12 +323,25 @@ export function WonboardEditor(props: WonboardEditorProps) {
       latest.current.onReady?.(editor);
     },
     onUpdate: ({ editor }) => {
-      latest.current.onChange(editor.getJSON() as ContentNode);
+      if (editingTitle(editor) !== latest.current.title) latest.current.onTitleChange(editingTitle(editor));
+      latest.current.onChange(documentBodyContent(editor.getJSON() as ContentNode));
     },
     onTransaction: () => setTick((n) => n + 1),
     editorProps: {
+      handleScrollToSelection: view => {
+        const canvas = view.dom.closest<HTMLElement>(".wb-canvas");
+        if (!canvas) return false;
+        const toolbar = canvas.querySelector<HTMLElement>(":scope > .writing-toolbar");
+        const bounds = canvas.getBoundingClientRect();
+        const top = Math.max(bounds.top, toolbar?.getBoundingClientRect().bottom ?? bounds.top) + 12;
+        const bottom = bounds.bottom - 12;
+        const caret = view.coordsAtPos(view.state.selection.head);
+        if (caret.top < top) canvas.scrollTop += caret.top - top;
+        else if (caret.bottom > bottom) canvas.scrollTop += caret.bottom - bottom;
+        return true;
+      },
       attributes: {
-        role: "textbox",
+        role: "group",
         "aria-label": t("body"),
         "aria-multiline": "true",
         spellcheck: "true",
@@ -307,8 +349,18 @@ export function WonboardEditor(props: WonboardEditorProps) {
       },
       handleKeyDown: (view, event) => {
         if (isComposingKey(event)) return false;
+        const { empty, $from } = view.state.selection;
+        if (event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey && $from.parent.type.name === "documentTitle") {
+          editor!.chain().focus().setTextSelection(bodyStart(editor!)).run();
+          return true;
+        }
+        if (event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey &&
+          empty && $from.parent.type.name === "heading" && $from.parentOffset === $from.parent.content.size) {
+          return editor!.chain().splitBlock({ keepMarks: false }).resetAttributes("paragraph", bodyStyleAttributes).run();
+        }
         if (
           event.key === "/" &&
+          view.state.selection.$from.parent.type.name !== "documentTitle" &&
           view.state.selection.$from.parent.textContent === ""
         ) {
           setSlash(true);
@@ -335,7 +387,7 @@ export function WonboardEditor(props: WonboardEditorProps) {
         const files = Array.from(event.clipboardData?.files ?? []);
         if (!files.length) return false;
         if (latest.current.readOnly) return true;
-        void latest.current.onImages(files, view.state.selection.from, editor!);
+        void latest.current.onImages(files, Math.max(bodyStart(editor!), view.state.selection.from), editor!);
         return true;
       },
       handleDrop: (view, event) => {
@@ -345,7 +397,7 @@ export function WonboardEditor(props: WonboardEditorProps) {
         const position =
           view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ??
           view.state.selection.from;
-        void latest.current.onImages(files, position, editor!);
+        void latest.current.onImages(files, Math.max(bodyStart(editor!), position), editor!);
         return true;
       },
     },
@@ -359,7 +411,7 @@ export function WonboardEditor(props: WonboardEditorProps) {
       editor.setOptions({
         editorProps: {
           attributes: {
-            role: "textbox",
+            role: "group",
             "aria-label": t("body"),
             "aria-multiline": "true",
             spellcheck: "true",
@@ -369,14 +421,18 @@ export function WonboardEditor(props: WonboardEditorProps) {
       });
   }, [editor, props.locale, props.documentLocale]);
   useEffect(() => {
-    const el = title.current;
-    if (el) {
-      el.style.height = "0px";
-      el.style.height = `${el.scrollHeight}px`;
-    }
-  }, [props.title]);
+    editor?.view.dom.querySelector("[data-wb-title]")?.setAttribute("aria-label", t("addTitle"));
+    editor?.view.dom.querySelector("[data-wb-body]")?.setAttribute("aria-label", t("body"));
+  }, [editor, props.locale]);
+  useEffect(() => {
+    if (isInsert && editor?.isEditable) insertGrid.current?.querySelector("button")?.focus();
+  }, [isInsert, editor]);
   if (!editor) return <div className="editor-loading">{t("loading")}</div>;
-  const isInsert = props.insertOpen || slash;
+  function closeInsert() {
+    setSlash(false);
+    props.onCloseInsert?.();
+    editor?.commands.focus();
+  }
   function insert(type: (typeof insertTypes)[number]) {
     if (!editor) return;
     setSlash(false);
@@ -385,8 +441,9 @@ export function WonboardEditor(props: WonboardEditorProps) {
       fileInput.current?.click();
       return;
     }
+    if (editor.isActive("documentTitle")) editor.commands.setTextSelection(bodyStart(editor));
     const chain = editor.chain().focus();
-    if (type === "paragraph") chain.setParagraph().run();
+    if (type === "paragraph") setBodyStyle(editor);
     if (type === "heading") chain.toggleHeading({ level: 2 }).run();
     if (type === "bulletList") chain.toggleBulletList().run();
     if (type === "orderedList") chain.toggleOrderedList().run();
@@ -396,9 +453,9 @@ export function WonboardEditor(props: WonboardEditorProps) {
   }
   const blocks: { pos: number; type: string; text: string; size: number }[] =
     [];
-  editor.state.doc.forEach((node, offset) =>
+  editor.state.doc.lastChild!.forEach((node, offset) =>
     blocks.push({
-      pos: offset,
+      pos: offset + bodyStart(editor) - 1,
       type: node.type.name,
       text: node.textContent,
       size: node.nodeSize,
@@ -408,7 +465,7 @@ export function WonboardEditor(props: WonboardEditorProps) {
     const target = blocks[index + direction];
     if (!target || !editor) return;
     const current = blocks[index];
-    const json = editor.state.doc.child(index).toJSON();
+    const json = editor.state.doc.lastChild!.child(index).toJSON();
     const transaction = editor.state.tr.delete(
       current.pos,
       current.pos + current.size,
@@ -473,8 +530,11 @@ export function WonboardEditor(props: WonboardEditorProps) {
           </nav>
         ) : null}
         <main className="wb-canvas" id="document-canvas">
-          <WritingToolbar editor={editor} defaultFont={props.defaultFont} locale={props.locale} composing={composing} onLink={openLink} actions={
+          <WritingToolbar styles={props.styles} editor={editor} defaultFont={props.defaultFont} locale={props.locale} composing={composing} onLink={openLink} actions={
             <div className="writing-actions">
+              <button type="button" aria-label={t("documentStyles")} disabled={!editor.isEditable || composing}
+                aria-expanded={toolPanel === "post"} onMouseDown={e => e.preventDefault()}
+                onClick={() => setToolPanel(toolPanel === "post" ? null : "post")}>{t("documentStyles")}</button>
               <button type="button" disabled={!editor.isEditable || composing} aria-label={t("image")} title={t("image")}
                 onMouseDown={e => e.preventDefault()} onClick={() => fileInput.current?.click()}><Icon name="image" /></button>
               {props.attachments ? <button type="button" aria-label={t("attachments")} title={t("attachments")}
@@ -485,24 +545,9 @@ export function WonboardEditor(props: WonboardEditorProps) {
                 onClick={() => setToolPanel(toolPanel === "block" ? null : "block")}><Icon name="sliders" /></button>
             </div>
           } />
-          <div className="document-page" style={{ fontFamily: fontFamily(props.defaultFont) }}>
-            <textarea
-              ref={title}
-              className="document-title"
-              rows={1}
-              maxLength={limits.title}
-              aria-label={t("addTitle")}
-              placeholder={t("addTitle")}
-              defaultValue={props.title}
-              readOnly={props.readOnly}
-              lang={props.documentLocale}
-              spellCheck
-              onChange={(e) => props.onTitleChange(e.target.value)}
-              onCompositionStart={() => props.onComposition?.(true)}
-              onCompositionEnd={() => props.onComposition?.(false)}
-            />
+          <div className="document-page" style={documentStyleVariables(props.styles, props.defaultFont)}>
             <EditorContent editor={editor} />
-            {editor.isEmpty && editor.isEditable ? (
+            {!props.title && editor.state.doc.lastChild!.textContent === "" && editor.isEditable ? (
               <button
                 className="inline-insert"
                 aria-label={t("insert")}
@@ -517,6 +562,8 @@ export function WonboardEditor(props: WonboardEditorProps) {
           <Inspector
             editor={editor}
             defaultFont={props.defaultFont}
+            styles={props.styles}
+            onStylesChange={props.onStylesChange}
             locale={props.locale}
             attachments={props.attachments}
             attachmentCount={props.attachmentCount}
@@ -526,34 +573,50 @@ export function WonboardEditor(props: WonboardEditorProps) {
           />
         ) : null}
         {toolPanel ? (
-          <div ref={panelRef} tabIndex={-1} className="writing-panel" role="dialog" aria-label={t(toolPanel === "attachments" ? "attachments" : "selectionSettings")}
+          <div ref={panelRef} tabIndex={-1} className="writing-panel" role="dialog" aria-label={t(toolPanel === "attachments" ? "attachments" : toolPanel === "post" ? "documentStyles" : "selectionSettings")}
             onKeyDown={e => { if (e.key === "Escape") { e.stopPropagation(); setToolPanel(null); editor.commands.focus(); } }}>
-            <Inspector key={toolPanel} editor={editor} defaultFont={props.defaultFont} locale={props.locale} initialTab={toolPanel}
+            <Inspector key={toolPanel} editor={editor} defaultFont={props.defaultFont} styles={props.styles} onStylesChange={props.onStylesChange} locale={props.locale} initialTab={toolPanel}
               composing={composing} attachments={props.attachments} attachmentCount={props.attachmentCount}
               onLink={openLink}
               onClose={() => { setToolPanel(null); editor.commands.focus(); }} />
           </div>
         ) : null}
         {isInsert && editor.isEditable ? (
-          <div className="inserter" role="dialog" aria-label={t("insert")}>
+          <div className="inserter" role="dialog" aria-label={t("insert")}
+            onKeyDown={e => {
+              if (isComposingKey(e.nativeEvent)) return;
+              if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeInsert(); }
+            }}>
             <div className="popover-title">
               {t("insert")}
               <button
                 className="icon-button"
                 aria-label={t("close")}
-                onClick={() => {
-                  setSlash(false);
-                  props.onCloseInsert?.();
-                }}
+                onClick={closeInsert}
               >
                 <Icon name="close" />
               </button>
             </div>
-            <div className="insert-grid">
+            <div className="insert-grid" ref={insertGrid} onKeyDown={e => {
+              if (isComposingKey(e.nativeEvent) || e.altKey || e.ctrlKey || e.metaKey) return;
+              const buttons = Array.from(e.currentTarget.querySelectorAll("button"));
+              const current = buttons.indexOf(e.target as HTMLButtonElement);
+              if (current < 0) return;
+              let next = current;
+              if (e.key === "ArrowRight") next++;
+              else if (e.key === "ArrowLeft") next--;
+              else if (e.key === "ArrowDown") next += 3;
+              else if (e.key === "ArrowUp") next -= 3;
+              else if (e.key === "Home") next = 0;
+              else if (e.key === "End") next = buttons.length - 1;
+              else return;
+              e.preventDefault();
+              buttons[Math.max(0, Math.min(buttons.length - 1, next))]?.focus();
+            }}>
               {insertTypes.map((type) => (
                 <button key={type} onClick={() => insert(type)}>
                   <Icon name={type} />
-                  {t(type)}
+                  {t(type === "paragraph" ? "bodyBlock" : type)}
                 </button>
               ))}
             </div>
@@ -611,7 +674,7 @@ export function WonboardEditor(props: WonboardEditorProps) {
             const files = Array.from(e.target.files ?? []);
             e.target.value = "";
             if (files.length)
-              void props.onImages(files, editor.state.selection.from, editor);
+              void props.onImages(files, Math.max(bodyStart(editor), editor.state.selection.from), editor);
           }}
         />
       </div>

@@ -1,5 +1,103 @@
 import { test, expect } from "./fixtures";
 
+test("block inserter supports grid arrows, activation and dismissal", async ({ page }) => {
+  await page.goto("/");
+  const body = page.getByRole("textbox", { name: "Document body" });
+  await body.fill("Keyboard heading");
+  await page.getByRole("button", { name: "Block Inserter", exact: true }).first().click();
+  const menu = page.getByRole("dialog", { name: "Block Inserter" });
+  await expect(menu.getByRole("button", { name: "Body (paragraph)", exact: true })).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(menu.getByRole("button", { name: "Heading", exact: true })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(menu.getByRole("button", { name: "Numbered list", exact: true })).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(menu.getByRole("button", { name: "Bulleted list", exact: true })).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Enter");
+  await expect(menu).toHaveCount(0);
+  await expect(body.locator("h2")).toHaveText("Keyboard heading");
+  await expect(page.locator(".tiptap")).toBeFocused();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("/");
+  await expect(menu.getByRole("button", { name: "Body (paragraph)", exact: true })).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(menu.getByRole("button", { name: "Separator", exact: true })).toBeFocused();
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  const chooser = page.waitForEvent("filechooser");
+  await page.keyboard.press("Enter");
+  await (await chooser).setFiles({ name: "keyboard.png", mimeType: "image/png", buffer: await page.screenshot({ clip: { x: 0, y: 0, width: 40, height: 40 } }) });
+  await expect(body.locator(".wb-media img")).toHaveCount(1);
+  await page.getByRole("button", { name: "Block Inserter", exact: true }).first().click();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(page.locator(".tiptap")).toBeFocused();
+});
+
+test("Enter moves from the document title to body without carrying the title style", async ({ page }) => {
+  await page.goto("/");
+  const title = page.getByRole("textbox", { name: "Add title" });
+  const body = page.getByRole("textbox", { name: "Document body" });
+  await title.click();
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await page.keyboard.type("/Title");
+  await expect(title).toHaveText("/Title");
+  await expect(page.getByRole("dialog", { name: "Block Inserter" })).toHaveCount(0);
+  await title.fill("큰 제목");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".tiptap")).toBeFocused();
+  await page.keyboard.press("Enter");
+  await page.keyboard.insertText("일반 본문");
+  await expect(title).toHaveText("큰 제목");
+  await expect(body.locator("p").last()).toHaveText("일반 본문");
+  await expect(body.locator("h1, h2, h3")).toHaveCount(0);
+  await expect(page.getByRole("status").last()).toHaveText("Saved locally");
+  await page.reload();
+  await expect(title).toHaveText("큰 제목");
+  await expect(body.locator("p").last()).toHaveText("일반 본문");
+});
+
+test("heading Enter and body style restore normal text size", async ({ page }) => {
+  await page.goto("/");
+  const body = page.getByRole("textbox", { name: "Document body" });
+  const toolbar = page.getByRole("toolbar", { name: "Writing tools", exact: true });
+  const style = toolbar.getByRole("combobox", { name: "Paragraph style" });
+  await body.fill("Styled heading");
+  await page.keyboard.press("ControlOrMeta+a");
+  await style.selectOption("h2");
+  await page.getByRole("complementary", { name: "Settings", exact: true }).getByRole("button", { name: "Display", exact: true }).click();
+  const size = toolbar.getByRole("spinbutton", { name: "Text size (px)" });
+  await size.fill("48");
+  await size.press("Enter");
+  await toolbar.getByRole("button", { name: "Bold", exact: true }).click();
+  await expect(body.locator("h2 span")).toHaveCSS("font-size", "48px");
+  await body.locator("h2").click();
+  // Let the native selectionchange reach the editor before the next key.
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await page.keyboard.press("End");
+  await page.keyboard.press("Shift+Enter");
+  await expect(body.locator("h2 br:not(.ProseMirror-trailingBreak)")).toHaveCount(1);
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+  await page.keyboard.insertText("Normal body");
+  await expect(style).toHaveValue("paragraph");
+  const paragraph = body.locator("p").filter({ hasText: /^Normal body$/ });
+  await expect(paragraph).toHaveText("Normal body");
+  await expect(paragraph.locator("span, strong")).toHaveCount(0);
+  await expect(paragraph).toHaveCSS("font-size", await body.evaluate(el => getComputedStyle(el).fontSize));
+  await body.locator("h2").click();
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await style.selectOption("paragraph");
+  await expect(body.locator("h2")).toHaveCount(0);
+  await expect(body.locator("p").first().locator("span, strong")).toHaveCount(0);
+  await expect(body.locator("p").first()).toHaveCSS("font-size", await body.evaluate(el => getComputedStyle(el).fontSize));
+  await page.getByRole("combobox", { name: "Interface language" }).selectOption("ko");
+  await expect(page.getByRole("toolbar", { name: "글쓰기 도구", exact: true }).getByRole("combobox", { name: "문단 종류" }).locator('option[value="paragraph"]')).toHaveText("본문");
+});
+
 test("new drafts use Nanum Myeongjo and supplemental font notice is acknowledged once", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -13,7 +111,7 @@ test("new drafts use Nanum Myeongjo and supplemental font notice is acknowledged
   await body.fill("한글로 쓰는 즐거움. Writing with Wonboard.");
   await expect(body).toHaveCSS("font-family", /Nanum Myeongjo/);
   await page.screenshot({ path: "/private/tmp/wonboard-nanum-default.png" });
-  await body.press("ControlOrMeta+a");
+  await page.keyboard.press("ControlOrMeta+a");
   for (const id of ["system", "dotum", "nanum-gothic"]) await font.selectOption(id);
   await expect(body.locator("span")).toHaveCSS("font-family", /Nanum Gothic/);
   expect(await page.evaluate(async () => (await document.fonts.load('20px "Nanum Gothic"', '한글')).length)).toBeGreaterThan(0);
@@ -33,7 +131,7 @@ test("new drafts use Nanum Myeongjo and supplemental font notice is acknowledged
   await expect(page.getByRole("status").last()).toHaveText("Saved locally");
   await page.reload();
   await body.click();
-  await body.press("ControlOrMeta+a");
+  await page.keyboard.press("ControlOrMeta+a");
   await font.selectOption("manrope");
   await expect(toolbar.getByRole("status")).toHaveCount(0);
   await page.getByRole("button", { name: "Preview", exact: true }).click();
@@ -55,7 +153,7 @@ test("toolbar and inspector share formatting and attachments work without the si
   const toolbar = page.getByRole("toolbar", { name: "Writing tools", exact: true });
   const inspector = page.getByRole("toolbar", { name: "Text formatting", exact: true });
   await body.fill("한글 English");
-  await body.press("ControlOrMeta+a");
+  await page.keyboard.press("ControlOrMeta+a");
   await toolbar.getByRole("combobox", { name: "Font family" }).selectOption("serif");
   await toolbar.getByRole("button", { name: "Got it" }).click();
   await expect(inspector.getByRole("combobox", { name: "Font family" })).toHaveValue("serif");
@@ -102,7 +200,7 @@ test("bundled fonts and inline sizes survive undo, save, preview and reload", as
   await expect(toolbar).toBeVisible();
   await expect(toolbar.getByRole("combobox", { name: "Font family" }).locator("option")).toHaveCount(11);
   await body.fill("한글 English");
-  await body.press("ControlOrMeta+a");
+  await page.keyboard.press("ControlOrMeta+a");
   for (const [id, family] of [["serif", "Noto Serif KR Variable"], ["soft", "Gowun Dodum"], ["mono", "Nanum Gothic Coding"], ["noto-sans", "Noto Sans KR Variable"], ["nanum-serif", "Nanum Myeongjo"], ["gowun-serif", "Gowun Batang"], ["manrope", "Manrope Variable"], ["sans", "Pretendard Variable"]]) {
     await toolbar.getByRole("combobox", { name: "Font family" }).selectOption(id);
     if (id === "serif") await toolbar.getByRole("button", { name: "Got it" }).click();
@@ -116,7 +214,7 @@ test("bundled fonts and inline sizes survive undo, save, preview and reload", as
   await expect(body.locator("span")).toHaveCSS("font-size", "24px");
   await toolbar.getByRole("button", { name: "Bold", exact: true }).click();
   await expect(body.locator("strong")).toHaveText("한글 English");
-  await body.press("ControlOrMeta+z");
+  await page.keyboard.press("ControlOrMeta+z");
   await expect(body.locator("strong")).toHaveCount(0);
   await expect(page.getByRole("status").last()).toHaveText("Saved locally");
   await page.reload();
@@ -133,7 +231,7 @@ test("clear formatting works at the cursor, preserves links and supports undo an
   const body = page.getByRole("textbox", { name: "Document body" });
   const toolbar = page.getByRole("toolbar", { name: "Writing tools", exact: true });
   await body.fill("Hello world");
-  await body.press("ControlOrMeta+a");
+  await page.keyboard.press("ControlOrMeta+a");
   await toolbar.getByRole("combobox", { name: "Font family" }).selectOption("gowun-serif");
   await toolbar.getByRole("button", { name: "Got it" }).click();
   await toolbar.getByRole("button", { name: "Bold", exact: true }).click();
@@ -141,21 +239,23 @@ test("clear formatting works at the cursor, preserves links and supports undo an
   const link = page.getByRole("dialog", { name: "Link", exact: true });
   await link.getByRole("textbox", { name: "Link URL" }).fill("https://example.com/");
   await link.getByRole("button", { name: "Apply", exact: true }).click();
-  await body.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
   await toolbar.getByRole("button", { name: "Clear text formatting", exact: true }).click();
   await expect(body.locator("span, strong")).toHaveCount(0);
   await expect(body.locator("a")).toHaveText("Hello world");
-  await body.press("ControlOrMeta+z");
+  await page.keyboard.press("ControlOrMeta+z");
   await expect(body.locator("strong")).toHaveText("Hello world");
   await expect(body.locator("span")).toHaveCSS("font-family", /Gowun Batang/);
-  await body.press("ControlOrMeta+a");
-  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("Hello world");
+  await page.keyboard.press("ControlOrMeta+a");
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString().trim())).toBe("Hello world");
   // Let the browser's selectionchange reach the editor before navigating it.
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-  await body.press("ArrowLeft");
+  await body.locator("p").click();
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await page.keyboard.press("Home");
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("");
   for (let i = 0; i < 5; i++) {
-    await body.press("Shift+ArrowRight");
+    await page.keyboard.press("Shift+ArrowRight");
     await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("Hello".slice(0, i + 1));
   }
   await toolbar.getByRole("button", { name: "Clear text formatting", exact: true }).click();
@@ -168,16 +268,131 @@ test("Markdown input still produces headings, lists and inline marks", async ({ 
   await page.goto("/");
   const body = page.getByRole("textbox", { name: "Document body" });
   await body.click();
-  await body.pressSequentially("## Heading");
+  await page.keyboard.type("## Heading");
   await expect(body.locator("h2")).toHaveText("Heading");
-  await body.press("Enter");
-  await body.pressSequentially("**bold** and *italic*");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("**bold** and *italic*");
   await expect(body.locator("strong")).toHaveText("bold");
   await expect(body.locator("em")).toHaveText("italic");
-  await body.press("Enter");
-  await body.pressSequentially("- List");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("- List");
   await expect(body.locator("ul li")).toContainText("List");
-  await body.press("Shift+Enter");
-  await body.pressSequentially("next line");
+  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.type("next line");
   await expect(body.locator("ul li br")).toHaveCount(1);
+});
+
+test("undo and redo keep the current paragraph visible after moving away from an edit", async ({ page }) => {
+  await page.goto("/");
+  const body = page.getByRole("textbox", { name: "Document body" });
+  await body.click();
+  for (let i = 1; i <= 25; i++) {
+    await page.keyboard.insertText(`Paragraph ${i}: writing content.`);
+    if (i < 25) await page.keyboard.press("Enter");
+  }
+  await expect(page.getByRole("status").last()).toHaveText("Saved locally");
+  await page.reload();
+  await body.locator("p").first().click();
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await page.keyboard.press("Home");
+  await page.keyboard.insertText("CHANGED ");
+  const changedText = await body.locator("p").first().innerText();
+  await body.locator("p").last().click();
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await page.keyboard.press("End");
+  const currentParagraph = () => page.evaluate(() => window.getSelection()?.anchorNode?.parentElement?.closest("p")?.textContent);
+  await expect.poll(currentParagraph).toBe("Paragraph 25: writing content.");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(body.locator("p").first()).toHaveText("Paragraph 1: writing content.");
+  await expect.poll(currentParagraph).toBe("Paragraph 25: writing content.");
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  await expect(body.locator("p").first()).toHaveText(changedText);
+  await expect.poll(currentParagraph).toBe("Paragraph 25: writing content.");
+  const visible = await page.evaluate(() => {
+    const caret = window.getSelection()!.getRangeAt(0).getBoundingClientRect();
+    return { caretTop: caret.top, caretBottom: caret.bottom,
+      toolbarBottom: document.querySelector(".wb-canvas > .writing-toolbar")!.getBoundingClientRect().bottom,
+      canvasBottom: document.querySelector(".wb-canvas")!.getBoundingClientRect().bottom };
+  });
+  expect(visible.caretTop).toBeGreaterThanOrEqual(visible.toolbarBottom);
+  expect(visible.caretBottom).toBeLessThanOrEqual(visible.canvasBottom);
+  // Removing the paragraph under the cursor must still resolve a valid caret.
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(body.locator("p")).toHaveCount(25);
+  await page.keyboard.insertText("VALID");
+  await expect(page.getByRole("status").last()).toHaveText("Saved locally");
+});
+
+test("Cmd+A includes title and every body block, supports copy, delete and undo", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/");
+  const title = page.getByRole("textbox", { name: "Add title" });
+  const body = page.getByRole("textbox", { name: "Document body" });
+  await title.fill("전체 선택 제목");
+  await body.fill("첫 본문");
+  await page.keyboard.press("Enter");
+  await page.keyboard.insertText("두 번째 본문");
+  await page.keyboard.press("ControlOrMeta+a");
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toMatch(/전체 선택 제목[\s\S]*첫 본문[\s\S]*두 번째 본문/);
+  await page.keyboard.press("ControlOrMeta+c");
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toMatch(/전체 선택 제목[\s\S]*첫 본문[\s\S]*두 번째 본문/);
+  await page.keyboard.press("Backspace");
+  await expect(title).toHaveText("");
+  await expect(body).toHaveText("");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(title).toHaveText("전체 선택 제목");
+  await expect(body.locator("p")).toHaveText(["첫 본문", "두 번째 본문"]);
+  await title.click();
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await page.keyboard.press("ControlOrMeta+a");
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toMatch(/전체 선택 제목[\s\S]*두 번째 본문/);
+  await page.keyboard.press("ControlOrMeta+v");
+  await expect(title).toHaveText("전체 선택 제목");
+  await expect(body.locator("p")).toHaveText(["첫 본문", "두 번째 본문"]);
+  await expect(page.getByRole("status").last()).toHaveText("Saved locally");
+  await page.reload();
+  await expect(title).toHaveText("전체 선택 제목");
+  await expect(body.locator("p")).toHaveText(["첫 본문", "두 번째 본문"]);
+});
+
+test("document styles update every body block, preserve direct formatting and survive reload and preview", async ({ page }) => {
+  await page.goto("/");
+  const body = page.getByRole("textbox", { name: "Document body" });
+  const toolbar = page.getByRole("toolbar", { name: "Writing tools", exact: true });
+  await body.fill("첫 본문");
+  await page.keyboard.press("Enter");
+  await page.keyboard.insertText("둘째 본문");
+  await page.keyboard.press("Enter");
+  await page.keyboard.insertText("직접 서식");
+  await page.keyboard.press("Home");
+  await page.keyboard.press("Shift+End");
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("직접 서식");
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  const direct = toolbar.getByRole("spinbutton", { name: "Text size (px)" });
+  await direct.fill("40"); await direct.press("Enter");
+  await expect(body.locator("p").last().locator("span")).toHaveCSS("font-size", "40px");
+  await toolbar.getByRole("button", { name: "Document styles", exact: true }).click();
+  const panel = page.getByRole("dialog", { name: "Document styles", exact: true });
+  const size = panel.getByRole("spinbutton", { name: "Style size (px)" });
+  await size.fill("24"); await size.press("Enter");
+  await panel.getByRole("combobox", { name: "Style font", exact: true }).selectOption("soft");
+  await expect(body.locator("p").first()).toHaveCSS("font-family", /Gowun Dodum/);
+  await expect(body.locator("p").nth(0)).toHaveCSS("font-size", "24px");
+  await expect(body.locator("p").nth(1)).toHaveCSS("font-size", "24px");
+  await expect(body.locator("p").nth(2).locator("span")).toHaveCSS("font-size", "40px");
+  await expect(page.getByRole("textbox", { name: "Add title" })).toHaveCSS("font-size", "39.0388px");
+  await panel.getByRole("combobox", { name: "Style name" }).selectOption("title");
+  await size.fill("48"); await size.press("Enter");
+  await expect(page.getByRole("textbox", { name: "Add title" })).toHaveCSS("font-size", "48px");
+  await panel.getByRole("button", { name: "Close Settings", exact: true }).click();
+  await expect(page.getByRole("status").last()).toHaveText("Saved locally");
+  await page.reload();
+  await expect(body.locator("p").first()).toHaveCSS("font-size", "24px");
+  await expect(body.locator("p").last().locator("span")).toHaveCSS("font-size", "40px");
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  const preview = page.getByRole("dialog", { name: "Preview", exact: true });
+  await expect(preview.locator("p").filter({ hasText: /^첫 본문$/ })).toHaveCSS("font-size", "24px");
+  await expect(preview.locator(".document-title")).toHaveCSS("font-size", "48px");
 });

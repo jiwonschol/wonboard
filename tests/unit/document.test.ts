@@ -386,3 +386,15 @@ it("accepts an optional trash timestamp and rejects malformed values", () => {
   for (const trashedAt of [123, "invalid", null])
     expect(() => validateDocument({ ...document, trashedAt })).toThrow();
 });
+
+it("validates and backs up document styles without rewriting existing content", async () => {
+  const draft = newDraft();
+  draft.document.styles = { title: { fontSize: 48 }, paragraph: { fontFamily: "nanum-serif", fontSize: 24, lineHeight: 1.8, color: "#123456" } };
+  validateDocument(draft.document);
+  const restored = await importBackup(await exportBackup(draft));
+  expect(restored.document.styles).toEqual(draft.document.styles);
+  expect(restored.document.content).toEqual(draft.document.content);
+  for (const invalid of [{ paragraph: { fontSize: 1000 } }, { title: { color: "url(secret)" } }, { paragraph: { fontFamily: "remote" } }, { paragraph: { lineHeight: 0 } }, { unknown: {} }]) {
+    expect(() => validateDocument({ ...draft.document, styles: invalid })).toThrow();
+  }
+});

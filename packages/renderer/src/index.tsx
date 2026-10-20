@@ -1,9 +1,13 @@
 import { Fragment, type ReactNode, type CSSProperties } from "react";
 import {
   blockStyle,
+  documentStyleCss,
+  documentStyleVariables,
+  type DocumentStyles,
+  type DocumentStyleName,
+  type FontId,
   textStyle,
   writingFonts,
-  fontFamily,
   safeLink,
   isVideo,
   videoEmbedUrl,
@@ -22,13 +26,17 @@ function renderNode(
   portable = false,
   parent = "",
   videoLinksOnly = false,
+  styles?: DocumentStyles,
+  defaultFont?: FontId,
 ): ReactNode {
   const children = node.content?.map((child, i) => (
-    <Fragment key={i}>{renderNode(child, urls, portable, node.type, videoLinksOnly)}</Fragment>
+    <Fragment key={i}>{renderNode(child, urls, portable, node.type, videoLinksOnly, styles, defaultFont)}</Fragment>
   ));
   const attrs = node.attrs ?? {};
   const margin = portable ? { margin: parent === "listItem" ? "0" : "0 0 1.35em" } : {};
-  const style = { ...margin, ...blockStyle(attrs) } as CSSProperties;
+  const name: DocumentStyleName | undefined = node.type === "heading" ? `h${attrs.level as 1 | 2 | 3}` : node.type === "paragraph" ? (parent === "blockquote" ? "blockquote" : "paragraph") : undefined;
+  const style = { ...margin, ...(name ? documentStyleCss(styles, name, defaultFont) : {}),
+    ...Object.fromEntries(Object.entries(blockStyle(attrs)).filter(([, value]) => value !== undefined)) } as CSSProperties;
   if (node.type === "text")
     return (node.marks ?? []).reduce<ReactNode>((content, mark) => {
       if (mark.type === "bold") return <strong>{content}</strong>;
@@ -127,9 +135,9 @@ function renderNode(
 export function PortableDocumentBody({ document, mediaUrls, videoLinksOnly = false }: {
   document: WriterDocument; mediaUrls: Record<string, string>; videoLinksOnly?: boolean;
 }) {
-  return <div lang={document.locale} style={{ color: "#111", fontFamily: fontFamily(document.defaultFont),
-    fontSize: "19.3642px", lineHeight: 1.4, fontWeight: 400, letterSpacing: "-0.1px",
-    whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{renderNode(document.content, mediaUrls, true, "", videoLinksOnly)}</div>;
+  return <div lang={document.locale} style={{
+    ...documentStyleCss(document.styles, "paragraph", document.defaultFont), fontWeight: 400, letterSpacing: "-0.1px",
+    whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{renderNode(document.content, mediaUrls, true, "", videoLinksOnly, document.styles, document.defaultFont)}</div>;
 }
 export function DocumentPreview({
   document,
@@ -139,9 +147,9 @@ export function DocumentPreview({
   mediaUrls: Record<string, string>;
 }) {
   return (
-    <article className="document-page preview-page" lang={document.locale} style={{ fontFamily: fontFamily(document.defaultFont) }}>
-      <h1 className="document-title">{document.title}</h1>
-      <div className="tiptap">{renderNode(document.content, mediaUrls)}</div>
+    <article className="document-page preview-page" lang={document.locale} style={documentStyleVariables(document.styles, document.defaultFont)}>
+      <h1 className="document-title" style={documentStyleCss(document.styles, "title", document.defaultFont)}>{document.title}</h1>
+      <div className="tiptap">{renderNode(document.content, mediaUrls, false, "", false, document.styles, document.defaultFont)}</div>
     </article>
   );
 }

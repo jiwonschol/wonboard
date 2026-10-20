@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { WonboardEditor, Icon, captureAttachmentSelection, insertAttachmentContent, type EditorHandle } from "@wonboard/editor";
+import { WonboardEditor, documentBodyContent, bodyStart, Icon, captureAttachmentSelection, insertAttachmentContent, type EditorHandle } from "@wonboard/editor";
 import { DocumentPreview } from "@wonboard/renderer";
 import {
   exportBackup,
@@ -149,7 +149,7 @@ export default function App({
     if (!target.selection.restore()) throw new Error("fileInsertChanged");
     const accepted = insertAttachmentContent(target.editor, content);
     if (!accepted) throw new Error("imageInsertFailed");
-    const nextContent = target.editor.getJSON() as ContentNode;
+    const nextContent = documentBodyContent(target.editor.getJSON() as ContentNode);
     const inserted = new Set([...referencedFileIds(nextContent), ...attachmentNodes(nextContent).filter(node => node.type === "media").map(node => String(node.attrs?.mediaId))]);
     if (!ids.every(id => inserted.has(id))) throw new Error("imageInsertFailed");
     writer.update({ files, media, content: nextContent }, blobs);
@@ -287,7 +287,7 @@ export default function App({
         blobs[item.media.id] = item.blob;
       }
       if (
-        !insertImagesWhenAccepted(instance, position, imported, () =>
+        !insertImagesWhenAccepted(instance, instance.isActive("documentTitle") ? bodyStart(instance) : position, imported, () =>
           writer.update({ media }, blobs),
         )
       )
@@ -596,6 +596,8 @@ export default function App({
             key={`${draft.document.documentId}:${writer.selectionVersion}`}
             content={draft.document.content}
             defaultFont={draft.document.defaultFont}
+            styles={draft.document.styles}
+            onStylesChange={styles => writer.update({ styles })}
             title={content}
             locale={locale}
             documentLocale={draft.document.locale}

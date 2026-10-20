@@ -33,7 +33,7 @@ export function PublicationPanel({ locale, documentId, save, snapshot, canPublis
     if (working) return;
     setWorking(true); onBusy(true); setMessage("");
     try { await action(); }
-    catch { setMessage(t("publishFailed")); }
+    catch (error) { setMessage(t(error instanceof Error && error.message === "siteUpdated" ? "siteUpdated" : "publishFailed")); }
     finally { setWorking(false); onBusy(false); }
   }
   async function publish() {
@@ -51,9 +51,10 @@ export function PublicationPanel({ locale, documentId, save, snapshot, canPublis
         fileUrls[id] = new URL(share.url, location.origin).href;
       }
     }
+    // Load before making photos public: an older tab can reference a chunk that
+    // disappeared in a newer deployment. It must fail before any public write.
+    const { exportHtml } = await import("./htmlExport").catch(() => { throw new Error("siteUpdated"); });
     const urls = { ...await publishImages(draft), ...fileUrls };
-    // The HTML serializer is needed only after an explicit export action.
-    const { exportHtml } = await import("./htmlExport");
     setHtml(exportHtml(draft.document, urls));
     draftText.current = plainText(draft.document.content);
     setItems(await publications(documentId));

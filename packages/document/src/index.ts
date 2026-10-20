@@ -1,6 +1,8 @@
 import { isVideo, attachmentNodes } from "./attachments";
 import { isFontId, type FontId } from "./typography";
 export * from "./typography";
+export * from "./documentStyles";
+import { documentStyleNames, type DocumentStyles } from "./documentStyles";
 export * from "./attachments";
 export type Locale = "ko" | "en";
 export type Mark = { type: string; attrs?: Record<string, unknown> };
@@ -36,6 +38,7 @@ export type WriterDocument = {
   title: string;
   locale: Locale;
   defaultFont?: FontId;
+  styles?: DocumentStyles;
   content: ContentNode;
   media: Record<string, Media>;
   files?: Record<string, AttachmentFile>;
@@ -345,6 +348,18 @@ export function validateDocumentEnvelope(
   );
   requireThat(value.locale === "ko" || value.locale === "en");
   requireThat(value.defaultFont === undefined || isFontId(value.defaultFont));
+  if (value.styles !== undefined) {
+    requireThat(isObject(value.styles));
+    for (const [name, style] of Object.entries(value.styles)) {
+      requireThat(documentStyleNames.includes(name as typeof documentStyleNames[number]) && isObject(style));
+      for (const [key, entry] of Object.entries(style)) {
+        requireThat(key === "fontFamily" ? isFontId(entry)
+          : key === "fontSize" ? typeof entry === "number" && Number.isFinite(entry) && entry >= 12 && entry <= 96
+          : key === "lineHeight" ? typeof entry === "number" && Number.isFinite(entry) && entry >= 1 && entry <= 3
+          : key === "color" && typeof entry === "string" && /^#[\da-f]{6}$/iu.test(entry));
+      }
+    }
+  }
   requireThat(
     value.autoRenameAttachments === undefined ||
       typeof value.autoRenameAttachments === "boolean",

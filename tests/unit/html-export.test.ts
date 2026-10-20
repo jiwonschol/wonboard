@@ -56,3 +56,18 @@ describe("portable HTML export", () => {
     expect(html).not.toContain("data-media-id");
   });
 });
+
+it("exports shared body and heading styles with individual overrides preserved", () => {
+  const { document } = newDraft();
+  document.styles = { paragraph: { fontSize: 24, fontFamily: "soft", color: "#123456", lineHeight: 1.8 }, h2: { fontSize: 36 } };
+  document.content.content = [
+    { type: "paragraph", content: [{ type: "text", text: "공통 본문" }] },
+    { type: "paragraph", content: [{ type: "text", text: "직접 서식", marks: [{ type: "textStyle", attrs: { fontSize: 40 } }] }] },
+    { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "제목" }] },
+  ];
+  const html = exportHtml(document, {});
+  expect(html).toContain("font-size:24px;color:#123456;line-height:1.8");
+  expect(html).toContain("Gowun Dodum");
+  expect(html).toContain('<span style="font-size:40px">직접 서식</span>');
+  expect(html).toMatch(/<h2[^>]*font-size:36px[^>]*>제목<\/h2>/);
+});
