@@ -23,12 +23,15 @@
     "preview": "vite preview --host 127.0.0.1 --port 4173"
   },
   "dependencies": {
+    "@pdf-lib/fontkit": "1.1.1",
     "@wonboard/document": "workspace:*",
     "@wonboard/editor": "workspace:*",
     "@wonboard/locales": "workspace:*",
     "@wonboard/renderer": "workspace:*",
+    "pdf-lib": "1.17.1",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "woff2-encoder": "2.0.0"
   },
   "devDependencies": {
     "@electron/packager": "^20.3.0",

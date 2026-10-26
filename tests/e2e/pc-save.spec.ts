@@ -10,7 +10,7 @@ const paragraph = (text: string, marks?: ContentNode["marks"]): ContentNode =>
   ({ type: "paragraph", content: [{ type: "text", text, ...(marks ? { marks } : {}) }] });
 
 /** 백업 ZIP으로 글을 넣는다. 사진은 화면을 서로 다르게 잘라 만든 진짜 PNG다. */
-async function restoreDocument(page: Page, path: string, title: string, photos: number, build: (photo: (index: number, caption: string) => ContentNode) => ContentNode[]) {
+async function restoreDocument(page: Page, path: string, title: string, photos: number, build: (photo: (index: number, caption: string) => ContentNode) => ContentNode[], defaultFont = "nanum-serif") {
   const media: Record<string, unknown> = {}, files: Record<string, Uint8Array> = {};
   await page.goto("/");
   for (let index = 0; index < photos; index++) {
@@ -23,7 +23,7 @@ async function restoreDocument(page: Page, path: string, title: string, photos: 
   }
   const content = build((index, caption) => ({ type: "media", attrs: { mediaId: `photo-${index}`, width: index ? 200 + index : 600, align: "left", alt: "", caption } }));
   files["document.json"] = strToU8(JSON.stringify({ schemaVersion: 1, documentId: "pc-save-fixture", revision: 0, title, locale: "ko",
-    defaultFont: "nanum-serif", autoRenameAttachments: false, content: { type: "doc", content }, media, updatedAt: new Date().toISOString() }));
+    defaultFont, autoRenameAttachments: false, content: { type: "doc", content }, media, updatedAt: new Date().toISOString() }));
   await writeFile(path, zipSync(files));
   await page.locator('input[accept=".zip,application/zip"]').setInputFiles(path);
   await expect(page.getByText("Backup restored as a new document.")).toBeVisible();
@@ -42,7 +42,7 @@ test("Save to PC sits beside Share and saves text and Markdown on this computer"
   await page.getByRole("combobox", { name: "Interface language" }).selectOption("ko");
   await page.getByRole("button", { name: "PC 저장", exact: true }).click();
   const menu = page.getByRole("dialog", { name: "PC 저장", exact: true });
-  for (const name of ["PDF로 저장", "텍스트로 저장 (.txt)", "마크다운으로 저장 (.md)", "백업 내려받기 (.zip)"])
+  for (const name of ["PDF로 저장", "인쇄", "텍스트로 저장 (.txt)", "마크다운으로 저장 (.md)", "백업 내려받기 (.zip)"])
     await expect(menu.getByRole("button", { name, exact: true })).toBeVisible();
 
   // 텍스트: 사진이 있으면 먼저 알리고, 확인해야 저장한다.
@@ -66,13 +66,18 @@ test("Save to PC sits beside Share and saves text and Markdown on this computer"
   await expect(page.getByText("마크다운 파일과 사진 파일을 ZIP 하나에", { exact: false })).toBeVisible();
 });
 
-test("Save as PDF prints only the writing, with its fonts and photos, and keeps blocks whole", async ({ page, browserName }, testInfo) => {
-  test.skip(browserName !== "chromium", "PDF 출력은 Chromium만 만든다.");
-  test.setTimeout(120_000);
-  await page.addInitScript(() => { window.print = () => { document.documentElement.dataset.printed = "yes"; }; });
-  const groups = 14, photos = groups;
-  await restoreDocument(page, testInfo.outputPath("fixture.zip"), "인쇄할 글", photos, photo => [
-    ...writingFonts.map(font => paragraph(`${font.id} 글꼴 한글 English 123`, [{ type: "textStyle", attrs: { fontFamily: font.id } }])),
+type Photo = (index: number, caption: string) => ContentNode;
+const groups = 14;
+const longContent = (photo: Photo, deviceFonts = true): ContentNode[] => [
+    paragraph("한글 문장이 그대로 저장됩니다."),
+    paragraph("굵게 기울임 밑줄 취소선", [{ type: "bold" }, { type: "italic" }, { type: "underline" }, { type: "strike" },
+      { type: "textStyle", attrs: { color: "#ff0000", highlight: "#ffff00", fontSize: 24 } }]),
+    paragraph("클릭할 링크", [{ type: "link", attrs: { href: "https://example.com/pdf" } }]),
+    { type: "orderedList", attrs: { start: 3, type: "A" }, content: [{ type: "listItem", content: [paragraph("겹친 목록 바깥"),
+      { type: "orderedList", attrs: { start: 2, type: "i" }, content: [{ type: "listItem", content: [paragraph("겹친 목록 안쪽")] }] }] }] },
+    { type: "blockquote", content: [paragraph("인용문 내용")] },
+    { type: "video", attrs: { provider: "youtube", videoId: "dQw4w9WgXcQ", privacyHash: "", startSeconds: 0, autoplay: false } },
+    ...writingFonts.filter(font => deviceFonts || !["system", "dotum"].includes(font.id)).map(font => paragraph(`${font.id} 글꼴 한글 English 123`, [{ type: "textStyle", attrs: { fontFamily: font.id } }])),
     // 채움 글의 길이를 조금씩 달리해, 막지 않으면 여러 블록이 쪽 경계에 걸리게 한다.
     ...Array.from({ length: groups }, (_, group) => [
       ...Array.from({ length: 1 + (group % 4) }, (_, line) => paragraph(`채움 ${group}-${line}`)),
@@ -83,9 +88,16 @@ test("Save as PDF prints only the writing, with its fonts and photos, and keeps 
       { type: "textBox", attrs: { backgroundColor: "#e8f3ff", borderColor: "#88aadd", borderWidth: 2, padding: 20 },
         content: Array.from({ length: 5 }, (_, line) => paragraph(`BOX${group}L${line}`)) },
     ]).flat(),
-  ]);
+];
+
+test("Print prints only the writing, with its fonts and photos, and keeps blocks whole", async ({ page, browserName }, testInfo) => {
+  test.skip(browserName !== "chromium", "PDF 출력은 Chromium만 만든다.");
+  test.setTimeout(120_000);
+  await page.addInitScript(() => { window.print = () => { document.documentElement.dataset.printed = "yes"; }; });
+  const photos = groups;
+  await restoreDocument(page, testInfo.outputPath("fixture.zip"), "인쇄할 글", photos, longContent);
   await page.getByRole("button", { name: "Save to PC", exact: true }).click();
-  await page.getByRole("button", { name: "Save as PDF", exact: true }).click();
+  await page.getByRole("button", { name: "Print", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-printed", "yes");
   await expect(page).toHaveTitle("인쇄할 글");
 
@@ -131,4 +143,140 @@ test("Save as PDF prints only the writing, with its fonts and photos, and keeps 
   await page.emulateMedia({ media: null });
   await expect(page.locator(".print-root")).toHaveCount(0);
   await expect(page).not.toHaveTitle("인쇄할 글");
+});
+
+// Browser plugin not available: 저장소의 Playwright로 세 브라우저의 실제 다운로드를 확인한다.
+test("PDF downloads selectable Korean text and embedded fonts without printing", async ({ page }, testInfo) => {
+  test.setTimeout(120_000);
+  await page.addInitScript(() => { window.print = () => { document.documentElement.dataset.printed = "yes"; }; });
+  await restoreDocument(page, testInfo.outputPath("pdf-fixture.zip"), "한글 PDF 저장", groups, photo => longContent(photo, false));
+  await page.getByRole("button", { name: "Save to PC", exact: true }).click();
+  const downloading = page.waitForEvent("download", { timeout: 20_000 });
+  await page.getByRole("button", { name: "Save as PDF", exact: true }).click();
+  const file = await downloading;
+  expect(file.suggestedFilename().normalize("NFC")).toBe("한글 PDF 저장.pdf");
+  await expect(page.locator("html")).not.toHaveAttribute("data-printed", "yes");
+  await expect(page.locator(".pdf-root")).toHaveCount(0);
+  const path = (await file.path())!;
+  await testInfo.attach("downloaded-pdf", { path, contentType: "application/pdf" });
+  const pdf = await getDocument({ data: new Uint8Array(await readFile(path)), useSystemFonts: false }).promise;
+  expect(pdf.numPages).toBeGreaterThan(5);
+  let text = "", imageCount = 0;
+  const fonts = new Set<string>(), pageOf = new Map<string, number>();
+  for (let number = 1; number <= pdf.numPages; number++) {
+    const sheet = await pdf.getPage(number), operators = await sheet.getOperatorList();
+    for (let index = 0; index < operators.fnArray.length; index++) {
+      const fn = operators.fnArray[index];
+      if (fn === OPS.paintImageXObject) imageCount++;
+      if (fn === OPS.setFont) {
+        const font = sheet.commonObjs.get(operators.argsArray[index][0]);
+        expect(font.missingFile, font.name).toBe(false);
+        fonts.add(font.name);
+      }
+    }
+    const words = (await sheet.getTextContent()).items.map(item => "str" in item ? item.str : "").join("");
+    text += words;
+    let captions = 0;
+    for (const [marker] of words.matchAll(/(?:TBL|BOX|CAP)\d+/g)) {
+      expect(pageOf.get(marker) ?? number, marker).toBe(number);
+      if (!pageOf.has(marker) && marker.startsWith("CAP")) captions++;
+      pageOf.set(marker, number);
+    }
+    expect(operators.fnArray.filter(fn => fn === OPS.paintImageXObject).length, `page ${number}`).toBe(captions);
+  }
+  expect(text).toContain("한글 문장이 그대로 저장됩니다.");
+  expect(text).toContain("TBL13R5C1");
+  expect(text).toContain("BOX13L4");
+  expect(text).toContain("C. 겹친 목록 바깥");
+  expect(text).toContain("ii. 겹친 목록 안쪽");
+  expect(imageCount).toBe(groups);
+  expect([...fonts].some(name => name.startsWith("NanumMyeongjo"))).toBe(true);
+  const annotations = await (await pdf.getPage(1)).getAnnotations();
+  expect(annotations.some(annotation => annotation.url === "https://example.com/pdf")).toBe(true);
+});
+
+test("web PDF explains device fonts without substituting or opening Print", async ({ page }, testInfo) => {
+  await page.addInitScript(() => { window.print = () => { document.documentElement.dataset.printed = "yes"; }; });
+  await restoreDocument(page, testInfo.outputPath("device-font.zip"), "기기 글꼴", 0, () => [
+    paragraph("기본 고딕 본문", [{ type: "textStyle", attrs: { fontFamily: "system" } }]),
+  ]);
+  let downloads = 0;
+  page.on("download", () => downloads++);
+  await page.getByRole("button", { name: "Save to PC", exact: true }).click();
+  await page.getByRole("button", { name: "Save as PDF", exact: true }).click();
+  await expect(page.getByText("This writing uses a device font.", { exact: false })).toBeVisible();
+  await expect(page.locator("html")).not.toHaveAttribute("data-printed", "yes");
+  expect(downloads).toBe(0);
+});
+
+test("PDF keeps a tall variable-font title and vector backgrounds", async ({ page }, testInfo) => {
+  const title = "긴 제목도 본문과 같은 글꼴로 저장하고 한글이 깨지지 않아야 합니다";
+  await restoreDocument(page, testInfo.outputPath("tall-title.zip"), title, 0, () => [
+    { ...paragraph("그러데이션 배경과 겹친 글자"), attrs: { gradient: "blue", padding: 16, borderWidth: 2 } },
+    paragraph("여러 줄 형광펜도 글자 뒤에만 칠해집니다. ".repeat(10), [{ type: "textStyle", attrs: { highlight: "#ffff00" } }]),
+  ], "serif");
+  await page.getByRole("button", { name: "Save to PC", exact: true }).click();
+  const downloading = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Save as PDF", exact: true }).click();
+  const pdf = await getDocument({ data: new Uint8Array(await readFile((await (await downloading).path())!)), useSystemFonts: false }).promise;
+  const sheet = await pdf.getPage(1), words = (await sheet.getTextContent()).items.map(item => "str" in item ? item.str : "").join("");
+  expect(words.replace(/\s/g, "")).toContain(title.replace(/\s/g, ""));
+  expect(words).toContain("그러데이션 배경과 겹친 글자");
+  expect((await sheet.getOperatorList()).fnArray).toContain(OPS.shadingFill);
+});
+
+// 사진만 디코딩한 픽셀을 비교한다. PDF 본문을 화면 캡처로 저장하는 구현은 아니다.
+test("PDF JPEG photos preserve all EXIF rotations and reflections", async ({ page }, testInfo) => {
+  await page.goto("/");
+  const jpeg = Buffer.from(await page.evaluate(() => {
+    const canvas = document.createElement("canvas"); canvas.width = 80; canvas.height = 120;
+    const context = canvas.getContext("2d")!;
+    for (const [index, color] of ["#ff0000", "#00ff00", "#0000ff", "#ffff00"].entries()) {
+      context.fillStyle = color; context.fillRect(index % 2 * 40, Math.floor(index / 2) * 60, 40, 60);
+    }
+    return canvas.toDataURL("image/jpeg", 1).split(",")[1];
+  }), "base64");
+  const media: Record<string, unknown> = {}, files: Record<string, Uint8Array> = {}, content: ContentNode[] = [];
+  for (let orientation = 1; orientation <= 8; orientation++) {
+    // APP1 + little-endian TIFF IFD에 Orientation 한 항목을 넣는다.
+    const exif = Buffer.from("ffe1002245786966000049492a0008000000010012010300010000000100000000000000", "hex");
+    exif.writeUInt16LE(orientation, 28);
+    const bytes = Buffer.concat([jpeg.subarray(0, 2), exif, jpeg.subarray(2)]), id = `orientation-${orientation}`;
+    media[id] = { id, originalName: `${id}.jpg`, mime: "image/jpeg", width: orientation >= 5 ? 120 : 80,
+      height: orientation >= 5 ? 80 : 120, size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") };
+    files[`media/${id}`] = bytes;
+    content.push({ type: "media", attrs: { mediaId: id, width: 120, align: "left", alt: "", caption: id } });
+  }
+  files["document.json"] = strToU8(JSON.stringify({ schemaVersion: 1, documentId: "exif-fixture", revision: 0, title: "사진 방향",
+    locale: "ko", defaultFont: "nanum-serif", autoRenameAttachments: false, content: { type: "doc", content }, media, updatedAt: new Date().toISOString() }));
+  const path = testInfo.outputPath("exif.zip"); await writeFile(path, zipSync(files));
+  await page.locator('input[accept=".zip,application/zip"]').setInputFiles(path);
+  await expect(page.getByText("Backup restored as a new document.")).toBeVisible();
+  await expect(page.locator(".tiptap .wb-media img")).toHaveCount(8);
+  const expected = await page.locator(".tiptap .wb-media img").evaluateAll(async nodes => Promise.all(nodes.map(async node => {
+    const image = node as HTMLImageElement; await image.decode();
+    const canvas = document.createElement("canvas"); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+    const context = canvas.getContext("2d")!; context.drawImage(image, 0, 0);
+    return { width: canvas.width, height: canvas.height, corners: [[10, 10], [canvas.width - 10, 10], [10, canvas.height - 10], [canvas.width - 10, canvas.height - 10]]
+      .map(([x, y]) => Array.from(context.getImageData(x, y, 1, 1).data).slice(0, 3)) };
+  })));
+  await page.getByRole("button", { name: "Save to PC", exact: true }).click();
+  const downloading = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Save as PDF", exact: true }).click();
+  const pdf = await getDocument({ data: new Uint8Array(await readFile((await (await downloading).path())!)), useSystemFonts: false }).promise;
+  let index = 0;
+  for (let number = 1; number <= pdf.numPages; number++) {
+    const sheet = await pdf.getPage(number), operators = await sheet.getOperatorList();
+    for (let op = 0; op < operators.fnArray.length; op++) {
+      if (operators.fnArray[op] !== OPS.paintImageXObject) continue;
+      const image = await new Promise<{ width: number; height: number; data: Uint8Array; kind: number }>(resolve => sheet.objs.get(operators.argsArray[op][0], resolve));
+      const reference = expected[index++];
+      expect([image.width, image.height]).toEqual([reference.width, reference.height]);
+      const channels = image.kind === 3 ? 4 : 3;
+      const corners = [[10, 10], [image.width - 10, 10], [10, image.height - 10], [image.width - 10, image.height - 10]]
+        .map(([x, y]) => Array.from(image.data.slice((y * image.width + x) * channels, (y * image.width + x) * channels + 3)));
+      expect(corners, `EXIF ${index}`).toEqual(reference.corners);
+    }
+  }
+  expect(index).toBe(8);
 });
