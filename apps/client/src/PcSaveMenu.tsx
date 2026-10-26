@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { referencedFileIds, type Draft, type Locale } from "@wonboard/document";
 import { DocumentPreview } from "@wonboard/renderer";
 import { translator, type MessageKey } from "@wonboard/locales";
-import { download, imageNames, markdownFile, photoBytes, textFile } from "./pcSave";
+import { download, imageNames, markdownFile, photoBytes, saveName, textFile } from "./pcSave";
 import { wordFile } from "./wordSave";
 
 // 한 쪽에 들어가는 본문 높이(px). style.css의 @page(A4, 위아래 여백 16mm)와 같아야 한다.
@@ -13,7 +13,7 @@ const pageHeight = (297 - 2 * 16) * 96 / 25.4;
  * 인쇄할 때는 style.css의 print 규칙이 이것만 남긴다. 인쇄 창이 닫히면 `onDone`을 부른다.
  * `draft`는 누른 순간의 글이다. 준비하는 사이에 글을 고치거나 다른 글로 옮겨도 인쇄 내용은 바뀌지 않는다.
  */
-export function PrintDocument({ draft, onError, onDone }: { draft: Draft; onError(error: unknown): void; onDone(): void }) {
+export function PrintDocument({ draft, pdf = false, onError, onDone }: { draft: Draft; pdf?: boolean; onError(error: unknown): void; onDone(): void }) {
   const root = useRef<HTMLDivElement>(null);
   const value = draft.document;
   // 편집 화면의 사진 주소는 글이 바뀌면 거둬지므로 이 인쇄만의 주소를 따로 만든다.
@@ -23,7 +23,7 @@ export function PrintDocument({ draft, onError, onDone }: { draft: Draft; onErro
     let active = true;
     const title = document.title;
     const finish = () => { if (active) onDone(); };
-    window.addEventListener("afterprint", finish);
+    if (!pdf) window.addEventListener("afterprint", finish);
     void (async () => {
       try { for (const id of imageNames(value).keys()) await photoBytes(draft, id); }
       catch (error) { if (active) { onError(error); onDone(); } return; }
@@ -45,7 +45,13 @@ export function PrintDocument({ draft, onError, onDone }: { draft: Draft; onErro
       }
       // 브라우저는 문서 제목을 PDF 파일 이름으로 제안한다.
       if (value.title) document.title = value.title;
-      window.print();
+      if (pdf) {
+        try {
+          const bytes = await window.wonboardDesktopPdf!.create();
+          if (active) download(new Blob([bytes as BlobPart], { type: "application/pdf" }), `${saveName(value)}.pdf`);
+        } catch (error) { if (active) onError(error); }
+        finally { finish(); }
+      } else window.print();
     })();
     return () => { active = false; window.removeEventListener("afterprint", finish); document.title = title; };
   }, []);
@@ -68,11 +74,11 @@ function TextWarning({ locale, photos, onConfirm, onClose }: { locale: Locale; p
   </dialog>;
 }
 
-export function PcSaveMenu({ locale, disabled, formatsDisabled, snapshot, onPdf, onBackup, onNotice, onError, onClose }: {
+export function PcSaveMenu({ locale, disabled, formatsDisabled, snapshot, onPrint, onDesktopPdf, onBackup, onNotice, onError, onClose }: {
   locale: Locale; disabled: boolean;
   /** 읽기 전용으로 얼어붙은 글은 내용을 믿을 수 없어 백업만 받는다. */
   formatsDisabled: boolean;
-  snapshot(): Draft | null; onPdf(): void; onBackup(): void;
+  snapshot(): Draft | null; onPrint(): void; onDesktopPdf(): void; onBackup(): void;
   onNotice(key: MessageKey): void; onError(error: unknown): void; onClose(): void;
 }) {
   const t = translator(locale);
@@ -92,8 +98,18 @@ export function PcSaveMenu({ locale, disabled, formatsDisabled, snapshot, onPdf,
   const current = formatsDisabled ? null : snapshot();
   return <div className="options-menu pc-save-menu" role="dialog" aria-label={t("pcSave")}>
     <p>{t("pcSaveHint")}</p>
-    <button disabled={formatsOff} onClick={() => { onPdf(); onClose(); }}>{t("savePdf")}</button>
-    <p>{t("savePdfHint")}</p>
+    <button disabled={formatsOff} onClick={() => {
+      if (window.wonboardDesktopPdf) { onDesktopPdf(); onClose(); return; }
+      const draft = snapshot();
+      if (draft) void run(async () => {
+        const { pdfFile } = await import("./pdfSave");
+        const file = await pdfFile(draft);
+        download(file.blob, file.name);
+      });
+    }}>{t("savePdf")}</button>
+    <p>{t(window.wonboardDesktopPdf ? "savePdfHint" : "saveWebPdfHint")}</p>
+    <button disabled={formatsOff} onClick={() => { onPrint(); onClose(); }}>{t("print")}</button>
+    <p>{t("printHint")}</p>
     <button disabled={formatsOff} onClick={() => {
       const draft = snapshot();
       if (draft) void run(async () => {

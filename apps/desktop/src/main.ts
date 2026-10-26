@@ -42,6 +42,12 @@ if (ownsLock) void app.whenReady().then(() => {
         !event.senderFrame.url.startsWith("wonboard://app/")) throw new Error("unauthorized");
   };
   ipcMain.handle("edit:paste", event => { authorize(event); event.sender.paste(); });
+  ipcMain.handle("document:pdf", async event => {
+    authorize(event);
+    // 인쇄 창을 띄우지 않고 같은 인쇄 CSS와 OS 글꼴로 만든다. 내용은 이 PC 안에 머문다.
+    return new Uint8Array(await event.sender.printToPDF({ printBackground: true, preferCSSPageSize: true,
+      pageSize: "A4", displayHeaderFooter: false }));
+  });
   ipcMain.handle("ui:locale", (event, value) => { authorize(event); if (value === "ko" || value === "en") locale = value; });
   for (const operation of ["list", "load", "save", "remove", "filesList", "filesLoad", "filesUpload", "filesChange", "filesRemove"] as const) {
     ipcMain.handle(`drafts:${operation}`, (event, ...args) => {

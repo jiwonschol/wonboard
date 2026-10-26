@@ -76,7 +76,7 @@ const inlineText = (node: ContentNode): string =>
         : (node.content ?? []).map(inlineText).join("");
 
 /** 번호 목록의 표시. 문서가 가진 알파벳·로마자 번호를 그대로 쓴다. */
-function orderedMarker(type: unknown, value: number) {
+export function orderedMarker(type: unknown, value: number) {
   let letters = "", roman = "";
   for (let rest = value; rest > 0; rest = Math.floor((rest - 1) / 26)) letters = String.fromCharCode(97 + (rest - 1) % 26) + letters;
   let rest = value;

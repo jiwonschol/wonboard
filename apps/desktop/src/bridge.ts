@@ -14,5 +14,9 @@ export type DesktopStorage = {
   save(draft: StoredDraft, revision: number): Promise<StoredDraft>;
 };
 declare global {
-  interface Window { wonboardDesktop?: DesktopStorage; wonboardDesktopEditing?: DesktopEditing }
+  interface Window {
+    wonboardDesktop?: DesktopStorage;
+    wonboardDesktopEditing?: DesktopEditing;
+    wonboardDesktopPdf?: { create(): Promise<Uint8Array> };
+  }
 }
