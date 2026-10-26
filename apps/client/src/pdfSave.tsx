@@ -170,7 +170,20 @@ export async function pdfFile(draft: Draft): Promise<SavedFile> {
     }
     for (const image of host.querySelectorAll("img")) {
       const bounds = box(image.getBoundingClientRect()), id = Object.keys(urls).find(id => urls[id] === image.src)!;
-      const bytes = images.get(id)!, embedded = value.media[id].mime === "image/png" ? await pdf.embedPng(bytes) : await pdf.embedJpg(bytes);
+      const bytes = images.get(id)!;
+      let embedded;
+      if (value.media[id].mime === "image/jpeg") {
+        // 브라우저가 EXIF 회전·반전을 적용해 디코딩한 사진을 원래 해상도의 PNG로 넣는다.
+        // JPEG 원본을 그대로 넣는 pdf-lib는 EXIF 방향을 적용하지 않는다. 본문 글자는 계속 텍스트다.
+        const pixels = document.createElement("canvas");
+        pixels.width = image.naturalWidth; pixels.height = image.naturalHeight;
+        try {
+          pixels.getContext("2d")!.drawImage(image, 0, 0);
+          const png = await new Promise<Blob>((resolve, reject) => pixels.toBlob(blob =>
+            blob ? resolve(blob) : reject(new Error("invalidImage")), "image/png"));
+          embedded = await pdf.embedPng(await png.arrayBuffer());
+        } finally { pixels.width = pixels.height = 0; }
+      } else embedded = await pdf.embedPng(bytes);
       // object-fit: contain은 상자 안에서 가운데에 맞춘다.
       const scale = Math.min(bounds.width / embedded.width, bounds.height / embedded.height);
       const w = embedded.width * scale, h = embedded.height * scale;

@@ -224,3 +224,59 @@ test("PDF keeps a tall variable-font title and vector backgrounds", async ({ pag
   expect(words).toContain("그러데이션 배경과 겹친 글자");
   expect((await sheet.getOperatorList()).fnArray).toContain(OPS.shadingFill);
 });
+
+// 사진만 디코딩한 픽셀을 비교한다. PDF 본문을 화면 캡처로 저장하는 구현은 아니다.
+test("PDF JPEG photos preserve all EXIF rotations and reflections", async ({ page }, testInfo) => {
+  await page.goto("/");
+  const jpeg = Buffer.from(await page.evaluate(() => {
+    const canvas = document.createElement("canvas"); canvas.width = 80; canvas.height = 120;
+    const context = canvas.getContext("2d")!;
+    for (const [index, color] of ["#ff0000", "#00ff00", "#0000ff", "#ffff00"].entries()) {
+      context.fillStyle = color; context.fillRect(index % 2 * 40, Math.floor(index / 2) * 60, 40, 60);
+    }
+    return canvas.toDataURL("image/jpeg", 1).split(",")[1];
+  }), "base64");
+  const media: Record<string, unknown> = {}, files: Record<string, Uint8Array> = {}, content: ContentNode[] = [];
+  for (let orientation = 1; orientation <= 8; orientation++) {
+    // APP1 + little-endian TIFF IFD에 Orientation 한 항목을 넣는다.
+    const exif = Buffer.from("ffe1002245786966000049492a0008000000010012010300010000000100000000000000", "hex");
+    exif.writeUInt16LE(orientation, 28);
+    const bytes = Buffer.concat([jpeg.subarray(0, 2), exif, jpeg.subarray(2)]), id = `orientation-${orientation}`;
+    media[id] = { id, originalName: `${id}.jpg`, mime: "image/jpeg", width: orientation >= 5 ? 120 : 80,
+      height: orientation >= 5 ? 80 : 120, size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") };
+    files[`media/${id}`] = bytes;
+    content.push({ type: "media", attrs: { mediaId: id, width: 120, align: "left", alt: "", caption: id } });
+  }
+  files["document.json"] = strToU8(JSON.stringify({ schemaVersion: 1, documentId: "exif-fixture", revision: 0, title: "사진 방향",
+    locale: "ko", defaultFont: "nanum-serif", autoRenameAttachments: false, content: { type: "doc", content }, media, updatedAt: new Date().toISOString() }));
+  const path = testInfo.outputPath("exif.zip"); await writeFile(path, zipSync(files));
+  await page.locator('input[accept=".zip,application/zip"]').setInputFiles(path);
+  await expect(page.getByText("Backup restored as a new document.")).toBeVisible();
+  await expect(page.locator(".tiptap .wb-media img")).toHaveCount(8);
+  const expected = await page.locator(".tiptap .wb-media img").evaluateAll(async nodes => Promise.all(nodes.map(async node => {
+    const image = node as HTMLImageElement; await image.decode();
+    const canvas = document.createElement("canvas"); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+    const context = canvas.getContext("2d")!; context.drawImage(image, 0, 0);
+    return { width: canvas.width, height: canvas.height, corners: [[10, 10], [canvas.width - 10, 10], [10, canvas.height - 10], [canvas.width - 10, canvas.height - 10]]
+      .map(([x, y]) => Array.from(context.getImageData(x, y, 1, 1).data).slice(0, 3)) };
+  })));
+  await page.getByRole("button", { name: "Save to PC", exact: true }).click();
+  const downloading = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Save as PDF", exact: true }).click();
+  const pdf = await getDocument({ data: new Uint8Array(await readFile((await (await downloading).path())!)), useSystemFonts: false }).promise;
+  let index = 0;
+  for (let number = 1; number <= pdf.numPages; number++) {
+    const sheet = await pdf.getPage(number), operators = await sheet.getOperatorList();
+    for (let op = 0; op < operators.fnArray.length; op++) {
+      if (operators.fnArray[op] !== OPS.paintImageXObject) continue;
+      const image = await new Promise<{ width: number; height: number; data: Uint8Array; kind: number }>(resolve => sheet.objs.get(operators.argsArray[op][0], resolve));
+      const reference = expected[index++];
+      expect([image.width, image.height]).toEqual([reference.width, reference.height]);
+      const channels = image.kind === 3 ? 4 : 3;
+      const corners = [[10, 10], [image.width - 10, 10], [10, image.height - 10], [image.width - 10, image.height - 10]]
+        .map(([x, y]) => Array.from(image.data.slice((y * image.width + x) * channels, (y * image.width + x) * channels + 3)));
+      expect(corners, `EXIF ${index}`).toEqual(reference.corners);
+    }
+  }
+  expect(index).toBe(8);
+});
