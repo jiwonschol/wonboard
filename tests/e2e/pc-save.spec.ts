@@ -66,6 +66,39 @@ test("Save to PC sits beside Share and saves text and Markdown on this computer"
   await expect(page.getByText("마크다운 파일과 사진 파일을 ZIP 하나에", { exact: false })).toBeVisible();
 });
 
+test("Save as Word downloads a .docx with the same body text and photos as the writing", async ({ page }, testInfo) => {
+  const lines = ["첫 문단 & <특수> 글자", "Mixed English 문장", "목록 하나", "목록 둘"];
+  await restoreDocument(page, testInfo.outputPath("fixture.zip"), "워드 저장 시험", 3, photo => [
+    paragraph(lines[0], [{ type: "bold" }]),
+    { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "소제목" }] },
+    photo(0, "첫 사진 설명"),
+    paragraph(lines[1]),
+    { type: "bulletList", content: [lines[2], lines[3]].map(text => ({ type: "listItem", content: [paragraph(text)] })) },
+    photo(1, ""), photo(2, "마지막 사진"),
+  ]);
+  const photos = await page.locator(".tiptap .wb-media img").evaluateAll(images => images.length);
+  await page.getByRole("button", { name: "Save to PC", exact: true }).click();
+  const download = page.waitForEvent("download");
+  await page.getByRole("dialog", { name: "Save to PC", exact: true }).getByRole("button", { name: "Save as Word (.docx)", exact: true }).click();
+  // WebKit은 한글 파일 이름을 자모로 풀어서 알려 준다.
+  expect((await download).suggestedFilename().normalize("NFC")).toBe("워드 저장 시험.docx");
+  const entries = unzipSync(new Uint8Array(await readFile((await (await download).path())!)));
+  const xml = strFromU8(entries["word/document.xml"]);
+  const unescape = (text: string) => text.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+  const paragraphs = [...xml.matchAll(/<w:p>([\s\S]*?)<\/w:p>/g)]
+    .map(([, inner]) => [...inner.matchAll(/<w:t(?: [^>]*)?>([^<]*)<\/w:t>/g)].map(([, text]) => unescape(text)).join(""))
+    .filter(Boolean);
+  expect(paragraphs).toEqual(["워드 저장 시험", lines[0], "소제목", "첫 사진 설명", lines[1], lines[2], lines[3], "마지막 사진"]);
+  const media = Object.keys(entries).filter(name => name.startsWith("word/media/")).sort();
+  expect(media).toHaveLength(photos);
+  expect(photos).toBe(3);
+  expect(xml.match(/<w:drawing>/g)).toHaveLength(photos);
+  // 사진은 원본 그대로 들어간다: 백업에 넣은 사진과 바이트가 같다.
+  const backup = unzipSync(new Uint8Array(await readFile(testInfo.outputPath("fixture.zip"))));
+  const hash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+  expect(media.map(name => hash(entries[name])).sort()).toEqual([0, 1, 2].map(index => hash(backup[`media/photo-${index}`])).sort());
+});
+
 test("Save as PDF prints only the writing, with its fonts and photos, and keeps blocks whole", async ({ page, browserName }, testInfo) => {
   test.skip(browserName !== "chromium", "PDF 출력은 Chromium만 만든다.");
   test.setTimeout(120_000);
