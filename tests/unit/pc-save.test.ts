@@ -93,6 +93,49 @@ describe("PC 저장: 마크다운", () => {
     expect(reader.parse(output)).toContain("<p><code>ab</code></p>");
     expect(reader.parse(output)).toContain("<code>a`  b</code><br><code>c</code>");
   });
+  // #46: 저장한 마크다운을 Marked로 다시 읽으면 어긋나던 모양들.
+  it("링크 글자 안에서 Marked가 코드로 읽지 못하는 코드 글자는 링크를 지키고 글자만 남긴다", async () => {
+    const code = { type: "code" }, link = { type: "link", attrs: { href: "https://example.com/" } };
+    for (const [value, plain] of [["a`b", "a\\`b"], ["x\\[y]", "x\\\\\\[y\\]"], ["]", "\\]"], ["a b", "a&nbsp;b"]] as const) {
+      const output = toMarkdown((await draftWith([paragraph(text("앞 "), text(value, code, link), text(" 뒤"))])).document);
+      const html = reader.parse(output) as string;
+      if (value === "]") {
+        // 백틱도 \[ \]도 없으면 코드로 남는다.
+        expect(output).toContain("[`]`](https://example.com/)");
+        expect(html).toContain('<a href="https://example.com/"><code>]</code></a>');
+        continue;
+      }
+      if (value === "a b") { expect(html).toContain('<a href="https://example.com/"><code>a b</code></a>'); continue; }
+      expect(output).toContain(`[${plain}](https://example.com/)`);
+      expect(html).toContain(`<a href="https://example.com/">${value.replace(/</g, "&lt;")}</a>`);
+    }
+  });
+  it("강조가 있는 문단에서 백틱이 든 코드 글자는 글자만 남겨 강조를 지킨다", async () => {
+    const draft = await draftWith([
+      paragraph(text("a", { type: "bold" }), text(" "), text("``* x", { type: "code" }), text(" "), text("b", { type: "italic" })),
+      paragraph(text("``* x", { type: "code" }), text(" 강조 없는 문단")),
+    ]);
+    const html = reader.parse(toMarkdown(draft.document)) as string;
+    expect(html).toContain("<p><strong>a</strong> ``*&nbsp;x <em>b</em></p>");
+    expect(html).toContain("<p><code>``* x</code> 강조 없는 문단</p>");
+  });
+  it("역슬래시로 끝나거나 공백·탭만 양끝에 있는 코드 글자를 그대로 읽게 띄운다", async () => {
+    const draft = await draftWith([
+      paragraph(text("앞", { type: "strike" }), text("a*\\", { type: "code" }), text("뒤", { type: "strike" })),
+      paragraph(text(" \t ", { type: "code" })),
+    ]);
+    const output = toMarkdown(draft.document);
+    expect(output).toContain("` a*\\ `");
+    const html = reader.parse(output) as string;
+    expect(html).toContain("<del>앞</del><code>a*\\</code><del>뒤</del>");
+    expect(html).toContain("<code> \t </code>");
+  });
+  it("줄바꿈뿐인 문단을 HTML 블록이 아닌 문단으로 쓴다", async () => {
+    const draft = await draftWith([paragraph({ type: "hardBreak" }), paragraph(text("다음"))]);
+    const output = toMarkdown(draft.document);
+    expect(output).toBe("# 제주 여행\n\n<p><br></p>\n\n다음\n");
+    expect(reader.parse(output)).toContain("<p><br></p><p>다음</p>");
+  });
   it("사진이 없으면 .md 하나다", async () => {
     const file = await markdownFile(await draftWith([paragraph(text("본문"))]));
     expect(file.name).toBe("제주 여행.md");
