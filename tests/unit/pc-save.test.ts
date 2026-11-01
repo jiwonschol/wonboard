@@ -189,6 +189,52 @@ describe("PC 저장: 마크다운", () => {
       "|  |", "| --- |", "| 첫 행 |", "",
     ].join("\n"));
   });
+  // 무작위로 조합한 문서를 저장한 뒤 marked로 다시 읽어 찾은 어긋남(#46). 고친 모양마다 하나씩 남긴다.
+  it("링크 글 안의 코드 글자에 백틱이 있어도 링크와 코드가 그대로 읽힌다", async () => {
+    const link = { type: "link", attrs: { href: "https://example.com/[x]" } };
+    const draft = await draftWith([
+      paragraph(text("~`가", { type: "bold" }, { type: "code" }, link), text("뒤", link)),
+      paragraph(text("앞", link), text("a`]", { type: "italic" }, { type: "code" }, link), text(" 끝", link)),
+    ]);
+    const output = await (await markdownFile(draft)).blob.text();
+    expect(output).toContain("[**<code>&#126;&#96;가</code>**<!-- -->뒤](https://example.com/[x])");
+    const html = reader.parse(output) as string;
+    expect(html).toContain('<a href="https://example.com/%5Bx%5D"><strong><code>&#126;&#96;가</code></strong><!-- -->뒤</a>');
+    expect(html).toContain('<a href="https://example.com/%5Bx%5D">앞<!-- --><em><code>a&#96;&#93;</code></em> 끝</a>');
+  });
+  it("역슬래시로 끝나는 코드 글자 뒤의 강조를 놓치지 않는다", async () => {
+    const draft = await draftWith([paragraph(text("a", { type: "italic" }, { type: "code" }), text("\\", { type: "code" }), text("!b", { type: "italic" }), text("`|`", { type: "code" }))]);
+    const output = await (await markdownFile(draft)).blob.text();
+    expect(output).toContain("` \\ `");
+    const html = reader.parse(output) as string;
+    expect(html).toContain("<code>\\</code>");
+    expect(html).toContain("<em>!b</em>");
+  });
+  it("굵게 안이 서로 다른 기울임으로 시작하고 끝나도 굵게와 기울임이 그대로 읽힌다", async () => {
+    const both = (value: string) => text(value, { type: "bold" }, { type: "italic" });
+    const draft = await draftWith([
+      paragraph(both("가"), text(" 나 ", { type: "bold" }), both("다")),
+      paragraph(both("하나뿐")),
+    ]);
+    const output = await (await markdownFile(draft)).blob.text();
+    expect(output).toContain("**<!-- -->*가* 나 *다*<!-- -->**");
+    expect(output).toContain("***하나뿐***");
+    const html = reader.parse(output) as string;
+    expect(html).toMatch(/<strong><!-- --><em>가<\/em> 나 <em>다<\/em><!-- --><\/strong>/);
+    expect(html).toMatch(/<em><strong>하나뿐<\/strong><\/em>/);
+  });
+  it("목록 안 코드 글자의 탭을 공백으로 바꾸지 않는다", async () => {
+    const draft = await draftWith([
+      { type: "bulletList", content: [{ type: "listItem", content: [paragraph(text("a\tb", { type: "code" }))] }] },
+      paragraph(text("c\td", { type: "code" })),
+    ]);
+    const output = await (await markdownFile(draft)).blob.text();
+    expect(output).toContain("- <code>a&#9;b</code>");
+    expect(output).toContain("`c\td`");
+    const html = reader.parse(output) as string;
+    expect(html).toContain("<li><code>a&#9;b</code></li>");
+    expect(html).toContain("<code>c\td</code>");
+  });
 });
 
 describe("PC 저장: 워드", () => {

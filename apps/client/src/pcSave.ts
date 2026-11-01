@@ -129,6 +129,11 @@ export function toPlainText(document: WriterDocument, photo: (name: string) => s
 // - 코드 글자 안은 글자 그대로다. 공백을 &nbsp;로 바꾸면 그 글자가 보이므로 바꾸지 않는다. 줄바꿈에서는 코드 표시를 나눈다.
 // - 본문의 빈 문단은 남기지 않는다(문단 사이 빈 줄과 구별되지 않는다).
 // - 링크 표시가 없는 주소 글자를 읽는 쪽이 링크로 만드는 것은 막지 않는다(글자는 같다).
+// - 링크 글 안의 코드 글자에 백틱이 있으면, 목록 안의 코드 글자에 탭이 있으면 백틱 표시 대신 <code> 태그로 쓰고
+//   문장부호·탭은 문자 참조로 적는다(htmlCode). 백틱 표시로는 읽는 쪽이 링크를 놓치거나 탭을 공백으로 바꾼다.
+// - 코드 글자가 역슬래시로 끝나면 표시 안쪽 양끝에 한 칸씩 띄운다(읽는 쪽이 한 칸씩 떼어 내 글자는 같다).
+// - 굵게 안이 서로 다른 기울임으로 시작하고 끝나면(***가* 나 *다***) 굵게 기호 안쪽에 빈 주석을 둔다.
+// 위 네 가지는 저장한 마크다운을 marked로 다시 읽어 비교하는 무작위 검사(문서 수만 개)에서 찾은 어긋남이다(#46).
 const BREAK = "\u0000", CODE_SPACE = "\u0001", NBSP = "\u0002", ESCAPE = "\u0003", SEPARATOR = "<!-- -->";
 // 위 네 글자는 변환하는 동안의 표시로 쓴다. 글에 같은 글자가 들어 있으면 protect가 ESCAPE+숫자로 바꿔 두고
 // restore가 맨 마지막에 원래 글자로 되돌리므로, 글의 글자와 표시가 섞이지 않고 글자도 지워지지 않는다.
@@ -165,9 +170,21 @@ function codeSpan(text: string, inTable: boolean) {
     if (!value) return "";
     const fence = "`".repeat(Math.max(0, ...[...value.matchAll(/`+/g)].map(run => run[0].length)) + 1);
     // 양끝이 모두 공백이면 읽는 쪽이 하나씩 떼어 내므로, 그때도 한 칸씩 더 준다.
-    const padding = /^`|`$/.test(value) || (value.startsWith(" ") && value.endsWith(" ") && value.trim() !== "") ? " " : "";
+    // 역슬래시로 끝나면 닫는 표시가 이스케이프된 백틱으로 잘못 읽혀 뒤의 강조를 놓치므로 한 칸씩 띄운다.
+    const padding = /^`|[`\\]$/.test(value) || (value.startsWith(" ") && value.endsWith(" ") && value.trim() !== "") ? " " : "";
     return (fence + padding + (inTable ? value.replace(/\|/g, "\\|") : value) + padding + fence).replace(/ /g, CODE_SPACE);
   }).join(BREAK);
+}
+/**
+ * 코드 글자를 <code> 태그로 쓰고 문장부호와 탭은 문자 참조로 적는다. 백틱 표시로는 읽는 쪽(marked)이
+ * 글자를 바꾸는 두 자리에서만 쓴다.
+ * - 링크 글 안에서 백틱이 든 코드: marked는 링크 글의 끝을 찾을 때 백틱 묶음을 앞에서부터 둘씩 짝지어서,
+ *   코드 표시 안의 백틱이 짝을 어긋나게 하면 링크를 알아보지 못한다.
+ * - 목록 안에서 탭이 든 코드: marked가 목록 항목의 탭을 공백으로 바꾼다.
+ */
+function htmlCode(text: string) {
+  return text.split(lineBreaks).map(value => value
+    ? `<code>${value.replace(/[\t!-/:-@[-`{-~]/g, char => `&#${char.charCodeAt(0)};`).replace(/ /g, CODE_SPACE)}</code>` : "").join(BREAK);
 }
 const isWord = (char: string | undefined) => Boolean(char) && !/[\s\u0000-\u0002\p{P}\p{S}]/u.test(char!);
 const isMark = (char: string | undefined) => char === "*" || char === "~";
@@ -176,9 +193,13 @@ const isPunctuation = (char: string | undefined) => Boolean(char) && /[\p{P}\p{S
  * 강조 기호로 감싼다. `before`와 `after`는 바로 옆에 올 글이다.
  * 가장자리의 공백·줄바꿈은 기호 밖으로 내고, 기호가 강조로 읽히지 않을 자리(문장부호와 글자 사이, 같은 기호끼리 맞닿는 곳)에는 빈 주석을 둔다.
  */
-function emphasize(inner: string, mark: string, before: string, after: string) {
-  const [, lead, core, trail] = /^([\s\u0000\u0002]*)([\s\S]*?)([\s\u0000\u0002]*)$/.exec(inner)!;
-  if (!core) return inner;
+function emphasize(inner: string, mark: string, before: string, after: string, mixed = false) {
+  const [, lead, bare, trail] = /^([\s\u0000\u0002]*)([\s\S]*?)([\s\u0000\u0002]*)$/.exec(inner)!;
+  if (!bare) return inner;
+  // 굵게 안이 서로 다른 기울임 두 개로 시작하고 끝나면(***가* 나 *다***) 기호가 한 덩어리로 붙어
+  // 읽는 쪽이 짝을 잘못 맞춘다. 그때만 양쪽 사이에 빈 주석을 둔다. 기울임 하나가 전부면(***가***) 그대로 읽힌다.
+  const split = mixed && bare.startsWith(mark[0]) && bare.endsWith(mark[0]) && !bare.endsWith(`\\${mark[0]}`);
+  const core = split ? SEPARATOR + bare + SEPARATOR : bare;
   const letters = Array.from(core), left = Array.from(before).at(-1), right = Array.from(after)[0];
   // Marked는 일부 이모지를 글자로 판단하므로 문장부호끼리 맞닿는 경계도 빈 주석으로 가른다.
   const open = !lead && (isMark(left) || (isPunctuation(letters[0]) && (isWord(left) || isPunctuation(left)))) ? SEPARATOR : "";
@@ -259,20 +280,24 @@ function visible(nodes: ContentNode[]): ContentNode[] {
  * 문단 안의 글. 이웃한 글자가 같은 서식이면 한 번만 감싼다. 밑줄·글자색·글꼴·크기처럼
  * 마크다운에 없는 서식은 기호 없이 글자만 남긴다. 줄바꿈은 BREAK로 낸다.
  */
-function inline(source: ContentNode[], inTable: boolean): string {
-  const render = (nodes: ContentNode[], level: number): string => {
+function inline(source: ContentNode[], inTable: boolean, inList = false): string {
+  const codeText = (text: string, inLink: boolean) =>
+    (inLink && text.includes("`")) || (inList && text.includes("\t")) ? htmlCode(text) : codeSpan(text, inTable);
+  const render = (nodes: ContentNode[], level: number, inLink: boolean): string => {
     if (level === emphasis.length)
       // 색·밑줄처럼 마크다운에서 빠지는 서식만 다르면 코드 글자는 하나의 표시로 합친다.
       return runs(nodes, node => node.type === "text" && hasMark(node, "code")).map(([code, run]) => code
-        ? codeSpan(run.map(node => node.text!).join(""), inTable)
+        ? codeText(run.map(node => node.text!).join(""), inLink)
         : run.map(node => node.type === "hardBreak" ? BREAK : escapeText(node.text!)).join("")).join("");
-    const parts = runs(nodes, node => hasMark(node, emphasis[level][0])).map(([marked, run]) => ({ marked, text: render(run, level + 1) }));
+    const parts = runs(nodes, node => hasMark(node, emphasis[level][0])).map(([marked, run]) => ({ marked, run, text: render(run, level + 1, inLink) }));
+    // 굵게 안에 기울임과 기울임 아닌 글이 섞였는지(emphasize의 빈 주석 판단에 쓴다).
+    const mixed = (run: ContentNode[]) => level === 0 && run.some(node => node.type === "text" && !hasMark(node, "italic") && node.text!.trim());
     return parts.map((part, index) => part.marked
-      ? emphasize(part.text, emphasis[level][1], parts[index - 1]?.text ?? "", parts[index + 1]?.text ?? "") : part.text).join("");
+      ? emphasize(part.text, emphasis[level][1], parts[index - 1]?.text ?? "", parts[index + 1]?.text ?? "", mixed(part.run)) : part.text).join("");
   };
   const pieces: string[] = [];
   for (const [link, run] of runs(visible(source), linkOf)) {
-    const text = render(run, 0), cut = link.indexOf("\n"), last = pieces.length - 1;
+    const text = render(run, 0, Boolean(link)), cut = link.indexOf("\n"), last = pieces.length - 1;
     // 링크는 공백을 포함해 걸린 글 그대로를 덮는다.
     const piece = link && text ? `[${text}](${destination(link.slice(0, cut), inTable)}${linkTitle(link.slice(cut + 1))})` : text;
     // 느낌표 바로 뒤에 링크가 오면 그림(![…](…))으로 읽히므로 느낌표를 막는다.
@@ -295,9 +320,26 @@ export function toMarkdown(document: WriterDocument): string {
   const names = imageNames(document);
   const blocks = (nodes: ContentNode[]) => nodes.map(block).filter(lines => lines.length);
   const join = (parts: string[][]) => parts.flatMap((lines, index) => index ? ["", ...lines] : lines);
+  // 목록 안인지(inline의 탭 처리에 쓴다).
+  let lists = 0;
+  const listLines = (node: ContentNode): string[] => {
+    const attrs = node.attrs ?? {};
+    return (node.content ?? []).flatMap((item, index) => {
+      const marker = node.type === "bulletList" ? "- " : `${Number(attrs.start ?? 1) + index}. `;
+      // 문단 바로 뒤의 하위 목록은 빈 줄 없이 붙여야 목록 전체가 느슨한 목록으로 바뀌지 않는다.
+      const body: string[] = [];
+      for (const child of item.content ?? []) {
+        const next = block(child);
+        if (!next.length) continue;
+        if (body.length && child.type !== "bulletList" && child.type !== "orderedList") body.push("");
+        for (const line of next) body.push(line);
+      }
+      return (body.length ? body : [""]).map((line, row) => row ? (line ? " ".repeat(marker.length) + line : "") : (marker + line).trimEnd());
+    });
+  };
   const block = (node: ContentNode): string[] => {
     const attrs = node.attrs ?? {}, children = node.content ?? [];
-    if (node.type === "paragraph") return paragraphLines(inline(children, false));
+    if (node.type === "paragraph") return paragraphLines(inline(children, false, lists > 0));
     if (node.type === "heading") {
       const text = oneLine(inline(children, false));
       return text ? [headingLine(attrs.level === 2 ? 2 : attrs.level === 3 ? 3 : 1, text)] : [];
@@ -312,19 +354,10 @@ export function toMarkdown(document: WriterDocument): string {
     }
     if (node.type === "horizontalRule") return ["---"];
     if (node.type === "blockquote") return join(blocks(children)).map(line => line ? `> ${line}` : ">");
-    if (node.type === "bulletList" || node.type === "orderedList")
-      return children.flatMap((item, index) => {
-        const marker = node.type === "bulletList" ? "- " : `${Number(attrs.start ?? 1) + index}. `;
-        // 문단 바로 뒤의 하위 목록은 빈 줄 없이 붙여야 목록 전체가 느슨한 목록으로 바뀌지 않는다.
-        const body: string[] = [];
-        for (const child of item.content ?? []) {
-          const next = block(child);
-          if (!next.length) continue;
-          if (body.length && child.type !== "bulletList" && child.type !== "orderedList") body.push("");
-          for (const line of next) body.push(line);
-        }
-        return (body.length ? body : [""]).map((line, row) => row ? (line ? " ".repeat(marker.length) + line : "") : (marker + line).trimEnd());
-      });
+    if (node.type === "bulletList" || node.type === "orderedList") {
+      lists++;
+      try { return listLines(node); } finally { lists--; }
+    }
     if (node.type === "media") {
       const name = names.get(String(attrs.mediaId));
       const alt = escapeAttribute(String(attrs.alt ?? ""));
