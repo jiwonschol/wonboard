@@ -4,7 +4,7 @@ import type { Editor } from "@tiptap/core";
 import type { Node } from "@tiptap/pm/model";
 import { closeHistory } from "@tiptap/pm/history";
 import type { Locale } from "@wonboard/document";
-import { dictionaryKey, readPersonalDictionary, updatePersonalDictionary, validPersonalWord, personalWordKey } from "./spelling";
+import { readPersonalDictionary, subscribePersonalDictionary, updatePersonalDictionary, validPersonalWord, personalWordKey } from "./spelling";
 import { replaceSpelling, spellingSegments } from "./proofreading/document";
 import type { Finding } from "./proofreading/engine.mjs";
 import oktLicense from "../../../third_party/spelling/open-korean-text/LICENSE?raw";
@@ -55,9 +55,6 @@ function SpellingReview({ editor, locale, close }: { editor: Editor; locale: Loc
   useEffect(() => {
     if (!dialog.current?.open) dialog.current?.showModal();
     skipped.current = []; setIgnored([]); setResults([]);
-    let saved: string[];
-    try { saved = readPersonalDictionary(); personalRef.current = saved; setPersonal(saved); }
-    catch { setError(message); setBusy(false); return; }
     let active: Worker;
     try { active = new Worker(new URL("./proofreading/review.worker.ts", import.meta.url), { type: "module" }); }
     catch { setError(message); setBusy(false); return; }
@@ -76,19 +73,24 @@ function SpellingReview({ editor, locale, close }: { editor: Editor; locale: Loc
         request.current++; skipped.current = []; setIgnored([]); setStale(true); setBusy(false);
       }
     };
-    const dictionaryChanged = (event: Event) => {
-      if (event instanceof StorageEvent && event.key !== dictionaryKey && event.key !== null) return;
-      request.current++;
-      try {
-        const saved = readPersonalDictionary();
+    // 사전은 IndexedDB에서 비동기로 읽는다. 읽는 동안 들어온 검사 결과는 버리고,
+    // 여러 번 읽기가 겹치면 마지막 읽기만 반영한다.
+    let reads = 0;
+    const load = () => {
+      const id = ++reads;
+      if (id > 1) request.current++;
+      readPersonalDictionary().then(saved => {
+        if (id !== reads || controller.signal.aborted) return;
         personalRef.current = saved; setPersonal(saved); check(saved);
-      } catch { setResults([]); setError(message); setBusy(false); }
+      }, () => {
+        if (id !== reads || controller.signal.aborted) return;
+        request.current++; setResults([]); setError(message); setBusy(false);
+      });
     };
-    window.addEventListener("storage", dictionaryChanged);
-    window.addEventListener(dictionaryKey, dictionaryChanged);
+    const unsubscribe = subscribePersonalDictionary(load);
     editor.on("transaction", changed);
-    check(saved);
-    return () => { controller.abort(); window.removeEventListener("storage", dictionaryChanged); window.removeEventListener(dictionaryKey, dictionaryChanged); active.terminate(); worker.current = null; editor.off("transaction", changed); };
+    load();
+    return () => { controller.abort(); unsubscribe(); active.terminate(); worker.current = null; editor.off("transaction", changed); };
   }, [editor]);
   useEffect(() => {
     // A late Worker response must not move focus out of a dictionary input

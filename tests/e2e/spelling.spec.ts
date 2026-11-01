@@ -1,5 +1,20 @@
-import type { Locator } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./fixtures";
+
+// 개인 사전은 IndexedDB(wonboard-spelling-personal)에 있다(#46). 저장된 낱말 목록을 읽고,
+// 아직 만들어지지 않았으면 null을 돌려준다. 없는 DB를 시험이 만들지 않도록 생성을 취소한다.
+const storedDictionary = (tab: Page) => tab.evaluate(() => new Promise<string[] | null>((resolve, reject) => {
+  const open = indexedDB.open("wonboard-spelling-personal");
+  open.onupgradeneeded = () => open.transaction!.abort();
+  open.onerror = event => { event.preventDefault(); resolve(null); };
+  open.onsuccess = () => {
+    const db = open.result;
+    if (!db.objectStoreNames.contains("dictionary")) { db.close(); return resolve(null); }
+    const get = db.transaction("dictionary").objectStore("dictionary").get("personal");
+    get.onsuccess = () => { db.close(); resolve(get.result?.words ?? null); };
+    get.onerror = () => { db.close(); reject(get.error); };
+  };
+}));
 
 // 맞춤법 창은 열 때마다 새 Worker를 띄워 사전(약 7.5MB)을 읽고 검사기를 만든다.
 // 리눅스 Chromium에서 worker 둘로 돌리면 결과가 나오기까지 3~7초가 걸려 기본 5초를
@@ -1140,6 +1155,7 @@ test("unreadable personal dictionary reports a failure without changing or reset
   await expect(dialog.getByRole("alert")).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Check again", exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem("wonboard.spelling.personal.v1"))).toBe("{broken");
+  expect(await storedDictionary(page)).toBeNull();
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
 });
 
@@ -1227,6 +1243,30 @@ for (const locale of ["ko", "en"]) test(`review remains usable at 390px (${local
   expect(errors).toEqual([]);
 });
 
+test("a dictionary saved by the earlier version moves to the new storage without losing words", async ({ page }) => {
+  const legacy = JSON.stringify(["아즈휼", "ZqxBoard", "ㅠ_ㅠ"]);
+  await page.addInitScript(value => { if (localStorage.getItem("wonboard.spelling.personal.v1") === null) localStorage.setItem("wonboard.spelling.personal.v1", value); }, legacy);
+  await page.goto("/");
+  await page.getByRole("textbox", { name: "Document body", exact: true }).fill("아즈휼");
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
+  await expect(dialog).toContainText("Spelling review complete.");
+  await expect(dialog.getByText("Personal dictionary (3)", { exact: true })).toBeVisible();
+  expect(await storedDictionary(page)).toEqual(["아즈휼", "ZqxBoard", "ㅠ_ㅠ"]);
+  // 옮긴 뒤 바뀐 내용은 새 저장소에만 쓰고, 예전 자료는 그대로 남는다.
+  const manager = dialog.locator("details").filter({ hasText: "Personal dictionary" });
+  await manager.locator("summary").click();
+  await manager.getByRole("button", { name: "Remove 아즈휼", exact: true }).click();
+  await expect(dialog).toContainText("Unrecognized expression: 아즈휼");
+  expect(await storedDictionary(page)).toEqual(["ZqxBoard", "ㅠ_ㅠ"]);
+  expect(await page.evaluate(() => localStorage.getItem("wonboard.spelling.personal.v1"))).toBe(legacy);
+  await page.reload();
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  await analyzed(dialog);
+  await expect(dialog.getByText("Personal dictionary (2)", { exact: true })).toBeVisible();
+});
+
 test("dictionary manager deduplicates, survives reload and preserves neighboring errors", async ({ page }) => {
   await page.goto("/");
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
@@ -1269,15 +1309,15 @@ test("dictionary save failure preserves stored entries and document", async ({ p
   await analyzed(dialog);
   await expect(dialog).toContainText("Unrecognized expression: 아즈휼");
   await page.evaluate(() => {
-    const original = Storage.prototype.setItem;
-    Storage.prototype.setItem = function(key, value) {
-      if (key === "wonboard.spelling.personal.v1") throw new DOMException("full", "QuotaExceededError");
-      return original.call(this, key, value);
+    const original = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function(value, key) {
+      if (this.name === "dictionary") throw new DOMException("full", "QuotaExceededError");
+      return original.call(this, value, key);
     };
   });
   await dialog.getByRole("button", { name: "Add to dictionary", exact: true }).click();
   await expect(dialog.getByRole("alert")).toContainText("storage failed");
-  expect(await page.evaluate(() => localStorage.getItem("wonboard.spelling.personal.v1"))).toBeNull();
+  expect(await storedDictionary(page)).toEqual([]);
   await expect(body).toHaveText("아즈휼");
 });
 
@@ -1291,9 +1331,15 @@ test("dictionary updates from another tab refresh the open review", async ({ pag
   await expect(dialog).toContainText("Unrecognized expression: 아즈휼");
   const other = await context.newPage();
   await other.goto("/");
-  await other.evaluate(() => localStorage.setItem("wonboard.spelling.personal.v1", '["아즈휼"]'));
+  await other.getByRole("textbox", { name: "Document body", exact: true }).fill("다른 탭");
+  await other.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
+  await analyzed(other.getByRole("dialog"));
+  const manager = other.getByRole("dialog").locator("details").filter({ hasText: "Personal dictionary" });
+  await manager.locator("summary").click();
+  await manager.getByRole("textbox").fill("아즈휼");
+  await manager.getByRole("button", { name: "Add to dictionary", exact: true }).click();
   await expect(dialog).toContainText("Spelling review complete.");
-  await other.evaluate(() => localStorage.setItem("wonboard.spelling.personal.v1", '[]'));
+  await manager.getByRole("button", { name: "Remove 아즈휼", exact: true }).click();
   await expect(dialog).toContainText("Unrecognized expression: 아즈휼");
   await expect(body).toHaveText("아즈휼에서");
   await other.close();
@@ -1330,7 +1376,7 @@ test("dictionary manager protects composition and invalidates an in-flight check
   await expect.poll(() => page.evaluate(() => typeof (window as typeof window & { releaseFirstCheck?: () => void }).releaseFirstCheck), { timeout: 20000 }).toBe("function");
   await input.dispatchEvent("compositionstart");
   await manager.getByRole("button", { name: "Add to dictionary", exact: true }).click();
-  expect(await page.evaluate(() => localStorage.getItem("wonboard.spelling.personal.v1"))).toBeNull();
+  expect(await storedDictionary(page) ?? []).toEqual([]);
   await input.dispatchEvent("compositionend");
   await manager.getByRole("button", { name: "Add to dictionary", exact: true }).click();
   await expect(dialog).toContainText("Spelling review complete.");
@@ -1353,7 +1399,7 @@ test("skip once, skip all and permanent registration have distinct lifetimes", a
   await expect(dialog).toContainText("Unrecognized expression: 아즈휼");
   await dialog.getByRole("button", { name: "Skip all occurrences", exact: true }).click();
   await expect(dialog).toContainText("Spelling review complete.");
-  expect(await page.evaluate(() => localStorage.getItem("wonboard.spelling.personal.v1"))).toBeNull();
+  expect(await storedDictionary(page) ?? []).toEqual([]);
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await tool.click();
   await analyzed(dialog);
@@ -1520,7 +1566,7 @@ test("dictionary changes in two tabs serialize and closing cancels a queued save
   }));
   const release = () => page.evaluate(() => (window as unknown as { releaseDictionaryLock: () => void }).releaseDictionaryLock());
   const pending = () => page.evaluate(async () => (await navigator.locks.query()).pending?.filter(lock => lock.name === "wonboard.spelling.personal.v1").length);
-  const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem("wonboard.spelling.personal.v1") ?? "[]").sort());
+  const saved = async () => [...await storedDictionary(page) ?? []].sort();
   await hold();
   for (const [i, word] of ["아즈휼", "뷁큘"].entries()) {
     await managers[i].getByRole("textbox").fill(word);
