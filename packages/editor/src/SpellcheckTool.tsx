@@ -55,9 +55,6 @@ function SpellingReview({ editor, locale, close }: { editor: Editor; locale: Loc
   useEffect(() => {
     if (!dialog.current?.open) dialog.current?.showModal();
     skipped.current = []; setIgnored([]); setResults([]);
-    let saved: string[];
-    try { saved = readPersonalDictionary(); personalRef.current = saved; setPersonal(saved); }
-    catch { setError(message); setBusy(false); return; }
     let active: Worker;
     try { active = new Worker(new URL("./proofreading/review.worker.ts", import.meta.url), { type: "module" }); }
     catch { setError(message); setBusy(false); return; }
@@ -76,19 +73,28 @@ function SpellingReview({ editor, locale, close }: { editor: Editor; locale: Loc
         request.current++; skipped.current = []; setIgnored([]); setStale(true); setBusy(false);
       }
     };
-    const dictionaryChanged = (event: Event) => {
-      if (event instanceof StorageEvent && event.key !== dictionaryKey && event.key !== null) return;
-      request.current++;
-      try {
-        const saved = readPersonalDictionary();
+    // 사전은 IndexedDB에서 비동기로 읽는다. 읽는 사이 다시 바뀌면 마지막 읽기만 반영하고,
+    // 창이 닫힌 뒤 도착한 결과는 버린다.
+    let reads = 0;
+    const load = () => {
+      const read = ++reads;
+      readPersonalDictionary().then(saved => {
+        if (controller.signal.aborted || read !== reads) return;
         personalRef.current = saved; setPersonal(saved); check(saved);
-      } catch { setResults([]); setError(message); setBusy(false); }
+      }, () => {
+        if (controller.signal.aborted || read !== reads) return;
+        request.current++; setResults([]); setError(message); setBusy(false);
+      });
     };
-    window.addEventListener("storage", dictionaryChanged);
-    window.addEventListener(dictionaryKey, dictionaryChanged);
+    // 같은 탭의 저장은 창 이벤트로, 다른 탭의 저장은 BroadcastChannel로 알려 온다.
+    // 바뀐 사전을 읽는 동안 앞선 검사 결과가 도착해도 반영하지 않는다.
+    const reload = () => { request.current++; load(); };
+    const channel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(dictionaryKey);
+    if (channel) channel.onmessage = reload;
+    window.addEventListener(dictionaryKey, reload);
     editor.on("transaction", changed);
-    check(saved);
-    return () => { controller.abort(); window.removeEventListener("storage", dictionaryChanged); window.removeEventListener(dictionaryKey, dictionaryChanged); active.terminate(); worker.current = null; editor.off("transaction", changed); };
+    load();
+    return () => { controller.abort(); channel?.close(); window.removeEventListener(dictionaryKey, reload); active.terminate(); worker.current = null; editor.off("transaction", changed); };
   }, [editor]);
   useEffect(() => {
     // A late Worker response must not move focus out of a dictionary input
