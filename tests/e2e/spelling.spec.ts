@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { test, expect } from "./fixtures";
+import { test, expect, collectPageErrors, reloadAfterFonts } from "./fixtures";
 
 // 맞춤법 창은 열 때마다 새 Worker를 띄워 사전(약 7.5MB)을 읽고 검사기를 만든다.
 // 리눅스 Chromium에서 worker 둘로 돌리면 결과가 나오기까지 3~7초가 걸려 기본 5초를
@@ -521,9 +521,7 @@ test("registering an action abbreviation survives reload and recognizes another 
 
 for (const config of [{ locale: "ko", width: 1280 }, { locale: "ko", width: 390 }, { locale: "en", width: 1280 }]) {
 test(`review keyboard actions ${config.locale} ${config.width}`, async ({ page, browserName }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.addInitScript(locale => localStorage.setItem("wonboard-locale", locale), config.locale);
   await page.goto("/");
@@ -634,9 +632,7 @@ for (const sample of [
   { name: "existential subject boundary", source: "사과가있어서 좋아요. 여러분 감사합니다.", target: "사과가 있어서 좋아요. 여러분 감사합니다.", suggestion: "사과가 있어서", screenshot: "existential-subject-boundary" },
 ]) {
 test(`Korean review applies ${sample.name} and preserves normal derivation`, async ({ page, browserName }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.addInitScript(() => localStorage.setItem("wonboard-locale", "ko"));
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
@@ -660,7 +656,7 @@ test(`Korean review applies ${sample.name} and preserves normal derivation`, asy
   await body.press("ControlOrMeta+Shift+z");
   await expect(body).toHaveText(target);
   await expect(page.getByRole("button", { name: "임시저장", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText(target);
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   expect(errors).toEqual([]);
@@ -669,9 +665,7 @@ test(`Korean review applies ${sample.name} and preserves normal derivation`, asy
 
 for (const word of ["제미누이", "유의미하다까진", "연태고량주라고", "위고비나", "위고비군", "바난자와", "이지엉클"]) {
 test(`uncertain lexical candidate can be skipped without rewriting ${word}`, async ({ page, browserName }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
@@ -709,7 +703,7 @@ test(`uncertain lexical candidate can be skipped without rewriting ${word}`, asy
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await page.setViewportSize({ width: 1280, height: 720 });
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText(word);
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   await analyzed(dialog);
@@ -722,9 +716,7 @@ test(`uncertain lexical candidate can be skipped without rewriting ${word}`, asy
 }
 
 test("normal inflection and numeral survive a nearby spelling correction", async ({ page, browserName }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
@@ -739,7 +731,7 @@ test("normal inflection and numeral survive a nearby spelling correction", async
   await expect(dialog).toContainText("Spelling review complete.");
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText("흥미로워서 보고 싶어요. 질문 하나 드립니다. 언제부터인가. 쳐내려고. 추천드립니다.");
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   await page.screenshot({ path: `test-results/wonboard-irregular-${browserName}.png` });
@@ -747,9 +739,7 @@ test("normal inflection and numeral survive a nearby spelling correction", async
 });
 
 test("particle typo and noun boundary apply together and survive reload", async ({ page, browserName }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
@@ -765,16 +755,14 @@ test("particle typo and noun boundary apply together and survive reload", async 
   await expect(body).toHaveText("상품 설명에는 색상이 달라요.");
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText("상품 설명에는 색상이 달라요.");
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
 test("particle boundary correction applies explicitly and survives reload", async ({ page, browserName }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
@@ -791,16 +779,14 @@ test("particle boundary correction applies explicitly and survives reload", asyn
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect(body).toHaveText("화면에서 보이는 색이에요.");
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText("화면에서 보이는 색이에요.");
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
 test("adverb and negative spacing apply together without changing compound words", async ({ page, browserName }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
@@ -820,7 +806,7 @@ test("adverb and negative spacing apply together without changing compound words
   const expected = "잘 알려지지 않은. 잘생긴. 잘못한.";
   await expect(body).toHaveText(expected);
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText(expected);
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   expect(errors).toEqual([]);
@@ -872,9 +858,7 @@ test("skipping a Latin name still allows particle spacing and ending review", as
 });
 
 test("adverb acronym and ending corrections are explicit and survive reload", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
@@ -893,7 +877,7 @@ test("adverb acronym and ending corrections are explicit and survive reload", as
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect(body).toHaveText("어차피 API 감사합니다");
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText("어차피 API 감사합니다");
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   await page.screenshot({ path: "test-results/wonboard-spelling-ending-applied.png" });
@@ -924,9 +908,7 @@ test("combined spacing corrections preserve normal endings through save and relo
 });
 
 test("new noun and stem corrections apply through the Worker and survive reload", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
@@ -953,7 +935,7 @@ test("new noun and stem corrections apply through the Worker and survive reload"
   const expected = "키보드 메시지를 티이어를 재테크는 부딪히면";
   await expect(body).toHaveText(expected);
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText(expected);
   expect(errors).toEqual([]);
 });
@@ -982,9 +964,7 @@ test("reviewed phrase boundaries apply through the Worker without altering acron
 });
 
 test("context suggestions require Change and survive save, reload and undo", async ({ page, browserName }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
@@ -1014,7 +994,7 @@ test("context suggestions require Change and survive save, reload and undo", asy
   await body.press("ControlOrMeta+Shift+z");
   await expect(body).toHaveText(expected);
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText(expected);
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   expect(errors).toEqual([]);
@@ -1096,9 +1076,7 @@ for (const sample of [
   { id: "computing", source: "gpu cpu GPU teh", target: "gpu cpu GPU the", suggestion: "the" },
 ]) {
 test(`English suggestions share the review flow: ${sample.id}`, async ({ page, browserName }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
@@ -1115,7 +1093,7 @@ test(`English suggestions share the review flow: ${sample.id}`, async ({ page, b
   await page.screenshot({ path: `test-results/wonboard-${sample.id}-review-${browserName}.png` });
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText(sample.target);
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   expect(errors).toEqual([]);
@@ -1241,9 +1219,7 @@ test("closing review terminates its Worker without applying pending results", as
 });
 
 for (const locale of ["ko", "en"]) test(`review remains usable at 390px (${locale})`, async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(value => localStorage.setItem("wonboard-locale", value), locale);
   await page.goto("/");
