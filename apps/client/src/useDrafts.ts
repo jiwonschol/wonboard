@@ -38,7 +38,10 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   const listVersion = useRef(0);
   function publishList(value: Draft[] | ((items: Draft[]) => Draft[])) {
     listVersion.current++;
-    listRef.current = typeof value === "function" ? value(listRef.current) : value;
+    const items = typeof value === "function" ? value(listRef.current) : value;
+    // The editor and conflicts own originals. Library rows retain metadata only,
+    // including after a collection restores and saves many documents in turn.
+    listRef.current = items.map(({ document }) => ({ document, blobs: {} }));
     setList(listRef.current);
   }
   const operating = useRef(false);
