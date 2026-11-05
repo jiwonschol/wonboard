@@ -68,11 +68,11 @@ function TextWarning({ locale, photos, onConfirm, onClose }: { locale: Locale; p
   </dialog>;
 }
 
-export function PcSaveMenu({ locale, disabled, formatsDisabled, snapshot, onPdf, onBackup, onNotice, onError, onClose }: {
+export function PcSaveMenu({ locale, disabled, formatsDisabled, snapshot, onPdf, onBackup, onBackupAll, onNotice, onError, onClose }: {
   locale: Locale; disabled: boolean;
   /** 읽기 전용으로 얼어붙은 글은 내용을 믿을 수 없어 백업만 받는다. */
   formatsDisabled: boolean;
-  snapshot(): Draft | null; onPdf(): void; onBackup(): void;
+  snapshot(): Draft | null; onPdf(): void; onBackup(): void; onBackupAll(): void;
   onNotice(key: MessageKey): void; onError(error: unknown): void; onClose(): void;
 }) {
   const t = translator(locale);
@@ -119,6 +119,8 @@ export function PcSaveMenu({ locale, disabled, formatsDisabled, snapshot, onPdf,
     <hr />
     <button disabled={off} onClick={() => { onBackup(); onClose(); }}>{t("backup")}</button>
     <p>{t("backupHint")}</p>
+    <button disabled={off} onClick={() => { onBackupAll(); onClose(); }}>{t("backupAll")}</button>
+    <p>{t("backupAllHint")}</p>
     <button onClick={onClose}>{t("close")}</button>
     {warning && <TextWarning locale={locale} photos={imageNames(warning.document).size}
       onConfirm={() => void saveText(warning)} onClose={() => setWarning(null)} />}
