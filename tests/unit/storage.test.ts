@@ -5,11 +5,26 @@ import {
   openStorage,
   saveDraft,
   loadDrafts,
+  loadDraft,
   removeDraft,
   StorageConflict,
 } from "../../apps/client/src/storage";
 
 describe("atomic browser draft storage", () => {
+  it("lists metadata without retaining binaries and loads an individual draft's originals", async () => {
+    const db = await openStorage(crypto.randomUUID());
+    try {
+      const draft = newDraft();
+      draft.document.media.photo = { id: "photo", originalName: "photo.png", mime: "image/png", width: 1, height: 1, size: 3, sha256: "a".repeat(64) };
+      draft.document.content.content!.push({ type: "media", attrs: { mediaId: "photo" } });
+      draft.blobs.photo = new Blob([new Uint8Array([1, 2, 3])], { type: "image/png" });
+      const saved = await saveDraft(db, draft, 0);
+      const [metadata] = await loadDrafts(db, true);
+      expect(metadata.document).toEqual(saved.document);
+      expect(metadata.blobs).toEqual({});
+      expect(await (await loadDraft(db, metadata.document.documentId)).blobs.photo.arrayBuffer()).toEqual(await draft.blobs.photo.arrayBuffer());
+    } finally { db.close(); }
+  });
   it("keeps a blocked open pending and resolves when the request succeeds", async () => {
     const request = indexedDB.open(crypto.randomUUID(), 1);
     const spy = vi.spyOn(indexedDB, "open").mockReturnValue(request);

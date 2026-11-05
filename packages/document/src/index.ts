@@ -648,3 +648,4 @@ export function withoutUnusedMedia(draft: Draft): Draft {
   };
 }
 export { exportBackup, exportRawBackup, importBackup, zipFiles } from "./backup";
+export { exportBackupCollection, openBackupCollection, type BackupManifest } from "./backupCollection";

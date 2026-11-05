@@ -5,6 +5,31 @@ import { readFile, writeFile } from "node:fs/promises";
 import { strFromU8, strToU8, unzipSync, zipSync } from "../../packages/document/node_modules/fflate/esm/index.mjs";
 import { getDocument, OPS } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { writingFonts, type ContentNode } from "@wonboard/document";
+import { collectionRoundTrip } from "../helpers/backup-collection";
+
+test("all-document backup excludes trash and restores photos and attachments as new documents", async ({ page }, testInfo) => {
+  test.setTimeout(90_000);
+  await collectionRoundTrip(page, testInfo, "local");
+});
+
+test("all-document backup stays reachable in Korean and English on narrow and desktop screens", async ({ page }, testInfo) => {
+  await page.goto("/");
+  for (const width of [320, 948]) {
+    await page.setViewportSize({ width, height: 815 });
+    for (const locale of ["ko", "en"]) {
+      await page.locator(".admin-bar select").selectOption(locale);
+      await page.getByRole("button", { name: locale === "ko" ? "PC 저장" : "Save to PC", exact: true }).click();
+      const menu = page.locator(".pc-save-menu");
+      const action = menu.getByRole("button", { name: locale === "ko" ? "모든 글 백업 (.zip)" : "Back up all documents (.zip)", exact: true });
+      await action.scrollIntoViewIfNeeded();
+      const box = (await action.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(width);
+      expect(box.y).toBeGreaterThanOrEqual(0); expect(box.y + box.height).toBeLessThanOrEqual(815);
+      await page.screenshot({ path: testInfo.outputPath(`backup-menu-${width}-${locale}.png`) });
+      await menu.getByRole("button", { name: locale === "ko" ? "닫기" : "Close", exact: true }).click();
+    }
+  }
+});
 
 const paragraph = (text: string, marks?: ContentNode["marks"]): ContentNode =>
   ({ type: "paragraph", content: [{ type: "text", text, ...(marks ? { marks } : {}) }] });

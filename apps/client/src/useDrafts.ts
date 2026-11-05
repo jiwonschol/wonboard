@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   newDraft,
+  exportBackupCollection,
   withoutUnusedMedia,
   type Draft,
   type Locale,
@@ -364,6 +365,22 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
     if (frozen.current) return true;
     return save();
   }
+  async function backupAll() {
+    const repository = db.current;
+    if (!repository || disconnected.current) throw new Error("storageFailed");
+    // Include the editor's current, possibly unsaved version without requiring
+    // a successful save. Conflict copies likewise take precedence over disk.
+    const selected = current.current;
+    const overrides = new Map(conflicts.current);
+    if (selected) overrides.set(selected.document.documentId, selected);
+    return exportBackupCollection({
+      async list() {
+        const stored = await repository.list();
+        return [...stored.filter(item => !overrides.has(item.document.documentId)), ...overrides.values()];
+      },
+      load: item => overrides.has(item.document.documentId) ? Promise.resolve(item) : repository.load(item),
+    });
+  }
   async function recoverCopy(copy: RecoveryCopy) {
     if (operating.current || disconnected.current || !db.current) return false;
     try {
@@ -482,6 +499,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
     create,
     activate,
     restore,
+    backupAll,
     content: (content: ContentNode) => update({ content }),
     composition: (active: boolean) => {
       composing.current = active;
