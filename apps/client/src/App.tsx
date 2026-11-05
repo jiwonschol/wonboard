@@ -264,7 +264,7 @@ export default function App({
           if (!original) throw new DocumentError("corruptBackup");
           await verifyDecodedImage(original, media);
         }
-        return writer.restore(restored);
+        return writer.restore(restored, documentId !== undefined);
       }
       const collection = await openBackupCollection(file);
       if (collection) {

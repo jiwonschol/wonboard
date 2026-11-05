@@ -54,6 +54,7 @@ export async function collectionRoundTrip(page: Page, testInfo: TestInfo, mode: 
   expect(manifest.documents).toHaveLength(2);
   expect(manifest.skipped).toEqual([]);
   const inner = unzipSync(entries[`${ids.photo}.zip`]);
+  const originalPhotoZip = entries[`${ids.photo}.zip`];
   expect(Object.keys(inner).sort()).toEqual(["document.json", "files/note", "media/photo1", "media/photo2"]);
   expect(strFromU8(inner["files/note"])).toBe("Attachment contents");
   expect(Buffer.from(inner["media/photo1"])).toEqual(syntheticPng);
@@ -128,5 +129,23 @@ export async function collectionRoundTrip(page: Page, testInfo: TestInfo, mode: 
   await input.setInputFiles({ name: "partial.zip", mimeType: "application/zip", buffer: Buffer.from(zipSync(entries, { level: 0 })) });
   await expect(page.getByRole("status").filter({ hasText: "Restored 1 documents as new documents. Could not restore 1 documents." })).toBeVisible();
   await expect(page.locator(".document-list > button")).toHaveCount(4);
+  if (mode === "local") {
+    // An entry that validates but hits quota must not poison the next restore.
+    await page.evaluate(() => {
+      const put = IDBObjectStore.prototype.put;
+      IDBObjectStore.prototype.put = function(value, key) {
+        if (this.name === "drafts" && value.document?.title === "Two photos and a file")
+          throw new DOMException("Test-only quota failure", "QuotaExceededError");
+        return key === undefined ? put.call(this, value) : put.call(this, value, key);
+      };
+    });
+    entries[`${ids.photo}.zip`] = originalPhotoZip;
+    manifest.documents.sort((a: { documentId: string }, b: { documentId: string }) =>
+      Number(b.documentId === ids.photo) - Number(a.documentId === ids.photo));
+    entries["manifest.json"] = strToU8(JSON.stringify(manifest));
+    await input.setInputFiles({ name: "quota.zip", mimeType: "application/zip", buffer: Buffer.from(zipSync(entries, { level: 0 })) });
+    await expect(page.locator(".document-list > button")).toHaveCount(5);
+    await expect(page.getByRole("status").filter({ hasText: "Restored 1 documents as new documents. Could not restore 1 documents." })).toBeVisible();
+  }
   await page.screenshot({ path: testInfo.outputPath("collection-restored.png") });
 }

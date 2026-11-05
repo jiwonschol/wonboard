@@ -360,13 +360,20 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   async function create() {
     if (await activate(newDraft(locale))) await save();
   }
-  async function restore(value: Draft) {
+  async function restore(value: Draft, rollbackOnFailure = false) {
     value = recoveredDraft(value);
+    // A batch must not retry an unsavable imported entry before every later
+    // entry. Save the user's edits first, then retain that clean selection.
+    if (rollbackOnFailure && !frozen.current &&
+        !(await saveUntilCurrent(save, () => savedChange.current === change.current))) return false;
+    const previous = current.current;
     if (!(await activate(value))) return false;
     // A newer but structurally recoverable backup is intentionally selected in
     // memory as read-only. Saving it would discard the unsupported information.
     if (frozen.current) return true;
-    return save();
+    const saved = await save();
+    if (!saved && rollbackOnFailure && previous) select(previous, true);
+    return saved;
   }
   async function backupAll() {
     const repository = db.current;

@@ -85,6 +85,9 @@ export function loadDrafts(db: IDBDatabase, metadataOnly = false): Promise<Draft
       if (cursor) {
         const stored = cursor.value as StoredDraft;
         try {
+          // Metadata-only listing must still isolate unreadable records.
+          if (!stored?.blobs || typeof stored.blobs !== "object" || Array.isArray(stored.blobs))
+            throw new Error("malformedRecord");
           drafts.push(toDraft(metadataOnly ? { ...stored, blobs: {} } : stored));
         } catch (error) {
           console.warn(

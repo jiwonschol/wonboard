@@ -25,6 +25,19 @@ describe("atomic browser draft storage", () => {
       expect(await (await loadDraft(db, metadata.document.documentId)).blobs.photo.arrayBuffer()).toEqual(await draft.blobs.photo.arrayBuffer());
     } finally { db.close(); }
   });
+  it("isolates missing or null binary containers in metadata-only lists", async () => {
+    const db = await openStorage(crypto.randomUUID());
+    try {
+      const good = await saveDraft(db, newDraft(), 0);
+      await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction("drafts", "readwrite"), store = transaction.objectStore("drafts");
+        store.put({ document: newDraft().document, blobs: null });
+        store.put({ document: newDraft().document });
+        transaction.oncomplete = () => resolve(); transaction.onerror = () => reject(transaction.error);
+      });
+      expect((await loadDrafts(db, true)).map(item => item.document.documentId)).toEqual([good.document.documentId]);
+    } finally { db.close(); }
+  });
   it("keeps a blocked open pending and resolves when the request succeeds", async () => {
     const request = indexedDB.open(crypto.randomUUID(), 1);
     const spy = vi.spyOn(indexedDB, "open").mockReturnValue(request);
