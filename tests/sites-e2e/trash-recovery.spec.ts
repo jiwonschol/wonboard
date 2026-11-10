@@ -168,7 +168,8 @@ test("expired drafts remain discoverable for cleanup retry without returning con
   });
   await page.goto("/");
   await expect(page.getByRole("textbox", { name: "Document body" })).toBeVisible();
-  expect(failedDeletes).toBe(1);
+  // The app retries cleanup after resume events, so one or more failed DELETEs are expected.
+  await expect.poll(() => failedDeletes).toBeGreaterThanOrEqual(1);
   await openTrash(page);
   await expect(page.locator(".trash-row")).toHaveCount(0);
   const retained = (await (await request.get("/api/documents", { headers })).json()).documents;
