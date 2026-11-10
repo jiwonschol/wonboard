@@ -81,6 +81,9 @@ export async function pdfFile(draft: Draft): Promise<SavedFile> {
       let decoration = "";
       for (let element: HTMLElement | null = parent; element && element !== host; element = element.parentElement)
         decoration += " " + getComputedStyle(element).textDecorationLine;
+      // 포함 글꼴에 없는 글자가 같은 줄에서 이어지면 한 덩어리로 묶는다. 아랍 문자처럼 이어 쓰는 문자를
+      // 낱자로 그리면 모양이 달라지므로, 브라우저가 이어 쓴 덩어리를 그림 하나로 넣는다.
+      let run: { text: Text; end: number } | undefined;
       for (const { segment, index } of segmenter.segment(node.textContent ?? "")) {
         if (/^[\r\n\t]$/.test(segment)) continue;
         range.setStart(node, index); range.setEnd(node, index + segment.length);
@@ -88,9 +91,17 @@ export async function pdfFile(draft: Draft): Promise<SavedFile> {
         if (!rect.width || !rect.height) continue;
         const bounds = box(rect), metrics = canvas.measureText(segment);
         const font = await fonts.forText(segment, style.fontFamily, number(style.fontWeight));
-        texts.push({ ...bounds, text: segment, style, font, decoration,
+        if (!font && run && run.end === index && Math.abs(run.text.y - bounds.y) < 0.5 && Math.abs(run.text.height - bounds.height) < 0.5) {
+          const right = Math.max(run.text.x + run.text.width, bounds.x + bounds.width);
+          run.text.x = Math.min(run.text.x, bounds.x); run.text.width = right - run.text.x;
+          run.text.text += segment; run.end = index + segment.length;
+          continue;
+        }
+        const text: Text = { ...bounds, text: segment, style, font, decoration,
           baseline: bounds.y + bounds.height - metrics.fontBoundingBoxDescent,
-          href: parent.closest<HTMLAnchorElement>("a[href]")?.href });
+          href: parent.closest<HTMLAnchorElement>("a[href]")?.href };
+        texts.push(text);
+        run = font ? undefined : { text, end: index + segment.length };
       }
     }
     // 쪽 경계가 글줄·사진 묶음·표·글상자·제목 바로 뒤를 지나지 않게 앞쪽 안전 지점으로 옮긴다.
@@ -205,7 +216,7 @@ export async function pdfFile(draft: Draft): Promise<SavedFile> {
           ySkew: text.style.fontStyle === "italic" ? degrees(12) : undefined });
         if (bold) page.pdf.pushOperators(popGraphicsState());
       } else {
-        // 포함 글꼴에 없는 글자(이모지 등)만 브라우저가 그린 모습의 그림으로 넣는다. 나머지 글은 계속 텍스트다.
+        // 포함 글꼴에 없는 글자 덩어리(이모지, 이어 쓰는 문자)만 브라우저가 그린 모습의 그림으로 넣는다. 나머지 글은 계속 텍스트다.
         const font = `${text.style.fontStyle} ${text.style.fontWeight} ${text.style.fontSize} ${text.style.fontFamily}`;
         const key = [text.text, font, text.style.color, text.width, text.height, text.baseline - text.y].join("|");
         let glyph = glyphs.get(key);
@@ -213,7 +224,7 @@ export async function pdfFile(draft: Draft): Promise<SavedFile> {
           const pixels = document.createElement("canvas"), scale = 4;
           pixels.width = Math.ceil(text.width * scale); pixels.height = Math.ceil(text.height * scale);
           const context = pixels.getContext("2d")!;
-          context.scale(scale, scale); context.font = font; context.fillStyle = text.style.color;
+          context.scale(scale, scale); context.font = font; context.fillStyle = text.style.color; context.textAlign = "left";
           context.fillText(text.text, 0, text.baseline - text.y);
           glyph = png(pixels).then(bytes => pdf.embedPng(bytes)).finally(() => { pixels.width = pixels.height = 0; });
           glyphs.set(key, glyph);

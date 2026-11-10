@@ -250,10 +250,12 @@ test("PDF keeps a tall variable-font title and vector backgrounds", async ({ pag
   expect((await sheet.getOperatorList()).fnArray).toContain(OPS.shadingFill);
 });
 
-test("PDF saves writing with an emoji as text around one image and slants italics to the right", async ({ page }, testInfo) => {
+test("PDF saves glyphs outside the included fonts as one image per run and slants italics to the right", async ({ page }, testInfo) => {
   await restoreDocument(page, testInfo.outputPath("emoji.zip"), "이모지와 기울임", 0, () => [
     paragraph("앞의 글 😀 뒤의 글"),
     paragraph("SLANT", [{ type: "italic" }]),
+    // 이어 쓰는 아랍 문자 다섯 자는 낱자 다섯 개가 아니라 그림 하나다.
+    paragraph("مرحبا"),
   ]);
   await page.getByRole("button", { name: "Save to PC", exact: true }).click();
   const downloading = page.waitForEvent("download");
@@ -263,7 +265,7 @@ test("PDF saves writing with an emoji as text around one image and slants italic
   const words = items.map(item => item.str).join("");
   expect(words).toContain("앞의 글");
   expect(words).toContain("뒤의 글");
-  expect((await sheet.getOperatorList()).fnArray.filter(fn => fn === OPS.paintImageXObject).length).toBe(1);
+  expect((await sheet.getOperatorList()).fnArray.filter(fn => fn === OPS.paintImageXObject).length).toBe(2);
   // 글자 행렬 [a b c d]: 오른쪽으로 눕힌 글자는 c만 양수이고 b는 0이다.
   const slanted = items.filter(item => /^[SLANT]+$/.test(item.str));
   expect(slanted.length).toBeGreaterThan(0);
