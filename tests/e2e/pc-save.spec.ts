@@ -250,6 +250,29 @@ test("PDF keeps a tall variable-font title and vector backgrounds", async ({ pag
   expect((await sheet.getOperatorList()).fnArray).toContain(OPS.shadingFill);
 });
 
+test("PDF saves writing with an emoji as text around one image and slants italics to the right", async ({ page }, testInfo) => {
+  await restoreDocument(page, testInfo.outputPath("emoji.zip"), "이모지와 기울임", 0, () => [
+    paragraph("앞의 글 😀 뒤의 글"),
+    paragraph("SLANT", [{ type: "italic" }]),
+  ]);
+  await page.getByRole("button", { name: "Save to PC", exact: true }).click();
+  const downloading = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Save as PDF", exact: true }).click();
+  const pdf = await getDocument({ data: new Uint8Array(await readFile((await (await downloading).path())!)), useSystemFonts: false }).promise;
+  const sheet = await pdf.getPage(1), items = (await sheet.getTextContent()).items.flatMap(item => "str" in item ? [item] : []);
+  const words = items.map(item => item.str).join("");
+  expect(words).toContain("앞의 글");
+  expect(words).toContain("뒤의 글");
+  expect((await sheet.getOperatorList()).fnArray.filter(fn => fn === OPS.paintImageXObject).length).toBe(1);
+  // 글자 행렬 [a b c d]: 오른쪽으로 눕힌 글자는 c만 양수이고 b는 0이다.
+  const slanted = items.filter(item => /^[SLANT]+$/.test(item.str));
+  expect(slanted.length).toBeGreaterThan(0);
+  for (const item of slanted) {
+    expect(item.transform[1]).toBeCloseTo(0, 5);
+    expect(item.transform[2]).toBeGreaterThan(0);
+  }
+});
+
 // 사진만 디코딩한 픽셀을 비교한다. PDF 본문을 화면 캡처로 저장하는 구현은 아니다.
 test("PDF JPEG photos preserve all EXIF rotations and reflections", async ({ page }, testInfo) => {
   await page.goto("/");

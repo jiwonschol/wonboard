@@ -13,9 +13,11 @@ const pt = 72 / 96, mm = 72 / 25.4;
 const width = 210 * mm, height = 297 * mm, left = 18 * mm, top = 16 * mm;
 const bodyWidth = (width - left * 2) / pt, bodyHeight = (height - top * 2) / pt;
 type Box = { x: number; y: number; width: number; height: number };
-type Text = Box & { text: string; style: CSSStyleDeclaration; font: PdfFont; baseline: number; decoration: string; href?: string };
+type Text = Box & { text: string; style: CSSStyleDeclaration; font?: PdfFont; baseline: number; decoration: string; href?: string };
 type Page = { start: number; end: number; pdf: PDFPage };
 const number = (value: string) => parseFloat(value) || 0;
+const png = (canvas: HTMLCanvasElement) => new Promise<Blob>((resolve, reject) => canvas.toBlob(blob =>
+  blob ? resolve(blob) : reject(new Error("invalidImage")), "image/png")).then(blob => blob.arrayBuffer());
 function color(value: string) {
   const parts = value.match(/[\d.]+/g)?.map(Number);
   return parts && parts.length >= 3 && (parts.length < 4 || parts[3] > 0) ? rgb(parts[0] / 255, parts[1] / 255, parts[2] / 255) : undefined;
@@ -179,9 +181,7 @@ export async function pdfFile(draft: Draft): Promise<SavedFile> {
         pixels.width = image.naturalWidth; pixels.height = image.naturalHeight;
         try {
           pixels.getContext("2d")!.drawImage(image, 0, 0);
-          const png = await new Promise<Blob>((resolve, reject) => pixels.toBlob(blob =>
-            blob ? resolve(blob) : reject(new Error("invalidImage")), "image/png"));
-          embedded = await pdf.embedPng(await png.arrayBuffer());
+          embedded = await pdf.embedPng(await png(pixels));
         } finally { pixels.width = pixels.height = 0; }
       } else embedded = await pdf.embedPng(bytes);
       // object-fit: contain은 상자 안에서 가운데에 맞춘다.
@@ -191,16 +191,36 @@ export async function pdfFile(draft: Draft): Promise<SavedFile> {
       page.pdf.drawImage(embedded, { x: left + (bounds.x + (bounds.width - w) / 2) * pt,
         y: height - top - (bounds.y - page.start + (bounds.height + h) / 2) * pt, width: w * pt, height: h * pt });
     }
+    const glyphs = new Map<string, ReturnType<typeof pdf.embedPng>>();
     for (const text of texts) {
       const page = pageAt(text.y);
       const size = number(text.style.fontSize) * pt, ink = color(text.style.color) ?? rgb(0, 0, 0);
       const x = left + text.x * pt, y = height - top - (text.baseline - page.start) * pt;
-      const bold = number(text.style.fontWeight) >= 600 && text.font.weight < 600;
-      if (bold) page.pdf.pushOperators(pushGraphicsState(), setTextRenderingMode(TextRenderingMode.FillAndOutline),
-        setLineWidth(size / 35), setStrokingRgbColor(ink.red, ink.green, ink.blue));
-      page.pdf.drawText(text.text, { x, y, size, font: text.font.pdf, color: ink,
-        xSkew: text.style.fontStyle === "italic" ? degrees(12) : undefined });
-      if (bold) page.pdf.pushOperators(popGraphicsState());
+      if (text.font) {
+        const bold = number(text.style.fontWeight) >= 600 && text.font.weight < 600;
+        if (bold) page.pdf.pushOperators(pushGraphicsState(), setTextRenderingMode(TextRenderingMode.FillAndOutline),
+          setLineWidth(size / 35), setStrokingRgbColor(ink.red, ink.green, ink.blue));
+        // pdf-lib의 ySkew가 글자를 오른쪽으로 눕힌다. xSkew는 위아래로 비튼다.
+        page.pdf.drawText(text.text, { x, y, size, font: text.font.pdf, color: ink,
+          ySkew: text.style.fontStyle === "italic" ? degrees(12) : undefined });
+        if (bold) page.pdf.pushOperators(popGraphicsState());
+      } else {
+        // 포함 글꼴에 없는 글자(이모지 등)만 브라우저가 그린 모습의 그림으로 넣는다. 나머지 글은 계속 텍스트다.
+        const font = `${text.style.fontStyle} ${text.style.fontWeight} ${text.style.fontSize} ${text.style.fontFamily}`;
+        const key = [text.text, font, text.style.color, text.width, text.height, text.baseline - text.y].join("|");
+        let glyph = glyphs.get(key);
+        if (!glyph) {
+          const pixels = document.createElement("canvas"), scale = 4;
+          pixels.width = Math.ceil(text.width * scale); pixels.height = Math.ceil(text.height * scale);
+          const context = pixels.getContext("2d")!;
+          context.scale(scale, scale); context.font = font; context.fillStyle = text.style.color;
+          context.fillText(text.text, 0, text.baseline - text.y);
+          glyph = png(pixels).then(bytes => pdf.embedPng(bytes)).finally(() => { pixels.width = pixels.height = 0; });
+          glyphs.set(key, glyph);
+        }
+        page.pdf.drawImage(await glyph, { x, y: height - top - (text.y + text.height - page.start) * pt,
+          width: text.width * pt, height: text.height * pt });
+      }
       for (const [name, offset] of [["underline", -size * 0.12], ["line-through", size * 0.3]] as const)
         if (text.decoration.includes(name)) page.pdf.drawLine({ start: { x, y: y + offset }, end: { x: x + text.width * pt, y: y + offset }, thickness: size / 20, color: ink });
       if (text.href && /^https?:|^mailto:/i.test(text.href)) {

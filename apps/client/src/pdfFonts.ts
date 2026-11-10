@@ -68,7 +68,8 @@ export function pdfFonts(document: PDFDocument) {
     }
     return promise;
   }
-  async function forText(text: string, family: string, weight: number): Promise<PdfFont> {
+  /** 이모지처럼 포함 글꼴 어디에도 없는 글자는 undefined다. 부르는 쪽이 그 글자만 그림으로 넣는다. */
+  async function forText(text: string, family: string, weight: number): Promise<PdfFont | undefined> {
     const points = Array.from(text, char => char.codePointAt(0)!);
     for (const name of portableFamily(family)) {
       const candidates = faces.filter(face => face.family === name && points.every(point =>
@@ -79,7 +80,6 @@ export function pdfFonts(document: PDFDocument) {
         if (points.every(point => font.source.hasGlyphForCodePoint(point))) return font;
       }
     }
-    throw new Error(`PDF font has no glyph for U+${points[0].toString(16).toUpperCase()}`);
   }
   return { portableFamily, forText };
 }
