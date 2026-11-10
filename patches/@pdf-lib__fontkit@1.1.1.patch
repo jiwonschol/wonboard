@@ -1,0 +1,36 @@
+diff --git a/dist/fontkit.es.js b/dist/fontkit.es.js
+index 2711b07413d1eb095487d4fddc7273f4afc1d82b..cbe256288f3772d16d0ee5853dd1a66a0bb6d7a4 100644
+--- a/dist/fontkit.es.js
++++ b/dist/fontkit.es.js
+@@ -32663,7 +32663,12 @@ var TTFGlyphEncoder = /*#__PURE__*/function () {
+       if (c.command === 'closePath') {
+         endPtsOfContours.push(pointCount - 1);
+       }
+-    } // Close the path if the last command didn't already
++    }
++
++    // Flush a final repeated flag run before coordinate bytes.
++    if (same > 0) flags.push(same);
++
++    // Close the path if the last command didn't already
+ 
+ 
+     if (path.commands.length > 1 && path.commands[path.commands.length - 1].command !== 'closePath') {
+diff --git a/dist/fontkit.umd.js b/dist/fontkit.umd.js
+index c18af0e3cfce5893cc0012cc3a4e2b69c78d4c95..ca0534b200095332e1d105a9e7113368d87d3ac9 100644
+--- a/dist/fontkit.umd.js
++++ b/dist/fontkit.umd.js
+@@ -40813,7 +40813,12 @@
+ 	      if (c.command === 'closePath') {
+ 	        endPtsOfContours.push(pointCount - 1);
+ 	      }
+-	    } // Close the path if the last command didn't already
++	    }
++
++    // Flush a final repeated flag run before coordinate bytes.
++    if (same > 0) flags.push(same);
++
++    // Close the path if the last command didn't already
+ 
+ 
+ 	    if (path.commands.length > 1 && path.commands[path.commands.length - 1].command !== 'closePath') {
