@@ -1,5 +1,5 @@
-import type { Locator } from "@playwright/test";
-import { test, expect } from "./fixtures";
+import type { Locator, Page } from "@playwright/test";
+import { test, expect, collectPageErrors, reloadAfterFonts } from "./fixtures";
 
 // 맞춤법 창은 열 때마다 새 Worker를 띄워 사전(약 7.5MB)을 읽고 검사기를 만든다.
 // 리눅스 Chromium에서 worker 둘로 돌리면 결과가 나오기까지 3~7초가 걸려 기본 5초를
@@ -14,6 +14,22 @@ async function analyzed(dialog: Locator, { failure }: { failure?: "expected" } =
   if (failure === "expected") return;
   const alert = dialog.getByRole("alert").filter({ hasText: failureNotice });
   if (await alert.count()) throw new Error(`Spelling check failed instead of finishing: ${JSON.stringify(await dialog.getByRole("alert").allInnerTexts())}`);
+}
+
+// 개인 사전은 IndexedDB(wonboard-spelling-v1)의 한 레코드에 있다(#46). 시험은 앱 코드를
+// 거치지 않고 직접 읽는다. 아직 아무것도 저장하지 않았으면 null이다.
+function storedDictionary(page: Page): Promise<string[] | null> {
+  return page.evaluate(() => new Promise<string[] | null>((resolve, reject) => {
+    const open = indexedDB.open("wonboard-spelling-v1");
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const database = open.result;
+      if (!database.objectStoreNames.contains("personal")) { database.close(); resolve(null); return; }
+      const read = database.transaction("personal").objectStore("personal").get("words");
+      read.onsuccess = () => { database.close(); resolve(read.result?.words ?? null); };
+      read.onerror = () => { database.close(); reject(read.error); };
+    };
+  }));
 }
 
 for(const locale of ['ko','en'])test(`unbroken-token analysis limit is explained and personal registration works (${locale})`,async({page})=>{
@@ -505,9 +521,7 @@ test("registering an action abbreviation survives reload and recognizes another 
 
 for (const config of [{ locale: "ko", width: 1280 }, { locale: "ko", width: 390 }, { locale: "en", width: 1280 }]) {
 test(`review keyboard actions ${config.locale} ${config.width}`, async ({ page, browserName }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.addInitScript(locale => localStorage.setItem("wonboard-locale", locale), config.locale);
   await page.goto("/");
@@ -618,9 +632,7 @@ for (const sample of [
   { name: "existential subject boundary", source: "사과가있어서 좋아요. 여러분 감사합니다.", target: "사과가 있어서 좋아요. 여러분 감사합니다.", suggestion: "사과가 있어서", screenshot: "existential-subject-boundary" },
 ]) {
 test(`Korean review applies ${sample.name} and preserves normal derivation`, async ({ page, browserName }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.addInitScript(() => localStorage.setItem("wonboard-locale", "ko"));
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
@@ -644,7 +656,7 @@ test(`Korean review applies ${sample.name} and preserves normal derivation`, asy
   await body.press("ControlOrMeta+Shift+z");
   await expect(body).toHaveText(target);
   await expect(page.getByRole("button", { name: "임시저장", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText(target);
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   expect(errors).toEqual([]);
@@ -653,9 +665,7 @@ test(`Korean review applies ${sample.name} and preserves normal derivation`, asy
 
 for (const word of ["제미누이", "유의미하다까진", "연태고량주라고", "위고비나", "위고비군", "바난자와", "이지엉클"]) {
 test(`uncertain lexical candidate can be skipped without rewriting ${word}`, async ({ page, browserName }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
@@ -693,7 +703,7 @@ test(`uncertain lexical candidate can be skipped without rewriting ${word}`, asy
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await page.setViewportSize({ width: 1280, height: 720 });
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText(word);
   await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true }).click();
   await analyzed(dialog);
@@ -706,9 +716,7 @@ test(`uncertain lexical candidate can be skipped without rewriting ${word}`, asy
 }
 
 test("normal inflection and numeral survive a nearby spelling correction", async ({ page, browserName }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
@@ -723,7 +731,7 @@ test("normal inflection and numeral survive a nearby spelling correction", async
   await expect(dialog).toContainText("Spelling review complete.");
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText("흥미로워서 보고 싶어요. 질문 하나 드립니다. 언제부터인가. 쳐내려고. 추천드립니다.");
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   await page.screenshot({ path: `test-results/wonboard-irregular-${browserName}.png` });
@@ -731,9 +739,7 @@ test("normal inflection and numeral survive a nearby spelling correction", async
 });
 
 test("particle typo and noun boundary apply together and survive reload", async ({ page, browserName }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
@@ -749,16 +755,14 @@ test("particle typo and noun boundary apply together and survive reload", async 
   await expect(body).toHaveText("상품 설명에는 색상이 달라요.");
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText("상품 설명에는 색상이 달라요.");
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
 test("particle boundary correction applies explicitly and survives reload", async ({ page, browserName }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
@@ -775,16 +779,14 @@ test("particle boundary correction applies explicitly and survives reload", asyn
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect(body).toHaveText("화면에서 보이는 색이에요.");
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText("화면에서 보이는 색이에요.");
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
 test("adverb and negative spacing apply together without changing compound words", async ({ page, browserName }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
@@ -804,7 +806,7 @@ test("adverb and negative spacing apply together without changing compound words
   const expected = "잘 알려지지 않은. 잘생긴. 잘못한.";
   await expect(body).toHaveText(expected);
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText(expected);
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   expect(errors).toEqual([]);
@@ -856,9 +858,7 @@ test("skipping a Latin name still allows particle spacing and ending review", as
 });
 
 test("adverb acronym and ending corrections are explicit and survive reload", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
@@ -877,7 +877,7 @@ test("adverb acronym and ending corrections are explicit and survive reload", as
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect(body).toHaveText("어차피 API 감사합니다");
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText("어차피 API 감사합니다");
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   await page.screenshot({ path: "test-results/wonboard-spelling-ending-applied.png" });
@@ -908,9 +908,7 @@ test("combined spacing corrections preserve normal endings through save and relo
 });
 
 test("new noun and stem corrections apply through the Worker and survive reload", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
@@ -937,7 +935,7 @@ test("new noun and stem corrections apply through the Worker and survive reload"
   const expected = "키보드 메시지를 티이어를 재테크는 부딪히면";
   await expect(body).toHaveText(expected);
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText(expected);
   expect(errors).toEqual([]);
 });
@@ -966,9 +964,7 @@ test("reviewed phrase boundaries apply through the Worker without altering acron
 });
 
 test("context suggestions require Change and survive save, reload and undo", async ({ page, browserName }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
@@ -998,7 +994,7 @@ test("context suggestions require Change and survive save, reload and undo", asy
   await body.press("ControlOrMeta+Shift+z");
   await expect(body).toHaveText(expected);
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText(expected);
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   expect(errors).toEqual([]);
@@ -1080,9 +1076,7 @@ for (const sample of [
   { id: "computing", source: "gpu cpu GPU teh", target: "gpu cpu GPU the", suggestion: "the" },
 ]) {
 test(`English suggestions share the review flow: ${sample.id}`, async ({ page, browserName }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.goto("/");
   await expect(page).toHaveTitle(/Wonboard/i);
   const body = page.getByRole("textbox", { name: "Document body", exact: true });
@@ -1099,7 +1093,7 @@ test(`English suggestions share the review flow: ${sample.id}`, async ({ page, b
   await page.screenshot({ path: `test-results/wonboard-${sample.id}-review-${browserName}.png` });
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
-  await page.reload();
+  await reloadAfterFonts(page);
   await expect(body).toHaveText(sample.target);
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   expect(errors).toEqual([]);
@@ -1140,6 +1134,32 @@ test("unreadable personal dictionary reports a failure without changing or reset
   await expect(dialog.getByRole("alert")).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Check again", exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem("wonboard.spelling.personal.v1"))).toBe("{broken");
+  expect(await storedDictionary(page)).toBeNull();
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+});
+
+test("a personal dictionary saved the old way is moved once and the old copy is kept", async ({ page }) => {
+  const legacy = JSON.stringify(["아즈휼", "ZqxBoard", "Zqx’name", "ㅠ_ㅠ"]);
+  await page.addInitScript(value => { if (!sessionStorage.getItem("seeded")) { localStorage.setItem("wonboard.spelling.personal.v1", value); sessionStorage.setItem("seeded", "1"); } }, legacy);
+  await page.goto("/");
+  const body = page.getByRole("textbox", { name: "Document body", exact: true });
+  await body.fill("아즈휼에서 됬어요.");
+  const tool = page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Check spelling", exact: true });
+  await tool.click();
+  const dialog = page.getByRole("dialog", { name: "Check spelling" });
+  await analyzed(dialog);
+  await expect(dialog.getByRole("button", { name: "됐어요", exact: true })).toBeVisible();
+  await expect(dialog).not.toContainText("Unrecognized expression: 아즈휼");
+  const manager = dialog.locator("details").filter({ hasText: "Personal dictionary" });
+  await expect(manager).toContainText("Personal dictionary (4)");
+  expect(await storedDictionary(page)).toEqual(JSON.parse(legacy));
+  expect(await page.evaluate(() => localStorage.getItem("wonboard.spelling.personal.v1"))).toBe(legacy);
+  await manager.locator("summary").click();
+  await manager.getByRole("textbox").fill("뷁큘");
+  await manager.getByRole("button", { name: "Add to dictionary", exact: true }).click();
+  await expect(manager).toContainText("Personal dictionary (5)");
+  expect(await storedDictionary(page)).toEqual([...JSON.parse(legacy), "뷁큘"]);
+  expect(await page.evaluate(() => localStorage.getItem("wonboard.spelling.personal.v1"))).toBe(legacy);
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
 });
 
@@ -1199,9 +1219,7 @@ test("closing review terminates its Worker without applying pending results", as
 });
 
 for (const locale of ["ko", "en"]) test(`review remains usable at 390px (${locale})`, async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  const errors = collectPageErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(value => localStorage.setItem("wonboard-locale", value), locale);
   await page.goto("/");
@@ -1268,15 +1286,17 @@ test("dictionary save failure preserves stored entries and document", async ({ p
   const dialog = page.getByRole("dialog", { name: "Check spelling" });
   await analyzed(dialog);
   await expect(dialog).toContainText("Unrecognized expression: 아즈휼");
+  const before = await storedDictionary(page);
   await page.evaluate(() => {
-    const original = Storage.prototype.setItem;
-    Storage.prototype.setItem = function(key, value) {
-      if (key === "wonboard.spelling.personal.v1") throw new DOMException("full", "QuotaExceededError");
-      return original.call(this, key, value);
+    const original = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function(...args: Parameters<IDBObjectStore["put"]>) {
+      if (this.name === "personal") throw new DOMException("full", "QuotaExceededError");
+      return original.apply(this, args);
     };
   });
   await dialog.getByRole("button", { name: "Add to dictionary", exact: true }).click();
   await expect(dialog.getByRole("alert")).toContainText("storage failed");
+  expect(await storedDictionary(page)).toEqual(before);
   expect(await page.evaluate(() => localStorage.getItem("wonboard.spelling.personal.v1"))).toBeNull();
   await expect(body).toHaveText("아즈휼");
 });
@@ -1291,9 +1311,25 @@ test("dictionary updates from another tab refresh the open review", async ({ pag
   await expect(dialog).toContainText("Unrecognized expression: 아즈휼");
   const other = await context.newPage();
   await other.goto("/");
-  await other.evaluate(() => localStorage.setItem("wonboard.spelling.personal.v1", '["아즈휼"]'));
+  // 다른 탭이 저장한 것처럼 저장소에 쓰고 앱과 같은 채널로 알린다.
+  const write = (words: string[]) => other.evaluate(words => new Promise<void>((resolve, reject) => {
+    const open = indexedDB.open("wonboard-spelling-v1", 1);
+    open.onupgradeneeded = () => open.result.createObjectStore("personal");
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const transaction = open.result.transaction("personal", "readwrite");
+      transaction.objectStore("personal").put({ words }, "words");
+      transaction.onerror = () => reject(transaction.error);
+      transaction.oncomplete = () => {
+        open.result.close();
+        const channel = new BroadcastChannel("wonboard.spelling.personal.v1");
+        channel.postMessage("changed"); channel.close(); resolve();
+      };
+    };
+  }), words);
+  await write(["아즈휼"]);
   await expect(dialog).toContainText("Spelling review complete.");
-  await other.evaluate(() => localStorage.setItem("wonboard.spelling.personal.v1", '[]'));
+  await write([]);
   await expect(dialog).toContainText("Unrecognized expression: 아즈휼");
   await expect(body).toHaveText("아즈휼에서");
   await other.close();
@@ -1330,7 +1366,7 @@ test("dictionary manager protects composition and invalidates an in-flight check
   await expect.poll(() => page.evaluate(() => typeof (window as typeof window & { releaseFirstCheck?: () => void }).releaseFirstCheck), { timeout: 20000 }).toBe("function");
   await input.dispatchEvent("compositionstart");
   await manager.getByRole("button", { name: "Add to dictionary", exact: true }).click();
-  expect(await page.evaluate(() => localStorage.getItem("wonboard.spelling.personal.v1"))).toBeNull();
+  expect(await storedDictionary(page) ?? []).toEqual([]);
   await input.dispatchEvent("compositionend");
   await manager.getByRole("button", { name: "Add to dictionary", exact: true }).click();
   await expect(dialog).toContainText("Spelling review complete.");
@@ -1353,7 +1389,7 @@ test("skip once, skip all and permanent registration have distinct lifetimes", a
   await expect(dialog).toContainText("Unrecognized expression: 아즈휼");
   await dialog.getByRole("button", { name: "Skip all occurrences", exact: true }).click();
   await expect(dialog).toContainText("Spelling review complete.");
-  expect(await page.evaluate(() => localStorage.getItem("wonboard.spelling.personal.v1"))).toBeNull();
+  expect(await storedDictionary(page) ?? []).toEqual([]);
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await tool.click();
   await analyzed(dialog);
@@ -1520,7 +1556,7 @@ test("dictionary changes in two tabs serialize and closing cancels a queued save
   }));
   const release = () => page.evaluate(() => (window as unknown as { releaseDictionaryLock: () => void }).releaseDictionaryLock());
   const pending = () => page.evaluate(async () => (await navigator.locks.query()).pending?.filter(lock => lock.name === "wonboard.spelling.personal.v1").length);
-  const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem("wonboard.spelling.personal.v1") ?? "[]").sort());
+  const saved = async () => (await storedDictionary(page) ?? []).sort();
   await hold();
   for (const [i, word] of ["아즈휼", "뷁큘"].entries()) {
     await managers[i].getByRole("textbox").fill(word);

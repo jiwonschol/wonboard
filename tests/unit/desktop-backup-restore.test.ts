@@ -4,11 +4,30 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { exportBackup, importBackup, newDraft } from "@wonboard/document";
+import { exportBackup, exportBackupCollection, openBackupCollection, importBackup, newDraft } from "@wonboard/document";
 import { openDesktopStore } from "../../apps/desktop/src/store";
 import { openDesktopRepository } from "../../apps/client/src/desktopRepository";
 import { openStorage, saveDraft, loadDrafts } from "../../apps/client/src/storage";
 import { recoveredDraft } from "../../apps/client/src/trash";
+
+it("backs up the desktop repository's active documents one at a time and restores each as a new document", async () => {
+  const store = openDesktopStore(mkdtempSync(join(tmpdir(), "wonboard-collection-")));
+  vi.stubGlobal("window", { wonboardDesktop: {
+    list: async () => store.list(), load: async (id: string) => store.load(id),
+    save: async (...args: Parameters<typeof store.save>) => store.save(...args),
+  } });
+  try {
+    const first = newDraft(), second = newDraft(), trash = newDraft();
+    first.document.title = "First"; second.document.title = "Second"; trash.document.trashedAt = new Date().toISOString();
+    const repository = openDesktopRepository();
+    for (const draft of [first, second, trash]) await repository.save(draft, 0);
+    const collection = (await openBackupCollection((await exportBackupCollection(repository)).blob))!;
+    expect(collection.manifest.documents).toHaveLength(2);
+    for await (const entry of collection.backups()) await repository.save(recoveredDraft(await importBackup(await entry.read())), 0);
+    expect(await repository.list()).toHaveLength(5);
+    expect((await repository.list()).filter(draft => draft.document.title === "First")).toHaveLength(2);
+  } finally { store.close(); vi.unstubAllGlobals(); }
+});
 
 // 데스크톱판과 Sites판 사이의 공식 이동 경로는 ZIP 백업과 복원이다.
 it("opens a ZIP backup made from the desktop store through the browser restore with the same title, body and photo", async () => {

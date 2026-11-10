@@ -72,17 +72,23 @@ export function toDraft(stored: StoredDraft): Draft {
     ),
   };
 }
-export function loadDrafts(db: IDBDatabase): Promise<Draft[]> {
+export function loadDrafts(db: IDBDatabase, metadataOnly = false): Promise<Draft[]> {
   return new Promise((resolve, reject) => {
-    const request = db.transaction("drafts").objectStore("drafts").getAll();
+    // A cursor releases each record's binary data before reading the next one.
+    const drafts: Draft[] = [];
+    const request = db.transaction("drafts").objectStore("drafts").openCursor();
     request.onsuccess = () => {
       // 레코드 하나가 깨졌다고 전체 목록을 버리지 않는다. 예전에는 변환이 한 번만
       // 던져도 loadDrafts 가 통째로 실패해 useDrafts 가 빈 초안을 열었고, 멀쩡한
       // 문서까지 전부 사라진 것처럼 보였다. 깨진 레코드만 격리하고 나머지는 연다.
-      const drafts: Draft[] = [];
-      for (const stored of request.result as StoredDraft[]) {
+      const cursor = request.result;
+      if (cursor) {
+        const stored = cursor.value as StoredDraft;
         try {
-          drafts.push(toDraft(stored));
+          // Metadata-only listing must still isolate unreadable records.
+          if (!stored?.blobs || typeof stored.blobs !== "object" || Array.isArray(stored.blobs))
+            throw new Error("malformedRecord");
+          drafts.push(toDraft(metadataOnly ? { ...stored, blobs: {} } : stored));
         } catch (error) {
           console.warn(
             "Wonboard skipped an unreadable stored draft",
@@ -91,8 +97,18 @@ export function loadDrafts(db: IDBDatabase): Promise<Draft[]> {
               : String(error),
           );
         }
-      }
-      resolve(drafts);
+        cursor.continue();
+      } else resolve(drafts);
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+export function loadDraft(db: IDBDatabase, id: string): Promise<Draft> {
+  return new Promise((resolve, reject) => {
+    const request = db.transaction("drafts").objectStore("drafts").get(id);
+    request.onsuccess = () => {
+      try { resolve(toDraft(request.result)); }
+      catch (error) { reject(error); }
     };
     request.onerror = () => reject(request.error);
   });

@@ -129,6 +129,16 @@ export function toPlainText(document: WriterDocument, photo: (name: string) => s
 // - 코드 글자 안은 글자 그대로다. 공백을 &nbsp;로 바꾸면 그 글자가 보이므로 바꾸지 않는다. 줄바꿈에서는 코드 표시를 나눈다.
 // - 본문의 빈 문단은 남기지 않는다(문단 사이 빈 줄과 구별되지 않는다).
 // - 링크 표시가 없는 주소 글자를 읽는 쪽이 링크로 만드는 것은 막지 않는다(글자는 같다).
+// - 아래 코드 글자는 Marked가 코드로 읽지 못하거나 이웃 서식을 깨뜨리므로, 코드 표시 없이 글자만 남긴다.
+//   · 링크 글자 안에서 백틱이나 \[ \]가 든 코드 글자. Marked는 링크 글자의 \[ \]에서 역슬래시를 떼고,
+//     백틱이 든 코드 글자를 링크 글자의 일부로 보지 않는다.
+//   · 강조(굵게·기울임·취소선)가 있는 문단에서 백틱이 든 코드 글자. Marked는 백틱 하나로 감싼 코드만 가려 두고
+//     강조 기호를 짝짓기 때문에, 백틱 여러 개로 감싼 코드 안팎의 기호를 잘못 짝짓는다.
+// - 코드 글자가 역슬래시로 끝나면 닫는 백틱 앞에 한 칸을 띄운다(양쪽에 한 칸씩, 읽을 때 떼어진다). 역슬래시와 백틱이 붙으면
+//   Marked가 이스케이프로 보고 강조 경계를 잘못 찾는다.
+// - 줄바꿈뿐인 문단은 <p>와 <br>로 쓴다. <br>만 있는 줄은 문단이 아닌 HTML 블록으로 읽힌다.
+// - 굵게 안에서 기울임이 따로 열리고 닫히는데(***…*…***) 그 경계에 문장부호나 코드 글자가 맞닿으면 Marked가 굵게 표시를
+//   놓칠 수 있다(무작위 문서 30,000개 중 20개). 빈 주석을 안쪽에 더 두면 더 많이 어긋나 고치지 않는다. 글자는 남는다.
 const BREAK = "\u0000", CODE_SPACE = "\u0001", NBSP = "\u0002", ESCAPE = "\u0003", SEPARATOR = "<!-- -->";
 // 위 네 글자는 변환하는 동안의 표시로 쓴다. 글에 같은 글자가 들어 있으면 protect가 ESCAPE+숫자로 바꿔 두고
 // restore가 맨 마지막에 원래 글자로 되돌리므로, 글의 글자와 표시가 섞이지 않고 글자도 지워지지 않는다.
@@ -156,7 +166,8 @@ function paragraphLines(text: string): string[] {
     empty = 0;
   }
   // 글 뒤에 남은 빈 줄. 줄이 하나도 없으면 줄바꿈뿐인 문단이다(빈 줄 수가 줄바꿈 수보다 하나 많다).
-  if (out.length) out[out.length - 1] += "<br>".repeat(empty); else out.push("<br>".repeat(empty - 1));
+  // <br>만 있는 줄은 문단이 아니라 HTML 블록으로 읽히므로 <p>로 감싸 문단으로 남긴다.
+  if (out.length) out[out.length - 1] += "<br>".repeat(empty); else out.push(`<p>${"<br>".repeat(empty - 1)}</p>`);
   return out;
 }
 /** 코드 글자. 줄바꿈에서는 코드 표시를 나누고 그 사이에 줄바꿈을 둔다. */
@@ -165,10 +176,13 @@ function codeSpan(text: string, inTable: boolean) {
     if (!value) return "";
     const fence = "`".repeat(Math.max(0, ...[...value.matchAll(/`+/g)].map(run => run[0].length)) + 1);
     // 양끝이 모두 공백이면 읽는 쪽이 하나씩 떼어 내므로, 그때도 한 칸씩 더 준다.
-    const padding = /^`|`$/.test(value) || (value.startsWith(" ") && value.endsWith(" ") && value.trim() !== "") ? " " : "";
+    // 역슬래시로 끝나면 Marked가 닫는 백틱을 이스케이프로 보고 강조 경계를 잘못 찾으므로 그때도 한 칸씩 띄운다.
+    const padding = /^`|[`\\]$/.test(value) || (value.startsWith(" ") && value.endsWith(" ") && /[^ ]/.test(value)) ? " " : "";
     return (fence + padding + (inTable ? value.replace(/\|/g, "\\|") : value) + padding + fence).replace(/ /g, CODE_SPACE);
   }).join(BREAK);
 }
+// 링크 글자 안에서는 백틱이나 \[ \]가 든 코드 글자를 Marked가 코드로 읽지 못한다(머리 주석의 규칙).
+const linkBreakingCode = /`|\\[[\]]/;
 const isWord = (char: string | undefined) => Boolean(char) && !/[\s\u0000-\u0002\p{P}\p{S}]/u.test(char!);
 const isMark = (char: string | undefined) => char === "*" || char === "~";
 const isPunctuation = (char: string | undefined) => Boolean(char) && /[\p{P}\p{S}]/u.test(char!);
@@ -260,18 +274,25 @@ function visible(nodes: ContentNode[]): ContentNode[] {
  * 마크다운에 없는 서식은 기호 없이 글자만 남긴다. 줄바꿈은 BREAK로 낸다.
  */
 function inline(source: ContentNode[], inTable: boolean): string {
+  let inLink = false;
+  const emphasized = source.some(node => emphasis.some(([type]) => hasMark(node, type)));
   const render = (nodes: ContentNode[], level: number): string => {
     if (level === emphasis.length)
       // 색·밑줄처럼 마크다운에서 빠지는 서식만 다르면 코드 글자는 하나의 표시로 합친다.
-      return runs(nodes, node => node.type === "text" && hasMark(node, "code")).map(([code, run]) => code
-        ? codeSpan(run.map(node => node.text!).join(""), inTable)
-        : run.map(node => node.type === "hardBreak" ? BREAK : escapeText(node.text!)).join("")).join("");
+      return runs(nodes, node => node.type === "text" && hasMark(node, "code")).map(([code, run]) => {
+        const value = run.map(node => node.text!).join("");
+        if (!code) return run.map(node => node.type === "hardBreak" ? BREAK : escapeText(node.text!)).join("");
+        if (!(inLink && linkBreakingCode.test(value)) && !(emphasized && value.includes("`"))) return codeSpan(value, inTable);
+        // 코드 표시 없이 글자만 남긴다(머리 주석의 규칙). 코드 글자의 공백은 모두 보이는 글자이므로 NBSP로, 탭은 네 칸으로 쓴다.
+        return escapeText(value.replace(/\t/g, "    ")).replace(/ /g, NBSP);
+      }).join("");
     const parts = runs(nodes, node => hasMark(node, emphasis[level][0])).map(([marked, run]) => ({ marked, text: render(run, level + 1) }));
     return parts.map((part, index) => part.marked
       ? emphasize(part.text, emphasis[level][1], parts[index - 1]?.text ?? "", parts[index + 1]?.text ?? "") : part.text).join("");
   };
   const pieces: string[] = [];
   for (const [link, run] of runs(visible(source), linkOf)) {
+    inLink = Boolean(link);
     const text = render(run, 0), cut = link.indexOf("\n"), last = pieces.length - 1;
     // 링크는 공백을 포함해 걸린 글 그대로를 덮는다.
     const piece = link && text ? `[${text}](${destination(link.slice(0, cut), inTable)}${linkTitle(link.slice(cut + 1))})` : text;

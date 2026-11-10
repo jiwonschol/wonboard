@@ -5,6 +5,7 @@ import {
   exportBackup,
   exportRawBackup,
   importBackup,
+  openBackupCollection,
   characterCount,
   attachmentNodes,
   referencedFileIds,
@@ -75,6 +76,7 @@ export default function App({
   const [trashFailures, setTrashFailures] = useState<number | null>(null);
   const importing = useRef(false);
   const [notice, setNotice] = useState("");
+  const [backupResult, setBackupResult] = useState<{ kind: "backup" | "restore"; count: number; failed: number; skipped: number } | null>(null);
   const [persistent, setPersistent] = useState<boolean | null>(null);
   const [usage, setUsage] = useState("");
   const [urls, setUrls] = useState<Record<string, string>>({});
@@ -208,6 +210,16 @@ export default function App({
       setBusy(false);
     }
   }
+  async function backupAll() {
+    setBusy(true);
+    setBackupResult(null);
+    try {
+      const { blob, manifest } = await writer.backupAll();
+      download(blob, `wonboard-all-${manifest.createdAt.slice(0, 10)}.zip`);
+      setBackupResult({ kind: "backup", count: manifest.documents.length, failed: manifest.skipped.length, skipped: 0 });
+    } catch (error) { report(error); }
+    finally { setBusy(false); }
+  }
   // 읽기 전용은 두 가지 이유로 생긴다. 다른 탭이 먼저 써서 충돌한 사본은 검증을
   // 통과하므로 평소 ZIP 이 그대로 나오고, 다시 가져오기도 된다. 반면 미래 스키마나
   // 지원하지 않는 노드로 얼어붙은 초안은 exportBackup 이 얼어붙게 만든 그 검증에서
@@ -237,14 +249,32 @@ export default function App({
   }
   async function restore(file: File) {
     setBusy(true);
+    setBackupResult(null);
     try {
-      const restored = await importBackup(file);
-      for (const media of Object.values(restored.document.media)) {
-        const blob = restored.blobs[media.id];
-        if (!blob) throw new DocumentError("corruptBackup");
-        await verifyDecodedImage(blob, media);
+      async function restoreOne(blob: Blob, documentId?: string) {
+        const restored = await importBackup(blob);
+        if (documentId !== undefined) {
+          if (restored.document.documentId !== documentId) throw new DocumentError("corruptBackup");
+          // Unsupported documents can only be held read-only in the editor;
+          // they cannot survive switching to the next entry of a collection.
+          validateDocument(restored.document);
+        }
+        for (const media of Object.values(restored.document.media)) {
+          const original = restored.blobs[media.id];
+          if (!original) throw new DocumentError("corruptBackup");
+          await verifyDecodedImage(original, media);
+        }
+        return writer.restore(restored, documentId !== undefined);
       }
-      if (await writer.restore(restored)) setNotice("imported");
+      const collection = await openBackupCollection(file);
+      if (collection) {
+        let count = 0, failed = 0;
+        for await (const entry of collection.backups()) {
+          try { if (await restoreOne(await entry.read(), entry.documentId)) count++; else failed++; }
+          catch { failed++; }
+        }
+        setBackupResult({ kind: "restore", count, failed, skipped: collection.manifest.skipped.length });
+      } else if (await restoreOne(file)) setNotice("imported");
     } catch (e) {
       report(e);
     } finally {
@@ -525,6 +555,12 @@ export default function App({
           ) : null}
         </div>
       ) : null}
+      {backupResult && <div className="notice" role="status">
+        {t(backupResult.kind === "backup" ? "backupAllSaved" : "backupAllRestored", { count: backupResult.count })}
+        {backupResult.failed > 0 && <> {t(backupResult.kind === "backup" ? "backupAllSkipped" : "backupAllRestoreFailed", { count: backupResult.failed })}</>}
+        {backupResult.skipped > 0 && <> {t("backupAllPreviouslySkipped", { count: backupResult.skipped })}</>}
+        <button aria-label={t("close")} onClick={() => setBackupResult(null)}><Icon name="close" /></button>
+      </div>}
       {writer.recovery.map(copy => {
         const mode = recoveryMode(copy, writer.list.find(d => d.document.documentId === copy.documentId));
         return <div className="notice recovery-notice" role="status" key={copy.token}>
@@ -712,7 +748,7 @@ export default function App({
       {pcSave ? <PcSaveMenu locale={locale} disabled={busy} formatsDisabled={writer.readOnly} snapshot={writer.snapshot}
         onPrint={() => { const snapshot = writer.snapshot(); if (snapshot) setPrinting({ key: Date.now(), draft: snapshot }); }} onBackup={() => void (writer.readOnly ? recoveryBackup() : backup())}
         onDesktopPdf={() => { const snapshot = writer.snapshot(); if (snapshot) setPrinting({ key: Date.now(), draft: snapshot, pdf: true }); }}
-        onNotice={setNotice} onError={report} onClose={() => setPcSave(false)} /> : null}
+        onBackupAll={() => void backupAll()} onNotice={setNotice} onError={report} onClose={() => setPcSave(false)} /> : null}
       {printing ? <PrintDocument key={printing.key} draft={printing.draft} pdf={printing.pdf} onError={report} onDone={() => setPrinting(null)} /> : null}
       {trashDialog && <TrashDialog locale={locale} action={trashDialog.action} count={trashDialog.count} working={busy}
         message={writer.error ? t(Object.hasOwn(en, writer.error) ? writer.error as MessageKey : "storageFailed") : ""}

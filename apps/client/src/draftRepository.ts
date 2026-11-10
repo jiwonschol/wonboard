@@ -1,5 +1,5 @@
 import { withoutUnusedMedia, validateDocument, sha256, type Draft } from "@wonboard/document";
-import { loadDrafts, openStorage, saveDraft, removeDraft, StorageConflict } from "./storage";
+import { loadDrafts, loadDraft, openStorage, saveDraft, removeDraft, StorageConflict } from "./storage";
 import { openDesktopRepository } from "./desktopRepository";
 
 export type StorageMode = "local" | "sites" | "desktop";
@@ -26,7 +26,7 @@ export async function openDraftRepository(mode: StorageMode, onBlocked: () => vo
   if (mode === "desktop") return openDesktopRepository();
   if (mode === "local") {
     const db = await openStorage(undefined, onBlocked, onDisconnected);
-    return { list: () => loadDrafts(db), load: async draft => draft,
+    return { list: () => loadDrafts(db, true), load: async draft => draft.document.revision === 0 ? draft : loadDraft(db, draft.document.documentId),
       save: (draft, revision) => saveDraft(db, draft, revision),
       remove: (id, revision) => removeDraft(db, id, revision), close: () => db.close() };
   }

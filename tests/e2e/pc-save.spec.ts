@@ -5,6 +5,31 @@ import { readFile, writeFile } from "node:fs/promises";
 import { strFromU8, strToU8, unzipSync, zipSync } from "../../packages/document/node_modules/fflate/esm/index.mjs";
 import { getDocument, OPS } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { writingFonts, type ContentNode } from "@wonboard/document";
+import { collectionRoundTrip } from "../helpers/backup-collection";
+
+test("all-document backup excludes trash and restores photos and attachments as new documents", async ({ page }, testInfo) => {
+  test.setTimeout(90_000);
+  await collectionRoundTrip(page, testInfo, "local");
+});
+
+test("all-document backup stays reachable in Korean and English on narrow and desktop screens", async ({ page }, testInfo) => {
+  await page.goto("/");
+  for (const width of [320, 948]) {
+    await page.setViewportSize({ width, height: 815 });
+    for (const locale of ["ko", "en"]) {
+      await page.locator(".admin-bar select").selectOption(locale);
+      await page.getByRole("button", { name: locale === "ko" ? "PC 저장" : "Save to PC", exact: true }).click();
+      const menu = page.locator(".pc-save-menu");
+      const action = menu.getByRole("button", { name: locale === "ko" ? "모든 글 백업 (.zip)" : "Back up all documents (.zip)", exact: true });
+      await action.scrollIntoViewIfNeeded();
+      const box = (await action.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(width);
+      expect(box.y).toBeGreaterThanOrEqual(0); expect(box.y + box.height).toBeLessThanOrEqual(815);
+      await page.screenshot({ path: testInfo.outputPath(`backup-menu-${width}-${locale}.png`) });
+      await menu.getByRole("button", { name: locale === "ko" ? "닫기" : "Close", exact: true }).click();
+    }
+  }
+});
 
 const paragraph = (text: string, marks?: ContentNode["marks"]): ContentNode =>
   ({ type: "paragraph", content: [{ type: "text", text, ...(marks ? { marks } : {}) }] });
@@ -279,4 +304,47 @@ test("PDF JPEG photos preserve all EXIF rotations and reflections", async ({ pag
     }
   }
   expect(index).toBe(8);
+});
+
+test("Save as Word downloads a .docx with the same body text and photos as the document", async ({ page }, testInfo) => {
+  const photos = 3;
+  const cell = (text: string, header = false): ContentNode => ({ type: header ? "tableHeader" : "tableCell",
+    attrs: { colspan: 1, rowspan: 1, colwidth: null, align: null }, content: [paragraph(text)] });
+  await restoreDocument(page, testInfo.outputPath("fixture.zip"), "워드 & <저장>", photos, photo => [
+    paragraph("빨간 글 English 123", [{ type: "textStyle", attrs: { color: "#ff0000", fontFamily: "serif", fontSize: 24 } }]),
+    { type: "paragraph", content: [{ type: "text", text: "굵게", marks: [{ type: "bold" }] }, { type: "text", text: " 그리고 " },
+      { type: "text", text: "링크", marks: [{ type: "link", attrs: { href: "https://example.com/a?b=1&c=2" } }] }] },
+    photo(0, "바닷가"),
+    { type: "bulletList", content: ["첫째 항목", "둘째 항목"].map(text => ({ type: "listItem", content: [paragraph(text)] })) },
+    { type: "orderedList", attrs: { start: 3 }, content: ["셋", "넷"].map(text => ({ type: "listItem", content: [paragraph(text)] })) },
+    photo(1, ""),
+    { type: "table", content: [{ type: "tableRow", content: [cell("머리 1", true), cell("머리 2", true)] },
+      { type: "tableRow", content: [cell("칸 1"), cell("칸 2 & <꺾쇠>")] }] },
+    { type: "textBox", attrs: { backgroundColor: "#e8f3ff", borderColor: "#88aadd", borderWidth: 2, padding: 20 },
+      content: [paragraph("글상자 안의 글")] },
+    photo(2, "마지막 사진"),
+  ]);
+  // 편집 화면에 보이는 문단 글자를 순서대로 모은다. 워드 파일의 문단과 하나씩 맞춰 본다.
+  const expected = ["워드 & <저장>", ...await page.locator(".tiptap").evaluate(root =>
+    [...root.querySelectorAll("p, figcaption")].map(node => node.textContent ?? "").filter(Boolean))];
+  await page.getByRole("button", { name: "Save to PC", exact: true }).click();
+  const download = page.waitForEvent("download");
+  await page.getByRole("dialog", { name: "Save to PC", exact: true }).getByRole("button", { name: "Save as Word (.docx)", exact: true }).click();
+  // WebKit은 한글 파일 이름을 자모로 풀어서 알려 준다.
+  expect((await download).suggestedFilename().normalize("NFC")).toBe("워드 & 저장.docx");
+  const entries = unzipSync(new Uint8Array(await readFile((await (await download).path())!)));
+  const xml = strFromU8(entries["word/document.xml"]);
+  const unescape = (text: string) => text.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+  const paragraphs = [...xml.matchAll(/<w:p[ >][\s\S]*?<\/w:p>/g)].map(([source]) =>
+    [...source.matchAll(/<w:t(?: [^>]*)?>([^<]*)<\/w:t>|<w:tab\/>|<w:br\/>/g)]
+      .map(([token, text]) => token === "<w:tab/>" ? "\t" : token === "<w:br/>" ? "\n" : unescape(text)).join(""))
+    .filter(Boolean);
+  expect(paragraphs).toEqual(expected);
+  // 사진: 문서의 사진 수만큼 그림이 있고, 들어간 파일은 원본과 같은 바이트다.
+  expect(xml.match(/<w:drawing>/g)?.length).toBe(photos);
+  const media = Object.keys(entries).filter(name => name.startsWith("word/media/")).sort();
+  expect(media).toEqual(Array.from({ length: photos }, (_, index) => `word/media/image${index + 1}.png`));
+  const backup = unzipSync(new Uint8Array(await readFile(testInfo.outputPath("fixture.zip"))));
+  for (let index = 0; index < photos; index++)
+    expect(Buffer.from(entries[`word/media/image${index + 1}.png`]).equals(Buffer.from(backup[`media/photo-${index}`])), `photo ${index}`).toBe(true);
 });

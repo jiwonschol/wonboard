@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   newDraft,
+  exportBackupCollection,
   withoutUnusedMedia,
   type Draft,
   type Locale,
@@ -37,7 +38,10 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   const listVersion = useRef(0);
   function publishList(value: Draft[] | ((items: Draft[]) => Draft[])) {
     listVersion.current++;
-    listRef.current = typeof value === "function" ? value(listRef.current) : value;
+    const items = typeof value === "function" ? value(listRef.current) : value;
+    // The editor and conflicts own originals. Library rows retain metadata only,
+    // including after a collection restores and saves many documents in turn.
+    listRef.current = items.map(({ document }) => ({ document, blobs: {} }));
     setList(listRef.current);
   }
   const operating = useRef(false);
@@ -356,13 +360,36 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
   async function create() {
     if (await activate(newDraft(locale))) await save();
   }
-  async function restore(value: Draft) {
+  async function restore(value: Draft, rollbackOnFailure = false) {
     value = recoveredDraft(value);
+    // A batch must not retry an unsavable imported entry before every later
+    // entry. Save the user's edits first, then retain that clean selection.
+    if (rollbackOnFailure && !frozen.current &&
+        !(await saveUntilCurrent(save, () => savedChange.current === change.current))) return false;
+    const previous = current.current;
     if (!(await activate(value))) return false;
     // A newer but structurally recoverable backup is intentionally selected in
     // memory as read-only. Saving it would discard the unsupported information.
     if (frozen.current) return true;
-    return save();
+    const saved = await save();
+    if (!saved && rollbackOnFailure && previous) select(previous, true);
+    return saved;
+  }
+  async function backupAll() {
+    const repository = db.current;
+    if (!repository || disconnected.current) throw new Error("storageFailed");
+    // Include the editor's current, possibly unsaved version without requiring
+    // a successful save. Conflict copies likewise take precedence over disk.
+    const selected = current.current;
+    const overrides = new Map(conflicts.current);
+    if (selected) overrides.set(selected.document.documentId, selected);
+    return exportBackupCollection({
+      async list() {
+        const stored = await repository.list();
+        return [...stored.filter(item => !overrides.has(item.document.documentId)), ...overrides.values()];
+      },
+      load: item => overrides.has(item.document.documentId) ? Promise.resolve(item) : repository.load(item),
+    });
   }
   async function recoverCopy(copy: RecoveryCopy) {
     if (operating.current || disconnected.current || !db.current) return false;
@@ -482,6 +509,7 @@ export function useDrafts(locale: Locale, storageMode: StorageMode = "local") {
     create,
     activate,
     restore,
+    backupAll,
     content: (content: ContentNode) => update({ content }),
     composition: (active: boolean) => {
       composing.current = active;
