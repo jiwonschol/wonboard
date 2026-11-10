@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { translator, en, type MessageKey } from "@wonboard/locales";
-import type { Locale } from "@wonboard/document";
+import { exportLibraryBackup, restoreLibraryBackup, type Locale, type LibraryBackupFailure } from "@wonboard/document";
+import { download } from "./pcSave";
 import { fileExpired, type FileLibrary, type LibraryFile, type FileShare, type DistributedPhoto, type SharedWriting, type StorageUsage } from "./fileLibrary";
 
 export function FileLibraryPanel({ library, locale, picking, onInsert, onClose, beforeWritingUpdate, embeddedTrash = false, onTrash, canUpdateWriting = true }: {
@@ -9,12 +10,13 @@ export function FileLibraryPanel({ library, locale, picking, onInsert, onClose, 
   canUpdateWriting?: boolean; embeddedTrash?: boolean; onTrash?(): void;
   beforeWritingUpdate?(documentId: string): Promise<boolean>;
 }) {
-  const t = translator(locale), input = useRef<HTMLInputElement>(null), panel = useRef<HTMLElement>(null);
+  const t = translator(locale), input = useRef<HTMLInputElement>(null), backupInput = useRef<HTMLInputElement>(null), panel = useRef<HTMLElement>(null);
   const [files, setFiles] = useState<LibraryFile[]>([]), [query, setQuery] = useState("");
   const [trash, setTrash] = useState(embeddedTrash), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
   const [distributed, setDistributed] = useState(false), [shares, setShares] = useState<FileShare[]>([]), [expiry, setExpiry] = useState("");
   const [usage, setUsage] = useState<StorageUsage | null>(null);
   const [cleanup, setCleanup] = useState("");
+  const [backup, setBackup] = useState<{ kind: "backup" | "restore"; count: number; failed: LibraryBackupFailure[]; missing: LibraryBackupFailure[] } | null>(null);
   const [photos, setPhotos] = useState<DistributedPhoto[]>([]);
   const [writings, setWritings] = useState<SharedWriting[]>([]);
   const errorNotice = useRef<HTMLParagraphElement>(null);
@@ -75,6 +77,25 @@ export function FileLibraryPanel({ library, locale, picking, onInsert, onClose, 
       setFailed(failures);
     });
   }
+  async function backupLibrary() {
+    setBackup(null);
+    await run(async () => {
+      const { blob, manifest } = await exportLibraryBackup(library);
+      download(blob, `wonboard-library-${manifest.createdAt.slice(0, 10)}.zip`);
+      setBackup({ kind: "backup", count: manifest.files.length, failed: manifest.skipped, missing: [] });
+    });
+  }
+  async function restoreLibrary(file: File) {
+    setBackup(null);
+    await run(async () => {
+      const result = await restoreLibraryBackup(file, library);
+      setBackup({ kind: "restore", count: result.restored.length, failed: result.failed, missing: result.skipped });
+    });
+  }
+  const failures = (key: MessageKey, items: LibraryBackupFailure[]) => items.length ? <>
+    <p>{t(key, { count: items.length })}</p>
+    <ul>{items.map(item => <li key={item.id}>{item.filename} — {t(Object.hasOwn(en, item.reason) ? item.reason as MessageKey : "storageFailed")}</li>)}</ul>
+  </> : null;
   const visible = files.filter(file => Boolean(file.trashedAt) === trash && file.filename.toLocaleLowerCase(locale).includes(query.toLocaleLowerCase(locale)));
   return <div className={embeddedTrash ? "file-trash" : "file-library-backdrop"}>
     <section ref={panel} tabIndex={-1} className={embeddedTrash ? "file-trash-panel" : "file-library-panel"} role={embeddedTrash ? undefined : "dialog"} aria-modal={embeddedTrash ? undefined : true} aria-label={t("fileLibrary")}
@@ -96,7 +117,16 @@ export function FileLibraryPanel({ library, locale, picking, onInsert, onClose, 
         {library.sharing ? <button disabled={busy} aria-pressed={distributed} onClick={() => { setDistributed(true); setSelected([]); }}>{t("distributedFiles")}</button> : null}
         <button disabled={busy} onClick={() => input.current?.click()}>{t("fileUpload")}</button>
         <input ref={input} hidden type="file" multiple onChange={event => { const incoming = [...(event.currentTarget.files ?? [])]; event.currentTarget.value = ""; void upload(incoming); }} />
+        <button disabled={busy || loading} onClick={() => void backupLibrary()}>{t("libraryBackup")}</button>
+        <button disabled={busy || loading} onClick={() => backupInput.current?.click()}>{t("libraryRestore")}</button>
+        <input ref={backupInput} hidden type="file" accept=".zip,application/zip" data-library-backup onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; if (file) void restoreLibrary(file); }} />
       </div>
+      <p>{t("libraryBackupHint")}</p>
+      {backup ? <div role="status" className="file-library-result">
+        <p>{t(backup.kind === "backup" ? "libraryBackupSaved" : "libraryRestored", { count: backup.count })}</p>
+        {failures(backup.kind === "backup" ? "libraryBackupSkipped" : "libraryRestoreFailed", backup.failed)}
+        {failures("libraryBackupPreviouslySkipped", backup.missing)}
+      </div> : null}
       </> : null}
       <input type="search" aria-label={t("search")} placeholder={t("search")} value={query} onChange={event => setQuery(event.target.value)} />
       {library.sharing && !embeddedTrash ? <><p>{t("shareFileNotice")}</p><label>{t("shareExpiry")}<input type="datetime-local" value={expiry} onChange={event => setExpiry(event.target.value)} /></label></> : null}

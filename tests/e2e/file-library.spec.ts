@@ -1,4 +1,48 @@
 import { test, expect } from "./fixtures";
+import { libraryRoundTrip } from "../helpers/library-backup";
+
+test("library backup keeps unattached files, leaves trash out and restores them as new files", async ({ page }, testInfo) => {
+  await libraryRoundTrip(page, testInfo, "local", () => page.goto("/").then(() => page.evaluate(() => new Promise<void>((resolve, reject) => {
+    const request = indexedDB.open("wonboard-files-v1");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const transaction = request.result.transaction("files", "readwrite");
+      transaction.objectStore("files").clear();
+      transaction.oncomplete = () => { request.result.close(); resolve(); };
+      transaction.onerror = () => reject(transaction.error);
+    };
+  }))));
+});
+
+for (const width of [390, 1440]) for (const locale of ["ko", "en"] as const) {
+  test(`library backup controls and scope notice stay inside the panel in ${locale} at ${width}px`, async ({ page }, testInfo) => {
+    const text = locale === "ko"
+      ? { settings: "설정", attachments: "첨부", library: "파일 보관함", backup: "보관함 백업 (.zip)", restore: "보관함 백업 가져오기", scope: "모든 글 백업", unattached: "휴지통 밖의 보관함 파일" }
+      : { settings: "Settings", attachments: "Attachments", library: "File library", backup: "Back up library (.zip)", restore: "Import library backup", scope: "Back up all documents", unattached: "every library file outside the trash" };
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    await page.locator(".admin-bar select").selectOption(locale);
+    if (width > 900) await page.locator(".writing-library").getByRole("button", { name: text.library, exact: true }).click();
+    else {
+      await page.getByRole("button", { name: text.settings, exact: true }).click();
+      await page.getByRole("button", { name: text.attachments, exact: true }).click();
+      await page.locator(".attachments-panel").getByRole("button", { name: text.library, exact: true }).click();
+    }
+    const panel = page.getByRole("dialog", { name: text.library, exact: true });
+    const hint = panel.locator("p").filter({ hasText: text.scope });
+    await expect(hint).toContainText(text.unattached);
+    const frame = (await panel.boundingBox())!;
+    for (const target of [panel.getByRole("button", { name: text.backup, exact: true }), panel.getByRole("button", { name: text.restore, exact: true }), hint]) {
+      await target.scrollIntoViewIfNeeded();
+      const box = (await target.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(frame.x); expect(box.x + box.width).toBeLessThanOrEqual(frame.x + frame.width);
+      expect(box.y).toBeGreaterThanOrEqual(0); expect(box.y + box.height).toBeLessThanOrEqual(900);
+    }
+    expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`library-backup-${width}-${locale}.png`) });
+  });
+}
 
 for (const width of [1440, 390]) {
   test(`file picker preserves middle selection, inserts together and survives reload at ${width}px`, async ({ page }) => {
@@ -15,7 +59,7 @@ for (const width of [1440, 390]) {
     }
     await page.locator(".attachments-panel").getByRole("button", { name: "File library", exact: true }).click();
     const panel = page.getByRole("dialog", { name: "File library", exact: true });
-    await panel.locator('input[type="file"]').setInputFiles([
+    await panel.locator('input[type="file"][multiple]').setInputFiles([
       { name: "one.txt", mimeType: "text/plain", buffer: Buffer.from("one") },
       { name: "two.html", mimeType: "text/html", buffer: Buffer.from("<script>window.INJECTED = true</script>") },
     ]);

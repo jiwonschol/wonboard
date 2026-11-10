@@ -83,7 +83,7 @@ test("owner explicitly shares a library file; anonymous HTML downloads never exe
   await page.goto("/");
   await page.locator(".writing-library").getByRole("button", { name: "File library", exact: true }).click();
   const panel = page.getByRole("dialog", { name: "File library", exact: true });
-  await panel.locator('input[type="file"]').setInputFiles({ name: "unsafe.html", mimeType: "text/html", buffer: Buffer.from("<script>window.EXECUTED=true</script>") });
+  await panel.locator('input[type="file"][multiple]').setInputFiles({ name: "unsafe.html", mimeType: "text/html", buffer: Buffer.from("<script>window.EXECUTED=true</script>") });
   await panel.getByRole("button", { name: "Create public file link", exact: true }).click();
   const address = panel.getByRole("textbox", { name: "unsafe.html", exact: true });
   await expect(address).toBeVisible();
@@ -124,7 +124,7 @@ test("Sites persists file references through insertion and reload without publis
   await page.getByRole("tab", { name: "Attachments 0", exact: true }).click();
   await page.locator(".attachments-panel").getByRole("button", { name: "File library", exact: true }).click();
   const panel = page.getByRole("dialog", { name: "File library", exact: true });
-  await panel.locator('input[type="file"]').setInputFiles({ name: "private.txt", mimeType: "text/plain", buffer: Buffer.from("private bytes") });
+  await panel.locator('input[type="file"][multiple]').setInputFiles({ name: "private.txt", mimeType: "text/plain", buffer: Buffer.from("private bytes") });
   await panel.getByRole("checkbox", { name: "private.txt", exact: true }).check();
   await panel.getByRole("button", { name: "Insert selected files" }).click();
   await expect(body).toHaveText("left private.txt right");
