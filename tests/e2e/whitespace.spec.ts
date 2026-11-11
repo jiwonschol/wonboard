@@ -51,3 +51,17 @@ test("whitespace review preserves words, supports cancel, undo, and reload", asy
     await dialog.getByRole("button", { name: locale === "ko" ? "닫기" : "Close", exact: true }).click();
   }
 });
+
+test("whitespace review opened from the selection settings panel applies its changes", async ({ page }) => {
+  await page.goto("/");
+  const body = page.getByRole("textbox", { name: "Document body", exact: true });
+  await body.fill("끝 공백   ");
+  await page.getByRole("toolbar", { name: "Writing tools", exact: true }).getByRole("button", { name: "Selection settings", exact: true }).click();
+  const settings = page.getByRole("dialog", { name: "Selection settings", exact: true });
+  await settings.getByRole("button", { name: "Tidy whitespace", exact: true }).click();
+  const review = page.getByRole("dialog", { name: "Tidy whitespace" });
+  await expect(review).toContainText("Changes: 1");
+  await review.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(review).toHaveCount(0);
+  expect(await body.locator("p").first().textContent()).toBe("끝 공백");
+});

@@ -19,7 +19,9 @@ export function WhitespaceTool({ editor, locale, disabled }: { editor: Editor; l
       onClick={() => { setStale(false); setReview({ doc: editor.state.doc, changes: whitespaceChanges(editor.state.doc) }); }}>
       {t("tidySpaces")}
     </button>
-    {review && createPortal(<dialog ref={dialog} className="whitespace-dialog" aria-label={t("tidySpaces")} onCancel={dismiss}>
+    {/* 이 도구를 품은 선택 영역 설정 패널은 바깥을 누르면 닫힌다. 창 안 누름이 거기까지 가면 적용 전에 도구가 사라진다. */}
+    {review && createPortal(<dialog ref={dialog} className="whitespace-dialog" aria-label={t("tidySpaces")} onCancel={dismiss}
+      onPointerDown={e => e.stopPropagation()}>
       <h2>{t("tidySpaces")}</h2>
       <p>{t("tidySpacesHint")}</p>
       {stale ? <p role="alert">{t("tidySpacesStale")}</p> : null}
