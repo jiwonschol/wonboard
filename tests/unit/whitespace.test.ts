@@ -27,3 +27,25 @@ it("preserves code, linked text, and explicit line breaks", () => {
   ] });
   expect(whitespaceChanges(doc)).toEqual([]);
 });
+it("counts a spaces-only paragraph as blank so one pass leaves a single empty paragraph", () => {
+  const doc = schema.nodeFromJSON({ type: "doc", content: [
+    { type: "paragraph", content: [{ type: "text", text: "앞" }] },
+    { type: "paragraph" },
+    { type: "paragraph", content: [{ type: "text", text: "  " }] },
+    { type: "paragraph" },
+    { type: "paragraph", content: [{ type: "text", text: "   " }] },
+    { type: "paragraph", content: [{ type: "text", text: "뒤" }] },
+  ] });
+  let result = doc;
+  for (const change of whitespaceChanges(doc)) result = result.replace(change.from, change.to, Slice.empty);
+  expect(result.childCount).toBe(3);
+  expect(result.child(1).content.size).toBe(0);
+  expect(whitespaceChanges(result)).toEqual([]);
+  const leading = schema.nodeFromJSON({ type: "doc", content: [
+    { type: "paragraph", content: [{ type: "text", text: "  " }] }, { type: "paragraph" },
+  ] });
+  result = leading;
+  for (const change of whitespaceChanges(leading)) result = result.replace(change.from, change.to, Slice.empty);
+  expect(result.childCount).toBe(1);
+  expect(result.firstChild!.content.size).toBe(0);
+});
