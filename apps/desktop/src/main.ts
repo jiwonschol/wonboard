@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, session, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItem, net, protocol, session, shell } from "electron";
 import { join, resolve, relative, isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
 import { translator } from "@wonboard/locales";
@@ -42,6 +42,11 @@ if (ownsLock) void app.whenReady().then(() => {
         !event.senderFrame.url.startsWith("wonboard://app/")) throw new Error("unauthorized");
   };
   ipcMain.handle("edit:paste", event => { authorize(event); event.sender.paste(); });
+  ipcMain.handle("edit:nativeHistory", (event, action) => {
+    authorize(event);
+    if (action === "undo") event.sender.undo();
+    else if (action === "redo") event.sender.redo();
+  });
   ipcMain.handle("document:pdf", async event => {
     authorize(event);
     // 인쇄 창을 띄우지 않고 같은 인쇄 CSS와 OS 글꼴로 만든다. 내용은 이 PC 안에 머문다.
@@ -100,10 +105,29 @@ if (ownsLock) void app.whenReady().then(() => {
     window.on("closed", () => { window = null; });
     void window.loadURL("wonboard://app/");
   };
-  Menu.setApplicationMenu(Menu.buildFromTemplate([
+  const menu = Menu.buildFromTemplate([
     ...(process.platform === "darwin" ? [{ role: "appMenu" as const }] : []),
     { role: "fileMenu" }, { role: "editMenu" }, { role: "viewMenu" }, { role: "windowMenu" },
-  ]));
+  ]);
+  // OS 기본 메뉴 이름을 유지하고 본문의 실행 취소는 편집기로 보낸다.
+  const applicationMenu = new Menu();
+  for (const top of menu.items) {
+    if (!top.submenu?.items.some(item => item.role === "undo" || item.role === "redo")) {
+      applicationMenu.append(top);
+      continue;
+    }
+    const submenu = new Menu();
+    for (const item of top.submenu.items) {
+      const action = item.role;
+      submenu.append(action === "undo" || action === "redo" ? new MenuItem({
+        label: item.label,
+        accelerator: action === "undo" ? "CommandOrControl+Z" : "CommandOrControl+Shift+Z",
+        click: () => window?.webContents.send("edit:history", action),
+      }) : item);
+    }
+    applicationMenu.append(new MenuItem({ label: top.label, submenu }));
+  }
+  Menu.setApplicationMenu(applicationMenu);
   createWindow();
   app.on("activate", () => { if (!window) createWindow(); });
 });
