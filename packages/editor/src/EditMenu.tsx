@@ -11,6 +11,7 @@ export type DesktopEditing = {
   isMisspelled(word: string): boolean;
   suggestions(word: string): string[];
   paste(): void;
+  onHistory?(handler: (action: "undo" | "redo") => boolean): () => void;
 };
 export type EditMenuTarget = { x: number; y: number; word?: { text: string; from: number; to: number } };
 

@@ -4,6 +4,7 @@ import { Plugin, TextSelection } from "@tiptap/pm/state";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { WritingHistory } from "./history";
 import Placeholder from "@tiptap/extension-placeholder";
 import {
   blockStyle,
@@ -309,6 +310,7 @@ export function WonboardEditor(props: WonboardEditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
+        undoRedo: false,
         heading: { levels: [1, 2, 3] },
         link: {
           openOnClick: false,
@@ -316,6 +318,7 @@ export function WonboardEditor(props: WonboardEditorProps) {
           isAllowedUri: (url) => safeLink(url),
         },
       }),
+      WritingHistory,
       MediaNode.configure({
         // 붙여넣기가 되살릴 수 있는 사진은 이 초안이 원본을 들고 있는 것뿐이다.
         ownsMedia: (mediaId: string) =>
@@ -384,6 +387,14 @@ export function WonboardEditor(props: WonboardEditorProps) {
         return false;
       },
       handleDOMEvents: {
+        beforeinput: (_view, event) => {
+          // 브라우저·Electron 편집 메뉴의 실행 취소도 키보드와 같은 명령을 쓴다.
+          if (event.inputType !== "historyUndo" && event.inputType !== "historyRedo") return false;
+          event.preventDefault();
+          if (event.inputType === "historyUndo") editor?.commands.undo();
+          else editor?.commands.redo();
+          return true;
+        },
         compositionstart: () => {
           setComposing(true);
           latest.current.onComposition?.(true);
@@ -436,6 +447,11 @@ export function WonboardEditor(props: WonboardEditorProps) {
     if (editor && editor.isEditable === Boolean(props.readOnly))
       editor.setEditable(!props.readOnly, false);
   }, [editor, props.readOnly]);
+  useEffect(() => props.desktopEditing?.onHistory?.(action => {
+    if (!editor || editor.isDestroyed || !editor.view.hasFocus()) return false;
+    if (editor.isEditable) editor.commands[action]();
+    return true;
+  }), [editor, props.desktopEditing]);
   useEffect(() => {
     if (editor)
       editor.setOptions({

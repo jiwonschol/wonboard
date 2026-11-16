@@ -19,6 +19,15 @@ const editing: DesktopEditing = {
   isMisspelled: word => webFrame.isWordMisspelled(word),
   suggestions: word => webFrame.getWordSuggestions(word),
   paste: () => { void ipcRenderer.invoke("edit:paste"); },
+  onHistory: handler => {
+    const listener = (_event: Electron.IpcRendererEvent, action: unknown) => {
+      if (action !== "undo" && action !== "redo") return;
+      // 제목·찾기 입력란 등은 운영체제의 기본 실행 취소를 쓴다.
+      if (!handler(action)) void ipcRenderer.invoke("edit:nativeHistory", action);
+    };
+    ipcRenderer.on("edit:history", listener);
+    return () => { ipcRenderer.removeListener("edit:history", listener); };
+  },
 };
 contextBridge.exposeInMainWorld("wonboardDesktopEditing", editing);
 contextBridge.exposeInMainWorld("wonboardDesktopPdf", { create: () => ipcRenderer.invoke("document:pdf") });
