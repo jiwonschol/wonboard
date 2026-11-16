@@ -110,8 +110,12 @@ if (ownsLock) void app.whenReady().then(() => {
     { role: "fileMenu" }, { role: "editMenu" }, { role: "viewMenu" }, { role: "windowMenu" },
   ]);
   // OS 기본 메뉴 이름을 유지하고 본문의 실행 취소는 편집기로 보낸다.
+  const applicationMenu = new Menu();
   for (const top of menu.items) {
-    if (!top.submenu?.items.some(item => item.role === "undo" || item.role === "redo")) continue;
+    if (!top.submenu?.items.some(item => item.role === "undo" || item.role === "redo")) {
+      applicationMenu.append(top);
+      continue;
+    }
     const submenu = new Menu();
     for (const item of top.submenu.items) {
       const action = item.role;
@@ -121,9 +125,9 @@ if (ownsLock) void app.whenReady().then(() => {
         click: () => window?.webContents.send("edit:history", action),
       }) : item);
     }
-    top.submenu = submenu;
+    applicationMenu.append(new MenuItem({ label: top.label, submenu }));
   }
-  Menu.setApplicationMenu(menu);
+  Menu.setApplicationMenu(applicationMenu);
   createWindow();
   app.on("activate", () => { if (!window) createWindow(); });
 });
