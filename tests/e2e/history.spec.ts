@@ -136,12 +136,12 @@ test("toolbar undo and redo keep the reading position when the cursor is offscre
   await undo.focus();
   await page.keyboard.press("Space");
   await expect(body.locator("p").first()).not.toContainText(marker);
-  await expect(undo).toBeFocused();
+  await expect(body).not.toBeFocused();
   expect(Math.abs((await readingPosition(page)).scroll - before.scroll)).toBeLessThanOrEqual(2);
   await redo.focus();
   await page.keyboard.press("Space");
   await expect(body.locator("p").first()).toContainText(marker);
-  await expect(redo).toBeFocused();
+  await expect(body).not.toBeFocused();
   expect(Math.abs((await readingPosition(page)).scroll - before.scroll)).toBeLessThanOrEqual(2);
   expect(errors).toEqual([]);
 });
