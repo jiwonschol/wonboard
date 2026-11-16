@@ -15,18 +15,19 @@ const storage: DesktopStorage = {
 };
 contextBridge.exposeInMainWorld("wonboardDesktop", storage);
 // 편집기의 우클릭 메뉴가 운영체제 맞춤법 추천과 붙여넣기를 쓸 수 있게 한다.
+let historyHandler: ((action: "undo" | "redo") => boolean) | undefined;
+// 편집기가 없는 읽기 전용 화면에서도 검색창의 기본 실행 취소는 동작해야 한다.
+ipcRenderer.on("edit:history", (_event, action: unknown) => {
+  if (action !== "undo" && action !== "redo") return;
+  if (!historyHandler?.(action)) void ipcRenderer.invoke("edit:nativeHistory", action);
+});
 const editing: DesktopEditing = {
   isMisspelled: word => webFrame.isWordMisspelled(word),
   suggestions: word => webFrame.getWordSuggestions(word),
   paste: () => { void ipcRenderer.invoke("edit:paste"); },
   onHistory: handler => {
-    const listener = (_event: Electron.IpcRendererEvent, action: unknown) => {
-      if (action !== "undo" && action !== "redo") return;
-      // 제목·찾기 입력란 등은 운영체제의 기본 실행 취소를 쓴다.
-      if (!handler(action)) void ipcRenderer.invoke("edit:nativeHistory", action);
-    };
-    ipcRenderer.on("edit:history", listener);
-    return () => { ipcRenderer.removeListener("edit:history", listener); };
+    historyHandler = handler;
+    return () => { if (historyHandler === handler) historyHandler = undefined; };
   },
 };
 contextBridge.exposeInMainWorld("wonboardDesktopEditing", editing);
