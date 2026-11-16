@@ -130,6 +130,19 @@ test("toolbar undo and redo keep the reading position when the cursor is offscre
   after = await readingPosition(page);
   expect(after.anchorOffset).toBe(before.anchorOffset);
   expect(Math.abs(after.scroll - before.scroll)).toBeLessThanOrEqual(2);
+  // 키보드로 버튼을 누를 때도 본문으로 초점을 강제로 돌려 화면을 움직이지 않는다.
+  const undo = page.getByRole("button", { name: "Undo", exact: true });
+  const redo = page.getByRole("button", { name: "Redo", exact: true });
+  await undo.focus();
+  await page.keyboard.press("Space");
+  await expect(body.locator("p").first()).not.toContainText(marker);
+  await expect(undo).toBeFocused();
+  expect(Math.abs((await readingPosition(page)).scroll - before.scroll)).toBeLessThanOrEqual(2);
+  await redo.focus();
+  await page.keyboard.press("Space");
+  await expect(body.locator("p").first()).toContainText(marker);
+  await expect(redo).toBeFocused();
+  expect(Math.abs((await readingPosition(page)).scroll - before.scroll)).toBeLessThanOrEqual(2);
   expect(errors).toEqual([]);
 });
 

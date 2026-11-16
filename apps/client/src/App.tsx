@@ -469,7 +469,8 @@ export default function App({
             className="icon-button"
             aria-label={t("undo")}
             disabled={!editor?.can().undo() || busy || writer.readOnly}
-            onClick={() => editor?.chain().focus(undefined, { scrollIntoView: false }).undo().run()}
+            onMouseDown={event => event.preventDefault()}
+            onClick={() => editor?.commands.undo()}
           >
             <Icon name="undo" />
           </button>
@@ -477,7 +478,8 @@ export default function App({
             className="icon-button"
             aria-label={t("redo")}
             disabled={!editor?.can().redo() || busy || writer.readOnly}
-            onClick={() => editor?.chain().focus(undefined, { scrollIntoView: false }).redo().run()}
+            onMouseDown={event => event.preventDefault()}
+            onClick={() => editor?.commands.redo()}
           >
             <Icon name="redo" />
           </button>
